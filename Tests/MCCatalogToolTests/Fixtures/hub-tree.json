@@ -1,0 +1,18 @@
+[
+  { "type": "file", "path": ".gitattributes", "size": 12 },
+  { "type": "file", "path": "README.md", "size": 4 },
+  { "type": "file", "path": "config.json", "size": 2 },
+  {
+    "type": "file",
+    "path": "pytorch_model.bin",
+    "size": 8,
+    "lfs": { "oid": "1111111111111111111111111111111111111111111111111111111111111111", "size": 8 }
+  },
+  { "type": "directory", "path": "transformer" },
+  {
+    "type": "file",
+    "path": "transformer/model.safetensors",
+    "size": 4096,
+    "lfs": { "oid": "2222222222222222222222222222222222222222222222222222222222222222", "size": 4096 }
+  }
+]

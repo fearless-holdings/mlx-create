@@ -1,0 +1,162 @@
+{
+  "issued_at" : "2026-10-16T00:00:00Z",
+  "models" : [
+    {
+      "download_bytes" : 4619699951,
+      "family" : "flux2-klein",
+      "files" : [
+        {
+          "path" : "config.json",
+          "sha256" : "2d09aef957ff45cccacf0bd4b9daae0684d1b802232343b387f5aee00b5fe238",
+          "size" : 455
+        },
+        {
+          "path" : "text_encoder\/0.safetensors",
+          "sha256" : "4425bbe79bdf4d171dfa16117d61a174a22bdfab971478bd9eb7962eea855212",
+          "size" : 2135435091
+        },
+        {
+          "path" : "text_encoder\/1.safetensors",
+          "sha256" : "941c6099f3014d6e4eb6af7deba890e1423b41e0fe4a9a218afb6b17d61c8bc8",
+          "size" : 127582109
+        },
+        {
+          "path" : "text_encoder\/model.safetensors.index.json",
+          "sha256" : "594c9b5f3fbe132406a1ca3551b14226db1010053aa546f372dc0b5dd03a6f19",
+          "size" : 51332
+        },
+        {
+          "path" : "tokenizer\/chat_template.jinja",
+          "sha256" : "a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8",
+          "size" : 4168
+        },
+        {
+          "path" : "tokenizer\/tokenizer.json",
+          "sha256" : "be75606093db2094d7cd20f3c2f385c212750648bd6ea4fb2bf507a6a4c55506",
+          "size" : 11422650
+        },
+        {
+          "path" : "tokenizer\/tokenizer_config.json",
+          "sha256" : "579073f506a3f85caed232bb91617cfb93028408d1f43ffaf66f3fc1aee9a9af",
+          "size" : 348
+        },
+        {
+          "path" : "transformer\/0.safetensors",
+          "sha256" : "b8b21514b059d129cf27ea0650ede92608ae05b8c99ab7239148c69da954f82b",
+          "size" : 2145323701
+        },
+        {
+          "path" : "transformer\/1.safetensors",
+          "sha256" : "a85ce666eaa791dd7d8082352a61a9f3e24b36e04604bbe3856e7bebd5d61589",
+          "size" : 34727730
+        },
+        {
+          "path" : "transformer\/model.safetensors.index.json",
+          "sha256" : "ca07f4f1b921c373d2e6323100c22dd7c7cd3ae9b6ef8fbe9b56e8f1883a9a93",
+          "size" : 26908
+        },
+        {
+          "path" : "vae\/0.safetensors",
+          "sha256" : "5053e0f1a87db7b97dc9f43ddba152c0d77858e87ab515fdf2ed9e6ca0374fab",
+          "size" : 165107912
+        },
+        {
+          "path" : "vae\/model.safetensors.index.json",
+          "sha256" : "404dcd01ec193bef1504a24ec3935bfbbb360c75365e17b241a00f9ec007c86b",
+          "size" : 17547
+        }
+      ],
+      "id" : "flux2-klein-4b-mflux-4bit",
+      "license" : {
+        "commercial_use" : true,
+        "id" : "apache-2.0",
+        "name" : "Apache License 2.0",
+        "summary" : "Apache License 2.0. Commercial use is allowed. Keep the license and any notices when you redistribute the model.",
+        "url" : "https:\/\/www.apache.org\/licenses\/LICENSE-2.0",
+        "version" : "2.0"
+      },
+      "name" : "FLUX.2 klein 4B",
+      "quantization" : "4-bit (mflux)",
+      "ram_gb" : 8,
+      "repo" : "Runpod\/FLUX.2-klein-4B-mflux-4bit",
+      "revision" : "7ee1b3aa8178a1240050490072196a57da2bf2a9"
+    },
+    {
+      "download_bytes" : 15829398549,
+      "family" : "krea-2-turbo",
+      "files" : [
+        {
+          "path" : "LICENSE",
+          "sha256" : "2ebbfd9a712f3d8ed3cc9e57363c1be33871412fb7dbdea56418200417976be7",
+          "size" : 14568
+        },
+        {
+          "path" : "NOTICE",
+          "sha256" : "5c0de52c04600e72671fcc55c79fc92a7ec47f355760fe713d9949e74a835bff",
+          "size" : 1776
+        },
+        {
+          "path" : "config.json",
+          "sha256" : "90e670779ac26d6b57ea5f50b3e027cabab4aebdc403aba22be99da521567230",
+          "size" : 28
+        },
+        {
+          "path" : "text_encoder\/config.json",
+          "sha256" : "1a1006851200920f53ab7e17ca14a8b3d1b91075dfbbff493307ba894cab0abb",
+          "size" : 1559
+        },
+        {
+          "path" : "text_encoder\/model.safetensors",
+          "sha256" : "c6fbafa488404694a4e3ee33b5d9550fc43494a83288a5e39a747491deba8ab0",
+          "size" : 5469542659
+        },
+        {
+          "path" : "tokenizer\/chat_template.jinja",
+          "sha256" : "3636d0f0bd6bef02654cdffdc447b79cb2cef8ab02cc75267345946291a489e4",
+          "size" : 5292
+        },
+        {
+          "path" : "tokenizer\/tokenizer.json",
+          "sha256" : "be75606093db2094d7cd20f3c2f385c212750648bd6ea4fb2bf507a6a4c55506",
+          "size" : 11422650
+        },
+        {
+          "path" : "tokenizer\/tokenizer_config.json",
+          "sha256" : "c871ed314285a377eccf509b906aa5fe015d5e79a3ddab2c198467329127ead6",
+          "size" : 664
+        },
+        {
+          "path" : "transformer_mixed_4_8.safetensors",
+          "sha256" : "985d60722b339c3cd9df16a173f0cb504ae93d81ce9fbe2c3ab158cf5b60a5fb",
+          "size" : 9840816670
+        },
+        {
+          "path" : "vae\/config.json",
+          "sha256" : "54949c79def0d1060353c3fbfd4d2d2c4815ae241da6d6d28c99634c4eac6e6e",
+          "size" : 791
+        },
+        {
+          "path" : "vae\/diffusion_pytorch_model.safetensors",
+          "sha256" : "ab1b61103959913d6c7e628cf793dbb2ca4726a40a3b3ae206c52b8e75bf6f08",
+          "size" : 507591892
+        }
+      ],
+      "id" : "krea-2-turbo-mixed-4-8",
+      "license" : {
+        "commercial_use" : true,
+        "id" : "krea-2-community-license",
+        "name" : "Krea 2 Community License Agreement",
+        "summary" : "Commercial use is allowed only while your company's total revenue, including affiliates, is under US$1,000,000 on a trailing twelve-month basis (section 2.3). Above that you need an enterprise license from Krea before any commercial use. Any deployment must run reasonable and appropriate content filtering to detect and mitigate harmful content (section 4.2). mlx-create applies no content filter of its own, so the filter is your responsibility.",
+        "url" : "https:\/\/krea.ai\/krea-2-licensing",
+        "version" : "1 (June 22, 2026)"
+      },
+      "name" : "Krea 2 Turbo",
+      "quantization" : "mixed 4\/8-bit",
+      "ram_gb" : 17.6,
+      "repo" : "ddalcu\/Krea-2-Turbo-MLX-Serve-mixed-4-8",
+      "revision" : "db7840abe3c7f7c5c5ef4de049f334d16852d19f"
+    }
+  ],
+  "schema_version" : 1,
+  "sequence" : 1
+}

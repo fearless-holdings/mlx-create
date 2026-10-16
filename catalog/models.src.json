@@ -1,0 +1,39 @@
+{
+  "issued_at": "2026-10-16T00:00:00Z",
+  "models": [
+    {
+      "id": "flux2-klein-4b-mflux-4bit",
+      "family": "flux2-klein",
+      "name": "FLUX.2 klein 4B",
+      "quantization": "4-bit (mflux)",
+      "repo": "Runpod/FLUX.2-klein-4B-mflux-4bit",
+      "ref": "main",
+      "ram_gb": 8,
+      "license": {
+        "id": "apache-2.0",
+        "name": "Apache License 2.0",
+        "url": "https://www.apache.org/licenses/LICENSE-2.0",
+        "commercial_use": true,
+        "version": "2.0",
+        "summary": "Apache License 2.0. Commercial use is allowed. Keep the license and any notices when you redistribute the model."
+      }
+    },
+    {
+      "id": "krea-2-turbo-mixed-4-8",
+      "family": "krea-2-turbo",
+      "name": "Krea 2 Turbo",
+      "quantization": "mixed 4/8-bit",
+      "repo": "ddalcu/Krea-2-Turbo-MLX-Serve-mixed-4-8",
+      "ref": "main",
+      "ram_gb": 17.6,
+      "license": {
+        "id": "krea-2-community-license",
+        "name": "Krea 2 Community License Agreement",
+        "url": "https://krea.ai/krea-2-licensing",
+        "commercial_use": true,
+        "version": "1 (June 22, 2026)",
+        "summary": "Commercial use is allowed only while your company's total revenue, including affiliates, is under US$1,000,000 on a trailing twelve-month basis (section 2.3). Above that you need an enterprise license from Krea before any commercial use. Any deployment must run reasonable and appropriate content filtering to detect and mitigate harmful content (section 4.2). mlx-create applies no content filter of its own, so the filter is your responsibility."
+      }
+    }
+  ]
+}

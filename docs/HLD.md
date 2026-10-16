@@ -66,6 +66,8 @@ Settled during the design interview. Later documents cite these IDs.
 | D23 | Seeds are app-resolved integers in **0..<2^32** and always sent explicitly (§8.1) | The engine reads `seed` as unsigned and defaults to 42 |
 | D24 | The library records the **engine's actual output** (pixel size from the PNG, step count from the last progress event), not the request (§8.2, §8.9). A job with no progress event records its step count as **unknown** (stored as nil; the PNG `parameters` line omits `Steps:`), never the requested count | The engine rounds size to the family grid and may run the checkpoint's own step grid, so the requested count is not evidence of what ran |
 | D25 | **FLUX.2 klein accepts multiples of 32 in [256, 1536]** at the pinned engine (upstream `clampFluxDim`, v26.10.2), not a fixed 1024². Krea keeps multiples of 16 in [256, 2048]. The UI reads each family's size grid from its capability record, never a per-family constant | The earlier "fixed 1024²" reading of FLUX was wrong. `families.json` carries the grid; the composer snaps to it |
+| D26 | **Krea-2 Turbo is listed in the catalog; the license is accepted at download, per license version.** The app implements no content filtering (D3, G6). The license sheet states in plain language the Krea 2 Community License v1 content-filter clause (§4.2) and the commercial revenue cap (§2.3), and the user accepts both before the install starts. Acceptance records the license id, version and time. A later license version requires fresh acceptance for new installs and leaves installed models alone (D20) | §4.2 requires "reasonable and appropriate Content Filter measures" and §2.3 permits commercial use only under USD 1M trailing twelve-month revenue. Listing the model behind an accept-at-download gate, rather than excluding it, keeps the family available and shows both terms before use |
+| D27 | **The signed catalog is the trust root for model file contents.** Each catalog model pins a 40-hex Hugging Face commit and lists every file's path, size and SHA-256. Hugging Face is transport only. The app pins Ed25519 public keys; the loader takes the highest-sequence valid catalog, and a remote catalog never replaces a cache with a lower sequence. Installs stage in `Models/.partial/<install-id>/` and rename into `Weights/<org>/<repo>/` only after every file verifies. The `DOWNLOAD` table is dropped: resume sidecars and a staging manifest hold in-flight state. `INSTALLED_MODEL` gains a per-file manifest and a license version | The HF tree API gives SHA-256 only for LFS files, and the `X-Linked-Etag` header is unsigned and absent for small files, so only a signed per-file manifest covers every file. Sidecars and a manifest already carry in-flight state, so a table would duplicate them |
 | D28 | **One app instance per user account.** A second launch activates the running window and exits. The running app holds `Engine/app.lock` (opened `O_CLOEXEC`, `flock` exclusive, non-blocking) for its whole life. The engine is reaped from the pid record only under that lock. The app sends the key only to a child whose `/health` is ok **and** whose pid, checked through libproc, listens on the chosen port; otherwise the launch fails and retries on a fresh port | Chosen over an ownership token in the pid record: simpler, and it also stops the shared library sweep race. Governs R12, R13 (KTD11, KTD12) |
 | D29 | The library opens **off the main actor**, behind a loading view. A **user pause persists** across relaunch as a `UserDefaults` flag that Resume clears. The engine-failure hold pauses **in memory only** and writes nothing (KTD14) | Opening the library must not stall launch (R15). A paused queue must stay paused after the app is reopened (R14). An engine-failure hold is not user intent, so a healthy relaunch drains without a Resume press |
 
@@ -335,10 +337,10 @@ Families and their mappings come from the signed catalog (§8.5), so new Civitai
 
 **Catalog** (signed JSON on our CDN, fetched daily, with a bundled fallback copy):
 
-- **Models:** id, family, source repo (HF), quantization, download size, approx RAM, license (SPDX or URL, commercial-use flag), per-tier default settings, reference timings per chip class.
+- **Models:** id, family (matches §8.4), source repo (HF), pinned 40-hex commit revision, per-file path, size and SHA-256 (D27), quantization, download bytes, approximate RAM, license (id, name, URL, commercial-use flag, version and a plain-language summary), per-tier default settings, reference timings per chip class.
 - **Enhancer models** per RAM tier.
 - **Families** (§8.4) and prompt pack versions.
-- **Signature:** Curve25519 via CryptoKit, public key pinned in the app.
+- **Signature and rollback:** Ed25519 via CryptoKit over the exact bytes of `catalog.json`, detached in `catalog.json.sig`, which names a key id from the pinned key list. Each catalog carries `schema_version` and a monotonic `sequence`. The loader takes the highest valid sequence among bundled and cached copies, and rejects a remote copy whose sequence is lower than the cache's (`docs/lld/models.md`).
 
 **Hardware profile:**
 
@@ -473,7 +475,6 @@ erDiagram
   INSTALLED_MODEL ||--o{ IMAGE : "checkpoint used"
   IMAGE }o--o{ INSTALLED_MODEL : "LoRAs used (by sha256)"
   INSTALLED_MODEL ||--o{ CALIBRATION : measured
-  DOWNLOAD }o--|| INSTALLED_MODEL : installs
 
   PROJECT {
     uuid id
@@ -521,7 +522,9 @@ erDiagram
     string sha256
     string path
     int64 size_bytes
+    json file_manifest
     json license
+    string license_version
     datetime license_accepted_at
     json trigger_words
     json example_prompts
@@ -533,14 +536,6 @@ erDiagram
     float sec_per_step
     string engine_version
     datetime measured_at
-  }
-  DOWNLOAD {
-    uuid id
-    string url
-    string dest
-    string status
-    int64 bytes_done
-    int64 bytes_total
   }
 ```
 
@@ -557,7 +552,7 @@ erDiagram
 ├── Models/                        # relocatable (external drive supported)
 │   ├── Weights/<org>/<repo>/      # checkpoints + enhancer LLMs (--model-dir)
 │   ├── LoRAs/<family>/<sha10>-<slug>.safetensors (+ .json metadata sidecar)
-│   └── .partial/                  # download chunks + resume sidecars
+│   └── .partial/<install-id>/     # staged installs: chunks, resume sidecars, staging manifest (D27)
 ├── Engine/                        # engine HOME: .mlx-serve/{logs,kv-cache,…}, pid
 │   └── .mlx-serve/models → ../../Models/Weights (symlink)
 └── Catalog/
