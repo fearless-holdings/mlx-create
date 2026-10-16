@@ -29,6 +29,8 @@ public struct RunningProgress: Equatable, Sendable {
 @Observable
 public final class AppModel {
     private static let lastUsedModelKey = "lastUsedModelID"
+    /// The defaults key for a user pause (KTD14). Set by `pauseQueue`, cleared by `resumeQueue`.
+    static let queuePausedDefaultsKey = "queuePaused"
     private static let recentImageLimit = 200
     private static let shutdownLimit: Duration = .seconds(3)
 
@@ -108,11 +110,13 @@ public final class AppModel {
         self.composer = GenerationComposer(registry: registry, store: store)
         self.libraryPaths = libraryPaths
         self.selectedModelID = defaults.string(forKey: Self.lastUsedModelKey)
+        queueHeader = QueuePresentation.header(
+            isRunning: false, pauseRequested: defaults.bool(forKey: Self.queuePausedDefaultsKey))
     }
 
     /// The production app: the bundled engine, the library and queue in Application Support, and the bundled registry.
     /// Starts the engine and the queue in the background.
-    public static func live() throws -> AppModel {
+    public static func live() async throws -> AppModel {
         let support = try FileManager.default.url(
             for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true
         ).appending(path: "mlx-create", directoryHint: .isDirectory)
@@ -124,7 +128,7 @@ public final class AppModel {
 
         let registry = try FamilyRegistry.bundled()
         let libraryRoot = support.appending(path: "Library", directoryHint: .isDirectory)
-        let store = try LibraryStore(libraryRoot: libraryRoot)
+        let store = try await LibraryStore.open(libraryRoot: libraryRoot)
         let supervisor = EngineSupervisor(paths: paths, tier: .current)
 
         let (states, continuation) = AsyncStream<EngineState>.makeStream()
@@ -224,6 +228,8 @@ public final class AppModel {
     public func start() async {
         guard !started else { return }
         started = true
+        // The user's pause outlives the app (KTD14): a flag left by Pause pauses the queue before anything drains.
+        if defaults.bool(forKey: Self.queuePausedDefaultsKey) { await queue.pause() }
         do {
             try await queue.recoverAfterRelaunch()
         } catch {
@@ -273,6 +279,7 @@ public final class AppModel {
         case .failed:
             // The queue keeps its jobs queued while the engine is down: pause the drain before the gate fails
             // requests, so no queued job is taken and failed by the dead engine.
+            // This hold lives in memory only and writes no flag (KTD14), so a healthy relaunch drains without a Resume press.
             if !(await queue.isPauseRequested) {
                 await queue.pause()
                 heldByEngineFailure = true
@@ -410,7 +417,11 @@ public final class AppModel {
         }
     }
 
+    /// Pauses the queue and persists the pause (KTD14), so it survives a relaunch. An engine-failure hold is
+    /// superseded: the user's pause must not be undone when the engine recovers.
     public func pauseQueue() async {
+        defaults.set(true, forKey: Self.queuePausedDefaultsKey)
+        heldByEngineFailure = false
         await queue.pause()
         await reload()
     }
@@ -420,6 +431,7 @@ public final class AppModel {
             lastError = "The image engine is not running. Restart the engine to resume the queue."
             return
         }
+        defaults.removeObject(forKey: Self.queuePausedDefaultsKey)
         do {
             try await queue.resume()
             heldByEngineFailure = false
