@@ -194,8 +194,12 @@ public actor LibraryStore {
             try fm.createDirectory(at: finalURL.deletingLastPathComponent(), withIntermediateDirectories: true)
             try fm.createDirectory(at: thumbURL.deletingLastPathComponent(), withIntermediateDirectories: true)
 
-            let withMetadata = try MetadataCodec.embed(new.settings, into: new.pngData)
-            let size = try Thumbnails.pixelSize(ofPNG: withMetadata)
+            // The engine may round the request to its size grid, so the PNG is the only source of the real size (KTD3, R16).
+            let size = try Thumbnails.pixelSize(ofPNG: new.pngData)
+            var settings = new.settings
+            settings.width = size.width
+            settings.height = size.height
+            let withMetadata = try MetadataCodec.embed(settings, into: new.pngData)
             try withMetadata.write(to: partialURL)
             created.append(partialURL)
             try fm.moveItem(at: partialURL, to: finalURL)
@@ -217,7 +221,7 @@ public actor LibraryStore {
                 thumbPath: thumbPath,
                 width: size.width,
                 height: size.height,
-                settings: new.settings,
+                settings: settings,
                 createdAt: now
             )
             try dbQueue.write { db in try ImageRow(image).insert(db) }
