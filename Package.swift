@@ -24,6 +24,7 @@ let package = Package(
         .target(name: "MCApp", dependencies: ["MCGeneration", "MCEngine", "MCCatalog", "MCLibrary"]),
         .testTarget(name: "MCEngineTests", dependencies: ["MCEngine"], resources: [.copy("Fixtures")]),
         .testTarget(name: "MCCatalogTests", dependencies: ["MCCatalog"]),
+        .testTarget(name: "MCModelsTests", dependencies: ["MCModels"], resources: [.copy("Fixtures")]),
         .testTarget(name: "MCLibraryTests", dependencies: ["MCLibrary"]),
         .testTarget(name: "MCGenerationTests", dependencies: ["MCGeneration"]),
         .testTarget(name: "MCAppTests", dependencies: ["MCApp"]),
