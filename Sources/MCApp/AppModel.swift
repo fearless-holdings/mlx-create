@@ -4,6 +4,7 @@ import MCCatalog
 import MCEngine
 import MCGeneration
 import MCLibrary
+import MCModels
 import Observation
 
 /// Which seed the next job uses. `fixed` and `increment` read ``AppModel/seedText``.
@@ -35,6 +36,8 @@ public final class AppModel {
     private static let shutdownLimit: Duration = .seconds(3)
 
     public let weightsPath: String
+    /// Model installs (U5): the catalog, the installer and the library record. Nil when no catalog is supplied.
+    public private(set) var installs: InstallCoordinator?
 
     public private(set) var engineState: EngineState = .stopped
     public private(set) var models: [InstalledModel] = []
@@ -92,7 +95,9 @@ public final class AppModel {
         libraryPaths: LibraryPaths,
         supervisor: EngineSupervisor? = nil,
         engineVersion: String? = nil,
-        defaults: UserDefaults = .standard
+        defaults: UserDefaults = .standard,
+        catalog: Catalog? = nil,
+        transport: (any ModelTransport)? = nil
     ) {
         self.store = store
         self.client = client
@@ -112,6 +117,15 @@ public final class AppModel {
         self.selectedModelID = defaults.string(forKey: Self.lastUsedModelKey)
         queueHeader = QueuePresentation.header(
             isRunning: false, pauseRequested: defaults.bool(forKey: Self.queuePausedDefaultsKey))
+        // The installer's rescan refreshes the picker as well as asking the engine to rescan (R10).
+        if let catalog, let transport {
+            installs = InstallCoordinator(
+                catalog: catalog, store: store, transport: transport,
+                rescan: { [weak self] in
+                    guard let self else { return }
+                    await self.refreshModels()
+                })
+        }
     }
 
     /// The production app: the bundled engine, the library and queue in Application Support, and the bundled registry.
@@ -129,6 +143,15 @@ public final class AppModel {
         let registry = try FamilyRegistry.bundled()
         let libraryRoot = support.appending(path: "Library", directoryHint: .isDirectory)
         let store = try await LibraryStore.open(libraryRoot: libraryRoot)
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
+        let userAgent = "mlx-create/\(version)"
+        // A catalog that does not verify leaves installs disabled (`installs` stays nil); the rest of the app still launches.
+        let catalog = try? CatalogStore(
+            bundled: BundledCatalog.fromBundle(),
+            cacheDirectory: support.appending(path: "Catalog", directoryHint: .isDirectory),
+            keys: PinnedKeys.keys, remoteURL: nil, transport: URLSessionCatalogTransport(userAgent: userAgent)
+        ).current().catalog
+        let downloader = ModelDownloader(configuration: .init(modelsRoot: modelsRoot, userAgent: userAgent))
         let supervisor = EngineSupervisor(paths: paths, tier: .current)
 
         let (states, continuation) = AsyncStream<EngineState>.makeStream()
@@ -142,7 +165,7 @@ public final class AppModel {
         let model = AppModel(
             store: store, client: client, gate: gate, registry: registry, states: states,
             weightsPath: paths.weights.path, libraryPaths: LibraryPaths(root: libraryRoot), supervisor: supervisor,
-            engineVersion: bundledEngineVersion())
+            engineVersion: bundledEngineVersion(), catalog: catalog, transport: downloader)
         Task { await model.start() }
         return model
     }
