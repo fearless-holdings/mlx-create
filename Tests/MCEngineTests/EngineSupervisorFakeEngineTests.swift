@@ -148,4 +148,31 @@ struct EngineSupervisorFakeEngineTests {
         for pid in Self.spawnedPIDs(paths) { #expect(!SupervisorFixtures.isAlive(pid)) }
         #expect(!SupervisorFixtures.isAlive(stale.processIdentifier))
     }
+
+    @Test(.enabled(if: FileManager.default.isExecutableFile(atPath: "/usr/bin/python3")))
+    func bindingChildReachesReadyOnTheChosenPort() async throws {
+        let paths = try SupervisorFixtures.makePaths(
+            executable: SupervisorFixtures.writeExecutable(Self.healthyEngine))
+        let supervisor = EngineSupervisor(paths: paths, tier: SupervisorFixtures.tier)
+        try await SupervisorFixtures.withSupervisor(supervisor) {
+            await supervisor.start()
+            let endpoint = try await SupervisorFixtures.awaitReady(supervisor)
+            let record = try #require(PidFile.read(at: paths.pidFile))
+            #expect(endpoint.baseURL.port == record.port)
+            #expect(await SupervisorFixtures.isListening(endpoint))
+        }
+    }
+
+    @Test func childThatExitsDuringReadinessIsALaunchFailure() async throws {
+        let paths = try SupervisorFixtures.makePaths(
+            executable: SupervisorFixtures.writeExecutable("#!/bin/sh\nexit 3\n"))
+        let supervisor = EngineSupervisor(paths: paths, tier: SupervisorFixtures.tier)
+        try await SupervisorFixtures.withSupervisor(supervisor) {
+            await supervisor.start()
+            let state = try await SupervisorFixtures.waitForState(supervisor, where: SupervisorFixtures.isRestarting)
+            guard case .restarting(_, let cause) = state else { throw CancellationError() }
+            #expect(cause.kind == .launchFailed)
+            #expect(cause.exit == .code(3))
+        }
+    }
 }

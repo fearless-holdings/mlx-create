@@ -46,6 +46,8 @@ public actor EngineSupervisor {
 
     private let paths: EnginePaths
     private let tier: MemoryTier
+    /// Chooses the loopback port for each launch. Injected so a test can force a collision.
+    private let freePort: @Sendable () throws -> Int
     private var budget = RestartBudget()
     private var currentStateValue: EngineState = .stopped
     private var subscribers: [UUID: AsyncStream<EngineState>.Continuation] = [:]
@@ -55,9 +57,14 @@ public actor EngineSupervisor {
 
     public private(set) var lastCrash: EngineCrash?
 
-    public init(paths: EnginePaths, tier: MemoryTier) {
+    public init(
+        paths: EnginePaths,
+        tier: MemoryTier,
+        freePort: (@Sendable () throws -> Int)? = nil
+    ) {
         self.paths = paths
         self.tier = tier
+        self.freePort = freePort ?? Self.freeLoopbackPort
     }
 
     public var currentState: EngineState { currentStateValue }
@@ -164,7 +171,7 @@ public actor EngineSupervisor {
         if Task.isCancelled { return .cancelled }
         let port: Int
         do {
-            port = try Self.freeLoopbackPort()
+            port = try freePort()
         } catch {
             return .crashed(processCrash(exit: nil, tail: error.localizedDescription, phase: .launching))
         }
