@@ -61,6 +61,10 @@ Settled during the design interview. Later documents cite these IDs.
 | D18 | **Canvas-first** main window; the gallery is a separate mode | |
 | D19 | **Sparkle** updates + **opt-in anonymous analytics** | |
 | D20 | Model licenses **shown, accepted on download**; defaults favour permissive licenses; we never redistribute weights | Some curated weights carry non-commercial licenses |
+| D21 | Until the signed catalog exists (D16), a **bundled capability record per verified family** (`families.json`) drives the settings surface (§8.3–8.4) | Only families whose size grid, step default and guidance support were checked against the pinned engine source get a record; other installed models show as unavailable |
+| D22 | A1111 `Model hash` is **omitted** until catalog identifiers exist (§8.9); the `mlx-create` chunk carries the engine model id and a `schema_version` | The hash is defined from catalog data that v1 t2i does not have yet |
+| D23 | Seeds are app-resolved integers in **0..<2^32** and always sent explicitly (§8.1) | The engine reads `seed` as unsigned and defaults to 42 |
+| D24 | The library records the **engine's actual output** (pixel size from the PNG, step count from the last progress event), not the request (§8.2, §8.9) | The engine rounds size to the family grid and may run the checkpoint's own step grid |
 
 ## 4. Constraints and assumptions
 
@@ -185,6 +189,7 @@ Swift package modules:
 - `MCEngine`: supervisor and client
 - `MCCatalog`: catalog, families, recommender
 - `MCLibrary`: GRDB store, metadata codec
+- `MCGeneration`: job queue, executor, composer (depends on `MCEngine`, `MCCatalog`, `MCLibrary`; keeps the store free of engine knowledge and the UI free of queue logic)
 - `MCModels`: manager, sources, downloads
 - `MCEnhancer`
 - `MCApp`: UI

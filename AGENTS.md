@@ -100,6 +100,12 @@ HLD Appendix A lists the files worth reusing. The rules:
 - **Errors users see** must be actionable. Map engine failures (OOM, LoRA mismatch, missing weights) to plain-language messages.
 - Prefer boring, explicit code over abstraction. Add a protocol only where the HLD names a seam: `ModelSource`, `Entitlements`, `ModelFamily`.
 
+## Commands
+
+- Library tests: `swift test` (five library targets, Swift Testing).
+- App project: `xcodegen generate` (needs XcodeGen 2.46+, `brew install xcodegen`), then `xcodebuild -project MLXCreate.xcodeproj -scheme MLXCreate -configuration Debug -derivedDataPath build build`. The generated `MLXCreate.xcodeproj` and `build/` are git-ignored.
+- Engine embed runs as a post-compile script from `project.yml` (`scripts/embed-engine.sh`, pinned by `engine.lock`).
+
 ## Verification
 
 - **Smoke-test against the real engine**, using the smallest model: FLUX.2-klein 4B 4-bit, about 5 GB.

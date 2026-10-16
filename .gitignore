@@ -17,6 +17,7 @@ DerivedData/
 *.app
 *.dmg
 *.zip
+*.xcodeproj/
 
 # Engine and reference downloads (pinned binaries are fetched at build time)
 engine/

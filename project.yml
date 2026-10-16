@@ -1,0 +1,44 @@
+name: MLXCreate
+options:
+  bundleIdPrefix: com.fearless
+  deploymentTarget:
+    macOS: "26.2"
+packages:
+  MLXCreate:
+    path: .
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    MACOSX_DEPLOYMENT_TARGET: "26.2"
+targets:
+  MLXCreate:
+    type: application
+    platform: macOS
+    sources:
+      - App
+    dependencies:
+      - package: MLXCreate
+        product: MCApp
+      - package: MLXCreate
+        product: MCGeneration
+      - package: MLXCreate
+        product: MCEngine
+      - package: MLXCreate
+        product: MCCatalog
+      - package: MLXCreate
+        product: MCLibrary
+    settings:
+      base:
+        PRODUCT_NAME: mlx-create
+        PRODUCT_BUNDLE_IDENTIFIER: com.fearless.mlx-create
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: mlx-create
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.graphics-design
+        INFOPLIST_KEY_NSHumanReadableCopyright: ""
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "-"
+        ENABLE_HARDENED_RUNTIME: YES
+    # U2 fills this slot with scripts/embed-engine.sh
+    postCompileScripts: []
