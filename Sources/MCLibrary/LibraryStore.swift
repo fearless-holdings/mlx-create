@@ -26,6 +26,22 @@ public actor LibraryStore {
         }
     }
 
+    /// Opens the library off the caller's actor (R15). Directory creation, migrations, the `.partial` sweep and the
+    /// default project run on a detached task, so launch never blocks the main thread.
+    public static func open(libraryRoot: URL) async throws -> LibraryStore {
+        try await openOffActor(libraryRoot: libraryRoot) { _ in }
+    }
+
+    /// ``open(libraryRoot:)`` with a probe that reports whether the opening work ran on the main thread (R15 test seam).
+    static func openOffActor(
+        libraryRoot: URL, observe: @escaping @Sendable (_ onMainThread: Bool) -> Void
+    ) async throws -> LibraryStore {
+        try await Task.detached(priority: .userInitiated) {
+            observe(pthread_main_np() != 0)
+            return try LibraryStore(libraryRoot: libraryRoot)
+        }.value
+    }
+
     // MARK: Schema
 
     static var migrator: DatabaseMigrator {
