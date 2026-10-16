@@ -1,0 +1,3 @@
+[gen] step 9/20
+[METAL] Command buffer execution failed: Insufficient Memory (00000008:kIOGPUCommandBufferCallbackErrorOutOfMemory)
+libc++abi: terminating due to uncaught exception of type std::runtime_error: MLX error

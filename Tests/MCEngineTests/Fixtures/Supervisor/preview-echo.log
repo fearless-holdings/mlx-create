@@ -1,0 +1,3 @@
+[req] POST /v1/images/generations
+> "a lighthouse, MISSING WEIGHT, Insufficient memory to load model, error: none"
+[gen] done

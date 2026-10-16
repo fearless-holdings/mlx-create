@@ -1,0 +1,7 @@
+HTTP/1.1 400 Error
+Content-Type: application/json
+Content-Length: 40
+Connection: close
+Access-Control-Allow-Origin: *
+
+{"error":{"message":"missing 'prompt'"}}

@@ -1,0 +1,40 @@
+{
+  "id": "ddalcu/Krea-2-Turbo-MLX-Serve-mixed-4-8",
+  "object": "model",
+  "created": 1792148788,
+  "owned_by": "mlx-serve",
+  "loaded": true,
+  "state": "ready",
+  "bytes_resident": 15817951221,
+  "bytes_on_disk": 9840816670,
+  "context_length": 4096,
+  "max_model_len": 4096,
+  "batched_decode": true,
+  "capabilities": [
+    "image"
+  ],
+  "input_modalities": [
+    "text"
+  ],
+  "meta": {
+    "architecture": "krea2_turbo",
+    "engine": "mlx",
+    "vocab_size": 262208,
+    "hidden_size": 1,
+    "num_layers": 1,
+    "quantization": null,
+    "context_length": 4096,
+    "model_max_tokens": 4096,
+    "embedding_max_length": null,
+    "is_moe": false,
+    "drafter_loaded": false,
+    "drafter_path": null,
+    "mtp_loaded": false,
+    "mtp_available": false,
+    "spec_exact": false,
+    "kv_quant": "off",
+    "gen_temperature": null,
+    "gen_top_p": null,
+    "gen_top_k": null
+  }
+}

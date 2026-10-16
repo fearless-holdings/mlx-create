@@ -1,0 +1,5 @@
+HTTP/1.1 503 Service Unavailable
+Content-Type: application/json
+Connection: close
+
+{"error":{"message":"Not enough free memory to load model: weights + warmup headroom exceed what is currently available. Close other apps or models and retry (the server log names the peak estimate and available memory), or pass --skip-mem-preflight to override.","type":"out_of_memory","param":null,"code":503}}
