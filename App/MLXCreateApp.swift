@@ -1,27 +1,52 @@
 import AppKit
 import MCApp
+import Observation
 import SwiftUI
 
 @main
 struct MLXCreateApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    private let launch: Result<AppModel, Error>
+    private let launch: LaunchState
 
     init() {
-        launch = Result { try AppModel.live() }
-        if case .success(let model) = launch {
-            AppDelegate.model = model
-        }
+        let state = LaunchState()
+        launch = state
+        Task { await state.open() }
     }
 
     var body: some Scene {
         WindowGroup {
-            switch launch {
-            case .success(let model):
+            switch launch.phase {
+            case .loading:
+                LaunchLoadingView()
+            case .ready(let model):
                 MainWindow(model: model)
-            case .failure(let error):
+            case .failed(let error):
                 LaunchFailureView(error: error)
             }
+        }
+    }
+}
+
+/// Where the launch stands. The library opens off the main actor, so the window shows a loading view until the model is ready (R15).
+@MainActor
+@Observable
+final class LaunchState {
+    enum Phase {
+        case loading
+        case ready(AppModel)
+        case failed(Error)
+    }
+
+    private(set) var phase: Phase = .loading
+
+    func open() async {
+        do {
+            let model = try await AppModel.live()
+            AppDelegate.model = model
+            phase = .ready(model)
+        } catch {
+            phase = .failed(error)
         }
     }
 }
@@ -39,6 +64,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             sender.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater
+    }
+}
+
+/// Shown while the library opens. The open runs off the main actor, so this is all the window has to show (R15).
+private struct LaunchLoadingView: View {
+    var body: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+            Text("Opening library…")
+                .foregroundStyle(.secondary)
+        }
+        .padding(32)
+        .frame(minWidth: 480, minHeight: 200)
     }
 }
 
