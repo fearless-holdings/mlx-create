@@ -1,0 +1,42 @@
+# Secrets: never commit
+.env
+.env.*
+!.env.example
+
+# Omp runtime locks
+.omp/*.lock
+
+# Xcode / Swift build output
+build/
+DerivedData/
+.build/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.dSYM/
+*.app
+*.dmg
+*.zip
+
+# Engine and reference downloads (pinned binaries are fetched at build time)
+engine/
+Engine/
+vendor/
+reference/
+mlx-serve/
+*.tar.gz
+*.safetensors
+*.gguf
+*.bin
+*.pt
+*.ckpt
+
+# Local model weights and generated media
+Models/
+*.png.tmp
+
+# Tooling
+.DS_Store
+.swiftpm/
+.build-cache/
+node_modules/
