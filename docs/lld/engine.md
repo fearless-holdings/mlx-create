@@ -303,6 +303,16 @@ stateDiagram-v2
 - `stop()` cancels the readiness poll and any pending restart, sends SIGTERM, waits 3 s, then sends SIGKILL and deletes the PID file.
 - If the app itself dies without terminating cleanly, §5.4 catches the orphan on the next launch.
 
+### 5.9 Smoke-test record (2026-10-16, `v26.10.2`)
+
+Run by hand with the §5.2 flags and `HOME=/tmp/mc-home`. `mlx-serve-bin-macos-arm64.tar.gz` sha256 `7082424c2d4c3821c1b323e2822aec79502cc82475b01fd2bfcd70d6ccd7ec27` matched the release digest.
+
+- **HOME override works.** The engine wrote only `$HOME/.mlx-serve/logs/mlx-serve-<port>.log`. After a health check and a generation, nothing under the real `~/.mlx-serve` (outside `models/`) had a recent mtime. Listener was `127.0.0.1` only.
+- **`/health` is open.** It returned 200 `{"status":"ok"}` both with and without the key, even with `--api-key-strict`. This matches §5.2 ("`/health` stays open by design"). Strictness on authenticated routes (401 on a missing or wrong key) is **not yet tested**.
+- **Generation works.** `POST /v1/images/generations` with `ddalcu/Krea-2-Turbo` (mixed 4/8-bit), 512×512, explicit `seed: 7`, returned a valid 512×512 PNG in `data[0].b64_json` in about 8.5 s. The model was discovered through `--model-dir` on a folder containing only a symlink to the weights.
+- **Memory preflight rejects the request** with a JSON error `type:"out_of_memory"` (HTTP status not recorded) when free memory is too low. Observed: Krea-2 Turbo needs about 14.7 GB peak and about 17.6 GB free (log line `[preflight] media peak … available …`). The app must map this to a plain-language message (AGENTS.md → Errors users see). Don't pass `--skip-mem-preflight`.
+- **Gotcha:** the tarball extracts to `mlx-serve-macos-arm64/` with `mlx-serve` next to `lib/`. The binary runs in place from there.
+
 ## 6. Tests
 
 Permanent tests cover behaviour only (`AGENTS.md` → Verification):
