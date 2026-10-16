@@ -1,4 +1,5 @@
 import AppKit
+import MCEngine
 import MCApp
 import Observation
 import SwiftUI
