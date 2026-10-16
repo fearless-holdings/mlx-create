@@ -23,8 +23,8 @@ public struct UnavailableModelRow: Equatable, Sendable, Identifiable {
 
 /// What the canvas shows (U8 step 6).
 public enum CanvasMode: Equatable, Sendable {
-    /// Zero installed image models: explain where weights go and offer Reveal in Finder (R10).
-    case noModels(weightsPath: String)
+    /// Zero installed image models: offer Browse models (R10).
+    case noModels
     /// Image models exist but none can be driven: list each with its reason, no Reveal action.
     case onlyUnavailable([UnavailableModelRow])
     /// A model is available but nothing has been generated: show the "Type a prompt and press ⌘↩" hint, hide the filmstrip.

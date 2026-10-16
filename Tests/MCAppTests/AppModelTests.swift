@@ -114,7 +114,7 @@ func imageCount(_ model: AppModel) -> Int {
         model.prompt = "a lighthouse"
 
         #expect(model.models.isEmpty)
-        #expect(model.canvasMode == .noModels(weightsPath: "/tmp/mlx-create-tests/Weights"))
+        #expect(model.canvasMode == .noModels)
         #expect(model.canGenerate == false)
         #expect(model.controls == nil)
     }
