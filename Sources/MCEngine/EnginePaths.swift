@@ -17,6 +17,20 @@ public struct EnginePaths: Sendable {
     /// HOME for the engine.
     public var home: URL { appSupport.appendingPathComponent("Engine") }
     public var pidFile: URL { home.appendingPathComponent("engine.pid") }
+    /// Held with `flock` for the app's whole life (D28). A reap of a recorded engine runs only while it is held.
+    public var appLock: URL { Self.appLockURL(appSupport: appSupport) }
     public var modelsLink: URL { home.appendingPathComponent(".mlx-serve/models") }
     public var weights: URL { modelsRoot().appendingPathComponent("Weights") }
+
+    /// `<Application Support>/mlx-create`: the root the production app uses. Single-instance lock lives under it (D28).
+    public static func defaultAppSupport() throws -> URL {
+        try FileManager.default.url(
+            for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true
+        ).appending(path: "mlx-create", directoryHint: .isDirectory)
+    }
+
+    /// `Engine/app.lock` under `appSupport`.
+    public static func appLockURL(appSupport: URL) -> URL {
+        appSupport.appending(path: "Engine", directoryHint: .isDirectory).appending(path: "app.lock")
+    }
 }

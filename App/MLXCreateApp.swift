@@ -9,9 +9,27 @@ struct MLXCreateApp: App {
     private let launch: LaunchState
 
     init() {
+        Self.enforceSingleInstance()
         let state = LaunchState()
         launch = state
         Task { await state.open() }
+    }
+
+    /// D28: the first instance holds `Engine/app.lock` for its whole life. A second instance brings the running app
+    /// forward and quits before it opens the library or touches the engine.
+    private static func enforceSingleInstance() {
+        do {
+            let support = try EnginePaths.defaultAppSupport()
+            try InstanceLock.acquire(at: EnginePaths.appLockURL(appSupport: support))
+        } catch InstanceLock.Failure.heldByAnotherInstance {
+            let me = ProcessInfo.processInfo.processIdentifier
+            NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier ?? "")
+                .first { $0.processIdentifier != me }?
+                .activate()
+            exit(0)
+        } catch {
+            NSLog("mlx-create: single-instance lock unavailable: %@", error.localizedDescription)
+        }
     }
 
     var body: some Scene {
