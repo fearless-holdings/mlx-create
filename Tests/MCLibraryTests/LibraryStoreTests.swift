@@ -97,6 +97,19 @@ import Testing
         #expect(!FileManager.default.fileExists(atPath: partial.path))
     }
 
+    @Test func embeddedMetadataRecordsTheRealPixelSizeNotTheRequest() async throws {
+        let store = try LibraryStore(libraryRoot: try Self.tempRoot())
+        let project = try await store.defaultProject()
+        let job = try await store.enqueueJob(projectID: project.id, request: Self.request(), batchCount: 1, seedPolicy: "random")
+        let saved = try await store.saveImage(
+            NewImage(projectID: project.id, jobID: job.id, pngData: try TestPNG.make(width: 40, height: 24), settings: Self.settings()))
+
+        #expect(saved.settings.width == 40 && saved.settings.height == 24)
+        let onDisk = try Data(contentsOf: await store.paths.url(relativePath: saved.filePath))
+        let embedded = try #require(try MetadataCodec.read(fromPNG: onDisk))
+        #expect(embedded.width == 40 && embedded.height == 24)
+    }
+
     @Test func failureSurvivesReopenAndRetryClearsIt() async throws {
         let root = try Self.tempRoot()
         let store = try LibraryStore(libraryRoot: root)
