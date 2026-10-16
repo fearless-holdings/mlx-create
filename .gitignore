@@ -33,7 +33,7 @@ mlx-serve/
 *.ckpt
 
 # Local model weights and generated media
-Models/
+/Models/
 *.png.tmp
 
 # Tooling
