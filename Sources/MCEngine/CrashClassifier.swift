@@ -14,7 +14,7 @@ public enum EnginePhase: Sendable, Equatable {
     case ready
 }
 
-public enum CrashKind: Sendable, Equatable {
+public enum CrashKind: Sendable, Equatable, CaseIterable {
     case outOfMemory
     case killedBySystem
     case missingWeights
@@ -25,7 +25,8 @@ public enum CrashKind: Sendable, Equatable {
     /// Whether the in-flight job may be retried (LLD §5.6).
     public var jobRetryable: Bool {
         switch self {
-        case .outOfMemory, .killedBySystem, .unknown: true
+        case .outOfMemory: OutOfMemoryFailure.retryable
+        case .killedBySystem, .unknown: true
         case .missingWeights, .launchFailed, .setupFailed: false
         }
     }

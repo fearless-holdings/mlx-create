@@ -339,7 +339,7 @@ public actor EngineSupervisor {
 
     static func userMessage(for kind: CrashKind) -> String {
         switch kind {
-        case .outOfMemory: "The engine ran out of memory. Try a smaller model or fewer LoRAs."
+        case .outOfMemory: OutOfMemoryFailure.message
         case .killedBySystem: "macOS stopped the engine because memory ran low."
         case .missingWeights: "Model files are incomplete — repair the download in Models."
         case .launchFailed: "The engine couldn't start."

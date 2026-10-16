@@ -99,12 +99,12 @@ public actor LibraryStore {
 
     /// Adds a job at the end of the queue and returns it with its assigned position.
     @discardableResult
-    public func enqueueJob(projectID: UUID, request: JobRequest, batchCount: Int, seedPolicy: String) throws -> Job {
+    public func enqueueJob(projectID: UUID, request: JobRequest, batchCount: Int, seedPolicy: String, mode: String = Job.textToImageMode) throws -> Job {
         try dbQueue.write { db in
             let next = try Int.fetchOne(db, sql: "SELECT COALESCE(MAX(position), 0) + 1 FROM job WHERE status = ?",
                                         arguments: [JobStatus.queued.rawValue]) ?? 1
             let job = Job(
-                id: UUID(), projectID: projectID, mode: "t2i", request: request,
+                id: UUID(), projectID: projectID, mode: mode, request: request,
                 batchCount: batchCount, seedPolicy: seedPolicy, status: .queued, position: next
             )
             try JobRow(job).insert(db)
@@ -432,5 +432,5 @@ private extension JobRequest {
 }
 
 private extension ImageSettings {
-    static let unreadable = ImageSettings(prompt: "", modelID: "", requestedWidth: 0, requestedHeight: 0, seed: 0, width: 0, height: 0, steps: 0)
+    static let unreadable = ImageSettings(prompt: "", modelID: "", requestedWidth: 0, requestedHeight: 0, seed: 0, width: 0, height: 0, steps: nil)
 }
