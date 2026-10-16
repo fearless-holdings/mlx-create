@@ -97,6 +97,21 @@ import Testing
         #expect(!FileManager.default.fileExists(atPath: partial.path))
     }
 
+    @Test func failureSurvivesReopenAndRetryClearsIt() async throws {
+        let root = try Self.tempRoot()
+        let store = try LibraryStore(libraryRoot: root)
+        let project = try await store.defaultProject()
+        let job = try await store.enqueueJob(projectID: project.id, request: Self.request(), batchCount: 2, seedPolicy: "random")
+        let failure = JobFailure(message: "Not enough memory", detail: "engine said x", retryable: true)
+        try await store.setJobStatus(job.id, .failed, failure: failure)
+
+        let reopened = try LibraryStore(libraryRoot: root)
+        #expect(try await reopened.jobs(status: .failed).first?.failure == failure)
+
+        try await reopened.setJobStatus(job.id, .queued)
+        #expect(try await reopened.jobs(status: .queued).first?.failure == nil)
+    }
+
     @Test func queueOrdersJobsAndRejectsMovingNonQueued() async throws {
         let root = try Self.tempRoot()
         let store = try LibraryStore(libraryRoot: root)

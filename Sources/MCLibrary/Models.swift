@@ -116,6 +116,19 @@ public enum JobStatus: String, Codable, Equatable, Sendable, CaseIterable {
     case queued, running, paused, done, failed, cancelled
 }
 
+/// The stored reason for a failed job: the user-facing message (already mapped from the engine error) and whether Retry can help.
+public struct JobFailure: Codable, Equatable, Sendable {
+    public var message: String
+    public var detail: String?
+    public var retryable: Bool
+
+    public init(message: String, detail: String? = nil, retryable: Bool) {
+        self.message = message
+        self.detail = detail
+        self.retryable = retryable
+    }
+}
+
 /// A queued or finished generation job (HLD §9 `JOB`).
 ///
 /// `mode` is kept for later phases (D7); v1 accepts only `"t2i"`.
@@ -130,6 +143,8 @@ public struct Job: Equatable, Sendable, Identifiable {
     public var status: JobStatus
     /// Queue position among queued jobs; lower runs first.
     public var position: Int
+    /// Why the job last failed. Set with the `failed` status, cleared by retry.
+    public var failure: JobFailure?
 
     public init(
         id: UUID,
@@ -139,7 +154,8 @@ public struct Job: Equatable, Sendable, Identifiable {
         batchCount: Int,
         seedPolicy: String,
         status: JobStatus,
-        position: Int
+        position: Int,
+        failure: JobFailure? = nil
     ) {
         self.id = id
         self.projectID = projectID
@@ -149,6 +165,7 @@ public struct Job: Equatable, Sendable, Identifiable {
         self.seedPolicy = seedPolicy
         self.status = status
         self.position = position
+        self.failure = failure
     }
 }
 
