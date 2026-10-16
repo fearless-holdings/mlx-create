@@ -1,0 +1,106 @@
+import Foundation
+import MCCatalog
+import MCLibrary
+
+/// One-line engine status above the canvas (U8 step 7). `nil` banner means the engine is ready and idle.
+public enum EngineBanner: Equatable, Sendable {
+    case starting
+    case warmingModel(String)
+    case restarting
+    case failed(String)
+}
+
+/// A model the engine found but the app cannot drive, with the reason shown in the picker (R9).
+public struct UnavailableModelRow: Equatable, Sendable, Identifiable {
+    public let id: String
+    public let reason: String
+
+    public init(id: String, reason: String) {
+        self.id = id
+        self.reason = reason
+    }
+}
+
+/// What the canvas shows (U8 step 6).
+public enum CanvasMode: Equatable, Sendable {
+    /// Zero installed image models: explain where weights go and offer Reveal in Finder (R10).
+    case noModels(weightsPath: String)
+    /// Image models exist but none can be driven: list each with its reason, no Reveal action.
+    case onlyUnavailable([UnavailableModelRow])
+    /// A model is available but nothing has been generated: show the "Type a prompt and press ⌘↩" hint, hide the filmstrip.
+    case emptyHint
+    /// Show the selected image or the running generation's step bar.
+    case content
+}
+
+/// The settings controls the selected model's family allows (R7). `nil` members mean the control is hidden.
+public struct SettingsControls: Equatable, Sendable {
+    public var sizes: [ImageSize]
+    public var steps: StepsCapability
+    public var guidance: GuidanceCapability?
+    public var showsNegativePrompt: Bool
+
+    public init(sizes: [ImageSize], steps: StepsCapability, guidance: GuidanceCapability?, showsNegativePrompt: Bool) {
+        self.sizes = sizes
+        self.steps = steps
+        self.guidance = guidance
+        self.showsNegativePrompt = showsNegativePrompt
+    }
+}
+
+/// Queue position of a job placeholder in the filmstrip, with the actions its context menu offers.
+public struct JobItem: Equatable, Sendable, Identifiable {
+    public let id: UUID
+    public var status: JobStatus
+    public var promptSnippet: String
+    public var savedCount: Int
+    public var batchCount: Int
+    /// Current engine step for the running job; nil otherwise.
+    public var step: Int?
+    public var total: Int?
+    public var failure: JobFailure?
+    public var canMoveUp: Bool
+    public var canMoveDown: Bool
+    public var canCancel: Bool
+    public var canRetry: Bool
+
+    public init(
+        id: UUID, status: JobStatus, promptSnippet: String, savedCount: Int, batchCount: Int,
+        step: Int? = nil, total: Int? = nil, failure: JobFailure? = nil,
+        canMoveUp: Bool = false, canMoveDown: Bool = false, canCancel: Bool = false, canRetry: Bool = false
+    ) {
+        self.id = id
+        self.status = status
+        self.promptSnippet = promptSnippet
+        self.savedCount = savedCount
+        self.batchCount = batchCount
+        self.step = step
+        self.total = total
+        self.failure = failure
+        self.canMoveUp = canMoveUp
+        self.canMoveDown = canMoveDown
+        self.canCancel = canCancel
+        self.canRetry = canRetry
+    }
+}
+
+/// One cell of the filmstrip: a saved image or a queue placeholder.
+public enum FilmstripItem: Equatable, Sendable, Identifiable {
+    case image(LibraryImage)
+    case job(JobItem)
+
+    public var id: UUID {
+        switch self {
+        case .image(let image): image.id
+        case .job(let job): job.id
+        }
+    }
+}
+
+/// Queue header state (U8 step 4).
+public enum QueueHeader: Equatable, Sendable {
+    case idle
+    case running
+    case pausing
+    case paused
+}
