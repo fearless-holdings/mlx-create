@@ -15,7 +15,7 @@ mlx-create is a commercial, native macOS app (macOS 26.2+, Apple Silicon, 16 GB 
 2. **No inference in the app process.** All generation and LLM work goes through the engine child process.
 3. **The engine is stock upstream.** Never vendor, patch, or commit mlx-serve source. Engine changes go upstream as PRs (HLD §7.2). The app consumes them only through a tagged release pinned in `engine.lock`.
 4. **The engine is private:**
-   - Always launch it with `--host 127.0.0.1` and a random per-launch `--api-key`.
+   - Always launch it with `--host 127.0.0.1` and a random per-launch key passed via `--api-key-env` plus `--api-key-strict`. Without `--api-key-strict`, upstream exempts loopback callers from the key, and argv is world-readable (`docs/lld/engine.md` §5.2).
    - Upstream defaults to `0.0.0.0`, so never rely on defaults.
    - LAN share and discovery stay off.
 5. **Nothing is written to `~/.mlx-serve`, and other tools' model folders are not scanned (D17).**

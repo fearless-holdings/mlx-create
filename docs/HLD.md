@@ -236,10 +236,13 @@ Non-changes: we use the stock binary with its chat, audio and 3D code. Unused su
 `EngineSupervisor`, adapted from `ServerManager.swift`, launches the bundled binary as a child process with `HOME=<AppSupport>/Engine`:
 
 ```
-HOME=<AppSupport>/Engine mlx-serve --serve --host 127.0.0.1 --port <free ephemeral> \
-  --api-key <random per launch> --model-dir <Models>/Weights \
+HOME=<AppSupport>/Engine MLXC_ENGINE_KEY=<random per launch> \
+mlx-serve --serve --host 127.0.0.1 --port <free ephemeral> \
+  --api-key-env MLXC_ENGINE_KEY --api-key-strict --model-dir <Models>/Weights \
   --max-resident-mem auto --max-resident-models <tier> --log-level info
 ```
+
+`--api-key-strict` is required: upstream exempts loopback callers from the key by default. `--api-key-env` keeps the key out of the world-readable argv. Details in `docs/lld/engine.md`.
 
 - **State isolation:** logs, kv-cache, model settings, providers and LAN keys all resolve under `$HOME/.mlx-serve` (`src/cli.zig:207`, `src/main.zig:1136,1158`, `src/kv_disk_cache.zig:3577`, `src/model_settings.zig:222`, `src/server.zig:2157`), so they land in `Engine/.mlx-serve/`. Some media dependencies (e.g. LTX's text encoder, `src/gen.zig:5062`) are only looked up under `$HOME/.mlx-serve/models`, so that path is a symlink to `<Models>/Weights`, which the supervisor recreates at launch (the Models root is relocatable).
 
@@ -651,7 +654,7 @@ The app code is tightly coupled to the menu-bar app (`ImageGenService` is `@Main
 
 | mlx-serve file (`app/Sources/MLXServe/…`) | Becomes | Adaptation |
 |---|---|---|
-| `Services/ServerManager.swift` | `MCEngine.EngineSupervisor` | Loopback + API key, `HOME` override + models symlink, PID file, backoff restart; drop menu-bar/UI state |
+| `Services/ServerManager.swift` | `MCEngine.EngineSupervisor` | Reuse `summarizeCrash` and the SIGTERM→SIGKILL helper; `HOME` override, models symlink, PID file and backoff are new (upstream has none); drop menu-bar/UI state |
 | `Services/APIClient.swift`, `Services/MediaGenProgress.swift` (`MediaSSE`) | `MCEngine.EngineClient` | Typed events, preview frames, task cancellation |
 | `Services/ImageGenService.swift` (`requestJson`, `decodePngB64`) | `MCEngine` request builders | Pure functions, reused nearly verbatim |
 | `Services/ChunkedDownload.swift`, `Services/DownloadManager.swift` | `MCModels.DownloadEngine` | Civitai bearer auth, redirect handling, SHA-256 verification |
