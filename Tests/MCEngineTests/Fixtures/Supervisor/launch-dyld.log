@@ -1,0 +1,3 @@
+dyld[41233]: Library not loaded: @rpath/libmlxc.dylib
+  Referenced from: /Applications/mlx-create.app/Contents/MacOS/mlx-serve
+  Reason: image not found

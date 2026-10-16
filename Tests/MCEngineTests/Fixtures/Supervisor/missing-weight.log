@@ -1,0 +1,2 @@
+[load] reading ddalcu/Krea-2-Turbo
+MISSING WEIGHT: transformer.blocks.12.attn.to_q.weight not found in model.safetensors
