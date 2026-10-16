@@ -65,6 +65,11 @@ public actor LibraryStore {
             try db.create(index: "image_job", on: "image", columns: ["job_id"])
             try db.create(index: "job_status_position", on: "job", columns: ["status", "position"])
         }
+        migrator.registerMigration("v2-job-failure") { db in
+            try db.alter(table: "job") { t in
+                t.add(column: "failure", .text)
+            }
+        }
         return migrator
     }
 
@@ -115,10 +120,12 @@ public actor LibraryStore {
         }
     }
 
-    public func setJobStatus(_ jobID: UUID, _ status: JobStatus) throws {
+    /// Sets a job's status. `failure` is stored with it and cleared when nil (so retry, which moves a failed job back to `queued`, clears it).
+    public func setJobStatus(_ jobID: UUID, _ status: JobStatus, failure: JobFailure? = nil) throws {
         try dbQueue.write { db in
             guard var row = try JobRow.fetchOne(db, key: jobID.uuidString) else { throw LibraryError.notFound }
             row.status = status.rawValue
+            row.failure = try failure.map { try JSONCoding.encode($0) }
             try row.update(db)
         }
     }
@@ -299,6 +306,7 @@ private struct JobRow: Codable, FetchableRecord, PersistableRecord {
     var seedPolicy: String
     var status: String
     var position: Int
+    var failure: String?
 
     init(_ job: Job) throws {
         id = job.id.uuidString
@@ -309,6 +317,7 @@ private struct JobRow: Codable, FetchableRecord, PersistableRecord {
         seedPolicy = job.seedPolicy
         status = job.status.rawValue
         position = job.position
+        failure = try job.failure.map { try JSONCoding.encode($0) }
     }
 
     var job: Job {
@@ -320,12 +329,13 @@ private struct JobRow: Codable, FetchableRecord, PersistableRecord {
             batchCount: batchCount,
             seedPolicy: seedPolicy,
             status: JobStatus(rawValue: status) ?? .failed,
-            position: position
+            position: position,
+            failure: failure.flatMap { JSONCoding.decode(JobFailure.self, from: $0) }
         )
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, mode, request, status, position
+        case id, mode, request, status, position, failure
         case projectID = "project_id"
         case batchCount = "batch_count"
         case seedPolicy = "seed_policy"
