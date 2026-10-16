@@ -5,6 +5,7 @@ import MCCatalog
 import MCEngine
 import MCGeneration
 import MCLibrary
+import MCModels
 import Testing
 import UniformTypeIdentifiers
 
@@ -21,13 +22,18 @@ final class FakeEngine: @unchecked Sendable {
     private let lock = NSLock()
     private var loaded: Set<String>
     private var generations = 0
-    private let models: [(id: String, architecture: String)]
+    private var models: [(id: String, architecture: String)]
     private let script: Script
 
     init(loaded: Set<String>, models: [(id: String, architecture: String)], script: @escaping Script) {
         self.loaded = loaded
         self.models = models
         self.script = script
+    }
+
+    /// What the engine reports from now on: a new model folder shows up after the rescan that follows an install.
+    func setModels(_ models: [(id: String, architecture: String)]) {
+        lock.withLock { self.models = models }
     }
 
     func handle(_ request: EngineStubProtocol.Recorded) -> EngineStubProtocol.Reply {
@@ -120,6 +126,8 @@ struct AppHarness {
     /// The library root and defaults the app reads at launch. A relaunch builds a new model over the same two.
     let root: URL
     let defaults: UserDefaults
+    /// The stub engine behind this app, so a test can change the models it reports.
+    let engine: FakeEngine
 
     /// An engine that answers every generation with 404, for tests that must not reach the engine.
     static let idleEngine: FakeEngine.Script = { _, _ in .init(status: 404, body: Data(), tail: nil) }
@@ -131,14 +139,16 @@ struct AppHarness {
         initialState: ((EngineEndpoint) -> EngineState)? = nil,
         defaults: UserDefaults? = nil,
         supervisor: EngineSupervisor? = nil,
-        script: @escaping FakeEngine.Script = AppHarness.idleEngine
+        script: @escaping FakeEngine.Script = AppHarness.idleEngine,
+        catalog: Catalog? = nil,
+        transport: (any ModelTransport)? = nil
     ) async throws -> AppHarness {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("app-\(UUID().uuidString)")
         let store = try LibraryStore(libraryRoot: root)
         return try await assemble(
             root: root, store: store, models: models, loaded: loaded, registry: registry,
             initialState: initialState, defaults: defaults ?? UserDefaults(suiteName: UUID().uuidString)!,
-            supervisor: supervisor, script: script)
+            supervisor: supervisor, script: script, catalog: catalog, transport: transport)
     }
 
     /// Builds a new `AppModel` over this harness's library and defaults with a fresh engine, as a relaunch would.
@@ -149,7 +159,7 @@ struct AppHarness {
     ) async throws -> AppHarness {
         try await Self.assemble(
             root: root, store: store, models: models, loaded: [], registry: nil,
-            initialState: initialState, defaults: defaults, supervisor: nil, script: script)
+            initialState: initialState, defaults: defaults, supervisor: nil, script: script, catalog: nil, transport: nil)
     }
 
     private static func assemble(
@@ -161,7 +171,9 @@ struct AppHarness {
         initialState: ((EngineEndpoint) -> EngineState)?,
         defaults: UserDefaults,
         supervisor: EngineSupervisor?,
-        script: @escaping FakeEngine.Script
+        script: @escaping FakeEngine.Script,
+        catalog: Catalog?,
+        transport: (any ModelTransport)?
     ) async throws -> AppHarness {
         let engine = FakeEngine(loaded: loaded, models: models, script: script)
         let endpoint = EngineStubProtocol.register(handler: { engine.handle($0) })
@@ -180,11 +192,11 @@ struct AppHarness {
             weightsPath: "/tmp/mlx-create-tests/Weights",
             libraryPaths: LibraryPaths(root: root),
             supervisor: supervisor,
-            defaults: defaults)
+            defaults: defaults, catalog: catalog, transport: transport)
         let project = try await store.defaultProject()
         return AppHarness(
             model: model, store: store, endpoint: endpoint, states: continuation, projectID: project.id,
-            root: root, defaults: defaults)
+            root: root, defaults: defaults, engine: engine)
     }
 
     /// Queues a job directly in the library, bypassing the composer.

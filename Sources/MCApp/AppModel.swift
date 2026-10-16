@@ -38,6 +38,10 @@ public final class AppModel {
     public let weightsPath: String
     /// Model installs (U5): the catalog, the installer and the library record. Nil when no catalog is supplied.
     public private(set) var installs: InstallCoordinator?
+    /// The model browser (U6). Assigned at the end of init: the install rescan captures `self`, so it must come first.
+    private(set) var browser: ModelBrowserModel!
+    /// Whether the browser sheet is presented.
+    var isBrowserPresented = false
 
     public private(set) var engineState: EngineState = .stopped
     public private(set) var models: [InstalledModel] = []
@@ -126,6 +130,10 @@ public final class AppModel {
                     await self.refreshModels()
                 })
         }
+        browser = ModelBrowserModel(
+            catalog: catalog, installs: installs,
+            weightsRoot: URL(fileURLWithPath: weightsPath, isDirectory: true),
+            workingSetGB: ModelBrowserModel.systemUsableWorkingSetGB(), engineModelIDs: [])
     }
 
     /// The production app: the bundled engine, the library and queue in Application Support, and the bundled registry.
@@ -203,7 +211,7 @@ public final class AppModel {
             // Before the first scan the models are unknown, so the canvas must not claim there are none.
             return filmstrip.isEmpty ? .emptyHint : .content
         }
-        if models.isEmpty { return .noModels(weightsPath: weightsPath) }
+        if models.isEmpty { return .noModels }
         if !models.contains(where: ModelSelection.isSelectable) {
             return .onlyUnavailable(ModelSelection.unavailableRows(models))
         }
@@ -335,6 +343,7 @@ public final class AppModel {
     public func refreshModels() async {
         do {
             models = try await InstalledModels(registry: registry).refresh(using: client)
+            browser.setEngineModelIDs(Set(models.map(\.id)))
             modelsLoaded = true
             chooseSelection()
         } catch is CancellationError {
@@ -493,10 +502,10 @@ public final class AppModel {
         await reload()
     }
 
-    public func revealWeightsFolder() {
-        let url = URL(fileURLWithPath: weightsPath, isDirectory: true)
-        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-        NSWorkspace.shared.open(url)
+    /// Opens the model browser sheet and refreshes its rows from the installer and the folders.
+    func openBrowser() {
+        isBrowserPresented = true
+        Task { await browser.refresh() }
     }
 
     // MARK: Executor events and projection

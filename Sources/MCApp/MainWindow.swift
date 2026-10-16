@@ -35,6 +35,9 @@ public struct MainWindow: View {
             }
         }
         .background(ShortcutButtons(model: model))
+        .sheet(isPresented: $model.isBrowserPresented) {
+            ModelBrowserView(browser: model.browser)
+        }
     }
 }
 

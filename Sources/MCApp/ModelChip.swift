@@ -90,6 +90,14 @@ struct ModelChip: View {
                     .accessibilityLabel("\(Self.title(for: row.model)), unavailable: \(row.reason)")
                 }
             }
+            Divider().padding(.vertical, 4)
+            Button("Browse models…") {
+                isOpen = false
+                model.openBrowser()
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 4)
         }
     }
 
