@@ -6,7 +6,7 @@ import GRDB
 /// All writes go through this actor. Image files live under ``LibraryPaths``; the database holds rows only.
 public actor LibraryStore {
     public let paths: LibraryPaths
-    private let dbQueue: DatabaseQueue
+    let dbQueue: DatabaseQueue
     private var beforeRowInsertHook: (@Sendable () throws -> Void)?
     private var beforePartialWriteHook: (@Sendable (URL) throws -> Void)?
     private var statusHook: (@Sendable (JobStatus) throws -> Void)?
@@ -88,6 +88,7 @@ public actor LibraryStore {
                 t.add(column: "failure", .text)
             }
         }
+        migrator.registerMigration("v3-installed-model", migrate: Self.createInstalledModelTable)
         return migrator
     }
 
