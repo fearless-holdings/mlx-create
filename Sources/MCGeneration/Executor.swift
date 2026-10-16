@@ -7,17 +7,23 @@ import OSLog
 /// `_Concurrency.Executor`.
 public actor JobExecutor {
     private static let log = Logger(subsystem: "app.mlx-create", category: "generation")
+    /// How many times a dropped connection looks for the supervisor's crash, and the wait between looks (about 1 s).
+    private static let crashPollAttempts = 10
+    private static let crashPollInterval = Duration.milliseconds(100)
 
     private let store: LibraryStore
     private let client: EngineClient
     private let queue: JobQueue
     private let hub: ExecutorEventHub
     private let crashKind: @Sendable () async -> EngineCrash?
+    private let engineVersion: String?
     private var rng = SystemRandomNumberGenerator()
     private var currentJobID: UUID?
     private var active: Task<(png: Data, total: Int), Error>?
     private var cancelRequested: Set<UUID> = []
     private var drainTask: Task<Void, Never>?
+    /// The most recent model switch. Each new switch waits for it, so unloads and loads never interleave.
+    private var selectionTail: Task<Void, Error>?
 
     /// Each access returns a new stream of progress, saved-image and job-status events, including the
     /// status changes `JobQueue` makes.
@@ -25,17 +31,20 @@ public actor JobExecutor {
 
     /// `crashKind` returns the supervisor's latest crash. It is asked only when a generation loses its
     /// connection, and a crash then supplies the job's failure instead of the generic mapping (KTD6).
+    /// `engineVersion` is the pinned engine's version, written into each saved image's settings.
     public init(
         store: LibraryStore,
         client: EngineClient,
         queue: JobQueue,
-        crashKind: @escaping @Sendable () async -> EngineCrash? = { nil }
+        crashKind: @escaping @Sendable () async -> EngineCrash? = { nil },
+        engineVersion: String? = nil
     ) {
         self.store = store
         self.client = client
         self.queue = queue
         self.hub = queue.hub
         self.crashKind = crashKind
+        self.engineVersion = engineVersion
     }
 
     /// Starts draining the queue in the background. Calling it while a drain is running does nothing, so
@@ -56,29 +65,41 @@ public actor JobExecutor {
     /// the app uses `start()`.
     public func drain() async throws {
         while await !queue.isPauseRequested, let job = try await store.nextQueuedJob() {
-            try await run(job)
+            do {
+                try await run(job)
+            } catch {
+                // A store failure mid-run would leave the job `running` until relaunch, so record it as failed first.
+                if !(error is CancellationError) {
+                    _ = try? await transition(job.id, from: [.running], to: .failed, failure: FailureMapping.failure(for: error))
+                }
+                throw error
+            }
         }
     }
 
-    /// Cancels a job. An in-flight generation is closed at once; its partial output is not saved.
+    /// Cancels a job. An in-flight generation, including a model load it is waiting on, is closed at once; its
+    /// partial output is not saved. A job that is not queued, paused or running keeps its status.
     public func cancel(_ jobID: UUID) async throws {
         if currentJobID == jobID {
             cancelRequested.insert(jobID)
             active?.cancel()
         } else {
-            try await setStatus(jobID, .cancelled)
+            try await transition(jobID, from: [.queued, .paused], to: .cancelled)
         }
     }
 
     /// Makes `modelID` the resident model: unloads any other resident model, then loads it. Does nothing
     /// when it is already resident.
     public func selectModel(_ modelID: String) async throws {
-        let resident = try await client.models().filter(\.loaded).map(\.id)
-        if resident.contains(modelID) { return }
-        for other in resident {
-            try await client.unload(model: other)
+        let client = client
+        try await serialized {
+            let resident = try await client.models().filter(\.loaded).map(\.id)
+            if resident.contains(modelID) { return }
+            for other in resident {
+                try await client.unload(model: other)
+            }
+            try await client.load(model: modelID)
         }
-        try await client.load(model: modelID)
     }
 
     private func run(_ job: Job) async throws {
@@ -87,7 +108,8 @@ public actor JobExecutor {
             currentJobID = nil
             cancelRequested.remove(job.id)
         }
-        try await setStatus(job.id, .running)
+        // A job cancelled after `drain` picked it from the queue is no longer queued, so it is skipped.
+        guard try await transition(job.id, from: [.queued], to: .running) else { return }
 
         while true {
             if cancelRequested.contains(job.id) {
@@ -123,10 +145,6 @@ public actor JobExecutor {
         guard let policy = SeedPolicy(encoded: job.seedPolicy) else {
             throw ExecutorError.invalidSeedPolicy(job.seedPolicy)
         }
-        try await selectModel(job.request.modelID)
-        // A cancel that arrived while the model was loading found no request to close; honour it now.
-        if cancelRequested.contains(job.id) { throw CancellationError() }
-
         let seed = policy.seed(savedCount: savedCount, using: &rng)
         let request = ImageRequest(
             model: job.request.modelID,
@@ -141,7 +159,10 @@ public actor JobExecutor {
         let client = client
         let hub = hub
         let jobID = job.id
+        let modelID = job.request.modelID
+        // The model switch and the stream share one task, so `cancel(_:)` also reaches a wait for the engine or a load.
         let task = Task { () throws -> (png: Data, total: Int) in
+            try await self.makeResident(modelID, for: jobID)
             var png: Data?
             var total = 0
             for try await event in client.generateImage(request) {
@@ -173,7 +194,7 @@ public actor JobExecutor {
             width: 0,
             height: 0,
             steps: result.total > 0 ? result.total : (job.request.steps ?? 0),
-            engineVersion: nil
+            engineVersion: engineVersion
         )
         let image = try await store.saveImage(NewImage(
             projectID: job.projectID,
@@ -184,19 +205,54 @@ public actor JobExecutor {
         hub.send(.imageSaved(jobID: job.id, imageID: image.id))
     }
 
-    /// Writes a job's status and announces the change. Every status change the executor makes goes through here.
+    /// Makes the job's model resident before its stream starts, unless the job was cancelled first.
+    private func makeResident(_ modelID: String, for jobID: UUID) async throws {
+        if cancelRequested.contains(jobID) { throw CancellationError() }
+        try await selectModel(modelID)
+    }
+
+    /// Writes a job's status and announces the change. The executor's own terminal and pause writes go through here.
     private func setStatus(_ jobID: UUID, _ status: JobStatus, failure: JobFailure? = nil) async throws {
         try await store.setJobStatus(jobID, status, failure: failure)
         hub.send(.jobChanged(jobID: jobID))
     }
 
+    /// Writes a job's status only while it is still one of `allowed`, and announces the change when it happens.
+    /// Returns false, changing nothing, when the job has moved on.
+    @discardableResult
+    private func transition(
+        _ jobID: UUID,
+        from allowed: Set<JobStatus>,
+        to status: JobStatus,
+        failure: JobFailure? = nil
+    ) async throws -> Bool {
+        let changed = try await store.transitionJob(jobID, from: allowed, to: status, failure: failure)
+        if changed { hub.send(.jobChanged(jobID: jobID)) }
+        return changed
+    }
+
     /// A dropped connection is explained by the supervisor's crash when there is one; every other error
     /// keeps its own mapping.
     private func jobFailure(for error: Error) async -> JobFailure {
-        if Self.isConnectionLoss(error), let crash = await crashKind() {
+        if Self.isConnectionLoss(error), let crash = await awaitCrash() {
             return FailureMapping.failure(for: crash)
         }
         return FailureMapping.failure(for: error)
+    }
+
+    /// The supervisor publishes its crash shortly after the connection drops, so this polls briefly for it.
+    /// Gives up at once if the waiting task is cancelled.
+    private func awaitCrash() async -> EngineCrash? {
+        for attempt in 1...Self.crashPollAttempts {
+            if let crash = await crashKind() { return crash }
+            guard attempt < Self.crashPollAttempts else { break }
+            do {
+                try await Task.sleep(for: Self.crashPollInterval)
+            } catch {
+                return nil
+            }
+        }
+        return nil
     }
 
     private static func isConnectionLoss(_ error: Error) -> Bool {
@@ -207,12 +263,32 @@ public actor JobExecutor {
         }
     }
 
+    /// Runs a model switch after every switch started before it has finished, so unloads and loads never
+    /// interleave. Cancelling the caller cancels its own switch.
+    private func serialized(_ operation: @escaping @Sendable () async throws -> Void) async throws {
+        let previous = selectionTail
+        let task = Task {
+            _ = try? await previous?.value
+            try Task.checkCancellation()
+            try await operation()
+        }
+        selectionTail = task
+        try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            task.cancel()
+        }
+    }
+
     /// Frees memory after an out-of-memory refusal. Failures here are ignored: the job fails with the
     /// memory message either way, and the next attempt loads the model again.
     private func unloadResidentModels() async {
-        guard let resident = try? await client.models().filter(\.loaded).map(\.id) else { return }
-        for id in resident {
-            try? await client.unload(model: id)
+        let client = client
+        _ = try? await serialized {
+            let resident = (try? await client.models().filter(\.loaded).map(\.id)) ?? []
+            for id in resident {
+                try? await client.unload(model: id)
+            }
         }
     }
 }

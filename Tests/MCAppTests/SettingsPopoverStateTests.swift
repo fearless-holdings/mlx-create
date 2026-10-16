@@ -128,7 +128,7 @@ import Testing
         try await eventually { model.banner == nil }
 
         harness.states.yield(.restarting(after: .seconds(1), cause: EngineCrash(
-            kind: .unknown, message: "The engine stopped.", detail: "exit", exit: .code(1), failedJob: nil)))
+            kind: .unknown, message: "The engine stopped.", detail: "exit", exit: .code(1))))
         try await eventually { model.banner == .restarting }
     }
 }

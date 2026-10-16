@@ -65,6 +65,7 @@ Settled during the design interview. Later documents cite these IDs.
 | D22 | A1111 `Model hash` is **omitted** until catalog identifiers exist (§8.9); the `mlx-create` chunk carries the engine model id and a `schema_version` | The hash is defined from catalog data that v1 t2i does not have yet |
 | D23 | Seeds are app-resolved integers in **0..<2^32** and always sent explicitly (§8.1) | The engine reads `seed` as unsigned and defaults to 42 |
 | D24 | The library records the **engine's actual output** (pixel size from the PNG, step count from the last progress event), not the request (§8.2, §8.9) | The engine rounds size to the family grid and may run the checkpoint's own step grid |
+| D25 | **FLUX.2 klein accepts multiples of 32 in [256, 1536]** at the pinned engine (upstream `clampFluxDim`, v26.10.2), not a fixed 1024². Krea keeps multiples of 16 in [256, 2048]. The UI reads each family's size grid from its capability record, never a per-family constant | The earlier "fixed 1024²" reading of FLUX was wrong. `families.json` carries the grid; the composer snaps to it |
 
 ## 4. Constraints and assumptions
 
@@ -308,7 +309,7 @@ Controls are driven by the family's capability record (§8.4), so the UI never s
 |---|---|---|
 | Prompt, Enhance ✨ | always | |
 | Negative prompt | family supports it | Collapsed by default |
-| Size / aspect presets | always | The family size grid (e.g. FLUX fixed 1024² vs Krea multiples of 16 in [256, 2048], `src/gen.zig:2366`) |
+| Size / aspect presets | always | The family size grid from its capability record (D25): FLUX.2 klein multiples of 32 in [256, 1536]; Krea multiples of 16 in [256, 2048] (`src/gen.zig:2366`) |
 | Steps | always | Family default, quality presets (Fast / Balanced / Quality), max 100 |
 | CFG / guidance | family supports guidance (e.g. klein base, `supportsGuidance()`) | Hidden for distilled turbo models |
 | Seed + policy, batch count | always | |

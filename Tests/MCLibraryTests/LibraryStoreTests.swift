@@ -137,10 +137,51 @@ import Testing
         try await store.moveQueuedJob(c.id, by: -1)
         #expect(try await store.jobs(status: .queued).map(\.id) == [a.id, c.id, b.id])
 
+        try await store.moveQueuedJob(b.id, by: -5)
+        #expect(try await store.jobs(status: .queued).map(\.id) == [b.id, a.id, c.id])
+        try await store.moveQueuedJob(b.id, by: 99)
+        #expect(try await store.jobs(status: .queued).map(\.id) == [a.id, c.id, b.id])
+
         try await store.setJobStatus(a.id, .running)
         #expect(try await store.nextQueuedJob()?.id == c.id)
         await #expect(throws: LibraryError.notQueued) {
             try await store.moveQueuedJob(a.id, by: 1)
         }
+    }
+
+    @Test func failedPNGWriteLeavesNoPartialFile() async throws {
+        let root = try Self.tempRoot()
+        let store = try LibraryStore(libraryRoot: root)
+        let project = try await store.defaultProject()
+        // The hook writes the partial file and then fails, as a write cut short by a full disk would.
+        await store.setBeforePartialWriteHook { url in
+            try Data("torn".utf8).write(to: url)
+            throw InjectedFailure()
+        }
+
+        await #expect(throws: InjectedFailure.self) {
+            _ = try await store.saveImage(NewImage(
+                projectID: project.id, jobID: nil, pngData: try TestPNG.make(width: 32, height: 32),
+                settings: Self.settings()
+            ))
+        }
+        #expect(Self.files(under: root.appending(path: "Projects")).isEmpty)
+    }
+
+    @Test func transitionChangesOnlyAJobStillInAnAllowedStatus() async throws {
+        let root = try Self.tempRoot()
+        let store = try LibraryStore(libraryRoot: root)
+        let project = try await store.defaultProject()
+        let cancelled = try await store.enqueueJob(projectID: project.id, request: Self.request(), batchCount: 1, seedPolicy: "random")
+        try await store.setJobStatus(cancelled.id, .cancelled)
+        let finished = try await store.enqueueJob(projectID: project.id, request: Self.request(), batchCount: 1, seedPolicy: "random")
+        try await store.setJobStatus(finished.id, .done)
+
+        // A cancelled job cannot be started, and a finished job cannot be cancelled.
+        #expect(try await store.transitionJob(cancelled.id, from: [.queued], to: .running) == false)
+        #expect(try await store.transitionJob(finished.id, from: [.queued, .paused], to: .cancelled) == false)
+        #expect(try await store.jobs(status: .cancelled).map(\.id) == [cancelled.id])
+        #expect(try await store.jobs(status: .done).map(\.id) == [finished.id])
+        #expect(try await store.jobs(status: .running).isEmpty)
     }
 }

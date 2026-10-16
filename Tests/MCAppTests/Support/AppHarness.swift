@@ -124,6 +124,7 @@ struct AppHarness {
         registry: FamilyRegistry? = nil,
         initialState: ((EngineEndpoint) -> EngineState)? = nil,
         defaults: UserDefaults? = nil,
+        supervisor: EngineSupervisor? = nil,
         script: @escaping FakeEngine.Script = { _, _ in .init(status: 404, body: Data(), tail: nil) }
     ) async throws -> AppHarness {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("app-\(UUID().uuidString)")
@@ -144,6 +145,7 @@ struct AppHarness {
             states: stream,
             weightsPath: "/tmp/mlx-create-tests/Weights",
             libraryPaths: LibraryPaths(root: root),
+            supervisor: supervisor,
             defaults: defaults ?? UserDefaults(suiteName: UUID().uuidString)!)
         let project = try await store.defaultProject()
         return AppHarness(

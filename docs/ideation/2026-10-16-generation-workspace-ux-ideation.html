@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ideation: Generation workspace &amp; UX</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#1d1d1f;--muted:#5c5c63;--border:#d9d6cf;--surface:#f2f0eb;--accent:#2f5bd8;--accent-soft:#e4ebfc;--accent-text:#1f3f9e;--warn-soft:#fbefd9;--warn-text:#7a4b00;--ok-soft:#e1f2e6;--ok-text:#1e6a3a;--bad-soft:#f8e3e1;--bad-text:#8a2b22}
+@media (prefers-color-scheme:dark){:root{--bg:#17181b;--fg:#ececee;--muted:#a3a3ab;--border:#34353b;--surface:#212227;--accent:#8aa7ff;--accent-soft:#232c4a;--accent-text:#b5c7ff;--warn-soft:#3a2f1a;--warn-text:#f0c987;--ok-soft:#1d3326;--ok-text:#8fd6a8;--bad-soft:#3d2422;--bad-text:#f2a39b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif}
+.page{max-width:920px;margin:0 auto;padding:2.5rem 1.25rem 4rem}
+header .eyebrow{font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+h1{font-size:1.9rem;line-height:1.25;margin:.3rem 0 .8rem}
+h2{font-size:1.35rem;margin:2.6rem 0 .8rem;padding-bottom:.35rem;border-bottom:1px solid var(--border)}
+h3{font-size:1.1rem;margin:0 0 .6rem}
+p,li{max-width:72ch}
+code{font:.88em ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--surface);padding:.1em .35em;border-radius:4px}
+a{color:var(--accent)}
+dl.meta{display:grid;grid-template-columns:max-content 1fr;gap:.2rem 1rem;margin:.5rem 0 1rem}
+dl.meta dt{color:var(--muted);text-transform:uppercase;font-size:.72rem;letter-spacing:.06em;padding-top:.15rem}
+dl.meta dd{margin:0}
+.stats{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.2rem 0}
+.chip{display:inline-block;border:1px solid var(--border);border-radius:999px;padding:.15rem .7rem;font-size:.82rem;background:var(--surface)}
+.chip.id{background:var(--accent-soft);color:var(--accent-text);border-color:transparent}
+.chip.ok{background:var(--ok-soft);color:var(--ok-text);border-color:transparent}
+.chip.warn{background:var(--warn-soft);color:var(--warn-text);border-color:transparent}
+.chip.bad{background:var(--bad-soft);color:var(--bad-text);border-color:transparent}
+.stat{border:1px solid var(--border);border-radius:10px;padding:.5rem .9rem;background:var(--surface);min-width:9rem}
+.stat b{display:block;font-size:1.3rem}
+.stat span{font-size:.78rem;color:var(--muted)}
+nav.jump ol{margin:.4rem 0 1rem 1.2rem;padding:0}
+article.idea{border:1px solid var(--border);border-radius:12px;padding:1.2rem 1.3rem;margin:1.2rem 0;background:var(--surface)}
+article.idea .strip{display:flex;flex-wrap:wrap;gap:.4rem;margin:.2rem 0 .9rem}
+article.idea dl{margin:.8rem 0 0}
+article.idea dt{font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-top:.8rem}
+article.idea dd{margin:.15rem 0 0;max-width:72ch}
+svg.viz{width:100%;max-width:760px;height:auto;margin:.9rem 0;display:block;color:var(--fg)}
+svg.viz text{fill:currentColor;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+svg.viz .sub{font-size:11px;fill:var(--muted)}
+svg.viz rect{fill:var(--bg);stroke:var(--border);stroke-width:1.5}
+svg.viz rect.hot{fill:var(--accent-soft);stroke:var(--accent)}
+svg.viz rect.stop{fill:var(--warn-soft);stroke:var(--border);stroke-dasharray:5 3}
+svg.viz line,svg.viz path.ln{stroke:var(--muted);stroke-width:1.5;fill:none}
+svg.viz line.dash{stroke-dasharray:4 3}
+.callout{background:var(--warn-soft);color:var(--fg);border-radius:10px;padding:.8rem 1rem;margin:1rem 0}
+.callout .label{font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--warn-text);display:block;margin-bottom:.2rem}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th,td{border:1px solid var(--border);padding:.45rem .6rem;text-align:left;vertical-align:top}
+th{background:var(--surface)}
+td.n{white-space:nowrap}
+footer.composition-signal{margin-top:3rem;padding-top:1rem;border-top:1px solid var(--border);font-size:.82rem;color:var(--muted)}
+ul.tight{margin:.3rem 0 .8rem 1.2rem;padding:0}
+</style>
+</head>
+<body>
+<div class="page">
+
+<header>
+<div class="eyebrow">Ideation</div>
+<h1>Generation workspace &amp; UX</h1>
+<dl class="meta">
+<dt>Date</dt><dd><time datetime="2026-10-16">2026-10-16</time></dd>
+<dt>Topic</dt><dd>generation-workspace-ux</dd>
+<dt>Focus</dt><dd>Generation workspace &amp; UX: composing prompts and parameters, submitting generations, watching them run, iterating on results (t2i in v1, mode-agnostic data model)</dd>
+<dt>Mode</dt><dd>repo-grounded (the repo is docs only; there is no app code yet)</dd>
+</dl>
+<div class="stats">
+<div class="stat"><b>45</b><span>raw ideas from 5 agents</span></div>
+<div class="stat"><b>34</b><span>after dedupe + 4 combinations</span></div>
+<div class="stat"><b>7</b><span>survivors</span></div>
+<div class="stat"><b>5 / 5</b><span>axes covered</span></div>
+</div>
+</header>
+
+<section id="grounding-context">
+<h2>Grounding Context</h2>
+<p><strong>Codebase Context.</strong> mlx-create is pre-implementation. <a href="https://github.com/fearless-holdings/mlx-create/blob/main/docs/HLD.md"><code>docs/HLD.md</code></a> (decisions D1-D20, upstream engine requests F1, F3-F5) and <a href="https://github.com/fearless-holdings/mlx-create/blob/main/docs/lld/engine.md"><code>docs/lld/engine.md</code></a> are the evidence layer. Every citation below is a docs line, not code.</p>
+<ul class="tight">
+<li><strong>Workspace as specified.</strong> D18 / §10: canvas-first window with toolbar, canvas, filmstrip with queue placeholders, prompt bar (Enhance, settings popover, ×N batch, ⌘↩) and a LoRA row. D13: batch count, seed controls, persistent queue and live step previews in v1; X/Y, wildcards and styles out. D14: no sampler picker. §8.2: app-owned SQLite queue, one engine job at a time, a job expands into N separate engine requests, with seed policies random, fixed, increment and reuse-from-image.</li>
+<li><strong>Controls come from data.</strong> §8.3-8.4: the family capability record drives every control, so the UI never shows a knob the engine would reject. Capabilities arrive in the signed catalog.</li>
+<li><strong>Enhance.</strong> §8.8: non-blocking LLM rewrite shown as an inline diff (accept / revert / regenerate). On the 16 GB tier the LLM unloads afterward and the diffusion model re-warms (HLD:431).</li>
+<li><strong>Metadata.</strong> D12 / §8.9: A1111 <code>parameters</code> chunk plus an <code>mlx-create</code> iTXt JSON chunk; drop-PNG restores settings.</li>
+</ul>
+<p><strong>Gaps the docs leave open</strong> (these are where most survivors come from):</p>
+<ul class="tight">
+<li>Fast / Balanced / Quality presets have no values (HLD:307). No queue ETA formula exists, and pause and retry semantics are undefined (HLD:266, :270; engine.md:276).</li>
+<li>Image step previews depend on upstream F1 (HLD:215, :649), yet D13 lists previews as a v1 tool.</li>
+<li>No compare view, no lineage field on IMAGE (HLD:489-506), no variation UI (img2img <code>strength</code> is v1.x, HLD:622).</li>
+<li>D18 is the only decision whose rationale cell is empty (HLD:61). <code>PROMPT_HISTORY</code> appears in the ER diagram (HLD:462) but has no entity definition.</li>
+<li>Entitlement gates (batch cap, queue depth) have no UI (HLD:449).</li>
+</ul>
+<p><strong>Hard bounds</strong> from <code>AGENTS.md</code>: no content filtering, no in-app inference, stock upstream engine (engine changes only as upstream PRs like F1), everything on-device, on 16 GB the enhancer LLM and diffusion model are never co-resident, and out of scope are sampler pickers, tags/ratings/smart collections, SDXL/SD1.5 engines and ControlNet.</p>
+<p><strong>External context</strong> (web research, 2026). Invoke 6.14.0 publishes a per-family capability matrix and fails early with a reason. Tanque Studio, a Swift companion for Draw Things, expands axes into an editable render queue and keeps a config snapshot per row. Draw Things pastes a JSON config to set model, LoRA, steps and size. Mochi Diffusion users asked for same-seed sweeps, and the maintainer answered with scripting. DiffusionBee's top complaints were LoRAs that fail to load and unreliable model import. No concrete Shortcuts or Quick Look implementation was found in Draw Things, Invoke or Mochi.</p>
+<div class="callout"><span class="label">Verification depth</span>
+Each generating agent had a budget of 5 verification reads, shared across 6-16 ideas, so per-idea scrutiny was uneven. A separate verifier then checked the load-bearing <code>direct:</code> quotes against the docs and judged each idea against the meeting-test. It did not re-fetch external prior art, so <code>external:</code> bases are as reported by web research. The axis-3 scout wrote no dossier; ideation agents read the HLD directly for that axis.
+</div>
+</section>
+
+<section id="topic-axes">
+<h2>Topic Axes</h2>
+<ul class="tight">
+<li><strong>Prompt authoring</strong>: prompt bar, Enhance diff, prompt packs, trigger words, negative prompt, prompt history</li>
+<li><strong>Waiting and queue</strong>: job queue, previews and progress, ETA, warm-up and memory swaps, pause / cancel / retry</li>
+<li><strong>Exploration and iteration</strong>: seeds, batch, variations, compare, reuse settings, drop-PNG restore, lineage</li>
+<li><strong>Parameter surface and family capabilities</strong>: capability-driven controls, step presets, LoRA row, fit badge, catalog freshness</li>
+<li><strong>Canvas and result handling</strong>: canvas-first window, filmstrip, Canvas vs Gallery, review, Mac-native affordances</li>
+</ul>
+</section>
+
+<section id="ranked-ideas">
+<h2>Ranked Ideas</h2>
+<nav class="jump" aria-label="Ranked ideas jump list">
+<ol>
+<li><a href="#idea-1">Time is the workspace's currency</a></li>
+<li><a href="#idea-2">Failure routing by cause, with per-generation resume</a></li>
+<li><a href="#idea-3">Admission control: only queue jobs that can run</a></li>
+<li><a href="#idea-4">Review mode: cull stream with a pinned reference</a></li>
+<li><a href="#idea-5">Cross-family fan-out compare</a></li>
+<li><a href="#idea-6">Enhance receipts</a></li>
+<li><a href="#idea-7">Explore cheap, promote the keeper</a></li>
+</ol>
+</nav>
+
+<article class="idea" id="idea-1">
+<h3><span class="chip id">1.</span> Time is the workspace's currency</h3>
+<div class="strip"><span class="chip">Axis: Waiting and queue</span><span class="chip ok">Confidence 80%</span><span class="chip">Complexity Medium</span></div>
+<dl>
+<dt>Description</dt>
+<dd>One calibration table feeds three surfaces. It records seconds per step by model, resolution and <em>LoRA-stack identity</em>, plus measured model-load and enhancer-swap cost. The surfaces are the model chip estimate, a queue clock that shows time remaining for the whole queue with explicit reload lines, and the Fast / Balanced / Quality presets restated as a target seconds-per-image. The app picks the step count and size inside the family's curated range and shows them read-only. When consecutive jobs differ in model, LoRA stack or enhancer residency, the queue shows an offer such as "regrouping saves about 40 s". It never reorders silently.</dd>
+</dl>
+<svg class="viz" viewBox="0 0 740 150" role="img" aria-label="One calibration table feeding the model chip estimate, the queue clock and the time-target presets">
+<defs><marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+<rect class="hot" x="10" y="38" width="240" height="76" rx="8"/>
+<text x="26" y="62">Calibration table</text>
+<text class="sub" x="26" y="82">per model, size, LoRA stack</text>
+<text class="sub" x="26" y="100">+ measured load and swap cost</text>
+<line x1="250" y1="76" x2="398" y2="30" marker-end="url(#a1)"/>
+<line x1="250" y1="76" x2="398" y2="76" marker-end="url(#a1)"/>
+<line x1="250" y1="76" x2="398" y2="122" marker-end="url(#a1)"/>
+<rect x="400" y="10" width="330" height="40" rx="8"/><text x="416" y="35">Model chip estimate</text>
+<rect x="400" y="56" width="330" height="40" rx="8"/><text x="416" y="81">Queue clock with reload lines</text>
+<rect x="400" y="102" width="330" height="40" rx="8"/><text x="416" y="127">Presets as a target seconds-per-image</text>
+</svg>
+<dl>
+<dt>Axis</dt><dd>Waiting and queue (also settles the Parameter surface presets)</dd>
+<dt>Basis</dt>
+<dd><code>direct:</code> HLD:307 "quality presets (Fast / Balanced / Quality), max 100" with no values given. HLD:353 "every real generation records seconds-per-step by (model, resolution, LoRA count)". HLD:348 "picks the largest comfortable model whose estimated latency meets the tier target". HLD:270 "The engine already reuses an identical LoRA stack between requests". HLD:431 "Enhance unloads the LLM afterwards and re-warms the diffusion model". HLD:524 <code>lora_count</code>, HLD:503 <code>duration_ms</code>. Verified against the docs; the queue dossier confirms no ETA formula exists.</dd>
+<dt>Rationale</dt>
+<dd>The calibrator is already planned, but it only feeds the chip. Before F1 ships, image progress is step-only (AGENTS.md:51), so time remaining is the one "when" signal users get. Keying on stack identity rather than <code>lora_count</code> matches what the engine's reuse actually depends on, and changing the key after data accrues is expensive.</dd>
+<dt>Downsides</dt>
+<dd>The quality-versus-steps curve is model-specific and unmeasured, and turbo or distilled families have little step range, so presets collapse to one value there. The docs give no swap-time figures, so the first calibration needs catalog-seeded defaults. A "regroup" offer touches the HLD:270 no-reorder rule, and the offer wording has to stay clearly optional.</dd>
+</dl>
+</article>
+
+<article class="idea" id="idea-2">
+<h3><span class="chip id">2.</span> Failure routing by cause, with per-generation resume</h3>
+<div class="strip"><span class="chip">Axis: Waiting and queue</span><span class="chip ok">Confidence 80%</span><span class="chip">Complexity Medium</span></div>
+<dl>
+<dt>Description</dt>
+<dd>Persist status per generation, not per job. If generation 3 of ×4 fails, retry re-enqueues only the unfinished generations with their recorded seeds, so no finished render is repeated. The engine's crash class picks the response. For <code>outOfMemory</code> and <code>killedBySystem</code>, unload idle models, wait, and retry the identical request once; if it still fails, park the job as <code>paused</code> with a plain-language tier hint instead of marking it failed. For <code>missingWeights</code>, pause only the jobs that use that model. The request is never altered, so no LoRA is dropped silently.</dd>
+<dt>Axis</dt><dd>Waiting and queue</dd>
+<dt>Basis</dt>
+<dd><code>direct:</code> engine.md:269-271 (crash classes, with <code>outOfMemory</code> retryable and <code>missingWeights</code> not retryable until repaired). engine.md:276 "Retrying is the queue's decision. The supervisor never replays a request." HLD:266 "reorder, pause, cancel (current or queued), and retry failed jobs". HLD:486 status enum already includes <code>paused</code>. AGENTS.md:43 "always send an explicit <code>seed</code>". Verified.</dd>
+<dt>Rationale</dt>
+<dd>The docs hand retry to the queue but never define granularity or policy, so a naive job-level retry re-spends compute on work that finished, and the OOM hint ("Try a smaller model or fewer LoRAs") pushes the fix back onto the user. Here the policy falls out of the crash taxonomy the LLD already specifies.</dd>
+<dt>Downsides</dt>
+<dd>A single automatic retry on a 16 GB machine may just repeat the failure. Parked jobs need a visible state in the filmstrip. It treats the symptom, since admission control (idea 3) is what reduces how often this path runs. It depends on the pinned engine's crash signatures staying stable across bumps.</dd>
+</dl>
+</article>
+
+<article class="idea" id="idea-3">
+<h3><span class="chip id">3.</span> Admission control: only queue jobs that can run</h3>
+<div class="strip"><span class="chip">Axis: Parameter surface and family capabilities</span><span class="chip ok">Confidence 75%</span><span class="chip">Complexity Medium</span></div>
+<dl>
+<dt>Description</dt>
+<dd>One validator runs at enqueue. It checks size grid, step range, guidance flag, LoRA count, the safetensors key-and-shape fingerprint, and a <em>live</em> free-memory check against the engine's real preflight numbers rather than only the static Metal working set. A job that fails is rejected with a reason before taking a queue slot; a job that merely lacks memory is held with the gap stated ("needs about 17.6 GB free, about X now"). Engine verdicts (accepted, or "no modules matching") are remembered by LoRA SHA-256, family and engine version, and invalidated on an engine bump.</dd>
+</dl>
+<svg class="viz" viewBox="0 0 750 150" role="img" aria-label="Enqueue request passes static checks, LoRA verdict memory and a live memory check before it takes a queue slot; failures are rejected or held with a reason">
+<defs><marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+<rect x="10" y="20" width="130" height="50" rx="8"/><text x="26" y="42">Enqueue</text><text class="sub" x="26" y="58">settings + LoRAs</text>
+<rect x="160" y="20" width="130" height="50" rx="8"/><text x="176" y="42">Static checks</text><text class="sub" x="176" y="58">grid, steps, CFG</text>
+<rect x="310" y="20" width="130" height="50" rx="8"/><text x="326" y="42">LoRA verdicts</text><text class="sub" x="326" y="58">header + memory</text>
+<rect x="460" y="20" width="130" height="50" rx="8"/><text x="476" y="42">Live memory fit</text><text class="sub" x="476" y="58">free now vs peak</text>
+<rect class="hot" x="610" y="20" width="130" height="50" rx="8"/><text x="626" y="42">Queue slot</text><text class="sub" x="626" y="58">will likely run</text>
+<line x1="140" y1="45" x2="158" y2="45" marker-end="url(#a3)"/>
+<line x1="290" y1="45" x2="308" y2="45" marker-end="url(#a3)"/>
+<line x1="440" y1="45" x2="458" y2="45" marker-end="url(#a3)"/>
+<line x1="590" y1="45" x2="608" y2="45" marker-end="url(#a3)"/>
+<line class="dash" x1="225" y1="70" x2="225" y2="102" marker-end="url(#a3)"/>
+<line class="dash" x1="375" y1="70" x2="375" y2="102" marker-end="url(#a3)"/>
+<line class="dash" x1="525" y1="70" x2="525" y2="102" marker-end="url(#a3)"/>
+<rect class="stop" x="150" y="104" width="450" height="34" rx="8"/>
+<text x="375" y="126" text-anchor="middle">Reject or hold, with a stated reason</text>
+</svg>
+<dl>
+<dt>Axis</dt><dd>Parameter surface and family capabilities</dd>
+<dt>Basis</dt>
+<dd><code>direct:</code> AGENTS.md:58 "Pre-check compatibility locally from the safetensors header (key names and tensor shapes, HLD §8.6). Treat the engine's 400 as the final authority." HLD:283 "Validate against FamilyRegistry capabilities". HLD:367 "Incompatible LoRAs are greyed out for the current model." HLD:342 and :347 (static working-set classification). engine.md:313 (about 14.7 GB peak, about 17.6 GB free for Krea-2 Turbo). HLD:353 (estimates invalidated on engine bump, the same pattern reused for verdicts). <code>external:</code> Invoke 6.14.0 fails early with a stated reason; DiffusionBee #570 lists LoRAs that fail to load among its top complaints. Verified against the docs.</dd>
+<dt>Rationale</dt>
+<dd>The queue is where a bad job costs the most, because it persists across relaunches and fails after the user has walked away. A fit badge computed against a static limit can say "comfortable" while the engine's preflight, which reads live memory, would refuse. One validator can serve the composer (greyed LoRAs), enqueue and pre-warm.</dd>
+<dt>Downsides</dt>
+<dd>Free memory moves, so a job can pass at enqueue and still fail at run; idea 2 remains necessary. Per-model fit thresholds need calibration, and the "exceeds" badge treatment is still undefined (HLD:584). Verdict memory alone is modest value. A local smoke test saw an <code>out_of_memory</code> refusal at low free memory, but that observation is not recorded at a cited docs line, so it is not used as a basis.</dd>
+</dl>
+</article>
+
+<article class="idea" id="idea-4">
+<h3><span class="chip id">4.</span> Review mode: cull stream with a pinned reference</h3>
+<div class="strip"><span class="chip">Axis: Canvas and result handling</span><span class="chip warn">Confidence 65%</span><span class="chip">Complexity Medium</span></div>
+<dl>
+<dt>Description</dt>
+<dd>A ×N batch streams its results into a full-canvas review. K keeps, X discards, space advances, and the next generation is already rendering. Any earlier result can be pinned beside the incoming one, so the reference no longer disappears when the live preview takes over the canvas. Discards leave the project by default; marks are session-only so they do not become ratings. Layout and interaction only, with no engine change.</dd>
+<dt>Axis</dt><dd>Canvas and result handling (also touches Exploration)</dd>
+<dt>Basis</dt>
+<dd><code>direct:</code> HLD:265 "The executor expands a job into N generations, each a separate engine request". HLD:266 queue placeholders with live progress. HLD:581 "Canvas: the selected result or the live preview", so the reference is displaced. HLD:594 "Keyboard first: ⌘↩ generate, ⌘E enhance, ⌘. cancel, ⌘1/⌘2 Canvas/Gallery". HLD:35 lists ratings and favorites as non-goals. <code>external:</code> Mochi Diffusion #196 (users wanted same-seed side-by-side comparison). <code>reasoned:</code> with 8-60 s jobs the human's attention, spent during review, is the scarce resource, which is what film dailies are organized around.</dd>
+<dt>Rationale</dt>
+<dd>Today a batch lands in the filmstrip and the user must sort it later in a separate Gallery mode, with double-click as the only bridge (HLD:585). The docs describe no review flow at all for a canvas-first window, and no compare surface.</dd>
+<dt>Downsides</dt>
+<dd>"Discard leaves the project" is destructive and needs undo or a trash. Where a kept result's "keep" state lives, if marks are session-only, is a team call against the D10 no-ratings boundary. It adds a mode to the §10 layout.</dd>
+</dl>
+</article>
+
+<article class="idea" id="idea-5">
+<h3><span class="chip id">5.</span> Cross-family fan-out compare</h3>
+<div class="strip"><span class="chip">Axis: Exploration and iteration</span><span class="chip warn">Confidence 55%</span><span class="chip">Complexity Medium</span></div>
+<dl>
+<dt>Description</dt>
+<dd>One Generate sends the same prompt to several installed families. Each run uses that family's capability-driven settings and its own prompt pack, and the results land as one comparison set. The model chip becomes a multi-select. On 16 GB the runs are serial, and the queue clock from idea 1 shows the reload cost instead of hiding it.</dd>
+<dt>Axis</dt><dd>Exploration and iteration</dd>
+<dt>Basis</dt>
+<dd><code>direct:</code> HLD:48 D5 (FLUX.2-klein, Krea-2, Qwen-Image 2.1, Mage-Flow). HLD:300 controls driven by the capability record. HLD:602 (48 GB+ tier allows three resident models). AGENTS.md:40 "One job at a time." <code>external:</code> Invoke 6.14.0 publishes a per-family capability matrix. Verified: the verifier ranked this among the six strongest candidates, with the note that 16 GB fan-out is serial and must say so.</dd>
+<dt>Rationale</dt>
+<dd>The comparison people actually want is across families on one prompt, not one model at a time. The capability records are what make a safe fan-out possible without per-screen special cases.</dd>
+<dt>Downsides</dt>
+<dd>Each family needs weights on disk (roughly 5-15 GB apiece). A fair comparison is undefined when sizes differ (FLUX is fixed at 1024²). On 16 GB (one resident model) a fan-out of four families is four loads. It sits next to the D13 "no X/Y" line, so the decision log should state that a model axis is allowed.</dd>
+</dl>
+</article>
+
+<article class="idea" id="idea-6">
+<h3><span class="chip id">6.</span> Enhance receipts</h3>
+<div class="strip"><span class="chip">Axis: Prompt authoring</span><span class="chip warn">Confidence 60%</span><span class="chip">Complexity Low</span></div>
+<dl>
+<dt>Description</dt>
+<dd>Mark the trigger words that validation re-inserted as distinct spans in the inline diff. Persist the diff outcome (accepted, reverted, regenerated) and the enhancer's <code>notes</code> with each generation, so any image traces back to the exact prompt the user approved. Optionally keep the original prompt as a same-seed control render.</dd>
+<dt>Axis</dt><dd>Prompt authoring</dd>
+<dt>Basis</dt>
+<dd><code>direct:</code> HLD:424 "Trigger words are required in the output, and the JSON-schema validation re-inserts any that are missing." HLD:430 "the result is offered as a diff". HLD:408 <code>json_schema {prompt, negative_prompt?, notes}</code>. HLD:500-502 <code>prompt</code>, <code>negative_prompt</code> and <code>enhanced_from</code> are IMAGE fields, with no field for accept or revert state. HLD:432 the offline evaluation compares generations with and without enhancement. Verified; the verifier corrected the dossier, which had placed those fields on JOB.</dd>
+<dt>Rationale</dt>
+<dd>After a revert the prompt that produced a result is not recoverable, and users cannot see words the app added. The product's trust story for Enhance depends on it being auditable.</dd>
+<dt>Downsides</dt>
+<dd>Modest on its own, and its value scales with how much people use Enhance. Span provenance gets fuzzy once the user hand-edits an accepted rewrite. It needs new fields, but amends no D* decision. The K-rewrites-as-batch variant was left out because it sits too close to the D13 wildcards exclusion.</dd>
+</dl>
+</article>
+
+<article class="idea" id="idea-7">
+<h3><span class="chip id">7.</span> Explore cheap, promote the keeper</h3>
+<div class="strip"><span class="chip">Axis: Exploration and iteration</span><span class="chip bad">Confidence 35%</span><span class="chip">Complexity High</span></div>
+<dl>
+<dt>Description</dt>
+<dd>Explore with drafts at the smallest allowed size and steps. When image previews exist, use them as a stop signal: cancel a bad seed at roughly step 4-6 and let the queue move on. Promote a chosen seed to full settings as a child result. Each child records <code>parent_image_id</code> and a <code>recipe_diff</code>, so the filmstrip can read as a "what changed" chain. Two cheap experiments gate the whole idea: does a fixed seed keep its composition when size and steps change, and is composition legible at early steps?</dd>
+</dl>
+<svg class="viz" viewBox="0 0 740 120" role="img" aria-label="Draft, cull or early-kill, promote keeper, final result, with lineage recorded across the chain">
+<defs><marker id="a7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+<rect x="10" y="12" width="150" height="50" rx="8"/><text x="26" y="34">Draft</text><text class="sub" x="26" y="50">small, few steps</text>
+<rect x="200" y="12" width="150" height="50" rx="8"/><text x="216" y="34">Cull or early-kill</text><text class="sub" x="216" y="50">keep few seeds</text>
+<rect x="390" y="12" width="150" height="50" rx="8"/><text x="406" y="34">Promote keeper</text><text class="sub" x="406" y="50">full size and steps</text>
+<rect class="hot" x="580" y="12" width="150" height="50" rx="8"/><text x="596" y="34">Final result</text><text class="sub" x="596" y="50">child of the draft</text>
+<line x1="160" y1="37" x2="198" y2="37" marker-end="url(#a7)"/>
+<line x1="350" y1="37" x2="388" y2="37" marker-end="url(#a7)"/>
+<line x1="540" y1="37" x2="578" y2="37" marker-end="url(#a7)"/>
+<line class="dash" x1="85" y1="84" x2="655" y2="84"/>
+<text class="sub" x="370" y="106" text-anchor="middle">lineage: parent_image_id + recipe_diff on every child</text>
+</svg>
+<dl>
+<dt>Axis</dt><dd>Exploration and iteration</dd>
+<dt>Basis</dt>
+<dd><code>direct:</code> AGENTS.md:63 (FLUX fixed at 1024², Krea multiples of 16 in [256, 2048]). engine.md:312 a 512×512 image in about 8.5 s. HLD:72, :215 and :649 (image previews depend on upstream F1). HLD:295 cancel closes the connection and the engine aborts denoise. HLD:489-506 IMAGE has no parent field. HLD:622 img2img <code>strength</code> is v1.x. <code>reasoned:</code> cancelling at 25% of steps saves about 75% of that generation's time. Both gating premises are <code>[INFERENCE]</code>: nothing in the docs shows that seed composition survives a size or step change, or that early steps predict the final image.</dd>
+<dt>Rationale</dt>
+<dd>At about 8.5 s per 512² image, exploration speed is the bottleneck, and a draft that keeps composition would multiply how many candidates a user can look at per minute. The lineage column is the one part that pays off whichever way the experiments land.</dd>
+<dt>Downsides</dt>
+<dd>If seed composition is unstable the idea fails outright. FLUX.2-klein is fixed at 1024², so it cannot draft, and it is the 16 GB default. Image previews depend on F1 landing upstream with no date. Run the two experiments (about a day each) before committing anything but the lineage column.</dd>
+</dl>
+</article>
+</section>
+
+<section id="rejection-summary">
+<h2>Rejection Summary</h2>
+<p>Candidates not listed here became survivors directly (M02-M06, M15, M23) or were merged into them. IDs refer to the raw candidate list: M01-M29 for single ideas and S01-S04 for the four cross-cutting combinations.</p>
+<table>
+<thead><tr><th>#</th><th>Idea</th><th>Reason rejected</th></tr></thead>
+<tbody>
+<tr><td class="n">M01</td><td>Residency-aware queue: batch queued Enhance calls into one LLM load</td><td>Enhance is interactive and non-blocking (HLD:430), not a queued job, so there is rarely a burst to batch. The useful part, an optional "regroup" offer, is folded into idea 1.</td></tr>
+<tr><td class="n">M07</td><td>One versioned recipe document with a restore receipt</td><td>Sound, but already covered by D12 and HLD:442-443; it is a schema refinement for the LLD rather than a direction to choose. Fix it before the first PNG ships.</td></tr>
+<tr><td class="n">M08</td><td>Lineage column and diff chain</td><td>Folded into idea 7. Adding <code>parent_image_id</code> now is cheap regardless of the rest.</td></tr>
+<tr><td class="n">M09, M10</td><td>Cull stream; pinned reference</td><td>Merged into idea 4.</td></tr>
+<tr><td class="n">M12, M13</td><td>Draft then promote; previews as stop signal and video-first preview transport</td><td>Merged into idea 7. The video-first transport also drifts toward phase-3 scope (HLD:623).</td></tr>
+<tr><td class="n">M11</td><td>Zoom continuum replaces the Canvas/Gallery switch (amends D18)</td><td>Thin evidence beyond D18's empty rationale cell; a redesign rather than a workspace gain. The empty rationale is worth filling in regardless.</td></tr>
+<tr><td class="n">M14</td><td>Enhance as a batch axis / K rewrites</td><td>K LLM rewrites per batch behave like the prompt wildcards D13 excludes, and the idea only "borders" the decision. A same-seed original control is kept as an option in idea 6.</td></tr>
+<tr><td class="n">M16</td><td>Prompt event log; drop the "phantom" PROMPT_HISTORY</td><td>The premise is wrong: D10 and HLD:436 require per-project prompt history. The real finding is that the entity is referenced (HLD:462) but undefined, which is a spec gap, not an idea. Also widens toward library analytics.</td></tr>
+<tr><td class="n">M17</td><td>Trigger words as a composed layer instead of chips</td><td>Real but small; below the meeting-test floor.</td></tr>
+<tr><td class="n">M18</td><td>Critic model that reviews each result</td><td>Needs a vision model absent from the catalog and amends D9; scope grows into a new model class.</td></tr>
+<tr><td class="n">M19</td><td>Seed cards</td><td>Largely restates the existing seed policy and iTXt chunk; seed stability across engine bumps is unverified.</td></tr>
+<tr><td class="n">M20</td><td>Seed is output, never input</td><td>Removes the increment policy (HLD:265) and conflicts with D13's "seed controls"; the D13 conflict is not flagged by the idea.</td></tr>
+<tr><td class="n">M21</td><td>Zero-knob generate (amends D13 seed controls)</td><td>A legitimate decision-level debate, but it conflicts with the HLD's stated Auto1111-class reach. Better as a brainstorm variant than a ranked direction.</td></tr>
+<tr><td class="n">M22</td><td>Settings as a diff against project defaults</td><td>Clean but modest; a presentation of D10 project defaults rather than a new direction.</td></tr>
+<tr><td class="n">M24</td><td>Render window for tight models on idle</td><td>No evidence of need, new scheduling surface, and overlaps the time-budget theme in idea 1.</td></tr>
+<tr><td class="n">M25, S04</td><td>Test strip ladders; "sweep without a sweep UI"</td><td>A contact-sheet row of one knob at a fixed seed is an X/Y plot in substance, which D13 excludes. The "D13 boundary preserved" claim does not hold.</td></tr>
+<tr><td class="n">M26</td><td>Bisect the settings delta between a good and a bad result</td><td>Depends on determinism at a fixed seed, which is unverified. Niche diagnostic.</td></tr>
+<tr><td class="n">M27</td><td>Replay bank re-rendering starred results on engine bumps</td><td>Scope widens to engine QA and idle scheduling. No evidence of user demand.</td></tr>
+<tr><td class="n">M28</td><td>App Intents / Shortcuts as the queue's automation surface</td><td>Widens to a system automation surface; support is a single maintainer remark, and the HLD has no App Intents spec. A fair future direction, not a workspace one.</td></tr>
+<tr><td class="n">M29</td><td>Split export metadata into recipe and private prose</td><td>HLD:444 already allows stripping per item or by default, and dropping the prompt by default conflicts with D12 interop.</td></tr>
+<tr><td class="n">S01</td><td>Explore cheap, commit expensive (combined loop)</td><td>Split: the cull stream became idea 4 and the draft-and-promote part became idea 7.</td></tr>
+<tr><td class="n">S02</td><td>Time as currency (combined)</td><td>Kept as idea 1 without the scheduled-window component (M24).</td></tr>
+<tr><td class="n">S03</td><td>Enhance on trial (combined)</td><td>Bundles M14 and M16, both weak; the sound core is idea 6.</td></tr>
+<tr><td class="n">Axes</td><td>Coverage check</td><td>Every axis has at least one survivor. Axis 2 has two, axis 3 has two; no axis is a gap.</td></tr>
+</tbody>
+</table>
+</section>
+
+<footer class="composition-signal">Composed 2026-10-16T10:05Z by ce-ideate from the prompt context "Generation workspace &amp; UX" (subject chosen interactively). Sources: <a href="https://github.com/fearless-holdings/mlx-create/blob/main/docs/HLD.md"><code>docs/HLD.md</code></a>, <a href="https://github.com/fearless-holdings/mlx-create/blob/main/docs/lld/engine.md"><code>docs/lld/engine.md</code></a>, <a href="https://github.com/fearless-holdings/mlx-create/blob/main/AGENTS.md"><code>AGENTS.md</code></a>; external: <a href="https://invoke.ai/releases/version/invokeai-6-14-0/">Invoke 6.14.0 release notes</a>, <a href="https://github.com/skeptict/TanqueStudio">Tanque Studio</a>, <a href="https://jonbrown.org/blog/running-image-generation-locally-on-macos-with-draw-things-2026/">Draw Things on macOS (2026)</a>.</footer>
+
+</div>
+</body>
+</html>

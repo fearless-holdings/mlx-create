@@ -83,7 +83,8 @@ public enum ProcessWait {
     public static func waitForExit(_ pid: Int32, seconds: Double) async -> Bool {
         for _ in 0..<Int(seconds * 10) {
             if kill(pid, 0) != 0 { return true }
-            try? await Task.sleep(for: .milliseconds(100))
+            // Unstructured, so a cancelled caller (a stop during a reap) still waits out the full window.
+            _ = await Task { try? await Task.sleep(for: .milliseconds(100)) }.value
         }
         return kill(pid, 0) != 0
     }

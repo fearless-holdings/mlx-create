@@ -100,7 +100,8 @@ Every step uses `set -euo pipefail`. Any failure fails the build with one line s
 2. List the archive with `tar -tvzf` before extracting. Reject any absolute paths, `..` components, symlinks, hard links, or device entries.
 3. Extract with `tar -xzf --no-same-owner --no-same-permissions` into `$(DERIVED_FILE_DIR)/engine/<sha256>/`.
 4. The set of files under `root` must equal `executable ∪ frameworks ∪ notices`.
-5. `codesign --verify --strict` on the binary and every dylib. `codesign -dv` must report the Team ID as `upstream_team_id`. This proves the bytes are what upstream signed. We replace that signature in step 5.
+
+`--refresh-manifest` runs step 5 on the new archive before it executes the new binary for `--version`. The lock's payload lists may be stale during a bump, so step 4 is skipped there; the Mach-O set comes from the archive itself.
 
 ### 4.3 Embed
 
@@ -115,11 +116,13 @@ Use `ditto` for every copy (it preserves modes and drops quarantine via `--noqtn
 
 Before copying, remove any previously embedded engine files, so a dylib dropped by a bump can't linger in an incremental build.
 
+`scripts/embed-engine.sh` writes `engine.lock`'s `version` to `Resources/ThirdParty/mlx-serve/ENGINE_VERSION`. That file is the only runtime source of the pinned version: `AppModel.live()` reads it and passes it to the executor, which records it in each saved image's settings. Under `swift test` the file is absent and the version is nil.
+
 ### 4.4 Install-name fix
 
 Run these against the embedded copies. They are rule-driven, not a hard-coded list, so a bump that changes linkage either keeps working or fails loudly.
 
-1. **Binary loads:** every `LC_LOAD_DYLIB` beginning with `@executable_path/lib/` becomes `@executable_path/../Frameworks/<name>` (`install_name_tool -change`). `@rpath/…` loads stay as they are.
+1. **Binary loads:** every `LC_LOAD_DYLIB` beginning with `@executable_path/lib/` is rewritten by name. `libmlx.dylib` and `mlx.metallib` become `@executable_path/../Resources/mlx/<name>`; every other dylib becomes `@executable_path/../Frameworks/<name>` (`install_name_tool -change`). `@rpath/…` loads stay as they are.
 2. **Binary rpaths:** delete every `LC_RPATH` except `@executable_path/../Frameworks` and `@executable_path/../Resources/mlx` (`-delete_rpath`), and add either rpath if it is missing.
 3. **Dylib IDs:** any dylib whose ID is an absolute path gets `-id @rpath/<file name>`. Today that means `libwebp` and `libsharpyuv`.
 4. **Dylib loads:** any absolute non-system dependency (anything outside `/usr/lib` and `/System`) whose basename is in `Frameworks/` becomes `@loader_path/<basename>`.
@@ -159,7 +162,6 @@ public actor EngineSupervisor {
     public func start() async                              // idempotent
     public func restart() async                            // user "Restart engine"; clears backoff
     public func stop() async                               // SIGTERM, grace, SIGKILL
-    public func noteInFlightJob(_ id: JobID?)               // set/clear by the queue
 }
 
 public enum EngineState: Sendable {
@@ -175,7 +177,6 @@ public struct EngineCrash: Sendable, Error {
     public let message: String                  // plain-language, shown to the user
     public let detail: String                   // summarizeCrash line, for diagnostics
     public let exit: ExitStatus                 // .code(Int32) | .signal(Int32)
-    public let failedJob: JobID?                // job in flight when it died
 }
 ```
 
@@ -274,7 +275,7 @@ Rules are evaluated top to bottom on the ring-buffer tail, with request preview 
 
 `detail` is always `summarizeCrash(logTail, exitCode:)` as ported. The OOM strings come from upstream's matcher [observed]. Upstream messages are not stable, so each rule gets a fixture test, built from real crash tails captured during smoke tests, and the fixtures are refreshed on every bump.
 
-The supervisor reports `failedJob` on the `EngineCrash`. Retrying is the queue's decision. The supervisor never replays a request.
+The executor fails the in-flight job when its connection drops, and reads the crash kind from the supervisor (`EngineGate.currentCrash()`) to choose the failure. The supervisor does not track jobs. Retrying is the queue's decision, and the supervisor never replays a request.
 
 ### 5.7 Backoff restart
 
@@ -300,8 +301,8 @@ stateDiagram-v2
 
 ### 5.8 Shutdown
 
-- On `NSApplication.willTerminateNotification`, the app layer calls `stop()` and blocks for at most 3 s.
-- `stop()` cancels the readiness poll and any pending restart, sends SIGTERM, waits 3 s, then sends SIGKILL and deletes the PID file.
+- On quit, the app delegate's `applicationShouldTerminate` returns `.terminateLater` and calls `AppModel.shutdown()`. That cancels the app's long-lived tasks, waits for `stop()` for at most 3 s, then replies to AppKit.
+- `stop()` cancels the readiness poll and any pending restart, sends SIGTERM, waits 3 s, then sends SIGKILL and deletes the PID file. The grace wait does not depend on the caller's cancellation, so a stop from a cancelled task still gets its full window. A stop during a stale-engine reap spawns nothing: the launch returns `.cancelled` before it spawns, and a readiness wait that is cancelled retires the child it spawned.
 - If the app itself dies without terminating cleanly, §5.4 catches the orphan on the next launch.
 
 ### 5.9 Smoke-test record (2026-10-16, `v26.10.2`)
@@ -326,6 +327,7 @@ Permanent tests cover behaviour only (`AGENTS.md` → Verification):
 | PID-file decision (pure, over a fake process table) | Kill only when pid, start time and executable path all match; PID reuse is left alone |
 | Symlink reconciliation (temp dir) | All four rows of §5.3, including "real dir is never deleted" |
 | Argv/env builder | Loopback host, `--api-key-env`, `--api-key-strict`, no `--lan-*`, no inherited env |
+| Fake-engine supervisor (default run) | The key reaches the child by environment, never argv; a killed engine restarts with a new key; stop and restart during a stale-engine reap leave no live child |
 
 Smoke test, against the real engine (`AGENTS.md`):
 

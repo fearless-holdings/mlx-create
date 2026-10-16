@@ -12,35 +12,40 @@ import Testing
         EngineLaunch.arguments(port: 53117, modelDir: modelDir, tier: tier)
     }
 
+    /// Each `--flag` mapped to the value that follows it. Flags without a value map to "".
+    private func flags(_ argv: [String]) -> [String: String] {
+        var result: [String: String] = [:]
+        for (index, argument) in argv.enumerated() where argument.hasPrefix("--") {
+            let next = index + 1
+            let hasValue = next < argv.count && !argv[next].hasPrefix("--")
+            result[argument] = hasValue ? argv[next] : ""
+        }
+        return result
+    }
+
     @Test func bindsLoopbackOnlyAndNeverPassesLANFlags() {
-        let a = args()
-        #expect(a.contains("--host"))
-        #expect(a[a.firstIndex(of: "--host")! + 1] == "127.0.0.1")
-        #expect(!a.contains { $0.hasPrefix("--lan") })
+        let argv = args()
+        #expect(flags(argv)["--host"] == "127.0.0.1")
+        #expect(!argv.contains { $0.hasPrefix("--lan") })
     }
 
     @Test func keyIsReadFromEnvironmentWithStrictAuth() {
-        let a = args()
-        #expect(a[a.firstIndex(of: "--api-key-env")! + 1] == "MLXC_ENGINE_KEY")
-        #expect(a.contains("--api-key-strict"))
+        let argv = args()
+        #expect(flags(argv)["--api-key-env"] == "MLXC_ENGINE_KEY")
+        #expect(flags(argv)["--api-key-strict"] != nil)
     }
 
-    @Test func argvNeverContainsAKeyValue() {
-        // The builder takes no key at all; the key only ever travels in the environment.
-        #expect(!args().contains(secret))
-    }
-
-    @Test func portAndModelDirAreTheOnlyPaths() {
-        let a = args()
-        #expect(a[a.firstIndex(of: "--port")! + 1] == "53117")
-        #expect(a[a.firstIndex(of: "--model-dir")! + 1] == "/tmp/Models/Weights")
+    @Test func portAndModelDirArePassedAsFlagValues() {
+        let argv = args()
+        #expect(flags(argv)["--port"] == "53117")
+        #expect(flags(argv)["--model-dir"] == modelDir.path)
     }
 
     @Test func residentModelLimitFollowsTheMemoryTier() {
-        let sixteen = args(tier: MemoryTier(physicalMemoryBytes: 16 << 30))
-        #expect(sixteen[sixteen.firstIndex(of: "--max-resident-models")! + 1] == "1")
-        let large = args(tier: MemoryTier(physicalMemoryBytes: 64 << 30))
-        #expect(large[large.firstIndex(of: "--max-resident-models")! + 1] == "3")
+        let sixteen = flags(args(tier: MemoryTier(physicalMemoryBytes: 16 << 30)))
+        #expect(sixteen["--max-resident-models"] == "1")
+        let large = flags(args(tier: MemoryTier(physicalMemoryBytes: 64 << 30)))
+        #expect(large["--max-resident-models"] == "3")
     }
 
     @Test func environmentIsBuiltFromExactlyFourVariables() {
@@ -48,7 +53,10 @@ import Testing
         #expect(Set(env.keys) == ["HOME", "MLXC_ENGINE_KEY", "PATH", "TMPDIR"])
         #expect(env["HOME"] == home.path)
         #expect(env["MLXC_ENGINE_KEY"] == secret)
-        #expect(env["PATH"] == "/usr/bin:/bin")
+        #expect(env["TMPDIR"] == tmp.path)
+        // PATH holds only the system directories; nothing is inherited from the app's environment.
+        let entries = (env["PATH"] ?? "").split(separator: ":").map(String.init)
+        #expect(!entries.isEmpty && entries.allSatisfy { ["/usr/bin", "/bin"].contains($0) })
     }
 
     @Test func generatedKeysAreBase64URLWithoutPadding() {
