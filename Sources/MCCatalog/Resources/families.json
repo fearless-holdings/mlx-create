@@ -1,1 +1,38 @@
-{"families":[]}
+{
+  "families": [
+    {
+      "id": "krea-2-turbo",
+      "displayName": "Krea 2 Turbo",
+      "architectures": ["krea2_turbo"],
+      "sizeGrid": { "multiple": 16, "min": 256, "max": 2048 },
+      "sizePresets": [
+        { "width": 512, "height": 512 },
+        { "width": 768, "height": 768 },
+        { "width": 1024, "height": 1024 },
+        { "width": 1024, "height": 768 },
+        { "width": 768, "height": 1024 }
+      ],
+      "defaultSize": { "width": 1024, "height": 1024 },
+      "steps": { "defaultSteps": 4, "min": 1, "max": 100 },
+      "guidance": null,
+      "supportsNegativePrompt": false
+    },
+    {
+      "id": "flux2-klein",
+      "displayName": "FLUX.2 klein",
+      "architectures": ["flux2-klein-4b", "flux2-klein"],
+      "sizeGrid": { "multiple": 32, "min": 256, "max": 1536 },
+      "sizePresets": [
+        { "width": 512, "height": 512 },
+        { "width": 768, "height": 768 },
+        { "width": 1024, "height": 1024 },
+        { "width": 1024, "height": 768 },
+        { "width": 768, "height": 1024 }
+      ],
+      "defaultSize": { "width": 1024, "height": 1024 },
+      "steps": { "defaultSteps": 4, "min": 1, "max": 100 },
+      "guidance": null,
+      "supportsNegativePrompt": false
+    }
+  ]
+}
