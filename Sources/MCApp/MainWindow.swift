@@ -12,7 +12,7 @@ public struct MainWindow: View {
     public var body: some View {
         VStack(spacing: 0) {
             if let banner = model.banner {
-                EngineStatusBanner(banner: banner)
+                EngineStatusBanner(banner: banner, onRestart: { Task { await model.restartEngine() } })
                 Divider()
             }
             CanvasView(model: model)

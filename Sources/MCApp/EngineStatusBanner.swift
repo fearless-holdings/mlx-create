@@ -1,25 +1,33 @@
 import SwiftUI
 
 /// One line of engine status above the canvas (U8 step 7). Shown only when ``AppModel/banner`` is non-nil.
+/// A failed engine offers a restart, because the supervisor stops retrying once its budget is spent.
 struct EngineStatusBanner: View {
     let banner: EngineBanner
+    let onRestart: () -> Void
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: symbol)
-                .foregroundStyle(tint)
-                .accessibilityHidden(true)
-            Text(text)
-                .font(.callout)
-                .lineLimit(1)
-                .truncationMode(.middle)
+            HStack(spacing: 8) {
+                Image(systemName: symbol)
+                    .foregroundStyle(tint)
+                    .accessibilityHidden(true)
+                Text(text)
+                    .font(.callout)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .accessibilityElement(children: .combine)
             Spacer(minLength: 0)
+            if case .failed = banner {
+                Button("Restart engine", action: onRestart)
+                    .controlSize(.small)
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(tint.opacity(0.12))
-        .accessibilityElement(children: .combine)
     }
 
     private var text: String {

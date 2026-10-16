@@ -13,15 +13,18 @@ final class FakeEngine: @unchecked Sendable {
     private var loaded: Set<String>
     private var generations = 0
     private let known: [String]
+    private let holdLoads: Bool
     private let script: @Sendable (Int, EngineStubProtocol.Recorded) -> EngineStubProtocol.Reply
 
     init(
         loaded: Set<String>,
         known: [String],
+        holdLoads: Bool,
         script: @escaping @Sendable (Int, EngineStubProtocol.Recorded) -> EngineStubProtocol.Reply
     ) {
         self.loaded = loaded
         self.known = known
+        self.holdLoads = holdLoads
         self.script = script
     }
 
@@ -32,7 +35,8 @@ final class FakeEngine: @unchecked Sendable {
         case "v1/load-model":
             let id = Self.modelID(request.body)
             lock.withLock { _ = loaded.insert(id) }
-            return .json("{}")
+            // A held load keeps its reply open until the test finishes it or the client cancels the request.
+            return holdLoads ? .init(status: 200, body: Data("{}".utf8), tail: Data()) : .json("{}")
         case "v1/unload-model":
             let id = Self.modelID(request.body)
             lock.withLock { _ = loaded.remove(id) }
@@ -72,17 +76,19 @@ struct Harness {
     static func make(
         loaded: Set<String> = [],
         known: [String] = [kreaModel, otherModel],
+        holdLoads: Bool = false,
+        engineVersion: String? = nil,
         script: @escaping @Sendable (Int, EngineStubProtocol.Recorded) -> EngineStubProtocol.Reply
     ) async throws -> Harness {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("gen-\(UUID().uuidString)")
         let store = try LibraryStore(libraryRoot: root)
-        let engine = FakeEngine(loaded: loaded, known: known, script: script)
+        let engine = FakeEngine(loaded: loaded, known: known, holdLoads: holdLoads, script: script)
         let endpoint = EngineStubProtocol.register(handler: { engine.handle($0) })
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [EngineStubProtocol.self]
         let client = EngineClient(endpoint: { endpoint }, configuration: configuration)
         let queue = JobQueue(store: store)
-        let executor = JobExecutor(store: store, client: client, queue: queue)
+        let executor = JobExecutor(store: store, client: client, queue: queue, engineVersion: engineVersion)
         let project = try await store.defaultProject()
         return Harness(store: store, queue: queue, executor: executor, endpoint: endpoint, projectID: project.id)
     }
@@ -111,11 +117,12 @@ struct Harness {
         EngineStubProtocol.requests(endpoint).filter { $0.path == path }
     }
 
-    /// The `seed` each generation request carried, in order.
-    func generationSeeds() -> [UInt32] {
-        requests(to: "v1/images/generations").compactMap { request in
-            let object = try? JSONSerialization.jsonObject(with: Data(request.body.utf8)) as? [String: Any]
-            return (object?["seed"] as? NSNumber).map { UInt32(truncating: $0) }
+    /// The `seed` each generation request carried, in order. A request without a seed fails the test.
+    func generationSeeds() throws -> [UInt32] {
+        try requests(to: "v1/images/generations").map { request in
+            let object = try JSONSerialization.jsonObject(with: Data(request.body.utf8)) as? [String: Any]
+            let seed = try #require(object?["seed"] as? NSNumber, "generation request carried no seed")
+            return UInt32(truncating: seed)
         }
     }
 }

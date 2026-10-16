@@ -122,7 +122,7 @@ func imageCount(_ model: AppModel) -> Int {
     @Test func engineFailureShowsTheBannerAndKeepsQueuedJobsQueued() async throws {
         let crash = EngineCrash(
             kind: .outOfMemory, message: "The engine ran out of memory.", detail: "out_of_memory",
-            exit: .code(1), failedJob: nil)
+            exit: .code(1))
         let harness = try await AppHarness.make()
         let model = harness.model
         await model.start()
@@ -146,8 +146,7 @@ func imageCount(_ model: AppModel) -> Int {
 
     @Test func recoveringTheEngineResumesTheHeldQueue() async throws {
         let crash = EngineCrash(
-            kind: .killedBySystem, message: "The engine was stopped.", detail: "signal 9", exit: .signal(9),
-            failedJob: nil)
+            kind: .killedBySystem, message: "The engine was stopped.", detail: "signal 9", exit: .signal(9))
         let harness = try await AppHarness.make(
             initialState: { _ in .failed(crash) },
             script: { _, _ in .init(status: 200, body: PNGFixture.sseReply(width: 512, height: 512), tail: nil) })

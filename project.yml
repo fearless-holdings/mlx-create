@@ -38,8 +38,12 @@ targets:
         INFOPLIST_KEY_NSHumanReadableCopyright: ""
         ENABLE_USER_SCRIPT_SANDBOXING: NO
         CODE_SIGN_STYLE: Automatic
-        CODE_SIGN_IDENTITY: "-"
         ENABLE_HARDENED_RUNTIME: YES
+      configs:
+        Debug:
+          CODE_SIGN_IDENTITY: "-"
+        Release:
+          CODE_SIGN_IDENTITY: ""
     postCompileScripts:
       - name: Embed mlx-serve engine
         script: |

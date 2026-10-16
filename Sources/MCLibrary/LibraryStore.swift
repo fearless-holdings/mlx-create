@@ -8,6 +8,8 @@ public actor LibraryStore {
     public let paths: LibraryPaths
     private let dbQueue: DatabaseQueue
     private var beforeRowInsertHook: (@Sendable () throws -> Void)?
+    private var beforePartialWriteHook: (@Sendable (URL) throws -> Void)?
+    private var statusHook: (@Sendable (JobStatus) throws -> Void)?
 
     /// Opens (creating if needed) the library at `libraryRoot`, runs migrations, sweeps `*.partial` files
     /// and ensures the default project exists.
@@ -122,11 +124,22 @@ public actor LibraryStore {
 
     /// Sets a job's status. `failure` is stored with it and cleared when nil (so retry, which moves a failed job back to `queued`, clears it).
     public func setJobStatus(_ jobID: UUID, _ status: JobStatus, failure: JobFailure? = nil) throws {
-        try dbQueue.write { db in
+        try transitionJob(jobID, from: Set(JobStatus.allCases), to: status, failure: failure)
+    }
+
+    /// Sets a job's status only if it is currently one of `allowed`. Returns false and changes nothing otherwise, so a
+    /// status decided earlier cannot overwrite one written since (for example a cancel racing the executor's start).
+    @discardableResult
+    public func transitionJob(_ jobID: UUID, from allowed: Set<JobStatus>, to status: JobStatus, failure: JobFailure? = nil) throws -> Bool {
+        let hook = statusHook
+        return try dbQueue.write { db in
+            try hook?(status)
             guard var row = try JobRow.fetchOne(db, key: jobID.uuidString) else { throw LibraryError.notFound }
+            guard allowed.contains(where: { $0.rawValue == row.status }) else { return false }
             row.status = status.rawValue
             row.failure = try failure.map { try JSONCoding.encode($0) }
             try row.update(db)
+            return true
         }
     }
 
@@ -175,6 +188,16 @@ public actor LibraryStore {
         beforeRowInsertHook = hook
     }
 
+    /// Test seam: runs before each job status write, so a failure there exercises the executor's error path.
+    func setJobStatusHook(_ hook: (@Sendable (JobStatus) throws -> Void)?) {
+        statusHook = hook
+    }
+
+    /// Test seam: runs just before a PNG is written to its `.partial` file, so a failure there exercises cleanup.
+    func setBeforePartialWriteHook(_ hook: (@Sendable (URL) throws -> Void)?) {
+        beforePartialWriteHook = hook
+    }
+
     /// Saves a generated image (KTD7): writes the PNG with metadata to a temp file in the library volume,
     /// renames it into place, writes the HEIC thumbnail, then inserts the row in one transaction.
     /// If any step before the insert fails, every file created for this image is removed.
@@ -200,15 +223,16 @@ public actor LibraryStore {
             settings.width = size.width
             settings.height = size.height
             let withMetadata = try MetadataCodec.embed(settings, into: new.pngData)
-            try withMetadata.write(to: partialURL)
             created.append(partialURL)
+            try beforePartialWriteHook?(partialURL)
+            try withMetadata.write(to: partialURL)
             try fm.moveItem(at: partialURL, to: finalURL)
             created.removeAll { $0 == partialURL }
             created.append(finalURL)
 
             let thumbnail = try Thumbnails.makeHEIC(fromPNG: withMetadata, maxPixelSize: 512)
-            try thumbnail.write(to: thumbURL)
             created.append(thumbURL)
+            try thumbnail.write(to: thumbURL)
 
             try beforeRowInsertHook?()
 

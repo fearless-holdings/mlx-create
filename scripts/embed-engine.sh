@@ -127,19 +127,24 @@ extract_to() {  # $1 archive, $2 parent dir
   chmod -R u+w "$2/$PKG_ROOT"
 }
 
+# $1 = payload root; $2 = Mach-O paths relative to it, one per line. Checks the signature and Team ID of each.
+verify_signatures() {
+  local p team
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    codesign --verify --strict "$1/$p" 2>/dev/null || fail "upstream signature does not verify: $p"
+    team=$(codesign -dv --verbose=4 "$1/$p" 2>&1 | sed -n 's/^TeamIdentifier=//p')
+    [ "$team" = "$TEAM" ] || fail "upstream Team ID for $p: expected $TEAM, found ${team:-none}"
+  done <<< "$2"
+}
+
 verify_extracted() {  # $1 = payload root (extracted)
   local listing
   listing=$(mktemp)
   (cd "$1" && find . -type f | sed 's|^\./||' | sort) > "$listing"
   check_payload_list "$listing"
   rm -f "$listing"
-  local p
-  while IFS= read -r p; do
-    codesign --verify --strict "$1/$p" 2>/dev/null || fail "upstream signature does not verify: $p"
-    local team
-    team=$(codesign -dv --verbose=4 "$1/$p" 2>&1 | sed -n 's/^TeamIdentifier=//p')
-    [ "$team" = "$TEAM" ] || fail "upstream Team ID for $p: expected $TEAM, found ${team:-none}"
-  done <<< "$(macho_list)"
+  verify_signatures "$1" "$(macho_list)"
 }
 
 # ---- Linkage helpers ------------------------------------------------------
@@ -164,6 +169,11 @@ refresh_manifest() {
   frameworks=$(printf '%s\n' "$rel" | awk '/^lib\//')
   notices=$(printf '%s\n' "$rel" | awk '!/^lib\// && $0 != "'"$EXE"'"')
   extract_to "$tmp/engine.tar.gz" "$tmp/x"
+  # Check signatures before the new binary runs. The lock's lists may be stale during a bump, so the Mach-O set
+  # comes from this archive: the executable and every dylib it contains.
+  local macho
+  macho=$(printf '%s\n' "$rel" | awk -v exe="$EXE" '$0 == exe || /\.dylib$/')
+  verify_signatures "$tmp/x/$PKG_ROOT" "$macho"
   local first
   first=$(env -i PATH=/usr/bin:/bin HOME="$tmp" "$tmp/x/$PKG_ROOT/$EXE" --version 2>&1 | awk '/^mlx-serve /{print; exit}') || true
   [ "$first" = "mlx-serve $VERSION" ] || fail "engine.lock version is '$VERSION' but the archive reports '${first:-nothing}'; set version and tag first"
@@ -269,6 +279,8 @@ while IFS= read -r n; do
 done <<< "$NOTICES"
 chmod 755 "$BIN"
 chmod u+w "$FW"/* "$MLXDIR"/* "$TP"/*
+# The app reads its pinned engine version from here (AppModel.live); it comes from engine.lock, nowhere else.
+printf '%s\n' "$VERSION" > "$TP/ENGINE_VERSION"
 
 # 4. Install-name fixes, rule-driven (LLD §4.4).
 while IFS= read -r dep; do

@@ -1,12 +1,17 @@
+import AppKit
 import MCApp
 import SwiftUI
 
 @main
 struct MLXCreateApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     private let launch: Result<AppModel, Error>
 
     init() {
         launch = Result { try AppModel.live() }
+        if case .success(let model) = launch {
+            AppDelegate.model = model
+        }
     }
 
     var body: some Scene {
@@ -18,6 +23,22 @@ struct MLXCreateApp: App {
                 LaunchFailureView(error: error)
             }
         }
+    }
+}
+
+/// Stops the engine before the app quits (LLD §5.8). AppKit asks the delegate, not the App struct, so the App
+/// hands over the model it created.
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    static var model: AppModel?
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let model = Self.model else { return .terminateNow }
+        Task {
+            await model.shutdown()
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
     }
 }
 

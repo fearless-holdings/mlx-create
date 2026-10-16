@@ -30,6 +30,7 @@ public struct RunningProgress: Equatable, Sendable {
 public final class AppModel {
     private static let lastUsedModelKey = "lastUsedModelID"
     private static let recentImageLimit = 200
+    private static let shutdownLimit: Duration = .seconds(3)
 
     public let weightsPath: String
 
@@ -88,6 +89,7 @@ public final class AppModel {
         weightsPath: String,
         libraryPaths: LibraryPaths,
         supervisor: EngineSupervisor? = nil,
+        engineVersion: String? = nil,
         defaults: UserDefaults = .standard
     ) {
         self.store = store
@@ -100,7 +102,9 @@ public final class AppModel {
         self.defaults = defaults
         let queue = JobQueue(store: store)
         self.queue = queue
-        self.executor = JobExecutor(store: store, client: client, queue: queue, crashKind: { await gate.currentCrash() })
+        self.executor = JobExecutor(
+            store: store, client: client, queue: queue, crashKind: { await gate.currentCrash() },
+            engineVersion: engineVersion)
         self.composer = GenerationComposer(registry: registry, store: store)
         self.libraryPaths = libraryPaths
         self.selectedModelID = defaults.string(forKey: Self.lastUsedModelKey)
@@ -113,15 +117,14 @@ public final class AppModel {
             for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true
         ).appending(path: "mlx-create", directoryHint: .isDirectory)
         let modelsRoot = support.appending(path: "Models", directoryHint: .isDirectory)
-        let weights = modelsRoot.appending(path: "Weights", directoryHint: .isDirectory)
+        let executable = Bundle.main.bundleURL.appending(path: "Contents/MacOS/mlx-serve")
+        let paths = EnginePaths(executable: executable, appSupport: support, modelsRoot: { modelsRoot })
         // Created up front so a first run with no weights reaches the "no models" canvas, not a missing-folder crash.
-        try FileManager.default.createDirectory(at: weights, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: paths.weights, withIntermediateDirectories: true)
 
         let registry = try FamilyRegistry.bundled()
         let libraryRoot = support.appending(path: "Library", directoryHint: .isDirectory)
         let store = try LibraryStore(libraryRoot: libraryRoot)
-        let executable = Bundle.main.bundleURL.appending(path: "Contents/MacOS/mlx-serve")
-        let paths = EnginePaths(executable: executable, appSupport: support, modelsRoot: { modelsRoot })
         let supervisor = EngineSupervisor(paths: paths, tier: .current)
 
         let (states, continuation) = AsyncStream<EngineState>.makeStream()
@@ -134,9 +137,19 @@ public final class AppModel {
         let client = EngineClient(endpoint: { try await gate.endpoint() })
         let model = AppModel(
             store: store, client: client, gate: gate, registry: registry, states: states,
-            weightsPath: weights.path, libraryPaths: LibraryPaths(root: libraryRoot), supervisor: supervisor)
+            weightsPath: paths.weights.path, libraryPaths: LibraryPaths(root: libraryRoot), supervisor: supervisor,
+            engineVersion: bundledEngineVersion())
         Task { await model.start() }
         return model
+    }
+
+    /// The pinned engine version, written into the bundle from `engine.lock` by `scripts/embed-engine.sh`.
+    /// Nil when the bundle has none, for example under `swift test`.
+    private static func bundledEngineVersion() -> String? {
+        let url = Bundle.main.bundleURL.appending(path: "Contents/Resources/ThirdParty/mlx-serve/ENGINE_VERSION")
+        let text = try? String(contentsOf: url, encoding: .utf8)
+        let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed?.isEmpty == false ? trimmed : nil
     }
 
     // MARK: Derived state
@@ -230,6 +243,26 @@ public final class AppModel {
     /// User "Restart engine": clears the supervisor's backoff and relaunches the engine.
     public func restartEngine() async {
         await supervisor?.restart()
+    }
+
+    /// Quit path (LLD §5.8): cancels the long-lived tasks, then stops the engine. Returns after at most `shutdownLimit`
+    /// so quitting never waits on a slow teardown. A stop that outlives the limit finishes in the background, and the
+    /// PID file lets the next launch reap what remains.
+    public func shutdown() async {
+        let pending = tasks
+        tasks = []
+        pending.forEach { $0.cancel() }
+        guard let supervisor else { return }
+        let (finished, signal) = AsyncStream<Void>.makeStream()
+        Task {
+            await supervisor.stop()
+            signal.yield()
+        }
+        Task {
+            try? await Task.sleep(for: Self.shutdownLimit)
+            signal.yield()
+        }
+        for await _ in finished { break }
     }
 
     // MARK: Engine

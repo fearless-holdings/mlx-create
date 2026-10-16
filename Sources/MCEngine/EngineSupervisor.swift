@@ -21,15 +21,12 @@ public struct EngineCrash: Sendable, Error, Equatable {
     public let detail: String
     /// Nil when the engine never spawned (setup failure).
     public let exit: ExitStatus?
-    /// Job in flight when the engine died. Retry is the queue's decision.
-    public let failedJob: JobID?
 
-    public init(kind: CrashKind, message: String, detail: String, exit: ExitStatus?, failedJob: JobID?) {
+    public init(kind: CrashKind, message: String, detail: String, exit: ExitStatus?) {
         self.kind = kind
         self.message = message
         self.detail = detail
         self.exit = exit
-        self.failedJob = failedJob
     }
 }
 
@@ -55,7 +52,6 @@ public actor EngineSupervisor {
     private var runTask: Task<Void, Never>?
     private var runID: UUID?
     private var child: ChildRun?
-    private var inFlight: JobID?
 
     public private(set) var lastCrash: EngineCrash?
 
@@ -102,22 +98,20 @@ public actor EngineSupervisor {
         await start()
     }
 
-    /// SIGTERM, 3 s grace, then SIGKILL. Cancels any pending restart.
+    /// SIGTERM, 3 s grace, then SIGKILL. Cancels any pending restart and returns once the cancelled run has ended.
     public func stop() async {
         runID = nil
-        runTask?.cancel()
+        let task = runTask
         runTask = nil
+        task?.cancel()
         if let run = child {
             child = nil
             _ = await terminate(run)
         }
+        // Waiting for the run means no spawn can follow this stop, and a restart cannot overlap the old run.
+        await task?.value
         PidFile.remove(at: paths.pidFile)
         setState(.stopped)
-    }
-
-    /// Set by the queue when a job is sent; cleared on crash, reported as `EngineCrash.failedJob`.
-    public func noteInFlightJob(_ id: JobID?) {
-        inFlight = id
     }
 
     // MARK: - Run loop
@@ -166,6 +160,8 @@ public actor EngineSupervisor {
             return .crashed(setupCrash(error))
         }
         await reapStaleEngine()
+        // stop() may have run while the stale engine was being reaped. Spawning now would leak a child nobody owns.
+        if Task.isCancelled { return .cancelled }
         let port: Int
         do {
             port = try Self.freeLoopbackPort()
@@ -190,12 +186,12 @@ public actor EngineSupervisor {
         switch await awaitReady(run) {
         case .ready:
             if Task.isCancelled {
-                child = nil
-                _ = await terminate(run)
+                await retire(run)
                 return .cancelled
             }
             return .ready(run)
         case .cancelled:
+            await retire(run)
             return .cancelled
         case .exited(let exit):
             child = nil
@@ -207,6 +203,13 @@ public actor EngineSupervisor {
             PidFile.remove(at: paths.pidFile)
             return .crashed(processCrash(exit: exit, tail: run.tail.text, phase: .launching))
         }
+    }
+
+    /// Ends a spawned run that must not become ready: clears it, stops the process and removes the PID file.
+    private func retire(_ run: ChildRun) async {
+        child = nil
+        _ = await terminate(run)
+        PidFile.remove(at: paths.pidFile)
     }
 
     private enum ReadyOutcome {
@@ -287,16 +290,29 @@ public actor EngineSupervisor {
         return run
     }
 
-    /// SIGTERM, wait up to the grace period, then SIGKILL. Returns the real exit status.
+    /// SIGTERM, a 3 s grace period, then SIGKILL. Returns the real exit status. The grace period does not depend on
+    /// the caller's cancellation, so a stop from a cancelled task still gets its full window.
     private func terminate(_ run: ChildRun) async -> ExitStatus {
         if let status = run.exitStatus { return status }
         run.process.terminate()
-        let deadline = Date().addingTimeInterval(Self.stopGrace)
-        while Date() < deadline, run.exitStatus == nil {
-            try? await Task.sleep(for: .milliseconds(100))
-        }
-        if run.exitStatus == nil { kill(run.pid, SIGKILL) }
+        let exited = await Self.exited(run, within: Self.stopGrace)
+        if !exited { kill(run.pid, SIGKILL) }
         return await run.waitForExit()
+    }
+
+    /// True when `run` exits within `seconds`. Both waits are unstructured tasks, so cancelling the caller cannot shorten them.
+    private static func exited(_ run: ChildRun, within seconds: TimeInterval) async -> Bool {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            let once = OnceResume(continuation)
+            Task {
+                _ = await run.waitForExit()
+                once.resume(returning: true)
+            }
+            Task {
+                try? await Task.sleep(for: .seconds(seconds))
+                once.resume(returning: false)
+            }
+        }
     }
 
     /// Kills an engine left behind by a previous app run, only when the PID record still matches it.
@@ -312,23 +328,13 @@ public actor EngineSupervisor {
 
     private func setupCrash(_ error: Error) -> EngineCrash {
         let message = (error as? EngineSetupError)?.message ?? error.localizedDescription
-        return EngineCrash(kind: .setupFailed, message: message, detail: message, exit: nil, failedJob: takeInFlight())
+        return EngineCrash(kind: .setupFailed, message: message, detail: message, exit: nil)
     }
 
     private func processCrash(exit: ExitStatus?, tail: String, phase: EnginePhase) -> EngineCrash {
         let kind = CrashClassifier.classify(logTail: tail, exit: exit ?? .code(0), phase: phase)
         let detail = CrashClassifier.summarize(tail, exit: exit ?? .code(0))
-        return EngineCrash(
-            kind: kind,
-            message: Self.userMessage(for: kind),
-            detail: detail,
-            exit: exit,
-            failedJob: takeInFlight())
-    }
-
-    private func takeInFlight() -> JobID? {
-        defer { inFlight = nil }
-        return inFlight
+        return EngineCrash(kind: kind, message: Self.userMessage(for: kind), detail: detail, exit: exit)
     }
 
     static func userMessage(for kind: CrashKind) -> String {
@@ -450,4 +456,22 @@ final class LogTail: @unchecked Sendable {
     }
 
     var text: String { lock.withLock { String(decoding: bytes, as: UTF8.self) } }
+}
+
+/// Resumes a continuation exactly once; later calls are ignored.
+private final class OnceResume<Value: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Value, Never>?
+
+    init(_ continuation: CheckedContinuation<Value, Never>) {
+        self.continuation = continuation
+    }
+
+    func resume(returning value: Value) {
+        let pending = lock.withLock { () -> CheckedContinuation<Value, Never>? in
+            defer { continuation = nil }
+            return continuation
+        }
+        pending?.resume(returning: value)
+    }
 }

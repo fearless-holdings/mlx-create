@@ -26,9 +26,9 @@ public enum FailureMapping {
 
     private static func retryable(_ error: EngineError) -> Bool {
         switch error {
-        case .outOfMemory, .modelNotLoaded, .engineFailure, .connectionLost, .timedOut, .streamEndedWithoutComplete:
+        case .outOfMemory, .modelNotLoaded, .noModel, .engineFailure, .connectionLost, .timedOut, .streamEndedWithoutComplete:
             true
-        case .unauthorized, .noModel, .badRequest, .malformedResponse:
+        case .unauthorized, .badRequest, .malformedResponse:
             false
         }
     }
