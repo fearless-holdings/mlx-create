@@ -19,7 +19,7 @@ public actor JobExecutor {
     private let engineVersion: String?
     private var rng = SystemRandomNumberGenerator()
     private var currentJobID: UUID?
-    private var active: Task<(png: Data, total: Int), Error>?
+    private var active: Task<(png: Data, total: Int?), Error>?
     private var cancelRequested: Set<UUID> = []
     private var drainTask: Task<Void, Never>?
     /// The most recent model switch. Each new switch waits for it, so unloads and loads never interleave.
@@ -103,6 +103,14 @@ public actor JobExecutor {
     }
 
     private func run(_ job: Job) async throws {
+        // KTD17: a mode this executor cannot generate fails here, before the job is claimed, so `drain` never sees it again.
+        guard job.mode == Job.textToImageMode else {
+            try await transition(
+                job.id, from: [.queued], to: .failed,
+                failure: FailureMapping.failure(for: ExecutorError.unsupportedMode(job.mode))
+            )
+            return
+        }
         currentJobID = job.id
         defer {
             currentJobID = nil
@@ -132,7 +140,7 @@ public actor JobExecutor {
                     try await setStatus(job.id, .cancelled)
                     return
                 }
-                if case EngineError.outOfMemory = error {
+                if case EngineError.outOfMemory = error, OutOfMemoryFailure.refusalUnloadsResidentModels {
                     await unloadResidentModels()
                 }
                 try await setStatus(job.id, .failed, failure: await jobFailure(for: error))
@@ -161,10 +169,10 @@ public actor JobExecutor {
         let jobID = job.id
         let modelID = job.request.modelID
         // The model switch and the stream share one task, so `cancel(_:)` also reaches a wait for the engine or a load.
-        let task = Task { () throws -> (png: Data, total: Int) in
+        let task = Task { () throws -> (png: Data, total: Int?) in
             try await self.makeResident(modelID, for: jobID)
             var png: Data?
-            var total = 0
+            var total: Int?
             for try await event in client.generateImage(request) {
                 switch event {
                 case .progress(let step, let stepTotal, _):
@@ -193,7 +201,7 @@ public actor JobExecutor {
             seed: Int64(seed),
             width: 0,
             height: 0,
-            steps: result.total > 0 ? result.total : (job.request.steps ?? 0),
+            steps: result.total,
             engineVersion: engineVersion
         )
         let image = try await store.saveImage(NewImage(

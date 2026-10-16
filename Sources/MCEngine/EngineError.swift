@@ -27,7 +27,7 @@ public enum EngineError: Error, Equatable, Sendable {
     public var userMessage: String {
         switch self {
         case .unauthorized: "The image engine rejected its access key. Restart the engine and try again."
-        case .outOfMemory: "Not enough free memory to run this model. Close other apps or models and try again."
+        case .outOfMemory: OutOfMemoryFailure.message
         case .modelNotLoaded: "The model is not loaded. Load it and try again."
         case .noModel: "No model is loaded to generate with. Load a model first."
         case .badRequest: "The image engine rejected the request."
@@ -72,6 +72,18 @@ public enum EngineError: Error, Equatable, Sendable {
         default: .engineFailure(type: type, engineMessage: message)
         }
     }
+}
+
+/// The one out-of-memory failure (KTD15). `CrashKind`, `EngineError` and the supervisor's message switch all read it,
+/// so the copy and the retry rule cannot drift between the crash path and the 503 path.
+public enum OutOfMemoryFailure {
+    /// Plain-language copy for a job's failure and the engine status.
+    public static let message = "Not enough free memory to run this model. Close other apps or models and try again."
+    /// Retry can help once memory frees up.
+    public static let retryable = true
+    /// The 503 path unloads resident models before the job fails: the engine refused to load with them resident.
+    /// The crash path has no unload step, because the restarted engine holds no models.
+    public static let refusalUnloadsResidentModels = true
 }
 
 /// Reads `{"error":{"message":…,"type":…}}`. A body that is not that shape keeps its raw text as the message.

@@ -27,8 +27,8 @@ public struct ImageSettings: Codable, Equatable, Sendable {
     public var width: Int
     /// Actual output height in pixels.
     public var height: Int
-    /// Actual number of steps run.
-    public var steps: Int
+    /// Steps the engine ran, from its last progress event (D24). Nil when the engine sent no progress event.
+    public var steps: Int?
     public var engineVersion: String?
 
     public init(
@@ -43,7 +43,7 @@ public struct ImageSettings: Codable, Equatable, Sendable {
         seed: Int64,
         width: Int,
         height: Int,
-        steps: Int,
+        steps: Int? = nil,
         engineVersion: String? = nil
     ) {
         self.prompt = prompt
@@ -134,6 +134,8 @@ public struct JobFailure: Codable, Equatable, Sendable {
 /// `mode` is kept for later phases (D7); v1 accepts only `"t2i"`.
 /// Progress is derived, not stored: `batchCount` minus the saved-image count for the job (KTD4).
 public struct Job: Equatable, Sendable, Identifiable {
+    /// The only mode the v1 executor generates (D7).
+    public static let textToImageMode = "t2i"
     public var id: UUID
     public var projectID: UUID
     public var mode: String
@@ -188,7 +190,7 @@ public struct LibraryImage: Equatable, Sendable, Identifiable {
 
     public var seed: Int64 { settings.seed }
     public var prompt: String { settings.prompt }
-    public var steps: Int { settings.steps }
+    public var steps: Int? { settings.steps }
 
     public init(
         id: UUID,
