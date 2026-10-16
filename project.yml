@@ -40,5 +40,12 @@ targets:
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: "-"
         ENABLE_HARDENED_RUNTIME: YES
-    # U2 fills this slot with scripts/embed-engine.sh
-    postCompileScripts: []
+    postCompileScripts:
+      - name: Embed mlx-serve engine
+        script: |
+          "${SRCROOT}/scripts/embed-engine.sh"
+        inputFiles:
+          - $(SRCROOT)/scripts/embed-engine.sh
+          - $(SRCROOT)/engine.lock
+        outputFiles:
+          - $(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/MacOS/mlx-serve

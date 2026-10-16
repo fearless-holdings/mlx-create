@@ -33,7 +33,7 @@ Linkage that the build phase has to fix:
 | `libsharpyuv.dylib` | Install-name ID is `/opt/homebrew/opt/webp/lib/libsharpyuv.0.dylib` |
 | `libmlxc`, `libmlx`, `libwebp` | Inter-dylib references are `@loader_path/…` or `@rpath/…`. These work unchanged once everything sits together in `Contents/Frameworks` |
 
-Upstream's own `MLX-Serve.app` (same release) uses the layout we copy: the binary goes in `Contents/MacOS/mlx-serve`, and all dylibs **plus `mlx.metallib`** go in `Contents/Frameworks`. Its loads are rewritten to `@executable_path/../Frameworks/…`. MLX finds `mlx.metallib` next to `libmlx.dylib`, so the metallib must sit in the same folder.
+Upstream's own `MLX-Serve.app` (same release) puts all dylibs **plus `mlx.metallib`** in `Contents/Frameworks`. We cannot copy that: `codesign --strict --deep` rejects an unsigned non-Mach-O file in `Frameworks/` (§4.5). MLX finds `mlx.metallib` only next to `libmlx.dylib`, so we embed `libmlx.dylib` and `mlx.metallib` together in `Contents/Resources/mlx/`, reached through one extra binary rpath (`@executable_path/../Resources/mlx`). Every other dylib stays in `Contents/Frameworks`.
 
 ## 3. `engine.lock`
 
@@ -109,7 +109,8 @@ Use `ditto` for every copy (it preserves modes and drops quarantine via `--noqtn
 | Source (under `root`) | Destination in `.app/Contents` |
 |---|---|
 | `mlx-serve` | `MacOS/mlx-serve` (next to our own `MacOS/mlx-create`) |
-| `lib/*.dylib`, `lib/mlx.metallib` | `Frameworks/` (flat, as in upstream's app) |
+| `lib/libmlx.dylib`, `lib/mlx.metallib` | `Resources/mlx/` (together; the metallib must sit next to libmlx, §4.5) |
+| other `lib/*.dylib` | `Frameworks/` (flat) |
 | `LICENSE`, `LICENSE-APACHE-2.0`, `NOTICE` | `Resources/ThirdParty/mlx-serve/`. The app's `NOTICE` references these (HLD §7.3) |
 
 Before copying, remove any previously embedded engine files, so a dylib dropped by a bump can't linger in an incremental build.
@@ -119,7 +120,7 @@ Before copying, remove any previously embedded engine files, so a dylib dropped 
 Run these against the embedded copies. They are rule-driven, not a hard-coded list, so a bump that changes linkage either keeps working or fails loudly.
 
 1. **Binary loads:** every `LC_LOAD_DYLIB` beginning with `@executable_path/lib/` becomes `@executable_path/../Frameworks/<name>` (`install_name_tool -change`). `@rpath/…` loads stay as they are.
-2. **Binary rpaths:** delete every `LC_RPATH` except `@executable_path/../Frameworks` (`-delete_rpath`), and add that rpath if it is missing.
+2. **Binary rpaths:** delete every `LC_RPATH` except `@executable_path/../Frameworks` and `@executable_path/../Resources/mlx` (`-delete_rpath`), and add either rpath if it is missing.
 3. **Dylib IDs:** any dylib whose ID is an absolute path gets `-id @rpath/<file name>`. Today that means `libwebp` and `libsharpyuv`.
 4. **Dylib loads:** any absolute non-system dependency (anything outside `/usr/lib` and `/System`) whose basename is in `Frameworks/` becomes `@loader_path/<basename>`.
 5. **Gate:** walk `otool -L` for the binary and every dylib. Every non-system dependency must resolve, through the rules above, to a file in `Frameworks/`. Anything else, such as a leftover `/opt/homebrew` path or a dependency missing from the tarball, fails the build.
@@ -139,7 +140,7 @@ codesign --force --options runtime --timestamp --sign "$ID" \
 
 - `--timestamp` is used only when `CONFIGURATION == Release`, so Debug builds work offline.
 - `Engine.entitlements` is an empty dict. Upstream ships without entitlements under hardened runtime [observed], and it loads only its own dylibs, which carry our Team ID after re-signing, so `disable-library-validation` is not needed. Add an entitlement only when a failing case proves it necessary, and record the reason in this file.
-- `mlx.metallib` isn't Mach-O and gets no signature of its own. The outer bundle seal (`_CodeSignature/CodeResources`, written by Xcode's final `CodeSign`) covers it, as in upstream's app. **[verify]** `codesign --verify --strict --deep` and `notarytool` accept a non-Mach-O file in `Frameworks/` in our bundle. If they don't, move it into `Resources/` and point MLX at it, which needs an upstream-supported path override (raise an F-item; don't patch).
+- `mlx.metallib` isn't Mach-O and gets no signature of its own. The outer bundle seal (`_CodeSignature/CodeResources`, written by Xcode's final `CodeSign`) covers it. **[verify → 2026-10-16]** With `mlx.metallib` in `Contents/Frameworks/`, the Xcode app `CodeSign` step and `codesign --verify --deep --strict` both fail (`code object is not signed at all`, subcomponent `Frameworks/mlx.metallib`), so this placement is rejected. The placement that passes is `Contents/Resources/mlx/` with `libmlx.dylib` beside it: `codesign --verify --deep --strict` on the built app passes and `--version` runs from the bundle. MLX has no path override in v26.10.2 (searched `libmlx.dylib` and `mlx-serve`). The embed script uses the passing layout; §4.2 and §4.3 still list Frameworks for `libmlx.dylib`/`mlx.metallib` and need a decision.
 - Don't use `--deep` for signing. Nested items are signed explicitly so that each one gets the right identifier and entitlements.
 
 ### 4.6 Post-checks
@@ -312,6 +313,7 @@ Run by hand with the §5.2 flags and `HOME=/tmp/mc-home`. `mlx-serve-bin-macos-a
 - **Generation works.** `POST /v1/images/generations` with `ddalcu/Krea-2-Turbo` (mixed 4/8-bit), 512×512, explicit `seed: 7`, returned a valid 512×512 PNG in `data[0].b64_json` in about 8.5 s. The model was discovered through `--model-dir` on a folder containing only a symlink to the weights.
 - **Memory preflight rejects the request** with a JSON error `type:"out_of_memory"` (HTTP status not recorded) when free memory is too low. Observed: Krea-2 Turbo needs about 14.7 GB peak and about 17.6 GB free (log line `[preflight] media peak … available …`). The app must map this to a plain-language message (AGENTS.md → Errors users see). Don't pass `--skip-mem-preflight`.
 - **Gotcha:** the tarball extracts to `mlx-serve-macos-arm64/` with `mlx-serve` next to `lib/`. The binary runs in place from there.
+- **Auth verified (U3 lifecycle smoke, `EngineSupervisorTests`).** A request without the key to `/v1/models` returned **401** under `--api-key-strict`. `ps -o command=` for the engine showed no key in argv: the key is delivered only through `--api-key-env` in the environment. The same run confirmed start to `.ready`, `stop()` leaving no listener and no PID file, and `kill -9` giving `.restarting` then `.ready` on a new port and key.
 
 ## 6. Tests
 
@@ -337,6 +339,6 @@ Engine bumps additionally run the contract suite (HLD §7.3).
 
 ## 7. Open items
 
-1. **[verify]** Notarization accepts `mlx.metallib` in `Contents/Frameworks` (§4.5).
+1. **[verify]** Notarization accepts the `Resources/mlx/` layout (a signed `libmlx.dylib` plus an unsigned `mlx.metallib` data file in Resources) (§4.5).
 2. **[verify]** Cold-start time to `/health` on a 16 GB machine, used to tune the 60 s readiness timeout.
 3. `--idle-evict-secs` per tier is pending HLD §11.
