@@ -66,6 +66,7 @@ Settled during the design interview. Later documents cite these IDs.
 | D23 | Seeds are app-resolved integers in **0..<2^32** and always sent explicitly (§8.1) | The engine reads `seed` as unsigned and defaults to 42 |
 | D24 | The library records the **engine's actual output** (pixel size from the PNG, step count from the last progress event), not the request (§8.2, §8.9) | The engine rounds size to the family grid and may run the checkpoint's own step grid |
 | D25 | **FLUX.2 klein accepts multiples of 32 in [256, 1536]** at the pinned engine (upstream `clampFluxDim`, v26.10.2), not a fixed 1024². Krea keeps multiples of 16 in [256, 2048]. The UI reads each family's size grid from its capability record, never a per-family constant | The earlier "fixed 1024²" reading of FLUX was wrong. `families.json` carries the grid; the composer snaps to it |
+| D28 | **One app instance per user account.** A second launch activates the running window and exits. The running app holds `Engine/app.lock` (opened `O_CLOEXEC`, `flock` exclusive, non-blocking) for its whole life. The engine is reaped from the pid record only under that lock. The app sends the key only to a child whose `/health` is ok **and** whose pid, checked through libproc, listens on the chosen port; otherwise the launch fails and retries on a fresh port | Chosen over an ownership token in the pid record: simpler, and it also stops the shared library sweep race. Governs R12, R13 (KTD11, KTD12) |
 
 ## 4. Constraints and assumptions
 

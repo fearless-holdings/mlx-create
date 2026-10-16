@@ -235,7 +235,7 @@ If `<Models>/Weights` itself is missing, for example on an unmounted external vo
 
 `start_time` is the process start time from `proc_pidinfo(PROC_PIDTBSDINFO)` (`pbi_start_tvsec`/`tvusec`).
 
-At `start()`, before spawning, check for a stale engine:
+At `start()`, before spawning, and only while this process holds `Engine/app.lock` (§5.4a), check for a stale engine:
 
 1. If the file is absent or unparsable, delete it and continue.
 2. If `kill(pid, 0)` fails with `ESRCH`, the engine is gone: delete the file and continue.
@@ -243,7 +243,11 @@ At `start()`, before spawning, check for a stale engine:
 4. Killing means SIGTERM, then a wait of up to 10 s, then SIGKILL followed by another wait. Large resident models can take seconds to tear down [observed in `ServerManager` comments].
 5. Delete the file.
 
-On a clean `stop()`, delete the file after the child exits. Single-instance enforcement of the app itself isn't this module's job. If two app instances race, step 3 means neither kills an engine that isn't its own.
+A reap runs only under the lock, so a live sibling app's engine is never in scope. A launch with no lock held skips the reap and leaves the record alone. On a clean `stop()`, delete the file after the child exits.
+
+### 5.4a Single instance (D28)
+
+`Engine/app.lock` is opened with `O_CLOEXEC` and locked with `flock(LOCK_EX | LOCK_NB)` before the library opens. The descriptor stays open for the process lifetime. `O_CLOEXEC` is required: without it an engine that outlives a crashed app inherits the descriptor and holds the lock, so no later launch can start or reap it. When the lock is held elsewhere, the new launch activates the running app's windows and exits (R12).
 
 ### 5.5 Readiness
 
@@ -251,6 +255,7 @@ Poll `GET /health` every 250 ms. The engine is ready when the response is `200` 
 
 - Give up after 60 s [verify the cold-start time on 16 GB], or as soon as the child exits. Either way the outcome is `.launchFailed`.
 - On success: publish `.ready(endpoint)` and record `readySince`.
+- Ownership before ready (KTD11, R13): `/health` ok is not enough, because another process may own the chosen port. The supervisor then checks through libproc (`proc_pidinfo(PROC_PIDLISTFDS)` and `proc_pidfdinfo(PROC_PIDFDSOCKETINFO)`) that the spawned pid has a TCP socket in `LISTEN` state on that port. Otherwise it kills the child, records `.launchFailed` and retries on a fresh port. The health probe carries no key, and the key is never sent before this check passes.
 
 The supervisor doesn't warm models. The queue calls `/v1/load-model` through `EngineClient`.
 
@@ -328,6 +333,8 @@ Permanent tests cover behaviour only (`AGENTS.md` → Verification):
 | Symlink reconciliation (temp dir) | All four rows of §5.3, including "real dir is never deleted" |
 | Argv/env builder | Loopback host, `--api-key-env`, `--api-key-strict`, no `--lan-*`, no inherited env |
 | Fake-engine supervisor (default run) | The key reaches the child by environment, never argv; a killed engine restarts with a new key; stop and restart during a stale-engine reap leave no live child |
+| Single-instance lock (temp dir, real `flock`) | A second acquire fails while held, succeeds after release, succeeds after a holding process is killed, and the descriptor is `FD_CLOEXEC` |
+| Ownership check (fake children, foreign listener) | A child that never binds with a foreign `ok` listener on its port never reaches ready; the launch retries on a new port; the foreign listener records no `Authorization` header |
 
 Smoke test, against the real engine (`AGENTS.md`):
 
