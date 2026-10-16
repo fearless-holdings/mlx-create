@@ -148,18 +148,34 @@ final class ModelBrowserModel {
 
     /// Reads the installer's current snapshot, the install status of every catalog model, and the folders in `Weights/`.
     func refresh() async {
-        localFolders = Self.localFolders(in: weightsRoot)
-        guard let installs else {
-            statuses = [:]
-            return
+        let catalogModels = catalog?.models ?? []
+        localFolders = Self.localFolders(
+            in: weightsRoot, flatFolderNames: Set(catalogModels.map { Self.lastComponent(of: $0.repo) }))
+        if let installs {
+            apply(await installs.installer.snapshot)
         }
-        let installer = installs.installer
-        apply(await installer.snapshot)
         var found: [String: ModelInstallStatus] = [:]
-        for model in catalog?.models ?? [] {
-            found[model.id] = try? await installs.status(of: model.id)
+        for model in catalogModels {
+            var status = try? await installs?.status(of: model.id)
+            // A flat folder named like the repo is on disk and never overwritten, so it reads as unverified (no Install).
+            if status == nil || status == .notInstalled, let flat = flatFolderPath(for: model) {
+                status = .unverified(path: flat)
+            }
+            found[model.id] = status
         }
         statuses = found
+    }
+
+    /// The flat folder `Weights/<repo-last-component>/` for a catalog model, when it exists.
+    private func flatFolderPath(for model: CatalogModel) -> String? {
+        let name = Self.lastComponent(of: model.repo)
+        guard !name.isEmpty else { return nil }
+        let url = weightsRoot.appending(path: name, directoryHint: .isDirectory)
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+            return nil
+        }
+        return url.path
     }
 
     /// Follows the installer's updates so progress and interruptions stay current while the browser is open.
@@ -300,14 +316,20 @@ final class ModelBrowserModel {
         return "Needs about \(String(format: "%.1f", needGB)) GB, more than the \(String(format: "%.1f", usableGB)) GB this Mac can use. It may not run."
     }
 
-    /// Model folders under `root`, as `org/name`, sorted. Hidden entries are skipped.
-    private static func localFolders(in root: URL) -> [String] {
+    /// The last path component of a repo id, which is the folder name a flat model folder uses.
+    private static func lastComponent(of repo: String) -> String {
+        String(repo.split(separator: "/").last ?? "")
+    }
+
+    /// Model folders under `root`, as `org/name`, sorted. Hidden entries are skipped. A top-level folder named like a
+    /// flat catalog model is a model folder, not an org, so its subfolders are not listed as models.
+    private static func localFolders(in root: URL, flatFolderNames: Set<String>) -> [String] {
         func directories(_ url: URL) -> [URL] {
             let children = (try? FileManager.default.contentsOfDirectory(
                 at: url, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])) ?? []
             return children.filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
         }
-        return directories(root).flatMap { org in
+        return directories(root).filter { !flatFolderNames.contains($0.lastPathComponent) }.flatMap { org in
             directories(org).map { "\(org.lastPathComponent)/\($0.lastPathComponent)" }
         }.sorted()
     }

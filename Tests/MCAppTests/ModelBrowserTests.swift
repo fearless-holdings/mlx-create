@@ -180,6 +180,52 @@ func browserRow(_ rows: [ModelBrowserRow], _ id: String) -> ModelBrowserRow? {
         #expect(unverified.action == nil, "unverified folders offer no Install")
     }
 
+    @Test func flatFolderNamedLikeTheRepoIsUnverifiedWithoutInstall() async throws {
+        let rig = try await BrowserRig.make()
+        let flat = rig.weightsRoot.appending(path: "alpha", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(
+            at: flat.appending(path: "transformer", directoryHint: .isDirectory), withIntermediateDirectories: true)
+
+        await rig.browser.refresh()
+
+        let rows = rig.browser.rows
+        #expect(rows.count == 2, "the flat folder must not add a second row or a row for its subfolders")
+        #expect(Set(rows.map(\.id)).count == rows.count)
+        let alpha = try #require(browserRow(rows, BrowserFixture.alpha.id))
+        #expect(alpha.state == .unverified(path: flat.path))
+        #expect(alpha.title == BrowserFixture.alpha.name)
+        #expect(alpha.action == nil, "a flat folder is never overwritten, so no Install")
+        #expect(alpha.canAct == false)
+    }
+
+    @Test func orgRepoFolderWithoutRecordIsUnverifiedWithoutInstall() async throws {
+        let rig = try await BrowserRig.make()
+        try FileManager.default.createDirectory(
+            at: rig.weightsRoot.appending(path: "org/alpha", directoryHint: .isDirectory), withIntermediateDirectories: true)
+
+        await rig.browser.refresh()
+
+        let rows = rig.browser.rows
+        #expect(rows.count == 2)
+        let alpha = try #require(browserRow(rows, BrowserFixture.alpha.id))
+        guard case .unverified = alpha.state else {
+            Issue.record("an org/repo folder without a record must read as unverified")
+            return
+        }
+        #expect(alpha.action == nil)
+    }
+
+    @Test func flatFolderWithARecordReadsAsInstalled() async throws {
+        let rig = try await BrowserRig.make(engineIDs: [BrowserFixture.alpha.repo], installedAlpha: true)
+        try FileManager.default.createDirectory(
+            at: rig.weightsRoot.appending(path: "alpha", directoryHint: .isDirectory), withIntermediateDirectories: true)
+
+        await rig.browser.refresh()
+
+        #expect(browserRow(rig.browser.rows, BrowserFixture.alpha.id)?.state == .installed(inEngine: true))
+        #expect(rig.browser.rows.count == 2)
+    }
+
     @Test func exceedsRowStillOffersInstallWithAWarning() async throws {
         let rig = try await BrowserRig.make(workingSetGB: 11.9)
 
