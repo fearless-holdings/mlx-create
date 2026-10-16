@@ -8,6 +8,7 @@ let package = Package(
         .library(name: "MCEngine", targets: ["MCEngine"]),
         .library(name: "MCCatalog", targets: ["MCCatalog"]),
         .library(name: "MCLibrary", targets: ["MCLibrary"]),
+        .library(name: "MCModels", targets: ["MCModels"]),
         .library(name: "MCGeneration", targets: ["MCGeneration"]),
         .library(name: "MCApp", targets: ["MCApp"]),
     ],
@@ -17,6 +18,7 @@ let package = Package(
     targets: [
         .target(name: "MCEngine"),
         .target(name: "MCCatalog", resources: [.process("Resources")]),
+        .target(name: "MCModels", dependencies: ["MCCatalog"]),
         .target(name: "MCLibrary", dependencies: [.product(name: "GRDB", package: "GRDB.swift")]),
         .target(name: "MCGeneration", dependencies: ["MCEngine", "MCCatalog", "MCLibrary"]),
         .target(name: "MCApp", dependencies: ["MCGeneration", "MCEngine", "MCCatalog", "MCLibrary"]),
