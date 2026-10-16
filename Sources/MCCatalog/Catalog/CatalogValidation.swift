@@ -53,7 +53,7 @@ extension Catalog {
 }
 
 extension CatalogModel {
-    func validate() throws {
+    public func validate() throws {
         guard !id.isEmpty, !family.isEmpty, !name.isEmpty, !quantization.isEmpty else {
             throw CatalogError.invalid("model \(id) has an empty required field")
         }
@@ -87,7 +87,7 @@ extension CatalogModel {
     }
 
     /// `org/name`, each segment `[A-Za-z0-9._-]+` and not `.` or `..`.
-    static func isRepo(_ repo: String) -> Bool {
+    public static func isRepo(_ repo: String) -> Bool {
         let parts = repo.split(separator: "/", omittingEmptySubsequences: false)
         guard parts.count == 2 else { return false }
         return parts.allSatisfy { part in
@@ -96,7 +96,7 @@ extension CatalogModel {
         }
     }
 
-    static func isHex(_ value: String, length: Int) -> Bool {
+    public static func isHex(_ value: String, length: Int) -> Bool {
         value.count == length && value.allSatisfy { ("0"..."9").contains($0) || ("a"..."f").contains($0) }
     }
 }

@@ -41,3 +41,6 @@ Models/
 .swiftpm/
 .build-cache/
 node_modules/
+
+# Catalog signing keys: the development key lives in ~/.config/mlx-create, never in the repo
+*catalog*.key

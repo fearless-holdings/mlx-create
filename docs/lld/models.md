@@ -31,12 +31,12 @@ Modules: `MCCatalog` (catalog schema, signature, loader), `MCCatalogTool` (`mc-c
       "download_bytes": 0,
       "ram_gb": 17.6,
       "license": {
-        "id": "krea-2-community-1.0",
-        "name": "Krea 2 Community License",
+        "id": "krea-2-community-license",
+        "name": "Krea 2 Community License Agreement",
         "url": "https://krea.ai/krea-2-licensing",
         "commercial_use": true,
-        "version": "v1 (2026-06-22)",
-        "summary": "Plain-language summary shown on the license sheet"
+        "version": "1 (June 22, 2026)",
+        "summary": "Commercial use is allowed only while your company's total revenue, including affiliates, is under US$1,000,000 on a trailing twelve-month basis (section 2.3). Above that you need an enterprise license from Krea before any commercial use. Any deployment must run reasonable and appropriate content filtering to detect and mitigate harmful content (section 4.2). mlx-create applies no content filter of its own, so the filter is your responsibility."
       },
       "files": [
         { "path": "config.json", "size": 28, "sha256": "64 lowercase hex characters" }
@@ -180,5 +180,7 @@ The engine scans `Weights/` for any folder that holds a model. Folders placed th
 ## 11. Verification
 
 - `swift test --filter MCCatalogTests` covers signature, loader precedence, rollback, refresh and validation.
-- `swift run mc-catalog verify Sources/MCCatalog/Resources/catalog.json` checks the bundled catalog against `PinnedKeys`.
-- `mc-catalog build` makes JSON-only calls to Hugging Face and downloads only small non-LFS files. Weights are never downloaded at build time.
+- `mc-catalog build --source catalog/models.src.json --out Sources/MCCatalog/Resources/catalog.json` resolves each entry's `ref` to a commit, reads the tree, and hashes files (LFS `oid`, or a download of small non-LFS files up to 1 MiB). It prints the diff against the previous catalog and the files `WeightFilePolicy` dropped. It downloads no weights.
+- `mc-catalog sign <catalog.json> --acknowledge-diff` signs with `~/.config/mlx-create/dev-catalog.key` and refuses unless the key is pinned and the diff was reviewed.
+- `mc-catalog verify <catalog.json> [--release --catalog-url URL]` checks the signature against `PinnedKeys` and validates the schema. With `--release` and a non-empty URL it fails when a development key is pinned. Project.yml runs this gate before every Release build.
+- `swift test --filter MCCatalogToolTests` covers the builder, signing, the release gate and the bundled catalog.

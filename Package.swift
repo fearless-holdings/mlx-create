@@ -7,6 +7,7 @@ let package = Package(
     products: [
         .library(name: "MCEngine", targets: ["MCEngine"]),
         .library(name: "MCCatalog", targets: ["MCCatalog"]),
+        .executable(name: "mc-catalog", targets: ["MCCatalogTool"]),
         .library(name: "MCLibrary", targets: ["MCLibrary"]),
         .library(name: "MCGeneration", targets: ["MCGeneration"]),
         .library(name: "MCApp", targets: ["MCApp"]),
@@ -22,6 +23,8 @@ let package = Package(
         .target(name: "MCApp", dependencies: ["MCGeneration", "MCEngine", "MCCatalog", "MCLibrary"]),
         .testTarget(name: "MCEngineTests", dependencies: ["MCEngine"], resources: [.copy("Fixtures")]),
         .testTarget(name: "MCCatalogTests", dependencies: ["MCCatalog"], resources: [.copy("Fixtures")]),
+        .executableTarget(name: "MCCatalogTool", dependencies: ["MCCatalog"]),
+        .testTarget(name: "MCCatalogToolTests", dependencies: ["MCCatalogTool", "MCCatalog"], resources: [.copy("Fixtures")]),
         .testTarget(name: "MCLibraryTests", dependencies: ["MCLibrary"]),
         .testTarget(name: "MCGenerationTests", dependencies: ["MCGeneration"]),
         .testTarget(name: "MCAppTests", dependencies: ["MCApp"]),
