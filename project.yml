@@ -17,6 +17,8 @@ targets:
     platform: macOS
     sources:
       - App
+      - path: NOTICE
+        buildPhase: resources
     dependencies:
       - package: MLXCreate
         product: MCApp
