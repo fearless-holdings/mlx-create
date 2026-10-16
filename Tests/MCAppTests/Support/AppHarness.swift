@@ -117,6 +117,12 @@ struct AppHarness {
     let endpoint: EngineEndpoint
     let states: AsyncStream<EngineState>.Continuation
     let projectID: UUID
+    /// The library root and defaults the app reads at launch. A relaunch builds a new model over the same two.
+    let root: URL
+    let defaults: UserDefaults
+
+    /// An engine that answers every generation with 404, for tests that must not reach the engine.
+    static let idleEngine: FakeEngine.Script = { _, _ in .init(status: 404, body: Data(), tail: nil) }
 
     static func make(
         models: [(id: String, architecture: String)] = [(kreaModel, "krea2_turbo")],
@@ -125,10 +131,38 @@ struct AppHarness {
         initialState: ((EngineEndpoint) -> EngineState)? = nil,
         defaults: UserDefaults? = nil,
         supervisor: EngineSupervisor? = nil,
-        script: @escaping FakeEngine.Script = { _, _ in .init(status: 404, body: Data(), tail: nil) }
+        script: @escaping FakeEngine.Script = AppHarness.idleEngine
     ) async throws -> AppHarness {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("app-\(UUID().uuidString)")
         let store = try LibraryStore(libraryRoot: root)
+        return try await assemble(
+            root: root, store: store, models: models, loaded: loaded, registry: registry,
+            initialState: initialState, defaults: defaults ?? UserDefaults(suiteName: UUID().uuidString)!,
+            supervisor: supervisor, script: script)
+    }
+
+    /// Builds a new `AppModel` over this harness's library and defaults with a fresh engine, as a relaunch would.
+    func relaunch(
+        models: [(id: String, architecture: String)] = [(kreaModel, "krea2_turbo")],
+        initialState: ((EngineEndpoint) -> EngineState)? = nil,
+        script: @escaping FakeEngine.Script = AppHarness.idleEngine
+    ) async throws -> AppHarness {
+        try await Self.assemble(
+            root: root, store: store, models: models, loaded: [], registry: nil,
+            initialState: initialState, defaults: defaults, supervisor: nil, script: script)
+    }
+
+    private static func assemble(
+        root: URL,
+        store: LibraryStore,
+        models: [(id: String, architecture: String)],
+        loaded: Set<String>,
+        registry: FamilyRegistry?,
+        initialState: ((EngineEndpoint) -> EngineState)?,
+        defaults: UserDefaults,
+        supervisor: EngineSupervisor?,
+        script: @escaping FakeEngine.Script
+    ) async throws -> AppHarness {
         let engine = FakeEngine(loaded: loaded, models: models, script: script)
         let endpoint = EngineStubProtocol.register(handler: { engine.handle($0) })
         let configuration = URLSessionConfiguration.ephemeral
@@ -146,18 +180,19 @@ struct AppHarness {
             weightsPath: "/tmp/mlx-create-tests/Weights",
             libraryPaths: LibraryPaths(root: root),
             supervisor: supervisor,
-            defaults: defaults ?? UserDefaults(suiteName: UUID().uuidString)!)
+            defaults: defaults)
         let project = try await store.defaultProject()
         return AppHarness(
-            model: model, store: store, endpoint: endpoint, states: continuation, projectID: project.id)
+            model: model, store: store, endpoint: endpoint, states: continuation, projectID: project.id,
+            root: root, defaults: defaults)
     }
 
     /// Queues a job directly in the library, bypassing the composer.
-    func enqueue(model: String = kreaModel, batch: Int) async throws -> Job {
+    func enqueue(model: String = kreaModel, batch: Int, prompt: String = "a lighthouse at dusk") async throws -> Job {
         try await store.enqueueJob(
             projectID: projectID,
             request: JobRequest(
-                modelID: model, family: "krea-2-turbo", prompt: "a lighthouse at dusk",
+                modelID: model, family: "krea-2-turbo", prompt: prompt,
                 width: 512, height: 512, steps: 4),
             batchCount: batch,
             seedPolicy: SeedPolicy.random.encoded)
