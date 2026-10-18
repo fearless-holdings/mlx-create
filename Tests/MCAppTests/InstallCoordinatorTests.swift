@@ -18,10 +18,10 @@ final class CompletingTransport: ModelTransport, @unchecked Sendable {
 
     var requests: [InstallPlan] { lock.withLock { requested } }
 
-    func install(_ plan: InstallPlan) -> AsyncStream<InstallEvent> {
+    func install(_ plan: InstallPlan) -> InstallRun {
         lock.withLock { requested.append(plan) }
         let destination = destination(for: plan)
-        return AsyncStream { continuation in
+        let events = AsyncStream<InstallEvent> { continuation in
             do {
                 try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
                 for file in plan.files {
@@ -34,6 +34,7 @@ final class CompletingTransport: ModelTransport, @unchecked Sendable {
             }
             continuation.finish()
         }
+        return InstallRun(events: events, cancel: {})
     }
 
     func destination(for plan: InstallPlan) -> URL {
@@ -43,6 +44,54 @@ final class CompletingTransport: ModelTransport, @unchecked Sendable {
     }
 
     func stagedInstalls() -> [StagedInstall] { [] }
+}
+
+/// Holds each install until the test finishes it, so a catalog can change while the install is still running.
+final class GatedTransport: ModelTransport, @unchecked Sendable {
+    private struct Pending {
+        let plan: InstallPlan
+        let continuation: AsyncStream<InstallEvent>.Continuation
+    }
+
+    let modelsRoot: URL
+    private let lock = NSLock()
+    private var requested: [InstallPlan] = []
+    private var pending: [Pending] = []
+
+    init(modelsRoot: URL) {
+        self.modelsRoot = modelsRoot
+    }
+
+    var requests: [InstallPlan] { lock.withLock { requested } }
+
+    func install(_ plan: InstallPlan) -> InstallRun {
+        let (stream, continuation) = AsyncStream.makeStream(of: InstallEvent.self)
+        lock.withLock {
+            requested.append(plan)
+            pending.append(Pending(plan: plan, continuation: continuation))
+        }
+        return InstallRun(events: stream, cancel: {})
+    }
+
+    func destination(for plan: InstallPlan) -> URL {
+        plan.repo.split(separator: "/").reduce(modelsRoot.appending(path: "Weights", directoryHint: .isDirectory)) {
+            $0.appending(path: String($1), directoryHint: .isDirectory)
+        }
+    }
+
+    func stagedInstalls() -> [StagedInstall] { [] }
+
+    /// Writes the planned files under `Weights/`, then reports `installed`.
+    func finish(_ plan: InstallPlan) throws {
+        let folder = destination(for: plan)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        for file in plan.files {
+            try Data(repeating: 1, count: Int(file.size)).write(to: folder.appending(path: file.path))
+        }
+        let continuation = lock.withLock { pending.last { $0.plan.id == plan.id }!.continuation }
+        continuation.yield(InstallEvent(phase: .installed, bytesDone: plan.totalBytes, bytesTotal: plan.totalBytes))
+        continuation.finish()
+    }
 }
 
 /// Records, in order, what the rescan closure saw: whether the installed row existed when it ran.
@@ -70,10 +119,13 @@ enum CoordinatorFixture {
     static let revision = String(repeating: "ef", count: 20)
     static let hash = String(repeating: "3", count: 64)
     static let acceptedAt = Date(timeIntervalSince1970: 1_790_000_000)
+    static let issuedAt = Date(timeIntervalSince1970: 1_790_000_000)
 
-    static func catalog(licenseVersion: String = "1 (June 22, 2026)", sequence: Int = 7) -> Catalog {
+    static func catalog(
+        licenseVersion: String = "1 (June 22, 2026)", sequence: Int = 7, family: String = "krea-2-turbo"
+    ) -> Catalog {
         let model = CatalogModel(
-            id: modelID, family: "krea-2-turbo", name: "Krea 2 Turbo", quantization: "mixed 4/8-bit",
+            id: modelID, family: family, name: "Krea 2 Turbo", quantization: "mixed 4/8-bit",
             repo: "org/krea-2-turbo", revision: revision, downloadBytes: 3072, ramGB: 17.6,
             license: CatalogLicense(
                 id: "krea-2-community-license", name: "Krea 2 Community License Agreement",
@@ -83,7 +135,7 @@ enum CoordinatorFixture {
                 CatalogFile(path: "config.json", size: 1024, sha256: hash),
                 CatalogFile(path: "model.safetensors", size: 2048, sha256: hash),
             ])
-        return Catalog(schemaVersion: 1, sequence: sequence, issuedAt: Date(timeIntervalSince1970: 1_790_000_000), models: [model])
+        return Catalog(schemaVersion: 1, sequence: sequence, issuedAt: issuedAt, models: [model])
     }
 
     static func acceptance(licenseVersion: String = "1 (June 22, 2026)") -> LicenseAcceptance {
@@ -234,5 +286,49 @@ enum CoordinatorFixture {
         #expect(transport.requests.count == 2, "the missing folder is downloaded again")
         let refreshed = try #require(try await store.installedModel(id: CoordinatorFixture.modelID))
         #expect(refreshed.acceptedAt == reinstalledAt, "the record is replaced by the reinstall")
+    }
+
+    /// A refresh that drops the model while its install is running must not change the record the install writes.
+    @Test func refreshThatDropsTheModelMidInstallLeavesTheRecordIntact() async throws {
+        let root = CoordinatorFixture.scratchRoot()
+        let store = try LibraryStore(libraryRoot: root)
+        let transport = GatedTransport(modelsRoot: root.appending(path: "Models"))
+        let coordinator = InstallCoordinator(
+            catalog: CoordinatorFixture.catalog(sequence: 7), store: store, transport: transport, rescan: {})
+        let install = Task {
+            try await coordinator.install(modelID: CoordinatorFixture.modelID, acceptance: CoordinatorFixture.acceptance())
+        }
+        try await eventually { transport.requests.count == 1 }
+
+        await coordinator.replaceCatalog(Catalog(
+            schemaVersion: 1, sequence: 8, issuedAt: CoordinatorFixture.issuedAt, models: []))
+        try transport.finish(try #require(transport.requests.first))
+        let outcome = try await install.value
+
+        #expect(outcome.result == .installed)
+        let row = try #require(try await store.installedModel(id: CoordinatorFixture.modelID))
+        #expect(row.family == "krea-2-turbo")
+        #expect(row.catalogSequence == 7)
+    }
+
+    /// A refresh that changes the model's family mid-install must not leak into the record.
+    @Test func refreshThatChangesTheFamilyMidInstallLeavesTheRecordIntact() async throws {
+        let root = CoordinatorFixture.scratchRoot()
+        let store = try LibraryStore(libraryRoot: root)
+        let transport = GatedTransport(modelsRoot: root.appending(path: "Models"))
+        let coordinator = InstallCoordinator(
+            catalog: CoordinatorFixture.catalog(sequence: 7), store: store, transport: transport, rescan: {})
+        let install = Task {
+            try await coordinator.install(modelID: CoordinatorFixture.modelID, acceptance: CoordinatorFixture.acceptance())
+        }
+        try await eventually { transport.requests.count == 1 }
+
+        await coordinator.replaceCatalog(CoordinatorFixture.catalog(sequence: 8, family: "krea-2-turbo-v2"))
+        try transport.finish(try #require(transport.requests.first))
+        _ = try await install.value
+
+        let row = try #require(try await store.installedModel(id: CoordinatorFixture.modelID))
+        #expect(row.family == "krea-2-turbo")
+        #expect(row.catalogSequence == 7)
     }
 }

@@ -68,9 +68,9 @@ public actor ModelDownloader {
         InstallStaging.destinationURL(plan, modelsRoot: configuration.modelsRoot)
     }
 
-    /// Runs the install. Consuming the stream drives it; cancelling the consuming task cancels the install and keeps
-    /// its partials. The stream ends after exactly one terminal event.
-    public func install(_ plan: InstallPlan) -> AsyncStream<InstallEvent> {
+    /// Starts the install. Consume `events` for progress; the stream ends after exactly one terminal event. Iterating
+    /// does not cancel the install: call `cancel` on the returned run for that.
+    public func install(_ plan: InstallPlan) -> InstallRun {
         let (stream, continuation) = AsyncStream.makeStream(of: InstallEvent.self)
         let progress = InstallProgress(total: plan.totalBytes) { continuation.yield($0) }
         let key = InstallStaging.stagingURL(plan, modelsRoot: configuration.modelsRoot).path
@@ -80,8 +80,7 @@ public actor ModelDownloader {
             await Self.locks.release(key)
             continuation.finish()
         }
-        continuation.onTermination = { _ in task.cancel() }
-        return stream
+        return InstallRun(events: stream, cancel: { task.cancel() })
     }
 
     /// Staged installs left by an earlier run (`Models/.partial/`). Used by the installer to list interrupted installs.
@@ -151,6 +150,8 @@ public actor ModelDownloader {
             }
         }
 
+        // Point of no return: the rename below is the commit. Until it runs, a cancel leaves the staging folder for resume.
+        try Task.checkCancellation()
         progress.emit(.moving)
         for file in plan.files {
             let final = try InstallStaging.confine(file.path, under: staging)
@@ -161,6 +162,7 @@ public actor ModelDownloader {
         }
         try Self.pruneStaging(plan, staging: staging)
 
+        try Task.checkCancellation()
         try publish(staging: staging, destination: destination)
         try? FileManager.default.removeItem(at: InstallStaging.manifestURL(plan, modelsRoot: configuration.modelsRoot))
     }

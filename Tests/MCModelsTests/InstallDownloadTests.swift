@@ -148,23 +148,20 @@ final class Scenario {
 
 private func collect(_ downloader: ModelDownloader, _ plan: InstallPlan) async -> [InstallEvent] {
     var events: [InstallEvent] = []
-    let stream = await downloader.install(plan)
-    for await event in stream { events.append(event) }
+    let run = await downloader.install(plan)
+    for await event in run.events { events.append(event) }
     return events
 }
 
-/// Consumes the install until `bytes` have landed, then ends the consumer. Ending the consumer cancels the install,
-/// which keeps its partials. Waits until the cancelled installer has released its staging lock.
-private func interrupt(_ downloader: ModelDownloader, _ plan: InstallPlan, after bytes: Int64, in scenario: Scenario) async -> Bool {
-    let consumer = Task { () -> Bool in
-        let stream = await downloader.install(plan)
-        for await event in stream where event.bytesDone >= bytes { return true }
-        return false
+/// Consumes the install until `bytes` have landed, then cancels it, which keeps its partials. Iteration then drains to
+/// the terminal event, so the cancelled install has released its staging lock when this returns.
+private func interrupt(_ downloader: ModelDownloader, _ plan: InstallPlan, after bytes: Int64) async -> Bool {
+    let run = await downloader.install(plan)
+    var stopped = false
+    for await event in run.events where !stopped && event.bytesDone >= bytes {
+        stopped = true
+        run.cancel()
     }
-    let stopped = await consumer.value
-    let key = InstallStaging.stagingURL(plan, modelsRoot: scenario.models.url).path
-    await ModelDownloader.locks.acquire(key)
-    await ModelDownloader.locks.release(key)
     return stopped
 }
 
@@ -216,7 +213,7 @@ struct InstallEndToEndTests {
         try await server.control(["throttle_ms": 40])
         let downloader = s.downloader()
 
-        let stopped = await interrupt(downloader, s.plan, after: 1 << 20, in: s)
+        let stopped = await interrupt(downloader, s.plan, after: 1 << 20)
         #expect(stopped)
         #expect(ModelDownloader.interruptedInstalls(modelsRoot: s.models.url).map(\.plan) == [s.plan])
         let partial = s.staging.appending(path: "\(Self.big).partial")
@@ -243,7 +240,7 @@ struct InstallEndToEndTests {
         try await server.control(["throttle_ms": 40])
         let downloader = s.downloader()
 
-        #expect(await interrupt(downloader, s.plan, after: 1 << 20, in: s))
+        #expect(await interrupt(downloader, s.plan, after: 1 << 20))
 
         try await server.control(["expire_cdn": true, "reset_stats": true, "throttle_ms": 0])
         let events = await collect(downloader, s.plan)
@@ -262,7 +259,7 @@ struct InstallEndToEndTests {
         try await server.control(["throttle_ms": 40])
         let downloader = s.downloader()
 
-        #expect(await interrupt(downloader, s.plan, after: 1 << 20, in: s))
+        #expect(await interrupt(downloader, s.plan, after: 1 << 20))
 
         try await s.changeEtag(Self.big)
         try await server.control(["reset_stats": true, "throttle_ms": 0])
@@ -464,6 +461,37 @@ struct InstallEndToEndTests {
         #expect(events.last?.phase == .installed)
         #expect(Set(fileNames(under: s.destination)) == [Self.small], "only planned files reach Weights")
         #expect(try Data(contentsOf: s.destination.appending(path: Self.small)) == s.payloads[Self.small])
+    }
+
+    /// A cancel that lands while the downloader is still hashing ends the install before the move. Nothing reaches
+    /// `Weights/`, the verified file stays in staging, and a later install resumes without fetching it again.
+    @Test func cancelWhileVerifyingKeepsStagingAndTheNextInstallResumes() async throws {
+        let server = try RangeServer()
+        let size = 128 << 20
+        let s = try Scenario(server: server, files: [(Self.big, size, 18)])
+        try await s.publish()
+        let downloader = s.downloader()
+
+        // Hashing 128 MiB takes long enough for the cancel to land before the move check.
+        let run = await downloader.install(s.plan)
+        var events: [InstallEvent] = []
+        for await event in run.events {
+            events.append(event)
+            if event.phase == .verifying { run.cancel() }
+        }
+
+        #expect(events.last?.phase == .cancelled)
+        #expect(!events.contains { $0.phase == .moving }, "the move never starts")
+        #expect(!FileManager.default.fileExists(atPath: s.destination.path), "nothing reaches Weights")
+        #expect(FileManager.default.fileExists(atPath: s.staging.appending(path: "\(Self.big).partial").path))
+
+        try await server.control(["reset_stats": true])
+        let resumed = await collect(downloader, s.plan)
+
+        #expect(resumed.last?.phase == .installed)
+        #expect(try Data(contentsOf: s.destination.appending(path: Self.big)) == s.payloads[Self.big])
+        let stats = try await server.stats()
+        #expect((stats.bytesServed[s.key(Self.big)] ?? 0) < Int64(size), "the verified bytes are not fetched again")
     }
 }
 

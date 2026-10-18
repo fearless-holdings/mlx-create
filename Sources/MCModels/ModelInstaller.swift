@@ -3,7 +3,7 @@ import Foundation
 /// What the installer needs from a downloader (KTD18). `ModelDownloader` conforms; tests substitute a transport whose
 /// installs they complete by hand.
 public protocol ModelTransport: Sendable {
-    func install(_ plan: InstallPlan) async -> AsyncStream<InstallEvent>
+    func install(_ plan: InstallPlan) async -> InstallRun
     /// The folder a published install lands in: `Models/Weights/<org>/<name>/`.
     func destination(for plan: InstallPlan) -> URL
     /// Staged installs left by an earlier run. Nothing resumes on its own.
@@ -16,15 +16,30 @@ extension ModelDownloader: ModelTransport {
     }
 }
 
+/// Catalog facts a record keeps. The coordinator captures them when an install starts, so a catalog refresh that lands
+/// mid-install cannot change the row that install writes.
+public struct InstallProvenance: Sendable, Equatable {
+    public let family: String
+    /// Sequence of the signed catalog the install started from.
+    public let catalogSequence: Int
+
+    public init(family: String, catalogSequence: Int) {
+        self.family = family
+        self.catalogSequence = catalogSequence
+    }
+}
+
 /// What the installer hands to `record` once a model's files are published and verified.
 public struct InstallRecord: Sendable, Equatable {
     public let plan: InstallPlan
     public let acceptance: LicenseAcceptance
+    public let provenance: InstallProvenance
     public let installedAt: Date
 
-    public init(plan: InstallPlan, acceptance: LicenseAcceptance, installedAt: Date) {
+    public init(plan: InstallPlan, acceptance: LicenseAcceptance, provenance: InstallProvenance, installedAt: Date) {
         self.plan = plan
         self.acceptance = acceptance
+        self.provenance = provenance
         self.installedAt = installedAt
     }
 }
@@ -136,9 +151,16 @@ public actor ModelInstaller {
         return stream
     }
 
-    /// Installs `plan` after the license gate. Cancelling the calling task cancels the download and keeps its partials;
-    /// a later install of the same plan resumes them.
-    public func install(_ plan: InstallPlan, acceptance: LicenseAcceptance?) async throws -> InstallOutcome {
+    /// Installs `plan` after the license gate. `provenance` is the catalog state the record keeps; it is fixed here, so
+    /// an install already running keeps it whatever the catalog does next.
+    ///
+    /// Cancelling the calling task asks the downloader to stop. Until the downloader publishes the folder the install ends
+    /// cancelled and keeps its partials; a later install of the same plan resumes them. Once the folder is published the
+    /// install is recorded and rescanned even if the caller was cancelled, so a published folder always has its row. The
+    /// slot stays taken until the downloader has settled.
+    public func install(
+        _ plan: InstallPlan, acceptance: LicenseAcceptance?, provenance: InstallProvenance
+    ) async throws -> InstallOutcome {
         guard let acceptance, acceptance.modelID == plan.modelID else {
             throw ModelInstallError.licenseNotAccepted(modelID: plan.modelID)
         }
@@ -153,7 +175,7 @@ public actor ModelInstaller {
         publish()
 
         do {
-            let outcome = try await run(plan, acceptance: acceptance)
+            let outcome = try await run(plan, acceptance: acceptance, provenance: provenance)
             finish()
             return outcome
         } catch {
@@ -175,7 +197,9 @@ public actor ModelInstaller {
 
     // MARK: Orchestration
 
-    private func run(_ plan: InstallPlan, acceptance: LicenseAcceptance) async throws -> InstallOutcome {
+    private func run(
+        _ plan: InstallPlan, acceptance: LicenseAcceptance, provenance: InstallProvenance
+    ) async throws -> InstallOutcome {
         let recorded = try await isRecorded(plan.modelID)
         let destination = transport.destination(for: plan)
         if FileManager.default.fileExists(atPath: destination.path) {
@@ -184,27 +208,26 @@ public actor ModelInstaller {
             return InstallOutcome(modelID: plan.modelID, result: .alreadyInstalled, rescanFailure: nil)
         }
 
-        try await download(plan)
-
-        do {
-            try await record(InstallRecord(plan: plan, acceptance: acceptance, installedAt: Date()))
-        } catch {
-            throw ModelInstallError.recordFailed(reason: error.localizedDescription)
+        let started = await transport.install(plan)
+        // Events are consumed in an unstructured task. Iterating in the caller would end the loop when the caller is
+        // cancelled, dropping the terminal event. Cancellation reaches the downloader only through `started.cancel`.
+        let settled = Task {
+            try await self.settle(started.events, plan: plan, acceptance: acceptance, provenance: provenance)
         }
-
-        var rescanFailure: String?
-        do {
-            try await onInstalled()
-        } catch {
-            rescanFailure = error.localizedDescription
+        return try await withTaskCancellationHandler {
+            try await settled.value
+        } onCancel: {
+            started.cancel()
         }
-        return InstallOutcome(modelID: plan.modelID, result: .installed, rescanFailure: rescanFailure)
     }
 
-    /// Consumes the downloader's stream, republishing each event, and returns when it reports `installed`.
-    private func download(_ plan: InstallPlan) async throws {
+    /// Consumes the downloader's events to the terminal one, then records what it published. Runs unstructured, so
+    /// neither a cancelled caller nor a consumer that stops early can cut it short.
+    private func settle(
+        _ events: AsyncStream<InstallEvent>, plan: InstallPlan, acceptance: LicenseAcceptance,
+        provenance: InstallProvenance
+    ) async throws -> InstallOutcome {
         var terminal: InstallEvent.Phase?
-        let events = await transport.install(plan)
         for await event in events {
             snapshot.active = Snapshot.Active(modelID: plan.modelID, event: event)
             publish()
@@ -217,15 +240,29 @@ public actor ModelInstaller {
         }
         switch terminal {
         case .installed?:
-            return
+            break
         case .failed(let error)?:
             throw error
         case .cancelled?:
             throw CancellationError()
         default:
-            if Task.isCancelled { throw CancellationError() }
             throw InstallError.staging(reason: "the download ended without a result")
         }
+
+        // The folder is published, so its row and the rescan follow whether or not the caller was cancelled.
+        do {
+            try await record(InstallRecord(
+                plan: plan, acceptance: acceptance, provenance: provenance, installedAt: Date()))
+        } catch {
+            throw ModelInstallError.recordFailed(reason: error.localizedDescription)
+        }
+        var rescanFailure: String?
+        do {
+            try await onInstalled()
+        } catch {
+            rescanFailure = error.localizedDescription
+        }
+        return InstallOutcome(modelID: plan.modelID, result: .installed, rescanFailure: rescanFailure)
     }
 
     private func finish() {

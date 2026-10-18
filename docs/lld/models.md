@@ -131,6 +131,7 @@ Requests follow the pinned revision: `https://huggingface.co/<repo>/resolve/<rev
 - Downloads go to `Models/.partial/<install-id>/`, outside `Weights/`, so an engine rescan never sees partial files. The staging manifest is written beside that folder, as `Models/.partial/<install-id>.install.json`, never inside it: inside it would be renamed into `Weights/` with the model.
 - After every file verifies, the folder is renamed to `Weights/<org>/<repo>/` on the same volume. An existing destination is never overwritten, so the rename fails and the install reports it.
 - Only `.safetensors` and allowlisted files are ever written (R6, KTD21).
+- **Cancel.** A cancel is honoured until the rename into `Weights/`, the point of no return. The downloader checks for cancellation before the move phase and again before the rename, so a cancelled install keeps its staging folder and partials for resume. Once the folder is published the install completes: the installer records it and runs the engine rescan even if the caller was cancelled, so a published folder always has its row. The installer holds its one-install slot until the downloader reports its terminal event.
 
 **Disk (KTD8).** Required space is the remaining bytes plus 1 GiB, read from the Models volume's important-usage capacity. Insufficient space refuses the install before the first byte is requested, and the message states the needed and available space (R7). A write error from a full disk mid-download fails the install and keeps the partials.
 
@@ -146,7 +147,9 @@ stateDiagram-v2
   downloading --> cancelled: user cancels, partials kept
   downloading --> failed: disk full, network, 4xx
   verifying --> failed: hash mismatch, bad file deleted
+  verifying --> cancelled: user cancels before the rename, partials kept
   verifying --> moving
+  moving --> cancelled: user cancels before the rename, partials kept
   moving --> installed
   cancelled --> preflight: user resumes
   failed --> preflight: user retries
@@ -158,6 +161,8 @@ stateDiagram-v2
 `interrupted` is what a staged install becomes after relaunch. Nothing continues until the user asks (R4): the app lists interrupted installs and waits.
 
 Install acceptance (R3, KTD10): the user accepts the model's current `license.version` before `preflight` starts. Acceptance is stored with the license id, version and time in `installed_model` (KTD9). A later license version requires fresh acceptance for new installs only.
+
+The `installed_model` row takes its family and catalog sequence from the catalog entry captured when the install starts. A catalog refresh that lands mid-install does not change them.
 
 ## 9. Error mapping
 
