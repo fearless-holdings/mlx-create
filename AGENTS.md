@@ -102,7 +102,9 @@ HLD Appendix A lists the files worth reusing. The rules:
 
 ## Commands
 
-- Library tests: `swift test` (five library targets, Swift Testing).
+- Library tests: `swift test` (library targets plus `MCCatalogTool`, Swift Testing). `MCModelsTests` start a local Range server and need `/usr/bin/python3` (skipped when absent); real-engine tests need `MLXC_ENGINE_BIN`.
+- Catalog: `swift run mc-catalog verify Sources/MCCatalog/Resources/catalog.json` checks the bundled signed catalog. `mc-catalog keygen|build|sign` produce it; the dev private key lives at `~/.config/mlx-create/dev-catalog.key`, never in the repo. Production key and catalog URL are release prerequisites.
+- Gotchas: the `.gitignore` rule is `/Models/` (root-anchored) so `Sources/MCApp/Models/` is tracked; the app is single-instance (`Engine/app.lock`); `kill`ing the app with SIGTERM can leave its `mlx-serve` child running, so check `pgrep mlx-serve` after a manual quit.
 - App project: `xcodegen generate` (needs XcodeGen 2.46+, `brew install xcodegen`), then `xcodebuild -project MLXCreate.xcodeproj -scheme MLXCreate -configuration Debug -derivedDataPath build build`. The generated `MLXCreate.xcodeproj` and `build/` are git-ignored.
 - Engine embed runs as a post-compile script from `project.yml` (`scripts/embed-engine.sh`, pinned by `engine.lock`).
 
