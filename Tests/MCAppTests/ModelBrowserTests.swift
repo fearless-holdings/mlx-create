@@ -43,6 +43,7 @@ final class ScriptedTransport: ModelTransport, @unchecked Sendable {
         }
         switch outcome {
         case .completes:
+            publishFolder(plan)
             hook?(plan)
             lock.withLock { partials[plan.modelID] = nil }
             return AsyncStream { continuation in
@@ -67,6 +68,15 @@ final class ScriptedTransport: ModelTransport, @unchecked Sendable {
     func destination(for plan: InstallPlan) -> URL {
         plan.repo.split(separator: "/").reduce(modelsRoot.appending(path: "Weights", directoryHint: .isDirectory)) {
             $0.appending(path: String($1), directoryHint: .isDirectory)
+        }
+    }
+
+    /// Writes the folder a finished install leaves in `Weights/`, as the downloader publishes it.
+    func publishFolder(_ plan: InstallPlan) {
+        let folder = destination(for: plan)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        for file in plan.files {
+            try? Data(repeating: 1, count: Int(file.size)).write(to: folder.appending(path: file.path))
         }
     }
 
@@ -144,6 +154,7 @@ struct BrowserRig {
         let installs = InstallCoordinator(
             catalog: BrowserFixture.catalog, store: store, transport: transport, rescan: {})
         if installedAlpha {
+            transport.publishFolder(InstallCoordinator.plan(for: BrowserFixture.alpha))
             try await store.recordInstalledModel(BrowserFixture.alphaRecord())
         }
         let browser = ModelBrowserModel(
@@ -396,5 +407,71 @@ func browserRow(_ rows: [ModelBrowserRow], _ id: String) -> ModelBrowserRow? {
         let installed = try #require(harness.model.models.first { $0.id == BrowserFixture.beta.repo })
         #expect(ModelSelection.isSelectable(installed))
         #expect(harness.model.canvasMode == .emptyHint)
+    }
+
+    @Test func reopeningTheSheetKeepsProgressLive() async throws {
+        let rig = try await BrowserRig.make(outcomes: [.holds])
+        let closedSheet = Task { await rig.browser.observe() }
+        closedSheet.cancel()
+        await closedSheet.value
+
+        let reopenedSheet = Task { await rig.browser.observe() }
+        defer { reopenedSheet.cancel() }
+        rig.browser.beginInstall(BrowserFixture.alpha.id)
+        rig.browser.licenseAccepted = true
+        rig.browser.confirmLicense()
+        try await eventually { rig.browser.active?.event.bytesDone == 1024 }
+
+        rig.browser.cancelInstall()
+        await rig.browser.installTask?.value
+    }
+
+    @Test func deletedInstalledFolderOffersInstallAgainAndReinstallRestoresTheRow() async throws {
+        let rig = try await BrowserRig.make(engineIDs: [BrowserFixture.alpha.repo], installedAlpha: true)
+        await rig.browser.refresh()
+        #expect(browserRow(rig.browser.rows, BrowserFixture.alpha.id)?.state == .installed(inEngine: true))
+
+        try FileManager.default.removeItem(
+            at: rig.transport.destination(for: InstallCoordinator.plan(for: BrowserFixture.alpha)))
+        await rig.browser.refresh()
+
+        let missing = try #require(browserRow(rig.browser.rows, BrowserFixture.alpha.id))
+        guard case .missingFiles = missing.state else {
+            Issue.record("a record whose folder is gone must read as missing files")
+            return
+        }
+        #expect(missing.action == .install)
+        #expect(missing.canAct)
+
+        rig.browser.beginInstall(BrowserFixture.alpha.id)
+        rig.browser.licenseAccepted = true
+        rig.browser.confirmLicense()
+        await rig.browser.installTask?.value
+
+        #expect(rig.transport.requests.count == 1, "Install requests the model again")
+        #expect(browserRow(rig.browser.rows, BrowserFixture.alpha.id)?.state == .installed(inEngine: true))
+    }
+
+    @Test func failureThatRepeatsOnEveryRetryOffersNoRetry() async throws {
+        let failure = InstallError.httpStatus(path: "model.safetensors", status: 404)
+        let rig = try await BrowserRig.make(outcomes: [.fails(failure), .completes])
+
+        rig.browser.beginInstall(BrowserFixture.beta.id)
+        rig.browser.licenseAccepted = true
+        rig.browser.confirmLicense()
+        await rig.browser.installTask?.value
+
+        let row = try #require(browserRow(rig.browser.rows, BrowserFixture.beta.id))
+        guard case .failed(let message) = row.state else {
+            Issue.record("the failed install must show a failed row")
+            return
+        }
+        #expect(message == ModelBrowserModel.failureMessage(for: failure))
+        #expect(row.action == nil, "a revision that is no longer served repeats on every retry, so no Retry")
+        #expect(row.canAct == false)
+
+        rig.browser.continueInstall(BrowserFixture.beta.id)
+        await rig.browser.installTask?.value
+        #expect(rig.transport.requests.count == 1, "nothing is requested again")
     }
 }

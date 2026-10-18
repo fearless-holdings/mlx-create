@@ -241,12 +241,38 @@ func makeInstaller(
         let transport = ManualTransport(modelsRoot: models.url)
         let (installer, log) = makeInstaller(transport: transport, alreadyRecorded: ["model-a"])
         let plan = InstallerFixture.plan()
+        try FileManager.default.createDirectory(at: transport.destination(for: plan), withIntermediateDirectories: true)
 
         let outcome = try await installer.install(plan, acceptance: InstallerFixture.acceptance(for: plan))
 
         #expect(outcome.result == .alreadyInstalled)
         #expect(transport.requests.isEmpty)
         #expect(log.order.isEmpty)
+    }
+
+    @Test func deletedFolderReadsAsMissingFilesAndInstallsAgain() async throws {
+        let transport = ManualTransport(modelsRoot: models.url)
+        let (installer, log) = makeInstaller(transport: transport)
+        let plan = InstallerFixture.plan()
+        let destination = transport.destination(for: plan)
+
+        let first = Task { try await installer.install(plan, acceptance: InstallerFixture.acceptance(for: plan)) }
+        try await waitUntil { transport.requests.count == 1 }
+        try transport.finish(plan)
+        _ = try await first.value
+        #expect(try await installer.status(of: plan) == .installed)
+
+        try FileManager.default.removeItem(at: destination)
+        #expect(try await installer.status(of: plan) == .missingFiles(path: destination.path))
+
+        let second = Task { try await installer.install(plan, acceptance: InstallerFixture.acceptance(for: plan)) }
+        try await waitUntil { transport.requests.count == 2 }
+        try transport.finish(plan)
+        let outcome = try await second.value
+
+        #expect(outcome.result == .installed, "a record without its folder is not already installed")
+        #expect(log.records.count == 2, "the reinstall writes the record again")
+        #expect(try await installer.status(of: plan) == .installed)
     }
 
     @Test func unverifiedFolderIsNamedNeverOverwrittenAndNeverInstalled() async throws {
@@ -278,7 +304,7 @@ func makeInstaller(
         let plan = InstallerFixture.plan()
 
         let observer = Task { () -> Bool in
-            for await snapshot in installer.updates where snapshot.active?.event.bytesDone == 512 {
+            for await snapshot in await installer.updates() where snapshot.active?.event.bytesDone == 512 {
                 return true
             }
             return false
@@ -291,6 +317,32 @@ func makeInstaller(
         _ = try await task.value
 
         #expect(sawProgress)
+    }
+
+    @Test func reopenedSubscriberStillReceivesProgress() async throws {
+        let transport = ManualTransport(modelsRoot: models.url)
+        let (installer, _) = makeInstaller(transport: transport)
+        let plan = InstallerFixture.plan()
+
+        // The first sheet closes: its consumer stops iterating.
+        let closedSheet = Task { for await _ in await installer.updates() {} }
+        closedSheet.cancel()
+        await closedSheet.value
+
+        let reopenedSheet = Task { () -> Bool in
+            for await snapshot in await installer.updates() where snapshot.active?.event.bytesDone == 512 {
+                return true
+            }
+            return false
+        }
+        let task = Task { try await installer.install(plan, acceptance: InstallerFixture.acceptance(for: plan)) }
+        try await waitUntil { transport.requests.count == 1 }
+        transport.emit(.downloading, for: plan, done: 512)
+        let sawProgress = await reopenedSheet.value
+        try transport.finish(plan)
+        _ = try await task.value
+
+        #expect(sawProgress, "a later subscriber must see progress, not a stream the first one ended")
     }
 
     @Test func stagingFoundAtLaunchIsListedAndNeverResumed() async throws {
@@ -329,6 +381,37 @@ func makeInstaller(
         let disk = InstallError.insufficientDisk(needed: needed, available: available).errorDescription ?? ""
         #expect(disk.contains(needed.formatted(style)))
         #expect(disk.contains(available.formatted(style)))
+    }
+
+    /// A pinned revision the server no longer serves: the same request fails the same way, so only an app update helps.
+    @Test(arguments: [404, 410])
+    func pinnedRevisionNoLongerServedIsNotRetryable(status: Int) {
+        #expect(InstallError.httpStatus(path: "model.safetensors", status: status).isRetryable == false)
+    }
+
+    /// Refused access repeats on every attempt.
+    @Test(arguments: [401, 403])
+    func refusedAccessIsNotRetryable(status: Int) {
+        #expect(InstallError.httpStatus(path: "model.safetensors", status: status).isRetryable == false)
+    }
+
+    /// A busy or failing service is transient, so a later attempt can succeed.
+    @Test(arguments: [429, 500, 503])
+    func busyServiceIsRetryable(status: Int) {
+        #expect(InstallError.httpStatus(path: "model.safetensors", status: status).isRetryable)
+    }
+
+    /// Other statuses keep the plain failure and its Retry.
+    @Test func otherHTTPStatusKeepsRetry() {
+        #expect(InstallError.httpStatus(path: "model.safetensors", status: 418).isRetryable)
+    }
+
+    @Test func httpStatusClassesHaveDistinctMessages() {
+        let messages = [404, 401, 503, 418].map {
+            InstallError.httpStatus(path: "model.safetensors", status: $0).errorDescription ?? ""
+        }
+        #expect(messages.allSatisfy { !$0.isEmpty })
+        #expect(Set(messages).count == 4, "revision gone, access refused, service busy and other statuses each differ")
     }
 }
 

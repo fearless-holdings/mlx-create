@@ -212,4 +212,27 @@ enum CoordinatorFixture {
             stale as? ModelInstallError == .licenseNotAccepted(modelID: CoordinatorFixture.modelID),
             "acceptance of the old version does not carry over to the new one")
     }
+
+    @Test func deletedFolderIsInstalledAgainAndItsRecordIsRefreshed() async throws {
+        let root = CoordinatorFixture.scratchRoot()
+        let store = try LibraryStore(libraryRoot: root)
+        let transport = CompletingTransport(modelsRoot: root.appending(path: "Models"))
+        let coordinator = InstallCoordinator(
+            catalog: CoordinatorFixture.catalog(), store: store, transport: transport, rescan: {})
+        _ = try await coordinator.install(modelID: CoordinatorFixture.modelID, acceptance: CoordinatorFixture.acceptance())
+
+        let model = try #require(CoordinatorFixture.catalog().models.first)
+        try FileManager.default.removeItem(at: transport.destination(for: InstallCoordinator.plan(for: model)))
+
+        let reinstalledAt = CoordinatorFixture.acceptedAt.addingTimeInterval(3600)
+        let reacceptance = LicenseAcceptance(
+            modelID: CoordinatorFixture.modelID, licenseID: "krea-2-community-license",
+            licenseVersion: "1 (June 22, 2026)", acceptedAt: reinstalledAt)
+        let outcome = try await coordinator.install(modelID: CoordinatorFixture.modelID, acceptance: reacceptance)
+
+        #expect(outcome == InstallOutcome(modelID: CoordinatorFixture.modelID, result: .installed, rescanFailure: nil))
+        #expect(transport.requests.count == 2, "the missing folder is downloaded again")
+        let refreshed = try #require(try await store.installedModel(id: CoordinatorFixture.modelID))
+        #expect(refreshed.acceptedAt == reinstalledAt, "the record is replaced by the reinstall")
+    }
 }

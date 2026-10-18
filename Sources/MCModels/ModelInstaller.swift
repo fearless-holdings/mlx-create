@@ -55,6 +55,8 @@ public enum ModelInstallStatus: Sendable, Equatable {
     case installed
     /// A folder exists in `Weights/` with no record. Shown as "Unverified local files"; never overwritten.
     case unverified(path: String)
+    /// A record exists but its folder is gone from `Weights/`. Install is offered again and replaces the record.
+    case missingFiles(path: String)
 }
 
 public enum ModelInstallError: Error, Sendable, Equatable, LocalizedError {
@@ -95,10 +97,9 @@ public actor ModelInstaller {
     }
 
     public private(set) var snapshot: Snapshot
-    /// Every snapshot change, starting with the current one. Holds only the newest snapshot for a slow consumer.
-    public nonisolated let updates: AsyncStream<Snapshot>
+    /// Continuations of the open `updates()` streams, one per subscriber.
+    private var subscribers: [UUID: AsyncStream<Snapshot>.Continuation] = [:]
 
-    private let continuation: AsyncStream<Snapshot>.Continuation
     private let transport: any ModelTransport
     private let isRecorded: @Sendable (String) async throws -> Bool
     private let record: @Sendable (InstallRecord) async throws -> Void
@@ -118,12 +119,21 @@ public actor ModelInstaller {
         self.isRecorded = isRecorded
         self.record = record
         self.onInstalled = onInstalled
-        let (updates, continuation) = AsyncStream.makeStream(of: Snapshot.self, bufferingPolicy: .bufferingNewest(1))
-        self.updates = updates
-        self.continuation = continuation
         let initial = Snapshot(active: nil, interrupted: transport.stagedInstalls())
         snapshot = initial
-        continuation.yield(initial)
+    }
+
+    /// Every snapshot change for one subscriber, starting with the current one. Each call gets its own stream, so a
+    /// consumer that stops and a later one both see progress. A slow consumer holds only the newest snapshot.
+    public func updates() -> AsyncStream<Snapshot> {
+        let id = UUID()
+        let (stream, continuation) = AsyncStream.makeStream(of: Snapshot.self, bufferingPolicy: .bufferingNewest(1))
+        subscribers[id] = continuation
+        continuation.onTermination = { [weak self] _ in
+            Task { await self?.unsubscribe(id) }
+        }
+        continuation.yield(snapshot)
+        return stream
     }
 
     /// Installs `plan` after the license gate. Cancelling the calling task cancels the download and keeps its partials;
@@ -152,22 +162,26 @@ public actor ModelInstaller {
         }
     }
 
-    /// Whether the model is installed, is only present as unverified files, or is absent.
+    /// Installed when the record and its folder both exist. A record whose folder is gone reads as missing files.
+    /// A folder without a record reads as unverified; a plain absence reads as not installed.
     public func status(of plan: InstallPlan) async throws -> ModelInstallStatus {
-        if try await isRecorded(plan.modelID) { return .installed }
         let destination = transport.destination(for: plan)
-        return FileManager.default.fileExists(atPath: destination.path) ? .unverified(path: destination.path) : .notInstalled
+        let folderExists = FileManager.default.fileExists(atPath: destination.path)
+        if try await isRecorded(plan.modelID) {
+            return folderExists ? .installed : .missingFiles(path: destination.path)
+        }
+        return folderExists ? .unverified(path: destination.path) : .notInstalled
     }
 
     // MARK: Orchestration
 
     private func run(_ plan: InstallPlan, acceptance: LicenseAcceptance) async throws -> InstallOutcome {
-        if try await isRecorded(plan.modelID) {
-            return InstallOutcome(modelID: plan.modelID, result: .alreadyInstalled, rescanFailure: nil)
-        }
+        let recorded = try await isRecorded(plan.modelID)
         let destination = transport.destination(for: plan)
         if FileManager.default.fileExists(atPath: destination.path) {
-            throw ModelInstallError.unverifiedFiles(path: destination.path)
+            // A record with its folder is already installed. A folder without a record is never overwritten.
+            guard recorded else { throw ModelInstallError.unverifiedFiles(path: destination.path) }
+            return InstallOutcome(modelID: plan.modelID, result: .alreadyInstalled, rescanFailure: nil)
         }
 
         try await download(plan)
@@ -221,6 +235,10 @@ public actor ModelInstaller {
     }
 
     private func publish() {
-        continuation.yield(snapshot)
+        for continuation in subscribers.values { continuation.yield(snapshot) }
+    }
+
+    private func unsubscribe(_ id: UUID) {
+        subscribers[id] = nil
     }
 }

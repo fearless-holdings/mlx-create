@@ -48,12 +48,14 @@ import Testing
         #expect(try await store.installedModels().map(\.modelID) == ["earlier", "later"])
     }
 
-    @Test func secondRecordForTheSameModelIsRejected() async throws {
+    @Test func recordingAModelAgainReplacesItsRow() async throws {
         let store = try LibraryStore(libraryRoot: Self.scratchRoot())
         try await store.recordInstalledModel(Self.record("model-a"))
+        let reinstalled = Self.record("model-a", installedAt: Self.installedAt.addingTimeInterval(600))
 
-        await #expect(throws: DatabaseError.self) { try await store.recordInstalledModel(Self.record("model-a")) }
-        #expect(try await store.installedModels().count == 1)
+        try await store.recordInstalledModel(reinstalled)
+
+        #expect(try await store.installedModels() == [reinstalled], "a folder re-installed after deletion is recorded afresh")
     }
 
     @Test func recordSurvivesReopeningTheLibrary() async throws {

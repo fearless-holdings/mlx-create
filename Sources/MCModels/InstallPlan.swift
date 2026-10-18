@@ -103,13 +103,35 @@ public enum InstallError: Error, Sendable, Equatable, LocalizedError {
         case .stalled(let path):
             return "The download of \(path) stalled and was given up after several retries."
         case .httpStatus(let path, let status):
-            return "The server answered HTTP \(status) for \(path)."
+            switch status {
+            case 404, 410:
+                return "The pinned revision of \(path) is no longer served. This version of mlx-create needs an update to install this model."
+            case 401, 403:
+                return "Access to \(path) was refused by the server."
+            case 429, 500...599:
+                return "The model server is busy or unavailable. Try again later."
+            default:
+                return "The server answered HTTP \(status) for \(path)."
+            }
         case .network(let path, let reason):
             return "The download of \(path) failed: \(reason)."
         case .diskWrite(let path, let reason):
             return "Writing \(path) failed: \(reason)."
         case .staging(let reason):
             return "The model install could not prepare its folder: \(reason)."
+        }
+    }
+
+    /// Whether trying the same install again can clear this failure. A revision that is no longer served and refused
+    /// access repeat on every attempt; every other failure keeps Retry.
+    public var isRetryable: Bool {
+        switch self {
+        case .httpStatus(_, let status):
+            switch status {
+            case 404, 410, 401, 403: false
+            default: true
+            }
+        default: true
         }
     }
 }
