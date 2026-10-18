@@ -124,10 +124,11 @@ Requests follow the pinned revision: `https://huggingface.co/<repo>/resolve/<rev
 - **Content-Range.** A `206` whose total length differs from the catalog `size` fails the install, because the server file is not the one that was signed.
 - **Verification.** SHA-256 over the finished file is the final guard, computed by a sequential read. A mismatch deletes the file and fails the install.
 - **Concurrency.** Up to 16 connections per install, 8 MB minimum chunks, one resume sidecar per chunk, stall detection, and a single-stream fallback on a `200` reply (upstream `ChunkedDownload` planning).
+- **Actor.** `ModelDownloader` is an actor (AGENTS.md). `ModelInstaller` drives it through the injected `ModelTransport` seam, so tests script installs without the network (HLD D30).
 
 **Staging and publish (KTD5).**
 
-- Downloads go to `Models/.partial/<install-id>/`, outside `Weights/`, so an engine rescan never sees partial files.
+- Downloads go to `Models/.partial/<install-id>/`, outside `Weights/`, so an engine rescan never sees partial files. The staging manifest is written beside that folder, as `Models/.partial/<install-id>.install.json`, never inside it: inside it would be renamed into `Weights/` with the model.
 - After every file verifies, the folder is renamed to `Weights/<org>/<repo>/` on the same volume. An existing destination is never overwritten, so the rename fails and the install reports it.
 - Only `.safetensors` and allowlisted files are ever written (R6, KTD21).
 

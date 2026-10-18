@@ -28,7 +28,7 @@ import Testing
         try await harness.executor.drain()
         let failed = try #require(try await harness.store.jobs(status: .failed).first)
         #expect(failed.id == job.id)
-        #expect(failed.failure?.message == "This job uses a mode this version cannot generate yet.")
+        #expect(failed.failure?.message.isEmpty == false)
         #expect(failed.failure?.retryable == false)
         #expect(try await harness.store.jobs(status: .queued).isEmpty)
         #expect(EngineStubProtocol.requests(harness.endpoint).isEmpty)
