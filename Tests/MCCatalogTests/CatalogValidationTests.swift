@@ -135,4 +135,57 @@ import Testing
             }
         }
     }
+
+    @Test func httpLicenseURLRejectsWholeCatalog() throws {
+        let bytes = try CatalogFixture.catalogJSON(edit: CatalogFixture.editModel { model in
+            var license = model["license"] as? [String: Any] ?? [:]
+            license["url"] = "http://example.test/license"
+            model["license"] = license
+        })
+        expectInvalid(bytes)
+    }
+
+    @Test func duplicateModelIDRejectsWholeCatalog() throws {
+        let bytes = try CatalogFixture.catalogJSON { root in
+            let models = root["models"] as? [[String: Any]] ?? []
+            root["models"] = models + models
+        }
+        expectInvalid(bytes)
+    }
+
+    @Test func zeroRamGBRejectsWholeCatalog() throws {
+        let bytes = try CatalogFixture.catalogJSON(edit: CatalogFixture.editModel { $0["ram_gb"] = 0 })
+        expectInvalid(bytes)
+    }
+
+    @Test func negativeSequenceRejectsWholeCatalog() throws {
+        let bytes = try CatalogFixture.catalogJSON(sequence: -1)
+        expectInvalid(bytes)
+    }
+
+    /// The download total is kept equal to the file sum, so only the size guard can reject this catalog.
+    @Test func negativeFileSizeRejectsWholeCatalog() throws {
+        let bytes = try CatalogFixture.catalogJSON(edit: CatalogFixture.editModel { model in
+            var files = model["files"] as? [[String: Any]] ?? []
+            files[0]["size"] = -1
+            model["files"] = files
+            model["download_bytes"] = 5
+        })
+        expectInvalid(bytes)
+    }
+
+    /// Asserts that the whole catalog is rejected with `CatalogError.invalid`.
+    private func expectInvalid(_ bytes: Data, sourceLocation: SourceLocation = #_sourceLocation) {
+        do {
+            _ = try Catalog.decodeValidated(bytes)
+            Issue.record("catalog was accepted", sourceLocation: sourceLocation)
+        } catch let error as CatalogError {
+            guard case .invalid = error else {
+                Issue.record("expected invalid, got \(error)", sourceLocation: sourceLocation)
+                return
+            }
+        } catch {
+            Issue.record("expected CatalogError, got \(error)", sourceLocation: sourceLocation)
+        }
+    }
 }
