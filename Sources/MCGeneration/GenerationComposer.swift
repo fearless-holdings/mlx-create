@@ -77,7 +77,7 @@ public struct GenerationComposer: Sendable {
             negativePrompt: family.supportsNegativePrompt ? Self.nonBlank(draft.negativePrompt) : nil,
             width: size.width,
             height: size.height,
-            steps: draft.steps.map { min(max($0, family.steps.min), family.steps.max) },
+            steps: family.stepsAreFixed ? nil : draft.steps.map { min(max($0, family.steps.min), family.steps.max) },
             guidance: family.guidance == nil ? nil : draft.guidance)
 
         let project = try await store.defaultProject()
@@ -93,7 +93,7 @@ public struct GenerationComposer: Sendable {
             prompt: settings.prompt,
             negativePrompt: settings.negativePrompt,
             size: ImageSize(width: settings.requestedWidth, height: settings.requestedHeight),
-            steps: settings.requestedSteps,
+            steps: model.family?.stepsAreFixed == true ? nil : settings.requestedSteps,
             guidance: settings.guidance,
             batchCount: 1,
             seedPolicy: .fixed(UInt32(truncatingIfNeeded: settings.seed)))

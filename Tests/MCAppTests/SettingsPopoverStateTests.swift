@@ -16,7 +16,8 @@ import Testing
 
         let family = try #require(try FamilyRegistry.bundled().family(forArchitecture: "krea2_turbo"))
         #expect(model.controls == SettingsControls(
-            sizes: family.sizePresets, steps: family.steps, guidance: nil, showsNegativePrompt: false))
+            sizes: family.sizePresets, steps: family.steps, stepsAreFixed: false,
+            guidance: nil, showsNegativePrompt: false))
     }
 
     @Test func noControlsWithoutASelectableModel() async throws {
@@ -131,4 +132,42 @@ import Testing
             kind: .unknown, message: "The engine stopped.", detail: "exit", exit: .code(1))))
         try await eventually { model.banner == .restarting }
     }
+
+    @Test func turboControlsFixStepsAndExposeNoGuidanceOrNegativePrompt() throws {
+        let controls = try #require(ModelSelection.controls(for: try turboModel()))
+
+        #expect(controls.stepsAreFixed)
+        #expect(controls.steps.defaultSteps == 8)
+        #expect(controls.guidance == nil)
+        #expect(!controls.showsNegativePrompt)
+        #expect(controls.sizes.count == 7)
+    }
+
+    @Test func fitClearsCarriedStepsOnTurboAndKeepsThemOnKrea() throws {
+        let registry = try FamilyRegistry.bundled()
+        let turbo = try #require(registry.family(forArchitecture: "qwen_image21", traits: ["sample_sigmas"]))
+        let krea = try #require(registry.family(forArchitecture: "krea2_turbo"))
+
+        #expect(ModelSelection.fit(size: turbo.defaultSize, steps: 12, guidance: nil, to: turbo).steps == nil)
+        #expect(ModelSelection.fit(size: krea.defaultSize, steps: 12, guidance: nil, to: krea).steps == 12)
+    }
+
+    @Test func switchingKreaToTurboAndBackDoesNotResurrectSteps() throws {
+        let registry = try FamilyRegistry.bundled()
+        let turbo = try #require(registry.family(forArchitecture: "qwen_image21", traits: ["sample_sigmas"]))
+        let krea = try #require(registry.family(forArchitecture: "krea2_turbo"))
+
+        let onTurbo = ModelSelection.fit(size: krea.defaultSize, steps: 6, guidance: nil, to: turbo)
+        let backOnKrea = ModelSelection.fit(size: onTurbo.size, steps: onTurbo.steps, guidance: nil, to: krea)
+
+        #expect(onTurbo.steps == nil)
+        #expect(backOnKrea.steps == nil)
+    }
+}
+
+private let turboID = "ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-4bit"
+
+private func turboModel() throws -> InstalledModel {
+    let family = try #require(try FamilyRegistry.bundled().family(forArchitecture: "qwen_image21", traits: ["sample_sigmas"]))
+    return InstalledModel(id: turboID, architecture: "qwen_image21", family: family, availability: .available)
 }

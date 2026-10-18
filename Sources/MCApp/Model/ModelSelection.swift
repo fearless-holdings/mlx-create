@@ -27,6 +27,7 @@ enum ModelSelection {
         return SettingsControls(
             sizes: family.sizePresets,
             steps: family.steps,
+            stepsAreFixed: family.stepsAreFixed,
             guidance: family.guidance,
             showsNegativePrompt: family.supportsNegativePrompt)
     }
@@ -39,12 +40,12 @@ enum ModelSelection {
     }
 
     /// Brings composer values into the family's allowed ranges. A size outside the presets becomes the family
-    /// default; steps outside the range are cleared; guidance is cleared when the family has none (R7).
+    /// default; steps are cleared when the family fixes them or they fall outside its range; guidance is cleared when the family has none (R7).
     static func fit(
         size: ImageSize, steps: Int?, guidance: Double?, to family: ModelFamily
     ) -> (size: ImageSize, steps: Int?, guidance: Double?) {
         let fittedSize = family.sizePresets.contains(size) ? size : family.defaultSize
-        let fittedSteps = steps.flatMap { (family.steps.min...family.steps.max).contains($0) ? $0 : nil }
+        let fittedSteps = family.stepsAreFixed ? nil : steps.flatMap { (family.steps.min...family.steps.max).contains($0) ? $0 : nil }
         let fittedGuidance: Double?
         if let capability = family.guidance, let value = guidance, (capability.min...capability.max).contains(value) {
             fittedGuidance = value

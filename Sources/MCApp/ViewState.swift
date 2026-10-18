@@ -37,12 +37,18 @@ public enum CanvasMode: Equatable, Sendable {
 public struct SettingsControls: Equatable, Sendable {
     public var sizes: [ImageSize]
     public var steps: StepsCapability
+    /// True when the family fixes the step count; the popover shows it read-only.
+    public var stepsAreFixed: Bool
     public var guidance: GuidanceCapability?
     public var showsNegativePrompt: Bool
 
-    public init(sizes: [ImageSize], steps: StepsCapability, guidance: GuidanceCapability?, showsNegativePrompt: Bool) {
+    public init(
+        sizes: [ImageSize], steps: StepsCapability, stepsAreFixed: Bool,
+        guidance: GuidanceCapability?, showsNegativePrompt: Bool
+    ) {
         self.sizes = sizes
         self.steps = steps
+        self.stepsAreFixed = stepsAreFixed
         self.guidance = guidance
         self.showsNegativePrompt = showsNegativePrompt
     }

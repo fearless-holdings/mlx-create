@@ -64,29 +64,34 @@ struct SettingsPopover: View {
 
     private func stepsSection(_ controls: SettingsControls) -> some View {
         Section("Steps") {
-            LabeledContent {
-                HStack(spacing: 8) {
-                    Text(model.steps.map(String.init) ?? "Default")
-                        .monospacedDigit()
-                        .foregroundStyle(model.steps == nil ? .secondary : .primary)
-                    Stepper(
-                        "Steps",
-                        value: Binding(
-                            get: { model.steps ?? controls.steps.defaultSteps },
-                            set: { model.steps = $0 }
-                        ),
-                        in: controls.steps.min...controls.steps.max
-                    )
-                    .labelsHidden()
-                    if model.steps != nil {
-                        Button("Use Default") { model.steps = nil }
-                            .buttonStyle(.link)
+            if controls.stepsAreFixed {
+                Text("\(controls.steps.defaultSteps) steps, set by the model")
+                    .foregroundStyle(.secondary)
+            } else {
+                LabeledContent {
+                    HStack(spacing: 8) {
+                        Text(model.steps.map(String.init) ?? "Default")
+                            .monospacedDigit()
+                            .foregroundStyle(model.steps == nil ? .secondary : .primary)
+                        Stepper(
+                            "Steps",
+                            value: Binding(
+                                get: { model.steps ?? controls.steps.defaultSteps },
+                                set: { model.steps = $0 }
+                            ),
+                            in: controls.steps.min...controls.steps.max
+                        )
+                        .labelsHidden()
+                        if model.steps != nil {
+                            Button("Use Default") { model.steps = nil }
+                                .buttonStyle(.link)
+                        }
                     }
+                } label: {
+                    Text("Steps")
                 }
-            } label: {
-                Text("Steps")
+                .accessibilityValue(model.steps.map { "\($0)" } ?? "Default")
             }
-            .accessibilityValue(model.steps.map { "\($0)" } ?? "Default")
         }
     }
 
