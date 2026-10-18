@@ -77,6 +77,8 @@ public final class AppModel {
     private let states: AsyncStream<EngineState>
     private let supervisor: EngineSupervisor?
     private let defaults: UserDefaults
+    private let installTransport: (any ModelTransport)?
+    private let catalogStore: CatalogStore?
     private let queue: JobQueue
     private let executor: JobExecutor
     private let composer: GenerationComposer
@@ -101,7 +103,8 @@ public final class AppModel {
         engineVersion: String? = nil,
         defaults: UserDefaults = .standard,
         catalog: Catalog? = nil,
-        transport: (any ModelTransport)? = nil
+        transport: (any ModelTransport)? = nil,
+        catalogStore: CatalogStore? = nil
     ) {
         self.store = store
         self.client = client
@@ -111,6 +114,8 @@ public final class AppModel {
         self.weightsPath = weightsPath
         self.supervisor = supervisor
         self.defaults = defaults
+        self.installTransport = transport
+        self.catalogStore = catalogStore
         let queue = JobQueue(store: store)
         self.queue = queue
         self.executor = JobExecutor(
@@ -121,15 +126,7 @@ public final class AppModel {
         self.selectedModelID = defaults.string(forKey: Self.lastUsedModelKey)
         queueHeader = QueuePresentation.header(
             isRunning: false, pauseRequested: defaults.bool(forKey: Self.queuePausedDefaultsKey))
-        // The installer's rescan refreshes the picker as well as asking the engine to rescan (R10).
-        if let catalog, let transport {
-            installs = InstallCoordinator(
-                catalog: catalog, store: store, transport: transport,
-                rescan: { [weak self] in
-                    guard let self else { return }
-                    await self.refreshModels()
-                })
-        }
+        installs = makeInstalls(catalog: catalog, transport: transport)
         browser = ModelBrowserModel(
             catalog: catalog, installs: installs,
             weightsRoot: URL(fileURLWithPath: weightsPath, isDirectory: true),
@@ -153,12 +150,15 @@ public final class AppModel {
         let store = try await LibraryStore.open(libraryRoot: libraryRoot)
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
         let userAgent = "mlx-create/\(version)"
+        // The build's catalog URL (KTD4). Empty means no request, so the bundled catalog is the only source.
+        let remoteURL = Self.catalogRemoteURL(
+            configured: Bundle.main.object(forInfoDictionaryKey: "MLXCatalogURL") as? String)
         // A catalog that does not verify leaves installs disabled (`installs` stays nil); the rest of the app still launches.
-        let catalog = try? CatalogStore(
-            bundled: BundledCatalog.fromBundle(),
+        let catalogStore = try? CatalogStore(
+            bundled: try BundledCatalog.fromBundle(),
             cacheDirectory: support.appending(path: "Catalog", directoryHint: .isDirectory),
-            keys: PinnedKeys.keys, remoteURL: nil, transport: URLSessionCatalogTransport(userAgent: userAgent)
-        ).current().catalog
+            keys: PinnedKeys.keys, remoteURL: remoteURL, transport: URLSessionCatalogTransport(userAgent: userAgent))
+        let catalog = try? catalogStore?.current().catalog
         let downloader = ModelDownloader(configuration: .init(modelsRoot: modelsRoot, userAgent: userAgent))
         let supervisor = EngineSupervisor(paths: paths, tier: .current)
 
@@ -173,7 +173,7 @@ public final class AppModel {
         let model = AppModel(
             store: store, client: client, gate: gate, registry: registry, states: states,
             weightsPath: paths.weights.path, libraryPaths: LibraryPaths(root: libraryRoot), supervisor: supervisor,
-            engineVersion: bundledEngineVersion(), catalog: catalog, transport: downloader)
+            engineVersion: bundledEngineVersion(), catalog: catalog, transport: downloader, catalogStore: catalogStore)
         Task { await model.start() }
         return model
     }
@@ -185,6 +185,47 @@ public final class AppModel {
         let text = try? String(contentsOf: url, encoding: .utf8)
         let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed?.isEmpty == false ? trimmed : nil
+    }
+
+    /// The catalog URL from the build's `MLXCatalogURL` (`MLXC_CATALOG_URL`). Empty, unexpanded or not an absolute
+    /// http(s) address means nil, so no request is made (KTD4).
+    static func catalogRemoteURL(configured value: String?) -> URL? {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard let url = URL(string: trimmed), let scheme = url.scheme?.lowercased(), scheme == "https" || scheme == "http",
+              url.host != nil
+        else { return nil }
+        return url
+    }
+
+    /// The install coordinator for a verified catalog and a transport. Nil when either is missing, which leaves installs off.
+    private func makeInstalls(catalog: Catalog?, transport: (any ModelTransport)?) -> InstallCoordinator? {
+        guard let catalog, let transport else { return nil }
+        // The installer's rescan refreshes the picker as well as asking the engine to rescan (R10).
+        return InstallCoordinator(catalog: catalog, store: store, transport: transport, rescan: { [weak self] in
+            guard let self else { return }
+            await self.refreshModels()
+        })
+    }
+
+    /// Asks the store for a newer signed catalog and applies it when accepted (R8, R9). A refused, unreachable or
+    /// unchanged catalog changes nothing and shows nothing.
+    func refreshCatalog(from source: CatalogStore) async -> CatalogRefreshOutcome {
+        let outcome = await source.refresh()
+        guard case .replaced = outcome else { return outcome }
+        // Reading and verifying the cache is file and signature work, so it runs off the main actor.
+        guard let verified = await Task.detached { try? source.current() }.value else { return outcome }
+        await adopt(verified.catalog)
+        return outcome
+    }
+
+    /// Hands an accepted catalog to the installer and the browser, so it applies without a relaunch (R10).
+    private func adopt(_ catalog: Catalog) async {
+        if let installs {
+            await installs.replaceCatalog(catalog)
+        } else {
+            installs = makeInstalls(catalog: catalog, transport: installTransport)
+        }
+        await browser.replaceCatalog(catalog, installs: installs)
     }
 
     // MARK: Derived state
@@ -272,6 +313,10 @@ public final class AppModel {
             Task { for await state in self.states { await self.apply(state) } },
             Task { for await event in events { await self.handle(event) } },
         ]
+        if let catalogStore {
+            // Off the launch path, so the window never waits on the network. The store allows one check a day (R9).
+            tasks.append(Task { _ = await self.refreshCatalog(from: catalogStore) })
+        }
         if let supervisor {
             await supervisor.start()
         }

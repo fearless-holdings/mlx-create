@@ -77,8 +77,8 @@ struct PendingLicense: Equatable {
 @MainActor
 @Observable
 final class ModelBrowserModel {
-    private let catalog: Catalog?
-    private let installs: InstallCoordinator?
+    private var catalog: Catalog?
+    private var installs: InstallCoordinator?
     private let weightsRoot: URL
     private let workingSetGB: Double?
     /// Model ids the engine currently reports. `AppModel` updates it after every models refresh.
@@ -127,6 +127,13 @@ final class ModelBrowserModel {
 
     func setEngineModelIDs(_ ids: Set<String>) {
         engineModelIDs = ids
+    }
+
+    /// Adopts a newer verified catalog and the coordinator that installs it (R9, R10), then refreshes the rows.
+    func replaceCatalog(_ catalog: Catalog, installs: InstallCoordinator?) async {
+        self.catalog = catalog
+        self.installs = installs
+        await refresh()
     }
 
     var rows: [ModelBrowserRow] {
