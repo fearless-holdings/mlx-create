@@ -159,6 +159,7 @@ public final class ModelDownloader: Sendable {
             try FileManager.default.moveItem(at: Self.partialURL(final), to: final)
             ResumeSidecar.remove(forPartial: Self.partialURL(final))
         }
+        try Self.pruneStaging(plan, staging: staging)
 
         try publish(staging: staging, destination: destination)
         try? FileManager.default.removeItem(at: InstallStaging.manifestURL(plan, modelsRoot: configuration.modelsRoot))
@@ -201,6 +202,35 @@ public final class ModelDownloader: Sendable {
         guard renamex_np(staging.path, destination.path, UInt32(RENAME_EXCL)) == 0 else {
             if errno == EEXIST { throw InstallError.destinationExists(destination.path) }
             throw InstallError.staging(reason: String(cString: strerror(errno)))
+        }
+    }
+
+    /// Deletes every staging entry the plan does not claim, so no leftover of an older plan is published into
+    /// `Weights/` unhashed. Kept: each plan file, its `.partial` and `.partial.parts`, and the folders above them.
+    private static func pruneStaging(_ plan: InstallPlan, staging: URL) throws {
+        var keep = Set<String>()
+        var folders = Set<String>()
+        for file in plan.files {
+            keep.formUnion([file.path, file.path + ".partial", file.path + ".partial.parts"])
+            var prefix = ""
+            for part in file.path.split(separator: "/").dropLast() {
+                prefix = prefix.isEmpty ? String(part) : prefix + "/" + String(part)
+                folders.insert(prefix)
+            }
+        }
+        try prune(staging, relative: "", keep: keep, folders: folders)
+    }
+
+    private static func prune(_ directory: URL, relative: String, keep: Set<String>, folders: Set<String>) throws {
+        for name in try FileManager.default.contentsOfDirectory(atPath: directory.path) {
+            let path = relative.isEmpty ? name : relative + "/" + name
+            if keep.contains(path) { continue }
+            let url = directory.appending(path: name)
+            if folders.contains(path) {
+                try prune(url, relative: path, keep: keep, folders: folders)
+            } else {
+                try FileManager.default.removeItem(at: url)
+            }
         }
     }
 

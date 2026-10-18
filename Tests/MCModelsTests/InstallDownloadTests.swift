@@ -447,6 +447,22 @@ struct InstallEndToEndTests {
         let partial = s.staging.appending(path: "\(Self.small).partial")
         #expect(try Data(contentsOf: partial) == s.payloads[Self.small], "no byte past the planned size is written")
     }
+
+    @Test func leftoversFromAnOlderPlanNeverReachWeights() async throws {
+        let server = try RangeServer()
+        let s = try Scenario(server: server, files: [(Self.small, 10 << 10, 16)])
+        try await s.publish()
+        let stale = s.staging.appending(path: "stale", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: stale, withIntermediateDirectories: true)
+        try Data(repeating: 0xAB, count: 4096).write(to: stale.appending(path: "extra.safetensors.partial"))
+        try Data("never verified".utf8).write(to: s.staging.appending(path: "extra.safetensors"))
+
+        let events = await collect(s.downloader(), s.plan)
+
+        #expect(events.last?.phase == .installed)
+        #expect(Set(fileNames(under: s.destination)) == [Self.small], "only planned files reach Weights")
+        #expect(try Data(contentsOf: s.destination.appending(path: Self.small)) == s.payloads[Self.small])
+    }
 }
 
 private func isNetworkError(_ error: Error?) -> Bool {
