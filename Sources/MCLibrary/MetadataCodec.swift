@@ -23,7 +23,10 @@ public enum MetadataCodec {
         if let negative = settings.negativePrompt, !negative.isEmpty {
             text += "\nNegative prompt: \(negative)"
         }
-        var fields = ["Steps: \(settings.steps)"]
+        var fields: [String] = []
+        if let steps = settings.steps {
+            fields.append("Steps: \(steps)")
+        }
         if let guidance = settings.guidance {
             fields.append("CFG scale: \(guidance)")
         }

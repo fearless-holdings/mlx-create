@@ -46,6 +46,8 @@ public actor EngineSupervisor {
 
     private let paths: EnginePaths
     private let tier: MemoryTier
+    /// Chooses the loopback port for each launch. Injected so a test can force a collision.
+    private let freePort: @Sendable () throws -> Int
     private var budget = RestartBudget()
     private var currentStateValue: EngineState = .stopped
     private var subscribers: [UUID: AsyncStream<EngineState>.Continuation] = [:]
@@ -55,9 +57,14 @@ public actor EngineSupervisor {
 
     public private(set) var lastCrash: EngineCrash?
 
-    public init(paths: EnginePaths, tier: MemoryTier) {
+    public init(
+        paths: EnginePaths,
+        tier: MemoryTier,
+        freePort: (@Sendable () throws -> Int)? = nil
+    ) {
         self.paths = paths
         self.tier = tier
+        self.freePort = freePort ?? Self.freeLoopbackPort
     }
 
     public var currentState: EngineState { currentStateValue }
@@ -164,7 +171,7 @@ public actor EngineSupervisor {
         if Task.isCancelled { return .cancelled }
         let port: Int
         do {
-            port = try Self.freeLoopbackPort()
+            port = try freePort()
         } catch {
             return .crashed(processCrash(exit: nil, tail: error.localizedDescription, phase: .launching))
         }
@@ -190,6 +197,16 @@ public actor EngineSupervisor {
                 return .cancelled
             }
             return .ready(run)
+        case .foreignListener:
+            Self.log.error("Port \(port) is answered by another process; launch failed")
+            let exit = await terminate(run)
+            child = nil
+            PidFile.remove(at: paths.pidFile)
+            return .crashed(EngineCrash(
+                kind: .launchFailed,
+                message: Self.userMessage(for: .launchFailed),
+                detail: "another process is listening on port \(port)",
+                exit: exit))
         case .cancelled:
             await retire(run)
             return .cancelled
@@ -216,6 +233,7 @@ public actor EngineSupervisor {
         case ready
         case exited(ExitStatus)
         case timedOut
+        case foreignListener
         case cancelled
     }
 
@@ -225,7 +243,11 @@ public actor EngineSupervisor {
         while Date() < deadline {
             if Task.isCancelled { return .cancelled }
             if let exit = run.exitStatus { return .exited(exit) }
-            if await Self.isHealthy(run.endpoint.baseURL) { return .ready }
+            if await Self.isHealthy(run.endpoint.baseURL) {
+                // `/health` may be answered by another process on the chosen port (KTD11). The key is not sent yet.
+                let owned = ListenerCheck.isListening(pid: run.pid, port: run.endpoint.baseURL.port ?? 0)
+                return owned ? .ready : .foreignListener
+            }
             try? await Task.sleep(for: .milliseconds(250))
         }
         return .timedOut
@@ -317,6 +339,8 @@ public actor EngineSupervisor {
 
     /// Kills an engine left behind by a previous app run, only when the PID record still matches it.
     private func reapStaleEngine() async {
+        // Only the instance that holds the single-instance lock may reap: a live sibling's engine is never in scope (D28).
+        guard InstanceLock.holdsLock(at: paths.appLock) else { return }
         let record = PidFile.read(at: paths.pidFile)
         if PidReap.decide(record: record, probe: LiveProcessProbe()) == .killRecordedEngine, let pid = record?.pid {
             await PidReap.terminate(pid: pid)
@@ -339,7 +363,7 @@ public actor EngineSupervisor {
 
     static func userMessage(for kind: CrashKind) -> String {
         switch kind {
-        case .outOfMemory: "The engine ran out of memory. Try a smaller model or fewer LoRAs."
+        case .outOfMemory: OutOfMemoryFailure.message
         case .killedBySystem: "macOS stopped the engine because memory ran low."
         case .missingWeights: "Model files are incomplete — repair the download in Models."
         case .launchFailed: "The engine couldn't start."

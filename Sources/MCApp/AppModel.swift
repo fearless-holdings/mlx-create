@@ -4,6 +4,7 @@ import MCCatalog
 import MCEngine
 import MCGeneration
 import MCLibrary
+import MCModels
 import Observation
 
 /// Which seed the next job uses. `fixed` and `increment` read ``AppModel/seedText``.
@@ -29,10 +30,18 @@ public struct RunningProgress: Equatable, Sendable {
 @Observable
 public final class AppModel {
     private static let lastUsedModelKey = "lastUsedModelID"
+    /// The defaults key for a user pause (KTD14). Set by `pauseQueue`, cleared by `resumeQueue`.
+    static let queuePausedDefaultsKey = "queuePaused"
     private static let recentImageLimit = 200
     private static let shutdownLimit: Duration = .seconds(3)
 
     public let weightsPath: String
+    /// Model installs (U5): the catalog, the installer and the library record. Nil when no catalog is supplied.
+    public private(set) var installs: InstallCoordinator?
+    /// The model browser (U6). Assigned at the end of init: the install rescan captures `self`, so it must come first.
+    private(set) var browser: ModelBrowserModel!
+    /// Whether the browser sheet is presented.
+    var isBrowserPresented = false
 
     public private(set) var engineState: EngineState = .stopped
     public private(set) var models: [InstalledModel] = []
@@ -68,6 +77,8 @@ public final class AppModel {
     private let states: AsyncStream<EngineState>
     private let supervisor: EngineSupervisor?
     private let defaults: UserDefaults
+    private let installTransport: (any ModelTransport)?
+    private let catalogStore: CatalogStore?
     private let queue: JobQueue
     private let executor: JobExecutor
     private let composer: GenerationComposer
@@ -90,7 +101,10 @@ public final class AppModel {
         libraryPaths: LibraryPaths,
         supervisor: EngineSupervisor? = nil,
         engineVersion: String? = nil,
-        defaults: UserDefaults = .standard
+        defaults: UserDefaults = .standard,
+        catalog: Catalog? = nil,
+        transport: (any ModelTransport)? = nil,
+        catalogStore: CatalogStore? = nil
     ) {
         self.store = store
         self.client = client
@@ -100,6 +114,8 @@ public final class AppModel {
         self.weightsPath = weightsPath
         self.supervisor = supervisor
         self.defaults = defaults
+        self.installTransport = transport
+        self.catalogStore = catalogStore
         let queue = JobQueue(store: store)
         self.queue = queue
         self.executor = JobExecutor(
@@ -108,11 +124,18 @@ public final class AppModel {
         self.composer = GenerationComposer(registry: registry, store: store)
         self.libraryPaths = libraryPaths
         self.selectedModelID = defaults.string(forKey: Self.lastUsedModelKey)
+        queueHeader = QueuePresentation.header(
+            isRunning: false, pauseRequested: defaults.bool(forKey: Self.queuePausedDefaultsKey))
+        installs = makeInstalls(catalog: catalog, transport: transport)
+        browser = ModelBrowserModel(
+            catalog: catalog, installs: installs,
+            weightsRoot: URL(fileURLWithPath: weightsPath, isDirectory: true),
+            workingSetGB: ModelBrowserModel.systemUsableWorkingSetGB(), engineModelIDs: [])
     }
 
     /// The production app: the bundled engine, the library and queue in Application Support, and the bundled registry.
     /// Starts the engine and the queue in the background.
-    public static func live() throws -> AppModel {
+    public static func live() async throws -> AppModel {
         let support = try FileManager.default.url(
             for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true
         ).appending(path: "mlx-create", directoryHint: .isDirectory)
@@ -124,7 +147,19 @@ public final class AppModel {
 
         let registry = try FamilyRegistry.bundled()
         let libraryRoot = support.appending(path: "Library", directoryHint: .isDirectory)
-        let store = try LibraryStore(libraryRoot: libraryRoot)
+        let store = try await LibraryStore.open(libraryRoot: libraryRoot)
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
+        let userAgent = "mlx-create/\(version)"
+        // The build's catalog URL (KTD4). Empty means no request, so the bundled catalog is the only source.
+        let remoteURL = Self.catalogRemoteURL(
+            configured: Bundle.main.object(forInfoDictionaryKey: "MLXCatalogURL") as? String)
+        // A catalog that does not verify leaves installs disabled (`installs` stays nil); the rest of the app still launches.
+        let catalogStore = try? CatalogStore(
+            bundled: try BundledCatalog.fromBundle(),
+            cacheDirectory: support.appending(path: "Catalog", directoryHint: .isDirectory),
+            keys: PinnedKeys.keys, remoteURL: remoteURL, transport: URLSessionCatalogTransport(userAgent: userAgent))
+        let catalog = try? catalogStore?.current().catalog
+        let downloader = ModelDownloader(configuration: .init(modelsRoot: modelsRoot, userAgent: userAgent))
         let supervisor = EngineSupervisor(paths: paths, tier: .current)
 
         let (states, continuation) = AsyncStream<EngineState>.makeStream()
@@ -138,7 +173,7 @@ public final class AppModel {
         let model = AppModel(
             store: store, client: client, gate: gate, registry: registry, states: states,
             weightsPath: paths.weights.path, libraryPaths: LibraryPaths(root: libraryRoot), supervisor: supervisor,
-            engineVersion: bundledEngineVersion())
+            engineVersion: bundledEngineVersion(), catalog: catalog, transport: downloader, catalogStore: catalogStore)
         Task { await model.start() }
         return model
     }
@@ -150,6 +185,47 @@ public final class AppModel {
         let text = try? String(contentsOf: url, encoding: .utf8)
         let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed?.isEmpty == false ? trimmed : nil
+    }
+
+    /// The catalog URL from the build's `MLXCatalogURL` (`MLXC_CATALOG_URL`). Empty, unexpanded or not an absolute
+    /// http(s) address means nil, so no request is made (KTD4).
+    static func catalogRemoteURL(configured value: String?) -> URL? {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard let url = URL(string: trimmed), let scheme = url.scheme?.lowercased(), scheme == "https" || scheme == "http",
+              url.host != nil
+        else { return nil }
+        return url
+    }
+
+    /// The install coordinator for a verified catalog and a transport. Nil when either is missing, which leaves installs off.
+    private func makeInstalls(catalog: Catalog?, transport: (any ModelTransport)?) -> InstallCoordinator? {
+        guard let catalog, let transport else { return nil }
+        // The installer's rescan refreshes the picker as well as asking the engine to rescan (R10).
+        return InstallCoordinator(catalog: catalog, store: store, transport: transport, rescan: { [weak self] in
+            guard let self else { return }
+            await self.refreshModels()
+        })
+    }
+
+    /// Asks the store for a newer signed catalog and applies it when accepted (R8, R9). A refused, unreachable or
+    /// unchanged catalog changes nothing and shows nothing.
+    func refreshCatalog(from source: CatalogStore) async -> CatalogRefreshOutcome {
+        let outcome = await source.refresh()
+        guard case .replaced = outcome else { return outcome }
+        // Reading and verifying the cache is file and signature work, so it runs off the main actor.
+        guard let verified = await Task.detached { try? source.current() }.value else { return outcome }
+        await adopt(verified.catalog)
+        return outcome
+    }
+
+    /// Hands an accepted catalog to the installer and the browser, so it applies without a relaunch (R10).
+    private func adopt(_ catalog: Catalog) async {
+        if let installs {
+            await installs.replaceCatalog(catalog)
+        } else {
+            installs = makeInstalls(catalog: catalog, transport: installTransport)
+        }
+        await browser.replaceCatalog(catalog, installs: installs)
     }
 
     // MARK: Derived state
@@ -176,7 +252,7 @@ public final class AppModel {
             // Before the first scan the models are unknown, so the canvas must not claim there are none.
             return filmstrip.isEmpty ? .emptyHint : .content
         }
-        if models.isEmpty { return .noModels(weightsPath: weightsPath) }
+        if models.isEmpty { return .noModels }
         if !models.contains(where: ModelSelection.isSelectable) {
             return .onlyUnavailable(ModelSelection.unavailableRows(models))
         }
@@ -224,6 +300,8 @@ public final class AppModel {
     public func start() async {
         guard !started else { return }
         started = true
+        // The user's pause outlives the app (KTD14): a flag left by Pause pauses the queue before anything drains.
+        if defaults.bool(forKey: Self.queuePausedDefaultsKey) { await queue.pause() }
         do {
             try await queue.recoverAfterRelaunch()
         } catch {
@@ -235,6 +313,10 @@ public final class AppModel {
             Task { for await state in self.states { await self.apply(state) } },
             Task { for await event in events { await self.handle(event) } },
         ]
+        if let catalogStore {
+            // Off the launch path, so the window never waits on the network. The store allows one check a day (R9).
+            tasks.append(Task { _ = await self.refreshCatalog(from: catalogStore) })
+        }
         if let supervisor {
             await supervisor.start()
         }
@@ -273,6 +355,7 @@ public final class AppModel {
         case .failed:
             // The queue keeps its jobs queued while the engine is down: pause the drain before the gate fails
             // requests, so no queued job is taken and failed by the dead engine.
+            // This hold lives in memory only and writes no flag (KTD14), so a healthy relaunch drains without a Resume press.
             if !(await queue.isPauseRequested) {
                 await queue.pause()
                 heldByEngineFailure = true
@@ -305,6 +388,7 @@ public final class AppModel {
     public func refreshModels() async {
         do {
             models = try await InstalledModels(registry: registry).refresh(using: client)
+            browser.setEngineModelIDs(Set(models.map(\.id)))
             modelsLoaded = true
             chooseSelection()
         } catch is CancellationError {
@@ -410,7 +494,11 @@ public final class AppModel {
         }
     }
 
+    /// Pauses the queue and persists the pause (KTD14), so it survives a relaunch. An engine-failure hold is
+    /// superseded: the user's pause must not be undone when the engine recovers.
     public func pauseQueue() async {
+        defaults.set(true, forKey: Self.queuePausedDefaultsKey)
+        heldByEngineFailure = false
         await queue.pause()
         await reload()
     }
@@ -420,6 +508,7 @@ public final class AppModel {
             lastError = "The image engine is not running. Restart the engine to resume the queue."
             return
         }
+        defaults.removeObject(forKey: Self.queuePausedDefaultsKey)
         do {
             try await queue.resume()
             heldByEngineFailure = false
@@ -458,10 +547,10 @@ public final class AppModel {
         await reload()
     }
 
-    public func revealWeightsFolder() {
-        let url = URL(fileURLWithPath: weightsPath, isDirectory: true)
-        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-        NSWorkspace.shared.open(url)
+    /// Opens the model browser sheet and refreshes its rows from the installer and the folders.
+    func openBrowser() {
+        isBrowserPresented = true
+        Task { await browser.refresh() }
     }
 
     // MARK: Executor events and projection

@@ -6,7 +6,7 @@ import GRDB
 /// All writes go through this actor. Image files live under ``LibraryPaths``; the database holds rows only.
 public actor LibraryStore {
     public let paths: LibraryPaths
-    private let dbQueue: DatabaseQueue
+    let dbQueue: DatabaseQueue
     private var beforeRowInsertHook: (@Sendable () throws -> Void)?
     private var beforePartialWriteHook: (@Sendable (URL) throws -> Void)?
     private var statusHook: (@Sendable (JobStatus) throws -> Void)?
@@ -24,6 +24,22 @@ public actor LibraryStore {
                 try ProjectRow(Project(name: "Default"), isDefault: true).insert(db)
             }
         }
+    }
+
+    /// Opens the library off the caller's actor (R15). Directory creation, migrations, the `.partial` sweep and the
+    /// default project run on a detached task, so launch never blocks the main thread.
+    public static func open(libraryRoot: URL) async throws -> LibraryStore {
+        try await openOffActor(libraryRoot: libraryRoot) { _ in }
+    }
+
+    /// ``open(libraryRoot:)`` with a probe that reports whether the opening work ran on the main thread (R15 test seam).
+    static func openOffActor(
+        libraryRoot: URL, observe: @escaping @Sendable (_ onMainThread: Bool) -> Void
+    ) async throws -> LibraryStore {
+        try await Task.detached(priority: .userInitiated) {
+            observe(pthread_main_np() != 0)
+            return try LibraryStore(libraryRoot: libraryRoot)
+        }.value
     }
 
     // MARK: Schema
@@ -72,6 +88,7 @@ public actor LibraryStore {
                 t.add(column: "failure", .text)
             }
         }
+        migrator.registerMigration("v3-installed-model", migrate: Self.createInstalledModelTable)
         return migrator
     }
 
@@ -99,12 +116,12 @@ public actor LibraryStore {
 
     /// Adds a job at the end of the queue and returns it with its assigned position.
     @discardableResult
-    public func enqueueJob(projectID: UUID, request: JobRequest, batchCount: Int, seedPolicy: String) throws -> Job {
+    public func enqueueJob(projectID: UUID, request: JobRequest, batchCount: Int, seedPolicy: String, mode: String = Job.textToImageMode) throws -> Job {
         try dbQueue.write { db in
             let next = try Int.fetchOne(db, sql: "SELECT COALESCE(MAX(position), 0) + 1 FROM job WHERE status = ?",
                                         arguments: [JobStatus.queued.rawValue]) ?? 1
             let job = Job(
-                id: UUID(), projectID: projectID, mode: "t2i", request: request,
+                id: UUID(), projectID: projectID, mode: mode, request: request,
                 batchCount: batchCount, seedPolicy: seedPolicy, status: .queued, position: next
             )
             try JobRow(job).insert(db)
@@ -432,5 +449,5 @@ private extension JobRequest {
 }
 
 private extension ImageSettings {
-    static let unreadable = ImageSettings(prompt: "", modelID: "", requestedWidth: 0, requestedHeight: 0, seed: 0, width: 0, height: 0, steps: 0)
+    static let unreadable = ImageSettings(prompt: "", modelID: "", requestedWidth: 0, requestedHeight: 0, seed: 0, width: 0, height: 0, steps: nil)
 }

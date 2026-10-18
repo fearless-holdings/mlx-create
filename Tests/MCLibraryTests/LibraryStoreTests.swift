@@ -1,6 +1,7 @@
 import Foundation
 import ImageIO
 import Testing
+import Synchronization
 @testable import MCLibrary
 
 @Suite struct LibraryStoreTests {
@@ -95,6 +96,32 @@ import Testing
 
         _ = try LibraryStore(libraryRoot: root)
         #expect(!FileManager.default.fileExists(atPath: partial.path))
+    }
+
+    @Test func asyncOpenCreatesTheSchemaAndSweepsPartialsOffTheMainThread() async throws {
+        let root = try Self.tempRoot()
+        let dir = root.appending(path: "Projects/abc/2026-10", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let partial = dir.appending(path: "junk.png.partial")
+        try Data("x".utf8).write(to: partial)
+        let openedOnMain = Mutex<Bool?>(nil)
+
+        let store = try await LibraryStore.openOffActor(libraryRoot: root) { onMain in
+            openedOnMain.withLock { $0 = onMain }
+        }
+
+        #expect(FileManager.default.fileExists(atPath: LibraryPaths(root: root).database.path))
+        #expect(!FileManager.default.fileExists(atPath: partial.path))
+        #expect(try await store.defaultProject().name == "Default")
+        #expect(openedOnMain.withLock { $0 } == false)
+    }
+
+    @Test func asyncOpenReusesAnExistingDefaultProject() async throws {
+        let root = try Self.tempRoot()
+        let first = try await LibraryStore.open(libraryRoot: root)
+        let projectID = try await first.defaultProject().id
+        let second = try await LibraryStore.open(libraryRoot: root)
+        #expect(try await second.defaultProject().id == projectID)
     }
 
     @Test func embeddedMetadataRecordsTheRealPixelSizeNotTheRequest() async throws {

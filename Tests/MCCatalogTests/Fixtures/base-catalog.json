@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "sequence": 1,
+  "issued_at": "2026-10-16T00:00:00Z",
+  "models": [
+    {
+      "id": "fixture-model",
+      "family": "flux2-klein",
+      "name": "Fixture model",
+      "quantization": "4-bit",
+      "repo": "example-org/fixture-model",
+      "revision": "0123456789abcdef0123456789abcdef01234567",
+      "download_bytes": 1030,
+      "ram_gb": 8.0,
+      "license": {
+        "id": "apache-2.0",
+        "name": "Apache License 2.0",
+        "url": "https://www.apache.org/licenses/LICENSE-2.0",
+        "commercial_use": true,
+        "version": "2.0",
+        "summary": "Permissive license for the fixture model."
+      },
+      "files": [
+        {
+          "path": "transformer/model.safetensors",
+          "size": 1024,
+          "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        },
+        {
+          "path": "config.json",
+          "size": 6,
+          "sha256": "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
+        }
+      ]
+    }
+  ]
+}

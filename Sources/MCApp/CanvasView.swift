@@ -7,8 +7,8 @@ struct CanvasView: View {
 
     var body: some View {
         switch model.canvasMode {
-        case .noModels(let weightsPath):
-            EmptyModelsView(model: model, weightsPath: weightsPath)
+        case .noModels:
+            EmptyModelsView(model: model)
         case .onlyUnavailable(let rows):
             UnavailableModelsView(rows: rows)
         case .emptyHint:

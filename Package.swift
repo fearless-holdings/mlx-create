@@ -7,7 +7,9 @@ let package = Package(
     products: [
         .library(name: "MCEngine", targets: ["MCEngine"]),
         .library(name: "MCCatalog", targets: ["MCCatalog"]),
+        .executable(name: "mc-catalog", targets: ["MCCatalogTool"]),
         .library(name: "MCLibrary", targets: ["MCLibrary"]),
+        .library(name: "MCModels", targets: ["MCModels"]),
         .library(name: "MCGeneration", targets: ["MCGeneration"]),
         .library(name: "MCApp", targets: ["MCApp"]),
     ],
@@ -17,14 +19,18 @@ let package = Package(
     targets: [
         .target(name: "MCEngine"),
         .target(name: "MCCatalog", resources: [.process("Resources")]),
+        .target(name: "MCModels", dependencies: ["MCCatalog"]),
         .target(name: "MCLibrary", dependencies: [.product(name: "GRDB", package: "GRDB.swift")]),
         .target(name: "MCGeneration", dependencies: ["MCEngine", "MCCatalog", "MCLibrary"]),
-        .target(name: "MCApp", dependencies: ["MCGeneration", "MCEngine", "MCCatalog", "MCLibrary"]),
+        .target(name: "MCApp", dependencies: ["MCGeneration", "MCEngine", "MCCatalog", "MCLibrary", "MCModels"]),
         .testTarget(name: "MCEngineTests", dependencies: ["MCEngine"], resources: [.copy("Fixtures")]),
-        .testTarget(name: "MCCatalogTests", dependencies: ["MCCatalog"]),
-        .testTarget(name: "MCLibraryTests", dependencies: ["MCLibrary"]),
+        .testTarget(name: "MCCatalogTests", dependencies: ["MCCatalog"], resources: [.copy("Fixtures")]),
+        .testTarget(name: "MCModelsTests", dependencies: ["MCModels"], resources: [.copy("Fixtures")]),
+        .executableTarget(name: "MCCatalogTool", dependencies: ["MCCatalog"]),
+        .testTarget(name: "MCCatalogToolTests", dependencies: ["MCCatalogTool", "MCCatalog"], resources: [.copy("Fixtures")]),
+        .testTarget(name: "MCLibraryTests", dependencies: ["MCLibrary", .product(name: "GRDB", package: "GRDB.swift")]),
         .testTarget(name: "MCGenerationTests", dependencies: ["MCGeneration"]),
-        .testTarget(name: "MCAppTests", dependencies: ["MCApp"]),
+        .testTarget(name: "MCAppTests", dependencies: ["MCApp", "MCModels", "MCCatalog", "MCLibrary"]),
     ],
     swiftLanguageModes: [.v6]
 )

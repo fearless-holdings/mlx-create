@@ -4,6 +4,8 @@ import MCLibrary
 /// Errors raised by the executor itself, outside the engine.
 public enum ExecutorError: Error, Equatable {
     case invalidSeedPolicy(String)
+    /// The job's mode is not one the executor generates yet (D7, KTD17).
+    case unsupportedMode(String)
 }
 
 /// Maps an error from a generation attempt to the failure stored on a `failed` job (KTD6).
@@ -19,6 +21,8 @@ public enum FailureMapping {
             switch local {
             case .invalidSeedPolicy:
                 return JobFailure(message: "This job has an unreadable seed setting.", detail: nil, retryable: false)
+            case .unsupportedMode:
+                return JobFailure(message: "This job uses a mode this version cannot generate yet.", detail: nil, retryable: false)
             }
         }
         return JobFailure(message: "The image could not be generated.", detail: nil, retryable: false)
@@ -26,7 +30,8 @@ public enum FailureMapping {
 
     private static func retryable(_ error: EngineError) -> Bool {
         switch error {
-        case .outOfMemory, .modelNotLoaded, .noModel, .engineFailure, .connectionLost, .timedOut, .streamEndedWithoutComplete:
+        case .outOfMemory: OutOfMemoryFailure.retryable
+        case .modelNotLoaded, .noModel, .engineFailure, .connectionLost, .timedOut, .streamEndedWithoutComplete:
             true
         case .unauthorized, .badRequest, .malformedResponse:
             false

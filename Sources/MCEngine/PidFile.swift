@@ -115,3 +115,30 @@ public enum PidFile {
         try? FileManager.default.removeItem(at: url)
     }
 }
+
+/// Ownership check before ready (KTD11): does `pid` hold a TCP socket in LISTEN state on `port`? Read through libproc,
+/// so it asks the kernel about the process itself and cannot be fooled by another process's answer on the port.
+public enum ListenerCheck {
+    public static func isListening(pid: Int32, port: Int) -> Bool {
+        let entrySize = MemoryLayout<proc_fdinfo>.stride
+        let needed = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, nil, 0)
+        guard needed > 0 else { return false }
+        var fds = [proc_fdinfo](repeating: proc_fdinfo(), count: Int(needed) / entrySize)
+        let filled = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, &fds, Int32(fds.count * entrySize))
+        guard filled > 0 else { return false }
+        let socketSize = Int32(MemoryLayout<socket_fdinfo>.size)
+        for entry in fds.prefix(Int(filled) / entrySize) where entry.proc_fdtype == UInt32(PROX_FDTYPE_SOCKET) {
+            var info = socket_fdinfo()
+            guard proc_pidfdinfo(pid, entry.proc_fd, PROC_PIDFDSOCKETINFO, &info, socketSize) == socketSize else {
+                continue
+            }
+            guard info.psi.soi_kind == SOCKINFO_TCP else { continue }
+            let tcp = info.psi.soi_proto.pri_tcp
+            guard tcp.tcpsi_state == TSI_S_LISTEN else { continue }
+            // The kernel stores the local port in network byte order.
+            let localPort = UInt16(truncatingIfNeeded: tcp.tcpsi_ini.insi_lport)
+            if Int(UInt16(bigEndian: localPort)) == port { return true }
+        }
+        return false
+    }
+}
