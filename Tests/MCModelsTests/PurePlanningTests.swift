@@ -119,9 +119,24 @@ import Testing
     @Test func malformedRepoRevisionOrDuplicatePathsAreRejected() {
         #expect(throws: InstallError.self) { try InstallStaging.validate(plan(files: ["a.json"], repo: "org")) }
         #expect(throws: InstallError.self) { try InstallStaging.validate(plan(files: ["a.json"], repo: "../evil")) }
+        #expect(throws: InstallError.self) { try InstallStaging.validate(plan(files: ["a.json"], repo: "org/.hidden")) }
         #expect(throws: InstallError.self) { try InstallStaging.validate(plan(files: ["a.json"], revision: "main")) }
         #expect(throws: InstallError.self) { try InstallStaging.validate(plan(files: ["a.json", "a.json"])) }
         #expect(throws: InstallError.self) { try InstallStaging.validate(plan(files: [])) }
+    }
+
+    @Test func zeroByteAndMalformedHashFilesAreRejected() throws {
+        let hash = String(repeating: "b", count: 64)
+        func plan(size: Int64, sha256: String) -> InstallPlan {
+            InstallPlan(modelID: "m", repo: "org/model", revision: String(repeating: "a", count: 40),
+                        files: [InstallPlan.File(path: "a.json", size: size, sha256: sha256)])
+        }
+        try InstallStaging.validate(plan(size: 10, sha256: hash))
+        #expect(throws: InstallError.self) { try InstallStaging.validate(plan(size: 0, sha256: hash)) }
+        #expect(throws: InstallError.self) { try InstallStaging.validate(plan(size: 10, sha256: "ABC")) }
+        #expect(throws: InstallError.self) {
+            try InstallStaging.validate(plan(size: 10, sha256: String(repeating: "B", count: 64)))
+        }
     }
 
     @Test func confinedPathLandsInsideStaging() throws {
