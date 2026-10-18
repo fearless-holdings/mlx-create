@@ -159,7 +159,7 @@ public actor CatalogStore {
     }
 
     /// Fetches the remote catalog at most once per `refreshInterval`. Network and signature failures keep the cache
-    /// and throw nothing.
+    /// and throw nothing. A candidate older than the trusted catalog is rejected (`docs/lld/models.md` §5).
     public func refresh() async -> CatalogRefreshOutcome {
         guard let remoteURL else { return .skippedNoURL }
         let state = readRefreshState()
@@ -203,9 +203,10 @@ public actor CatalogStore {
             recordCheck(etag: state?.etag)
             return .rejected("\(error)")
         }
-        if let cached = readCachedCatalog(), candidate.catalog.sequence < cached.catalog.sequence {
+        // The floor is the catalog `current()` trusts, which is the bundled one when it is newer than the cache.
+        if let trusted = try? current(), candidate.catalog.sequence < trusted.catalog.sequence {
             recordCheck(etag: state?.etag)
-            return .rejected("sequence \(candidate.catalog.sequence) is lower than cached \(cached.catalog.sequence)")
+            return .rejected("sequence \(candidate.catalog.sequence) is lower than the trusted \(trusted.catalog.sequence)")
         }
 
         do {

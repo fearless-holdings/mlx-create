@@ -182,6 +182,21 @@ actor StubCatalogTransport: CatalogTransport {
         #expect(try cacheBytes(dir) == cached.bytes)
     }
 
+    @Test func remoteBelowTheBundledCatalogIsRejectedWhenNothingIsCached() async throws {
+        let dir = try CatalogFixture.tempDirectory()
+        let remote = try CatalogFixture.catalogJSON(sequence: 1)
+        let transport = StubCatalogTransport(replies: [
+            "catalog.json": .response(remoteResponse(remote)),
+            "catalog.json.sig": .response(remoteResponse(try CatalogFixture.signature(of: remote))),
+        ])
+        let outcome = try await store(cache: dir, bundledSequence: 2, transport: transport).refresh()
+        guard case .rejected = outcome else {
+            Issue.record("expected rejection below the bundled catalog, got \(outcome)")
+            return
+        }
+        #expect(!FileManager.default.fileExists(atPath: dir.appending(path: "catalog.json").path))
+    }
+
     @Test func remoteEqualSequenceIsAccepted() async throws {
         let dir = try CatalogFixture.tempDirectory()
         _ = try writeCache(dir, sequence: 5)
