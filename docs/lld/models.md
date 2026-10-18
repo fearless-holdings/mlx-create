@@ -58,6 +58,7 @@ Field rules:
 - `ram_gb` is the engine's measured preflight need for Krea (17.6, `docs/lld/engine.md` §5.9). For klein 4B it is the HLD figure of 8, to be measured in U7.
 - `license.commercial_use` is a boolean. `license.summary` is the text the license sheet shows (KTD10). For Krea it names the content-filter clause (§4.2) and the USD 1M trailing-revenue cap (§2.3), per D26.
 - `family` must match a `FamilyRegistry` record id (`families.json`). A catalog entry for an unknown family is ignored by the app, not rejected by the loader (HLD §8.4).
+- Installed-model family detection (app side, not catalog): an installed folder matches a family by the engine's architecture from `/v1/models`. A family may also require a checkpoint trait. Qwen-Image 2.1 Turbo requires a non-empty `sample_sigmas` list, read from `Weights/<model id>/model_index.json`. A missing, unreadable or malformed file counts as trait absent, and the folder stays unavailable with the "not supported by this app yet" reason. Only architectures that declare a trait are probed (D31).
 - Model `id` values are unique within a catalog.
 
 ## 3. Verification order
