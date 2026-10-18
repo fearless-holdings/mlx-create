@@ -382,6 +382,37 @@ func makeInstaller(
         #expect(disk.contains(needed.formatted(style)))
         #expect(disk.contains(available.formatted(style)))
     }
+
+    /// A pinned revision the server no longer serves: the same request fails the same way, so only an app update helps.
+    @Test(arguments: [404, 410])
+    func pinnedRevisionNoLongerServedIsNotRetryable(status: Int) {
+        #expect(InstallError.httpStatus(path: "model.safetensors", status: status).isRetryable == false)
+    }
+
+    /// Refused access repeats on every attempt.
+    @Test(arguments: [401, 403])
+    func refusedAccessIsNotRetryable(status: Int) {
+        #expect(InstallError.httpStatus(path: "model.safetensors", status: status).isRetryable == false)
+    }
+
+    /// A busy or failing service is transient, so a later attempt can succeed.
+    @Test(arguments: [429, 500, 503])
+    func busyServiceIsRetryable(status: Int) {
+        #expect(InstallError.httpStatus(path: "model.safetensors", status: status).isRetryable)
+    }
+
+    /// Other statuses keep the plain failure and its Retry.
+    @Test func otherHTTPStatusKeepsRetry() {
+        #expect(InstallError.httpStatus(path: "model.safetensors", status: 418).isRetryable)
+    }
+
+    @Test func httpStatusClassesHaveDistinctMessages() {
+        let messages = [404, 401, 503, 418].map {
+            InstallError.httpStatus(path: "model.safetensors", status: $0).errorDescription ?? ""
+        }
+        #expect(messages.allSatisfy { !$0.isEmpty })
+        #expect(Set(messages).count == 4, "revision gone, access refused, service busy and other statuses each differ")
+    }
 }
 
 @Suite(.serialized, .enabled(if: installerPythonAvailable))

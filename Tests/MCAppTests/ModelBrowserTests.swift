@@ -451,4 +451,27 @@ func browserRow(_ rows: [ModelBrowserRow], _ id: String) -> ModelBrowserRow? {
         #expect(rig.transport.requests.count == 1, "Install requests the model again")
         #expect(browserRow(rig.browser.rows, BrowserFixture.alpha.id)?.state == .installed(inEngine: true))
     }
+
+    @Test func failureThatRepeatsOnEveryRetryOffersNoRetry() async throws {
+        let failure = InstallError.httpStatus(path: "model.safetensors", status: 404)
+        let rig = try await BrowserRig.make(outcomes: [.fails(failure), .completes])
+
+        rig.browser.beginInstall(BrowserFixture.beta.id)
+        rig.browser.licenseAccepted = true
+        rig.browser.confirmLicense()
+        await rig.browser.installTask?.value
+
+        let row = try #require(browserRow(rig.browser.rows, BrowserFixture.beta.id))
+        guard case .failed(let message) = row.state else {
+            Issue.record("the failed install must show a failed row")
+            return
+        }
+        #expect(message == ModelBrowserModel.failureMessage(for: failure))
+        #expect(row.action == nil, "a revision that is no longer served repeats on every retry, so no Retry")
+        #expect(row.canAct == false)
+
+        rig.browser.continueInstall(BrowserFixture.beta.id)
+        await rig.browser.installTask?.value
+        #expect(rig.transport.requests.count == 1, "nothing is requested again")
+    }
 }

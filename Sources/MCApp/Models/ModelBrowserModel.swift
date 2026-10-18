@@ -90,8 +90,13 @@ final class ModelBrowserModel {
     private(set) var interrupted: [StagedInstall] = []
     private(set) var statuses: [String: ModelInstallStatus] = [:]
     private(set) var localFolders: [String] = []
-    /// Failures from this session, by model id. A relaunch shows the partials as interrupted instead.
-    private(set) var failures: [String: String] = [:]
+    /// A failed install from this session. Retry is offered only when trying again can succeed; a revision that is no
+    /// longer served or refused access fails the same way every time. A relaunch shows the partials as interrupted.
+    struct Failure: Equatable {
+        let message: String
+        let retryable: Bool
+    }
+    private(set) var failures: [String: Failure] = [:]
     private(set) var pendingLicense: PendingLicense?
     /// The checkbox on the license sheet.
     var licenseAccepted = false
@@ -125,6 +130,11 @@ final class ModelBrowserModel {
             return description
         }
         return error.localizedDescription
+    }
+
+    /// Whether Retry can clear this failure. Only an install error can say so; anything else may succeed on retry.
+    static func isRetryable(_ error: any Error) -> Bool {
+        (error as? InstallError)?.isRetryable ?? true
     }
 
     func setEngineModelIDs(_ ids: Set<String>) {
@@ -238,7 +248,8 @@ final class ModelBrowserModel {
             } catch is CancellationError {
                 // Cancelled by the user: the partials stay and the row reads as interrupted.
             } catch {
-                self.failures[model.id] = Self.failureMessage(for: error)
+                self.failures[model.id] = Failure(
+                    message: Self.failureMessage(for: error), retryable: Self.isRetryable(error))
             }
             self.installTask = nil
             await self.refresh()
@@ -285,8 +296,8 @@ final class ModelBrowserModel {
         case .notInstalled?, nil:
             break
         }
-        if let message = failures[model.id] {
-            return (.failed(message), .retry)
+        if let failure = failures[model.id] {
+            return (.failed(failure.message), failure.retryable ? .retry : nil)
         }
         if let partial = interrupted.first(where: { $0.plan.modelID == model.id }) {
             return (.interrupted(bytesOnDisk: partial.bytesOnDisk, bytesTotal: partial.plan.totalBytes), .resume)
