@@ -67,6 +67,20 @@ public struct InstallEvent: Sendable, Equatable {
     }
 }
 
+/// One started install: its events, and the handle that cancels it.
+public struct InstallRun: Sendable {
+    /// Ends after exactly one terminal phase. Stopping iteration does not cancel the install.
+    public let events: AsyncStream<InstallEvent>
+    /// Asks the install to stop. Honoured until the downloader publishes the folder; after that the install completes
+    /// and reports `installed`.
+    public let cancel: @Sendable () -> Void
+
+    public init(events: AsyncStream<InstallEvent>, cancel: @escaping @Sendable () -> Void) {
+        self.events = events
+        self.cancel = cancel
+    }
+}
+
 public enum InstallError: Error, Sendable, Equatable, LocalizedError {
     case invalidPlan(String)
     case pathRejected(path: String, reason: String)

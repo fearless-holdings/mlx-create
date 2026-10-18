@@ -36,7 +36,7 @@ final class ScriptedTransport: ModelTransport, @unchecked Sendable {
         lock.withLock { publishHook = hook }
     }
 
-    func install(_ plan: InstallPlan) -> AsyncStream<InstallEvent> {
+    func install(_ plan: InstallPlan) -> InstallRun {
         let (outcome, hook) = lock.withLock { () -> (Outcome, (@Sendable (InstallPlan) -> Void)?) in
             requested.append(plan)
             return (outcomes[min(requested.count - 1, outcomes.count - 1)], publishHook)
@@ -46,22 +46,28 @@ final class ScriptedTransport: ModelTransport, @unchecked Sendable {
             publishFolder(plan)
             hook?(plan)
             lock.withLock { partials[plan.modelID] = nil }
-            return AsyncStream { continuation in
+            let events = AsyncStream<InstallEvent> { continuation in
                 continuation.yield(InstallEvent(phase: .installed, bytesDone: plan.totalBytes, bytesTotal: plan.totalBytes))
                 continuation.finish()
             }
+            return InstallRun(events: events, cancel: {})
         case .fails(let error):
             keepPartial(plan)
-            return AsyncStream { continuation in
+            let events = AsyncStream<InstallEvent> { continuation in
                 continuation.yield(InstallEvent(phase: .failed(error), bytesDone: 0, bytesTotal: plan.totalBytes))
                 continuation.finish()
             }
+            return InstallRun(events: events, cancel: {})
         case .holds:
             keepPartial(plan)
-            return AsyncStream { continuation in
-                continuation.yield(InstallEvent(
-                    phase: .downloading, bytesDone: 1024, bytesTotal: plan.totalBytes, currentFile: plan.files[0].path))
-            }
+            let (events, continuation) = AsyncStream.makeStream(of: InstallEvent.self)
+            continuation.yield(InstallEvent(
+                phase: .downloading, bytesDone: 1024, bytesTotal: plan.totalBytes, currentFile: plan.files[0].path))
+            // As the downloader does when cancelled before publishing: the install ends cancelled, partials kept.
+            return InstallRun(events: events, cancel: {
+                continuation.yield(InstallEvent(phase: .cancelled, bytesDone: 1024, bytesTotal: plan.totalBytes))
+                continuation.finish()
+            })
         }
     }
 

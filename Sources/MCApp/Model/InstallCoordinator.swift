@@ -16,7 +16,8 @@ public enum InstallCoordinatorError: Error, Sendable, Equatable, LocalizedError 
 
 /// Connects the signed catalog, the installer, the library and the engine (plan U5, KTD9, KTD10, KTD18).
 /// Maps a catalog model to an install plan, writes its `installed_model` row inside the installer's `record` closure,
-/// and runs the engine rescan through `onInstalled`.
+/// and runs the engine rescan through `onInstalled`. The row's catalog facts come from the entry captured when the
+/// install started, never from whichever catalog is current when the row is written.
 public actor InstallCoordinator {
     public let installer: ModelInstaller
     private let current: CurrentCatalog
@@ -27,19 +28,14 @@ public actor InstallCoordinator {
         catalog: Catalog, store: LibraryStore, transport: any ModelTransport,
         rescan: @escaping @Sendable () async throws -> Void
     ) {
-        let current = CurrentCatalog(catalog)
-        self.current = current
+        self.current = CurrentCatalog(catalog)
         installer = ModelInstaller(
             transport: transport,
             isRecorded: { id in try await store.installedModel(id: id) != nil },
             record: { record in
-                let latest = await current.catalog
-                guard let model = latest.models.first(where: { $0.id == record.plan.modelID }) else {
-                    throw InstallCoordinatorError.unknownModel(record.plan.modelID)
-                }
                 try await store.recordInstalledModel(InstalledModelRecord(
-                    modelID: record.plan.modelID, family: model.family, repo: record.plan.repo,
-                    revision: record.plan.revision, catalogSequence: latest.sequence,
+                    modelID: record.plan.modelID, family: record.provenance.family, repo: record.plan.repo,
+                    revision: record.plan.revision, catalogSequence: record.provenance.catalogSequence,
                     files: record.plan.files.map { .init(path: $0.path, size: $0.size, sha256: $0.sha256) },
                     licenseID: record.acceptance.licenseID, licenseVersion: record.acceptance.licenseVersion,
                     acceptedAt: record.acceptance.acceptedAt, installedAt: record.installedAt))
@@ -47,7 +43,8 @@ public actor InstallCoordinator {
             onInstalled: rescan)
     }
 
-    /// Adopts a newer verified catalog (R9). Installs that start afterwards use it; an install already running keeps its plan.
+    /// Adopts a newer verified catalog (R9). Installs that start afterwards use it. An install already running keeps the
+    /// plan, family and catalog sequence it started with, so a refresh cannot change its record.
     public func replaceCatalog(_ catalog: Catalog) async {
         await current.replace(catalog)
     }
@@ -60,30 +57,32 @@ public actor InstallCoordinator {
     }
 
     /// Installs a catalog model. The acceptance must name the model's license id and its current version (KTD10);
-    /// otherwise this throws `licenseNotAccepted` and makes no request.
+    /// otherwise this throws `licenseNotAccepted` and makes no request. The catalog entry is captured here, at start.
     public func install(modelID: String, acceptance: LicenseAcceptance?) async throws -> InstallOutcome {
-        let model = try await catalogModel(modelID)
+        let (model, sequence) = try await catalogEntry(modelID)
         guard let acceptance, acceptance.licenseID == model.license.id,
               acceptance.licenseVersion == model.license.version
         else {
             throw ModelInstallError.licenseNotAccepted(modelID: modelID)
         }
-        return try await installer.install(Self.plan(for: model), acceptance: acceptance)
+        return try await installer.install(
+            Self.plan(for: model), acceptance: acceptance,
+            provenance: InstallProvenance(family: model.family, catalogSequence: sequence))
     }
 
     public func status(of modelID: String) async throws -> ModelInstallStatus {
-        let model = try await catalogModel(modelID)
+        let (model, _) = try await catalogEntry(modelID)
         return try await installer.status(of: Self.plan(for: model))
     }
 
-    private func catalogModel(_ modelID: String) async throws -> CatalogModel {
-        guard let model = await current.model(id: modelID) else { throw InstallCoordinatorError.unknownModel(modelID) }
-        return model
+    private func catalogEntry(_ modelID: String) async throws -> (model: CatalogModel, sequence: Int) {
+        guard let entry = await current.entry(id: modelID) else { throw InstallCoordinatorError.unknownModel(modelID) }
+        return entry
     }
 }
 
-/// The catalog the coordinator's installer closures read. The installer runs them off the coordinator's actor, so they
-/// read through this box; `replaceCatalog` swaps the catalog in when a newer signed catalog is accepted (R9).
+/// The catalog the coordinator reads when an install starts or a status is asked for. `replaceCatalog` swaps it in when
+/// a newer signed catalog is accepted (R9).
 private actor CurrentCatalog {
     private(set) var catalog: Catalog
 
@@ -95,7 +94,7 @@ private actor CurrentCatalog {
         self.catalog = catalog
     }
 
-    func model(id: String) -> CatalogModel? {
-        catalog.models.first { $0.id == id }
+    func entry(id: String) -> (model: CatalogModel, sequence: Int)? {
+        catalog.models.first { $0.id == id }.map { (model: $0, sequence: catalog.sequence) }
     }
 }

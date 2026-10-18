@@ -33,6 +33,7 @@ enum InstallerFixture {
     static let licenseID = "krea-2-community-license"
     static let licenseVersion = "1 (June 22, 2026)"
     static let acceptedAt = Date(timeIntervalSince1970: 1_790_000_000)
+    static let provenance = InstallProvenance(family: "krea-2-turbo", catalogSequence: 7)
 
     static func plan(
         modelID: String = "model-a", repo: String = "org/model-a",
@@ -49,6 +50,13 @@ enum InstallerFixture {
     }
 }
 
+extension ModelInstaller {
+    /// Installs with the fixture's catalog facts, for tests that do not check the record's provenance.
+    func install(_ plan: InstallPlan, acceptance: LicenseAcceptance?) async throws -> InstallOutcome {
+        try await install(plan, acceptance: acceptance, provenance: InstallerFixture.provenance)
+    }
+}
+
 /// Transport whose installs the test completes by hand. Records every request it receives.
 final class ManualTransport: ModelTransport, @unchecked Sendable {
     private struct Pending {
@@ -61,6 +69,7 @@ final class ManualTransport: ModelTransport, @unchecked Sendable {
     private let lock = NSLock()
     private var requested: [InstallPlan] = []
     private var pending: [Pending] = []
+    private var cancelRequested: [InstallPlan] = []
 
     init(modelsRoot: URL, staged: [StagedInstall] = []) {
         self.modelsRoot = modelsRoot
@@ -68,14 +77,15 @@ final class ManualTransport: ModelTransport, @unchecked Sendable {
     }
 
     var requests: [InstallPlan] { lock.withLock { requested } }
+    var cancelRequests: [InstallPlan] { lock.withLock { cancelRequested } }
 
-    func install(_ plan: InstallPlan) -> AsyncStream<InstallEvent> {
+    func install(_ plan: InstallPlan) -> InstallRun {
         let (stream, continuation) = AsyncStream.makeStream(of: InstallEvent.self)
         lock.withLock {
             requested.append(plan)
             pending.append(Pending(plan: plan, continuation: continuation))
         }
-        return stream
+        return InstallRun(events: stream, cancel: { self.lock.withLock { self.cancelRequested.append(plan) } })
     }
 
     func destination(for plan: InstallPlan) -> URL {
@@ -86,6 +96,13 @@ final class ManualTransport: ModelTransport, @unchecked Sendable {
 
     func emit(_ phase: InstallEvent.Phase, for plan: InstallPlan, done: Int64) {
         continuation(for: plan).yield(InstallEvent(phase: phase, bytesDone: done, bytesTotal: plan.totalBytes))
+    }
+
+    /// Ends the install as the downloader does when a cancel lands before its point of no return.
+    func endCancelled(_ plan: InstallPlan) {
+        let continuation = continuation(for: plan)
+        continuation.yield(InstallEvent(phase: .cancelled, bytesDone: 0, bytesTotal: plan.totalBytes))
+        continuation.finish()
     }
 
     /// Writes the files the downloader would publish, then reports `installed`.
@@ -184,6 +201,7 @@ func makeInstaller(
         #expect(record.plan == plan)
         #expect(record.acceptance == InstallerFixture.acceptance(for: plan))
         #expect(record.acceptance.licenseVersion == InstallerFixture.licenseVersion)
+        #expect(record.provenance == InstallerFixture.provenance, "the record keeps the catalog facts it started with")
         #expect(await installer.snapshot.active == nil)
     }
 
@@ -234,6 +252,76 @@ func makeInstaller(
 
         try transport.finish(first)
         _ = try await task.value
+        #expect(await installer.snapshot.active == nil)
+    }
+
+    /// Past the point of no return the downloader publishes whatever the caller says. A cancel that lands while files
+    /// are moving must still end with the folder recorded, never a published folder without its row.
+    @Test func cancelAfterThePointOfNoReturnStillRecordsTheInstall() async throws {
+        let transport = ManualTransport(modelsRoot: models.url)
+        let (installer, log) = makeInstaller(transport: transport)
+        let plan = InstallerFixture.plan()
+
+        let task = Task { try await installer.install(plan, acceptance: InstallerFixture.acceptance(for: plan)) }
+        try await waitUntil { transport.requests.count == 1 }
+        transport.emit(.moving, for: plan, done: plan.totalBytes)
+        try await waitUntil {
+            let phase = await installer.snapshot.active?.event.phase
+            return phase == .moving
+        }
+        task.cancel()
+        try transport.finish(plan)
+        let outcome = try await task.value
+
+        #expect(outcome == InstallOutcome(modelID: "model-a", result: .installed, rescanFailure: nil))
+        #expect(log.order == ["record", "rescan"], "the row is written even though the caller was cancelled")
+        #expect(await installer.snapshot.active == nil)
+    }
+
+    /// The slot belongs to the install until the downloader has settled, so a second install is refused while a
+    /// cancelled one is still moving its files.
+    @Test func cancelledInstallHoldsTheSlotUntilItSettles() async throws {
+        let transport = ManualTransport(modelsRoot: models.url)
+        let (installer, _) = makeInstaller(transport: transport)
+        let first = InstallerFixture.plan(modelID: "model-a", repo: "org/model-a")
+        let second = InstallerFixture.plan(modelID: "model-b", repo: "org/model-b")
+
+        let task = Task { try await installer.install(first, acceptance: InstallerFixture.acceptance(for: first)) }
+        try await waitUntil { transport.requests.count == 1 }
+        transport.emit(.moving, for: first, done: first.totalBytes)
+        task.cancel()
+        try await Task.sleep(for: .milliseconds(200))
+        let held = try #require(await installer.snapshot.active, "the cancelled install still holds the slot")
+        #expect(held.modelID == "model-a")
+
+        let error = await caught { try await installer.install(second, acceptance: InstallerFixture.acceptance(for: second)) }
+        #expect(error as? ModelInstallError == .installInProgress(activeModelID: "model-a"))
+        #expect(transport.requests.map(\.modelID) == ["model-a"], "the second install makes no request")
+
+        try transport.finish(first)
+        _ = try await task.value
+        #expect(await installer.snapshot.active == nil)
+    }
+
+    /// Before the point of no return a cancel is forwarded to the downloader explicitly. The install ends cancelled and
+    /// records nothing; the folder never reaches `Weights/`.
+    @Test func cancelBeforeThePointOfNoReturnIsForwardedAndRecordsNothing() async throws {
+        let transport = ManualTransport(modelsRoot: models.url)
+        let (installer, log) = makeInstaller(transport: transport)
+        let plan = InstallerFixture.plan()
+
+        let task = Task { try await installer.install(plan, acceptance: InstallerFixture.acceptance(for: plan)) }
+        try await waitUntil { transport.requests.count == 1 }
+        transport.emit(.verifying, for: plan, done: plan.totalBytes)
+        task.cancel()
+        try await waitUntil { transport.cancelRequests.count == 1 }
+        transport.endCancelled(plan)
+
+        let error = await caught { try await task.value }
+        #expect(error is CancellationError)
+        #expect(transport.cancelRequests == [plan])
+        #expect(log.order.isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: transport.destination(for: plan).path), "nothing reaches Weights")
         #expect(await installer.snapshot.active == nil)
     }
 
