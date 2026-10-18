@@ -141,6 +141,42 @@ import Testing
         }
     }
 
+    /// Paths that name one file on a case-insensitive, Unicode-normalising volume (APFS) must not both be listed.
+    @Test func filePathsThatCollideOnDiskRejectWholeCatalog() throws {
+        let pairs = [
+            ("transformer/model.safetensors", "TRANSFORMER/MODEL.SAFETENSORS"),
+            ("config.json", "Config.JSON"),
+            ("caf\u{E9}.json", "cafe\u{301}.json"),
+            ("CAF\u{C9}.JSON", "cafe\u{301}.json"),
+        ]
+        for (first, second) in pairs {
+            let bytes = try CatalogFixture.catalogJSON(edit: CatalogFixture.editModel { model in
+                var files = model["files"] as? [[String: Any]] ?? []
+                files[0]["path"] = first
+                files[1]["path"] = second
+                model["files"] = files
+            })
+            expectInvalid(bytes)
+        }
+    }
+
+    @Test func filePathsThatOnlyResembleEachOtherAreAccepted() throws {
+        let pairs = [
+            ("Model.safetensors", "model-2.safetensors"),
+            ("caf\u{E9}.json", "cafe.json"),
+            ("a/config.json", "b/config.json"),
+        ]
+        for (first, second) in pairs {
+            let bytes = try CatalogFixture.catalogJSON(edit: CatalogFixture.editModel { model in
+                var files = model["files"] as? [[String: Any]] ?? []
+                files[0]["path"] = first
+                files[1]["path"] = second
+                model["files"] = files
+            })
+            _ = try Catalog.decodeValidated(bytes)
+        }
+    }
+
     @Test func httpLicenseURLRejectsWholeCatalog() throws {
         let bytes = try CatalogFixture.catalogJSON(edit: CatalogFixture.editModel { model in
             var license = model["license"] as? [String: Any] ?? [:]
@@ -156,6 +192,29 @@ import Testing
             root["models"] = models + models
         }
         expectInvalid(bytes)
+    }
+
+    /// Repo names that differ only by case name one folder under `Weights/` on a case-insensitive volume.
+    @Test(arguments: ["example-org/fixture-model", "EXAMPLE-ORG/FIXTURE-MODEL", "example-org/Fixture-Model"])
+    func reposCollidingOnDiskRejectWholeCatalog(repo: String) throws {
+        let bytes = try catalogWithSecondModel(repo: repo)
+        expectInvalid(bytes)
+    }
+
+    @Test func distinctReposWithSharedFileNamesAreAccepted() throws {
+        // Each model has its own folder under Weights/, so the same file names in two repos do not collide.
+        _ = try Catalog.decodeValidated(catalogWithSecondModel(repo: "example-org/fixture-model-2"))
+    }
+
+    /// Two models in one catalog. The second copies the first under a new id and the given repo.
+    private func catalogWithSecondModel(repo: String) throws -> Data {
+        try CatalogFixture.catalogJSON { root in
+            let models = root["models"] as? [[String: Any]] ?? []
+            var second = models.first ?? [:]
+            second["id"] = "second-model"
+            second["repo"] = repo
+            root["models"] = models + [second]
+        }
     }
 
     @Test func zeroRamGBRejectsWholeCatalog() throws {
