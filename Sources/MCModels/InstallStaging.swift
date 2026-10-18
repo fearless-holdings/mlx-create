@@ -41,7 +41,7 @@ enum InstallStaging {
             if case .rejected(let reason) = WeightFilePolicy.check(file.path) {
                 throw InstallError.pathRejected(path: file.path, reason: reason)
             }
-            guard seen.insert(file.path).inserted else {
+            guard seen.insert(CatalogPath.collisionKey(file.path)).inserted else {
                 throw InstallError.invalidPlan("\(file.path) is listed twice")
             }
             guard file.size > 0 else {

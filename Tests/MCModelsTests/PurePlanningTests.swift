@@ -125,6 +125,15 @@ import Testing
         #expect(throws: InstallError.self) { try InstallStaging.validate(plan(files: [])) }
     }
 
+    @Test func planPathsThatCollideOnDiskAreRejected() throws {
+        for (first, second) in [("Model.safetensors", "model.safetensors"), ("caf\u{E9}.json", "cafe\u{301}.json")] {
+            #expect(throws: InstallError.self, "\(first) and \(second) collide on disk") {
+                try InstallStaging.validate(plan(files: [first, second]))
+            }
+        }
+        try InstallStaging.validate(plan(files: ["Model.safetensors", "model-2.safetensors"]))
+    }
+
     @Test func zeroByteAndMalformedHashFilesAreRejected() throws {
         let hash = String(repeating: "b", count: 64)
         func plan(size: Int64, sha256: String) -> InstallPlan {

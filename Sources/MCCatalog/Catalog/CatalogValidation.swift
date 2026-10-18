@@ -45,8 +45,12 @@ extension Catalog {
         guard sequence >= 0 else { throw CatalogError.invalid("sequence must not be negative") }
         guard !models.isEmpty else { throw CatalogError.invalid("catalog lists no models") }
         var ids = Set<String>()
+        var repos = Set<String>()
         for model in models {
             guard ids.insert(model.id).inserted else { throw CatalogError.invalid("duplicate model id \(model.id)") }
+            guard repos.insert(CatalogPath.collisionKey(model.repo)).inserted else {
+                throw CatalogError.invalid("repo \(model.repo) collides with another model's repo")
+            }
             try model.validate()
         }
     }
@@ -73,7 +77,8 @@ extension CatalogModel {
             if case .rejected(let reason) = WeightFilePolicy.check(file.path) {
                 throw CatalogError.invalid("file \(file.path) is not allowed: \(reason)")
             }
-            guard seen.insert(file.path).inserted else { throw CatalogError.invalid("duplicate file path \(file.path)") }
+            let key = CatalogPath.collisionKey(file.path)
+            guard seen.insert(key).inserted else { throw CatalogError.invalid("duplicate file path \(file.path)") }
             guard file.size > 0 else { throw CatalogError.invalid("file \(file.path) must have a positive size") }
             guard Self.isHex(file.sha256, length: 64) else {
                 throw CatalogError.invalid("sha256 for \(file.path) must be 64 lowercase hex characters")
@@ -129,5 +134,14 @@ public enum CatalogPath {
         return path.split(separator: "/", omittingEmptySubsequences: false).allSatisfy {
             !$0.isEmpty && $0 != "." && $0 != ".."
         }
+    }
+
+    /// The key under which two names collide on disk. macOS volumes are case-insensitive and compare names in a
+    /// Unicode-normalised form, so `Model.safetensors` and `model.safetensors`, or one name in composed and decomposed
+    /// Unicode, name the same file. Used for file paths within a model and for repo names.
+    public static func collisionKey(_ name: String) -> String {
+        name.precomposedStringWithCanonicalMapping
+            .folding(options: .caseInsensitive, locale: nil)
+            .precomposedStringWithCanonicalMapping
     }
 }
