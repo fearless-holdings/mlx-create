@@ -141,14 +141,15 @@ struct AppHarness {
         supervisor: EngineSupervisor? = nil,
         script: @escaping FakeEngine.Script = AppHarness.idleEngine,
         catalog: Catalog? = nil,
-        transport: (any ModelTransport)? = nil
+        transport: (any ModelTransport)? = nil,
+        catalogStore: CatalogStore? = nil
     ) async throws -> AppHarness {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("app-\(UUID().uuidString)")
         let store = try LibraryStore(libraryRoot: root)
         return try await assemble(
             root: root, store: store, models: models, loaded: loaded, registry: registry,
             initialState: initialState, defaults: defaults ?? UserDefaults(suiteName: UUID().uuidString)!,
-            supervisor: supervisor, script: script, catalog: catalog, transport: transport)
+            supervisor: supervisor, script: script, catalog: catalog, transport: transport, catalogStore: catalogStore)
     }
 
     /// Builds a new `AppModel` over this harness's library and defaults with a fresh engine, as a relaunch would.
@@ -159,7 +160,8 @@ struct AppHarness {
     ) async throws -> AppHarness {
         try await Self.assemble(
             root: root, store: store, models: models, loaded: [], registry: nil,
-            initialState: initialState, defaults: defaults, supervisor: nil, script: script, catalog: nil, transport: nil)
+            initialState: initialState, defaults: defaults, supervisor: nil, script: script, catalog: nil, transport: nil,
+            catalogStore: nil)
     }
 
     private static func assemble(
@@ -173,7 +175,8 @@ struct AppHarness {
         supervisor: EngineSupervisor?,
         script: @escaping FakeEngine.Script,
         catalog: Catalog?,
-        transport: (any ModelTransport)?
+        transport: (any ModelTransport)?,
+        catalogStore: CatalogStore?
     ) async throws -> AppHarness {
         let engine = FakeEngine(loaded: loaded, models: models, script: script)
         let endpoint = EngineStubProtocol.register(handler: { engine.handle($0) })
@@ -192,7 +195,7 @@ struct AppHarness {
             weightsPath: "/tmp/mlx-create-tests/Weights",
             libraryPaths: LibraryPaths(root: root),
             supervisor: supervisor,
-            defaults: defaults, catalog: catalog, transport: transport)
+            defaults: defaults, catalog: catalog, transport: transport, catalogStore: catalogStore)
         let project = try await store.defaultProject()
         return AppHarness(
             model: model, store: store, endpoint: endpoint, states: continuation, projectID: project.id,
