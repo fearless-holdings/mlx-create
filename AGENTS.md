@@ -98,7 +98,7 @@ HLD Appendix A lists the files worth reusing. The rules:
   - Respect the per-tier policies (HLD §11).
   - On 16 GB, the enhancer LLM and the diffusion model are never resident together.
 - **Errors users see** must be actionable. Map engine failures (OOM, LoRA mismatch, missing weights) to plain-language messages.
-- Prefer boring, explicit code over abstraction. Add a protocol only where the HLD names a seam: `ModelSource`, `Entitlements`, `ModelFamily`.
+- Prefer boring, explicit code over abstraction. Add a protocol only where the HLD names a seam: `ModelSource`, `Entitlements`, `ModelFamily`, and the D30 network test seams `ModelTransport`, `CatalogTransport`, `HubClient`.
 
 ## Commands
 
