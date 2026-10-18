@@ -168,16 +168,24 @@ public actor CatalogStore {
             if age >= 0 && age < Self.refreshInterval { return .skippedFresh }
         }
 
+        // A stored ETag describes the cached pair, so it is only sent while that pair verifies. Otherwise a 304 would
+        // keep the app on the bundled catalog indefinitely. A 304 we did not ask for gets one unconditional retry.
+        let cacheUsable = readCachedCatalog() != nil
+        let catalogURL = remoteURL.appending(path: Self.catalogName)
         let response: CatalogHTTPResponse
         do {
-            response = try await transport.get(remoteURL.appending(path: Self.catalogName), ifNoneMatch: state?.etag)
+            var reply = try await transport.get(catalogURL, ifNoneMatch: cacheUsable ? state?.etag : nil)
+            if reply.status == 304 && !cacheUsable {
+                reply = try await transport.get(catalogURL, ifNoneMatch: nil)
+            }
+            response = reply
         } catch {
             recordCheck(etag: state?.etag)
             return .failed
         }
         if response.status == 304 {
             recordCheck(etag: state?.etag)
-            return .notModified
+            return cacheUsable ? .notModified : .failed
         }
         guard response.status == 200 else {
             recordCheck(etag: state?.etag)
