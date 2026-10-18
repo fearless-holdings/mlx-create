@@ -3,7 +3,6 @@ import Foundation
 
 /// Paths, validation, manifest and publish for staged installs (plan KTD5). Pure rules run before any request.
 enum InstallStaging {
-    static let hexCharacters = CharacterSet(charactersIn: "0123456789abcdef")
 
     static func stagingURL(_ plan: InstallPlan, modelsRoot: URL) -> URL {
         partialRoot(modelsRoot).appending(path: plan.id, directoryHint: .isDirectory)
@@ -25,13 +24,13 @@ enum InstallStaging {
         modelsRoot.appending(path: ".partial", directoryHint: .isDirectory)
     }
 
-    /// Rejects a plan that could not be installed safely. Runs before any request or disk write.
+    /// Rejects a plan that could not be installed safely. Runs before any request or disk write. The repo, revision,
+    /// path and hash rules are the catalog's, so a catalog that validates also installs.
     static func validate(_ plan: InstallPlan) throws {
-        let repoParts = plan.repo.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
-        guard repoParts.count == 2, repoParts.allSatisfy(isSafeRepoComponent) else {
+        guard CatalogModel.isRepo(plan.repo) else {
             throw InstallError.invalidPlan("repo \(plan.repo) must be org/name")
         }
-        guard plan.revision.count == 40, plan.revision.unicodeScalars.allSatisfy({ hexCharacters.contains($0) }) else {
+        guard CatalogModel.isHex(plan.revision, length: 40) else {
             throw InstallError.invalidPlan("revision must be a 40-character lowercase commit hash")
         }
         guard !plan.files.isEmpty else { throw InstallError.invalidPlan("the plan lists no files") }
@@ -48,7 +47,7 @@ enum InstallStaging {
             guard file.size > 0 else {
                 throw InstallError.invalidPlan("\(file.path) has no size")
             }
-            guard file.sha256.count == 64, file.sha256.unicodeScalars.allSatisfy({ hexCharacters.contains($0) }) else {
+            guard CatalogModel.isHex(file.sha256, length: 64) else {
                 throw InstallError.invalidPlan("\(file.path) needs a 64-character lowercase SHA-256")
             }
         }
@@ -85,20 +84,11 @@ enum InstallStaging {
 
     @discardableResult
     private static func checkRelativePath(_ path: String) throws -> [String] {
-        guard !path.isEmpty, !path.hasPrefix("/"), !path.contains("\\"), !path.contains("\0") else {
-            throw InstallError.pathRejected(path: path, reason: "it must be a relative path")
+        guard CatalogPath.isSafe(path) else {
+            throw InstallError.pathRejected(
+                path: path, reason: "it must be a relative path with no empty, '.' or '..' component")
         }
-        let components = path.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
-        for component in components where component.isEmpty || component == "." || component == ".." {
-            throw InstallError.pathRejected(path: path, reason: "it contains an empty, '.' or '..' component")
-        }
-        return components
-    }
-
-    private static func isSafeRepoComponent(_ part: String) -> Bool {
-        guard let first = part.unicodeScalars.first, CharacterSet.alphanumerics.contains(first) else { return false }
-        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "._-"))
-        return part.unicodeScalars.allSatisfy { allowed.contains($0) }
+        return path.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
     }
 
     static func interrupted(modelsRoot: URL) -> [StagedInstall] {

@@ -74,7 +74,7 @@ extension CatalogModel {
                 throw CatalogError.invalid("file \(file.path) is not allowed: \(reason)")
             }
             guard seen.insert(file.path).inserted else { throw CatalogError.invalid("duplicate file path \(file.path)") }
-            guard file.size >= 0 else { throw CatalogError.invalid("file \(file.path) has a negative size") }
+            guard file.size > 0 else { throw CatalogError.invalid("file \(file.path) must have a positive size") }
             guard Self.isHex(file.sha256, length: 64) else {
                 throw CatalogError.invalid("sha256 for \(file.path) must be 64 lowercase hex characters")
             }
@@ -86,18 +86,26 @@ extension CatalogModel {
         try license.validate(model: id)
     }
 
-    /// `org/name`, each segment `[A-Za-z0-9._-]+` and not `.` or `..`.
+    /// `org/name`. Each segment is ASCII, starts with a letter or digit, and then holds only letters, digits, `.`,
+    /// `_` or `-`. A leading `.`, `-` or `_` is refused, so no segment can be `.`, `..` or an option-like word.
     public static func isRepo(_ repo: String) -> Bool {
         let parts = repo.split(separator: "/", omittingEmptySubsequences: false)
         guard parts.count == 2 else { return false }
         return parts.allSatisfy { part in
-            !part.isEmpty && part != "." && part != ".."
-                && part.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || "._-".contains($0)) }
+            guard let first = part.utf8.first, isASCIIAlphanumeric(first) else { return false }
+            return part.utf8.allSatisfy { byte in
+                isASCIIAlphanumeric(byte) || "._-".utf8.contains(byte)
+            }
         }
     }
 
+    /// Exactly `length` lowercase ASCII hex digits.
     public static func isHex(_ value: String, length: Int) -> Bool {
-        value.count == length && value.allSatisfy { ("0"..."9").contains($0) || ("a"..."f").contains($0) }
+        value.utf8.count == length && value.utf8.allSatisfy { (48...57).contains($0) || (97...102).contains($0) }
+    }
+
+    private static func isASCIIAlphanumeric(_ byte: UInt8) -> Bool {
+        (48...57).contains(byte) || (65...90).contains(byte) || (97...122).contains(byte)
     }
 }
 
@@ -112,10 +120,12 @@ extension CatalogLicense {
     }
 }
 
-/// Relative, `/`-separated file paths inside a model folder (`docs/lld/models.md` §2).
-enum CatalogPath {
-    static func isSafe(_ path: String) -> Bool {
-        guard !path.isEmpty, !path.hasPrefix("/"), !path.contains("\\") else { return false }
+/// Relative, `/`-separated file paths inside a model folder (`docs/lld/models.md` §2). The catalog and the installer
+/// both confine paths with this rule.
+public enum CatalogPath {
+    /// Non-empty and relative, with no empty, `.` or `..` segment, no backslash and no NUL byte.
+    public static func isSafe(_ path: String) -> Bool {
+        guard !path.isEmpty, !path.hasPrefix("/"), !path.contains("\\"), !path.contains("\0") else { return false }
         return path.split(separator: "/", omittingEmptySubsequences: false).allSatisfy {
             !$0.isEmpty && $0 != "." && $0 != ".."
         }
