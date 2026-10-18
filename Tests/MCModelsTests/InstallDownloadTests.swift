@@ -148,7 +148,8 @@ final class Scenario {
 
 private func collect(_ downloader: ModelDownloader, _ plan: InstallPlan) async -> [InstallEvent] {
     var events: [InstallEvent] = []
-    for await event in downloader.install(plan) { events.append(event) }
+    let stream = await downloader.install(plan)
+    for await event in stream { events.append(event) }
     return events
 }
 
@@ -156,7 +157,8 @@ private func collect(_ downloader: ModelDownloader, _ plan: InstallPlan) async -
 /// which keeps its partials. Waits until the cancelled installer has released its staging lock.
 private func interrupt(_ downloader: ModelDownloader, _ plan: InstallPlan, after bytes: Int64, in scenario: Scenario) async -> Bool {
     let consumer = Task { () -> Bool in
-        for await event in downloader.install(plan) where event.bytesDone >= bytes { return true }
+        let stream = await downloader.install(plan)
+        for await event in stream where event.bytesDone >= bytes { return true }
         return false
     }
     let stopped = await consumer.value

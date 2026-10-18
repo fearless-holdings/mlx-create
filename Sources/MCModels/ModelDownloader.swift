@@ -3,7 +3,7 @@ import Foundation
 
 /// Downloads an `InstallPlan` into `Models/.partial/<id>/`, verifies it, and publishes it to `Models/Weights/<org>/<name>/`
 /// (plan KTD5, KTD6, KTD8, KTD20). Public surface is final for the installer lane.
-public final class ModelDownloader: Sendable {
+public actor ModelDownloader {
     public struct Configuration: Sendable {
         /// The `Models` folder. `Weights/` and `.partial/` are created beneath it.
         public var modelsRoot: URL
@@ -64,7 +64,7 @@ public final class ModelDownloader: Sendable {
     }
 
     /// Final folder for a plan: `Models/Weights/<org>/<name>/`.
-    public func destination(for plan: InstallPlan) -> URL {
+    public nonisolated func destination(for plan: InstallPlan) -> URL {
         InstallStaging.destinationURL(plan, modelsRoot: configuration.modelsRoot)
     }
 
