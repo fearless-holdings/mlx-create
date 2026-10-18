@@ -3,7 +3,7 @@ import Foundation
 /// What the installer needs from a downloader (KTD18). `ModelDownloader` conforms; tests substitute a transport whose
 /// installs they complete by hand.
 public protocol ModelTransport: Sendable {
-    func install(_ plan: InstallPlan) -> AsyncStream<InstallEvent>
+    func install(_ plan: InstallPlan) async -> AsyncStream<InstallEvent>
     /// The folder a published install lands in: `Models/Weights/<org>/<name>/`.
     func destination(for plan: InstallPlan) -> URL
     /// Staged installs left by an earlier run. Nothing resumes on its own.
@@ -11,7 +11,7 @@ public protocol ModelTransport: Sendable {
 }
 
 extension ModelDownloader: ModelTransport {
-    public func stagedInstalls() -> [StagedInstall] {
+    public nonisolated func stagedInstalls() -> [StagedInstall] {
         Self.interruptedInstalls(modelsRoot: configuration.modelsRoot)
     }
 }
@@ -190,7 +190,8 @@ public actor ModelInstaller {
     /// Consumes the downloader's stream, republishing each event, and returns when it reports `installed`.
     private func download(_ plan: InstallPlan) async throws {
         var terminal: InstallEvent.Phase?
-        for await event in transport.install(plan) {
+        let events = await transport.install(plan)
+        for await event in events {
             snapshot.active = Snapshot.Active(modelID: plan.modelID, event: event)
             publish()
             switch event.phase {
