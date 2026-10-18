@@ -89,6 +89,15 @@ struct InstallRow: View {
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
             }
+        case .missingFiles(let path):
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Model files are missing")
+                    .font(.callout)
+                Text(path)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
         case .interrupted(let bytesOnDisk, let bytesTotal):
             Text("Interrupted at \(bytes(bytesOnDisk)) of \(bytes(bytesTotal)). Resume to continue.")
                 .font(.callout)

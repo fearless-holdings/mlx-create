@@ -63,9 +63,10 @@ extension LibraryStore {
         }
     }
 
-    /// Writes the record. Fails if the model already has one, so a model is recorded at most once.
+    /// Writes the record, replacing any earlier one for the model. A folder re-installed after it was deleted is recorded
+    /// afresh rather than rejected.
     public func recordInstalledModel(_ model: InstalledModelRecord) throws {
-        try dbQueue.write { db in try InstalledModelRow(model).insert(db) }
+        try dbQueue.write { db in try InstalledModelRow(model).upsert(db) }
     }
 
     public func installedModel(id: String) throws -> InstalledModelRecord? {

@@ -31,6 +31,8 @@ struct ModelBrowserRow: Identifiable, Equatable {
         case installed(inEngine: Bool)
         /// Files are in `Weights/` with no record. They are never overwritten, so the row offers no install.
         case unverified(path: String)
+        /// A record exists but its folder is gone. Install is offered again; the record is replaced when it finishes.
+        case missingFiles(path: String)
         case interrupted(bytesOnDisk: Int64, bytesTotal: Int64)
         /// The message is the plain-language failure. Retry continues from the partials.
         case failed(String)
@@ -182,7 +184,7 @@ final class ModelBrowserModel {
     func observe() async {
         guard let installs else { return }
         let installer = installs.installer
-        for await snapshot in installer.updates {
+        for await snapshot in await installer.updates() {
             apply(snapshot)
         }
     }
@@ -272,11 +274,14 @@ final class ModelBrowserModel {
                 phase: active.event.phase, bytesDone: active.event.bytesDone, bytesTotal: active.event.bytesTotal)
             return (.installing(progress), .cancel)
         }
+        var missingPath: String?
         switch statuses[model.id] {
         case .installed?:
             return (.installed(inEngine: engineModelIDs.contains(model.repo)), nil)
         case .unverified(let path)?:
             return (.unverified(path: path), nil)
+        case .missingFiles(let path)?:
+            missingPath = path
         case .notInstalled?, nil:
             break
         }
@@ -285,6 +290,9 @@ final class ModelBrowserModel {
         }
         if let partial = interrupted.first(where: { $0.plan.modelID == model.id }) {
             return (.interrupted(bytesOnDisk: partial.bytesOnDisk, bytesTotal: partial.plan.totalBytes), .resume)
+        }
+        if let path = missingPath {
+            return (.missingFiles(path: path), .install)
         }
         return (.available, .install)
     }
