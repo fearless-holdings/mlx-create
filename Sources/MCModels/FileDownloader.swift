@@ -17,6 +17,12 @@ enum FileRetry: Error {
     case rangeUnsupported
 }
 
+/// The bytes one response may fill: `start` is the first byte to write, `end` the last byte the plan allows.
+struct ResponseWindow: Equatable {
+    let start: Int64
+    let end: Int64
+}
+
 /// Downloads one file to a `.partial` beside its sidecar, retrying stalls from the sidecar.
 final class FileDownloader: Sendable {
     private let session: URLSession
@@ -200,8 +206,8 @@ final class FileAttempt: @unchecked Sendable {
 
     // MARK: Response policy (called from the delegate queue, before any byte of the response is written)
 
-    /// Decides whether a response may be written, and where. Returns the offset of the first byte to write.
-    func accept(_ response: HTTPURLResponse, chunk: Int, ranged: Bool) -> Result<Int64, Error> {
+    /// Decides whether a response may be written, and where: the first byte to write and the last byte the plan allows.
+    func accept(_ response: HTTPURLResponse, chunk: Int, ranged: Bool) -> Result<ResponseWindow, Error> {
         lock.lock()
         defer { lock.unlock() }
         let path = file.path
@@ -218,7 +224,7 @@ final class FileAttempt: @unchecked Sendable {
                 return .failure(InstallError.sizeMismatch(path: path, planned: file.size, server: range.total))
             }
             let expected = sidecar.chunks[chunk]
-            guard range.start == expected.start + expected.done else {
+            guard range.start == expected.start + expected.done, range.end == expected.end else {
                 return .failure(InstallError.network(path: path, reason: "the server answered a different byte range than requested"))
             }
             if let known = sidecar.etag, known != etag {
@@ -228,8 +234,7 @@ final class FileAttempt: @unchecked Sendable {
                 sidecar.etag = etag
                 if let error = saveSidecarResult() { return .failure(error) }
             }
-            let entry = sidecar.chunks[chunk]
-            return .success(entry.start + entry.done)
+            return .success(ResponseWindow(start: expected.start + expected.done, end: expected.end))
 
         case 200:
             if ranged && sidecar.chunks.count > 1 {
@@ -244,7 +249,7 @@ final class FileAttempt: @unchecked Sendable {
                 sidecar.etag = etag
                 progress.beginFile(path, done: 0)
                 if let error = saveSidecarResult() { return .failure(error) }
-                return .success(0)
+                return .success(ResponseWindow(start: 0, end: file.size - 1))
             }
             if response.expectedContentLength > 0, response.expectedContentLength != file.size {
                 return .failure(InstallError.sizeMismatch(path: path, planned: file.size, server: response.expectedContentLength))
@@ -257,7 +262,7 @@ final class FileAttempt: @unchecked Sendable {
                 if let error = saveSidecarResult() { return .failure(error) }
             }
             let entry = sidecar.chunks[chunk]
-            return .success(entry.start + entry.done)
+            return .success(ResponseWindow(start: entry.start + entry.done, end: file.size - 1))
 
         default:
             return .failure(InstallError.httpStatus(path: path, status: response.statusCode))
@@ -280,6 +285,11 @@ final class FileAttempt: @unchecked Sendable {
         }
         progress.setCurrent(done)
         if flushDue { flush() }
+    }
+
+    /// The server sent past the planned range. The file fails rather than writing bytes it does not own.
+    func overrunError() -> InstallError {
+        InstallError.network(path: file.path, reason: "the server sent more bytes than the planned range")
     }
 
     // MARK: Sidecar
@@ -343,16 +353,16 @@ final class FileAttempt: @unchecked Sendable {
         return InstallError.network(path: file.path, reason: error.localizedDescription)
     }
 
-    /// `Content-Range: bytes 0-99/12345` gives start 0 and total 12345.
-    static func contentRange(_ response: HTTPURLResponse) -> (start: Int64, total: Int64)? {
+    /// `Content-Range: bytes 0-99/12345` gives start 0, end 99 and total 12345.
+    static func contentRange(_ response: HTTPURLResponse) -> (start: Int64, end: Int64, total: Int64)? {
         guard let header = response.value(forHTTPHeaderField: "Content-Range"),
               header.hasPrefix("bytes "),
               let slash = header.lastIndex(of: "/") else { return nil }
         let span = header[header.index(header.startIndex, offsetBy: 6)..<slash]
         let bounds = span.split(separator: "-")
-        guard bounds.count == 2, let start = Int64(bounds[0]),
+        guard bounds.count == 2, let start = Int64(bounds[0]), let end = Int64(bounds[1]),
               let total = Int64(header[header.index(after: slash)...].trimmingCharacters(in: .whitespaces)) else { return nil }
-        return (start, total)
+        return (start, end, total)
     }
 }
 
@@ -361,6 +371,8 @@ private final class TransferSink: NSObject, URLSessionDataDelegate, @unchecked S
     private let attempt: FileAttempt
     private let chunk: Int
     private var offset: Int64
+    /// Last byte the accepted response may fill, inclusive.
+    private var limit: Int64 = -1
     private let ranged: Bool
     private var failure: Error?
     private var finished = false
@@ -384,8 +396,9 @@ private final class TransferSink: NSObject, URLSessionDataDelegate, @unchecked S
             return
         }
         switch attempt.accept(http, chunk: chunk, ranged: ranged) {
-        case .success(let start):
-            offset = start
+        case .success(let window):
+            offset = window.start
+            limit = window.end
             completionHandler(.allow)
         case .failure(let error):
             failure = error
@@ -395,14 +408,22 @@ private final class TransferSink: NSObject, URLSessionDataDelegate, @unchecked S
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
         guard failure == nil else { return }
-        do {
-            try attempt.write(data, chunk: chunk, at: offset)
-        } catch {
-            failure = error
-            dataTask.cancel()
-            return
+        // Only bytes inside the window are written. Anything past it is an overrun, and the file fails.
+        let allowed = min(Int64(data.count), max(limit - offset + 1, 0))
+        if allowed > 0 {
+            do {
+                try attempt.write(data.prefix(Int(allowed)), chunk: chunk, at: offset)
+            } catch {
+                failure = error
+                dataTask.cancel()
+                return
+            }
+            offset += allowed
         }
-        offset += Int64(data.count)
+        if allowed < Int64(data.count) {
+            failure = attempt.overrunError()
+            dataTask.cancel()
+        }
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {

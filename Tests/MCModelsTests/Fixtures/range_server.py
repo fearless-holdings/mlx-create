@@ -6,7 +6,10 @@ own ETag. Run with /usr/bin/python3. Writes the bound port to --ready-file, then
 Control (POST /__control, JSON body, keys optional):
   expire_cdn: true                 invalidates every CDN URL issued so far (time-signed URLs go stale)
   redirect: bool                   answer resolve URLs with a 302 (default true) or serve them directly
-  mode: "range" | "ignore-range"   ignore-range answers every request 200 with the whole file
+  mode: "range" | "ignore-range" | "overrun-206" | "overrun-200"
+                                   ignore-range: every request gets 200 and the whole file; overrun-206: each 206
+                                   body carries 64 KiB past its Content-Range; overrun-200: 200 with the whole file
+                                   plus 64 KiB and no Content-Length
   stall: {"after_bytes": N, "times": K}  the next K data responses send N bytes, then hang
   throttle_ms: N                   sleep N ms after each 64 KiB sent
   files: {key: {"path": abs, "etag": str, "linked_etag": str}}   key = resolve path
@@ -25,6 +28,8 @@ import time
 import urllib.parse
 
 CHUNK = 64 * 1024
+OVERRUN_BYTES = 64 * 1024
+OVERRUN_FILL = b"\xee"
 lock = threading.Lock()
 state = {
     "epoch": 1,
@@ -127,11 +132,34 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send_json(404, {"error": "unknown key"})
         return self.serve_file(key, entry)
 
+    def serve_overrun(self, key, entry, size, start, end, status, rng):
+        length = end - start + 1
+        self.send_response(status)
+        self.send_header("ETag", entry["etag"])
+        self.send_header("Accept-Ranges", "bytes")
+        if status == 206:
+            self.send_header("Content-Length", str(length + OVERRUN_BYTES))
+            self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
+        else:
+            self.send_header("Connection", "close")
+            self.close_connection = True
+        self.end_headers()
+        record(key, status, self.headers, rng)
+        with open(entry["path"], "rb") as f:
+            f.seek(start)
+            body = f.read(length)
+        try:
+            self.wfile.write(body + OVERRUN_FILL * OVERRUN_BYTES)
+            self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError):
+            return
+
     def serve_file(self, key, entry):
         size = os.path.getsize(entry["path"])
         rng = self.headers.get("Range")
         with lock:
-            ignore = state["mode"] == "ignore-range"
+            mode = state["mode"]
+            ignore = mode in ("ignore-range", "overrun-200")
             stall = dict(state["stall"])
             throttle = state["throttle_ms"] / 1000.0
             stall_now = stall["times"] > 0
@@ -144,6 +172,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             start = int(a)
             end = min(int(b) if b else size - 1, size - 1)
             status = 206
+        if mode == "overrun-200" or (mode == "overrun-206" and status == 206):
+            return self.serve_overrun(key, entry, size, start, end, status, rng)
 
         length = end - start + 1
         self.send_response(status)

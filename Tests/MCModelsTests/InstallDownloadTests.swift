@@ -400,6 +400,53 @@ struct InstallEndToEndTests {
         #expect(try Data(contentsOf: s.destination.appending(path: Self.small)) == Data("keep".utf8))
         #expect(!FileManager.default.fileExists(atPath: s.staging.path), "destination is checked before staging is created")
     }
+
+    @Test func overlongPartialResponseFailsWithoutWritingPastItsChunk() async throws {
+        let server = try RangeServer()
+        let s = try Scenario(server: server, files: [(Self.big, 2 << 20, 14)])
+        try await s.publish()
+        try await server.control(["mode": "overrun-206"])
+
+        let events = await collect(s.downloader(), s.plan)
+
+        guard case .network(let path, _)? = installError(events) else {
+            Issue.record("expected network failure, got \(String(describing: installError(events)))")
+            return
+        }
+        #expect(path == Self.big)
+        #expect(!FileManager.default.fileExists(atPath: s.destination.path), "nothing reaches Weights")
+
+        let partial = s.staging.appending(path: "\(Self.big).partial")
+        let sidecar = try JSONDecoder().decode(
+            ResumeSidecar.self, from: Data(contentsOf: ResumeSidecar.sidecarURL(forPartial: partial)))
+        let written = try Data(contentsOf: partial)
+        let planned = try #require(s.payloads[Self.big])
+        for chunk in sidecar.chunks {
+            #expect(chunk.done <= chunk.length, "a chunk never banks more bytes than it holds")
+            let lower = Int(chunk.start)
+            let upper = Int(min(chunk.start + chunk.done, Int64(written.count), Int64(planned.count)))
+            guard upper > lower else { continue }
+            #expect(written[lower..<upper] == planned[lower..<upper], "neighbouring chunks keep their planned bytes")
+        }
+    }
+
+    @Test func overlongSingleStreamFailsAtItsPlannedSize() async throws {
+        let server = try RangeServer()
+        let s = try Scenario(server: server, files: [(Self.small, 300 << 10, 15)])
+        try await s.publish()
+        try await server.control(["mode": "overrun-200"])
+
+        let events = await collect(s.downloader(), s.plan)
+
+        guard case .network(let path, _)? = installError(events) else {
+            Issue.record("expected network failure, got \(String(describing: installError(events)))")
+            return
+        }
+        #expect(path == Self.small)
+        #expect(!FileManager.default.fileExists(atPath: s.destination.path), "nothing reaches Weights")
+        let partial = s.staging.appending(path: "\(Self.small).partial")
+        #expect(try Data(contentsOf: partial) == s.payloads[Self.small], "no byte past the planned size is written")
+    }
 }
 
 private func isNetworkError(_ error: Error?) -> Bool {
@@ -430,7 +477,7 @@ private func isNetworkError(_ error: Error?) -> Bool {
         return HTTPURLResponse(url: URL(string: "http://127.0.0.1/x")!, statusCode: status, httpVersion: nil, headerFields: headers)!
     }
 
-    private func failure(_ result: Result<Int64, Error>) -> Error? {
+    private func failure<T>(_ result: Result<T, Error>) -> Error? {
         if case .failure(let error) = result { return error }
         return nil
     }
@@ -448,6 +495,14 @@ private func isNetworkError(_ error: Error?) -> Bool {
         defer { withExtendedLifetime(dir) {} }
         let a = try attempt(dir)
         let result = a.accept(response(206, range: "bytes 1-524288/2097152"), chunk: 0, ranged: true)
+        #expect(isNetworkError(failure(result)))
+    }
+
+    @Test func rangeEndOtherThanPlannedIsRejected() throws {
+        let dir = try TemporaryDirectory()
+        defer { withExtendedLifetime(dir) {} }
+        let a = try attempt(dir)
+        let result = a.accept(response(206, range: "bytes 0-524286/2097152"), chunk: 0, ranged: true)
         #expect(isNetworkError(failure(result)))
     }
 
