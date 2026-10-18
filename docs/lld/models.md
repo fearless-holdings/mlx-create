@@ -50,11 +50,11 @@ Field rules:
 
 - `schema_version` must be `1`. Any other value rejects the whole catalog.
 - `sequence` is a monotonic integer. `mc-catalog build` sets it to the previous bundled value plus one.
-- `repo` is `org/name`, and each segment is `[A-Za-z0-9._-]+`. `..`, `a/b/c` and absolute forms are rejected.
+- `repo` is `org/name`, and each segment starts with an ASCII letter or digit, then `[A-Za-z0-9._-]*`. A leading `.`, `-` or `_`, `..`, `a/b/c` and absolute forms are rejected.
 - `revision` is a 40-character lowercase hex Hugging Face commit. Nothing else is fetched by branch name.
 - `files[].path` is a relative `/`-separated path with no leading `/`, no empty segment and no `..` segment. Every path must pass `WeightFilePolicy.check` (KTD21). Duplicate paths within a model are rejected.
 - `files[].sha256` is 64 lowercase hex characters. For LFS files it is the tree API's `lfs.oid`. For small non-LFS files it is computed by `mc-catalog build` from a download of the file at the pinned commit (KTD1).
-- `download_bytes` equals the sum of `files[].size`.
+- `download_bytes` equals the sum of `files[].size`. Every `files[].size` must be greater than 0: a zero-byte file is not a legitimate weight file, so the catalog is rejected.
 - `ram_gb` is the engine's measured preflight need for Krea (17.6, `docs/lld/engine.md` §5.9). For klein 4B it is the HLD figure of 8, to be measured in U7.
 - `license.commercial_use` is a boolean. `license.summary` is the text the license sheet shows (KTD10). For Krea it names the content-filter clause (§4.2) and the USD 1M trailing-revenue cap (§2.3), per D26.
 - `family` must match a `FamilyRegistry` record id (`families.json`). A catalog entry for an unknown family is ignored by the app, not rejected by the loader (HLD §8.4).
