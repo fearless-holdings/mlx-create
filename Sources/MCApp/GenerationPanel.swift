@@ -36,6 +36,7 @@ struct GenerationPanel: View {
                     minHeight: Self.promptMinHeight,
                     idealHeight: Self.promptMinHeight,
                     maxHeight: promptFillsHeight ? .infinity : Self.promptMinHeight)
+            ModelChip(model: model)
             settings
         }
         .padding(12)

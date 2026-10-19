@@ -11,7 +11,15 @@ struct ModelChip: View {
         Button {
             isOpen.toggle()
         } label: {
-            Label(chipTitle, systemImage: "cpu")
+            HStack {
+                Label(chipTitle, systemImage: "cpu")
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+            }
+            .frame(maxWidth: .infinity)
         }
         .help("Choose the image model")
         .accessibilityLabel("Model: \(chipTitle)")

@@ -40,9 +40,6 @@ public struct MainWindow: View {
                     .font(.headline)
                     .accessibilityLabel("Project: \(model.projectName)")
             }
-            ToolbarItem(placement: .primaryAction) {
-                ModelChip(model: model)
-            }
         }
         .background(ShortcutButtons(model: model))
         .sheet(isPresented: $model.isBrowserPresented) {
