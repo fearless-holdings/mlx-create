@@ -47,9 +47,9 @@ Krea-2 Turbo (mixed 4/8) with `gokaygokay/Krea-2-Realism-LoRA` (469 MB), launche
 - The engine needs `POST /v1/models/rescan` after the model directory is set, and the load id is the full folder name, not the short id.
 - Not yet verified: fingerprints for FLUX.2 klein and Qwen match the real headers but have not been checked against a loaded model, and the GUI is untested.
 
-## Civitai browse and download (planned; nothing here is verified yet)
+## Civitai browse and download
 
-Status: designed in `docs/plans/2026-10-19-1605-feat-civitai-lora-browse-download-plan.md`; not built. Nothing below has been observed in the built app. The only evidence is an anonymous probe on 2026-10-19: base-model labels, version metadata with SHA-256 and `trainedWords`, 307 redirects to a signed CDN URL, 401 on 14 of 30 sampled download URLs, and no ETag from the CDN. The plan's live smoke (U9) and the record (U8) decide what is actually true. Until then, treat each claim here as a design assumption.
+Status: built per `docs/plans/2026-10-19-1605-feat-civitai-lora-browse-download-plan.md`. The unit suites (`swift test`) and the app build pass. One live run on 2026-10-19 and the earlier anonymous probe are the only evidence against real Civitai; the GUI and the real engine were not exercised. See "Observed" and "Not run" at the end.
 
 ### Browse tab
 
@@ -86,4 +86,17 @@ Status: designed in `docs/plans/2026-10-19-1605-feat-civitai-lora-browse-downloa
 ### Deferred and unverified
 
 - Deferred: CivArchive, fetch by pasted link or hash, drop-a-PNG fetch, update checks, a curated Civitai shelf, and parallel downloads.
-- Not verified yet: the 4 GiB cap in practice, the meaning of 401 (gated or throttled), signed-URL expiry, the klein 9B engine architecture string, and Qwen and klein 9B classification against a loaded model. Klein 4B is the only family planned for the live smoke.
+- Not verified: see "Not run" below.
+
+### Observed
+
+- **Live download, 2026-10-19, no key, production transports (throwaway harness, since deleted).** A Civitai search for `Flux.2 Klein 4B`, most downloaded, NSFW off, returned 20 models, 16 of them with a `.safetensors` version under 100 MB. The first candidate, "Klein Anatomy / Quality Fixer" (version "Klein 4B", 11,571,232 bytes), downloaded anonymously: the header peek classified it `flux2-klein` variant `4b`, the streamed file matched Civitai's SHA-256, and `commitStagedLoRA` wrote the `lora` row, the `lora_source` row with its page URL, and the file at `LoRAs/flux2-klein/<sha10>-<slug>.safetensors`. The preview was fetched once and stored as a 29,867-byte HEIC. The staging folder ended empty. That version lists no `trainedWords`, so trigger-word filling from Civitai was not observed live; it is covered by an app test with a scripted response.
+- **Tests.** `swift test` passes in full. Downloader behavior (key reaching only the API host, redirect to another host name, same-host redirect to http refused with the key dropped, header-peek refusal costing only header bytes, over-send abort, expired signed URL re-resolved once, wrong hash and wrong length rejected) runs against a local Range server that mimics Civitai. No live Civitai call is in the permanent suite.
+
+### Not run
+
+- The 401 path against real Civitai: the live run hit no gated file, so the needs-key state was only exercised against the local server. The earlier probe saw 401 on 14 of 30 sampled download URLs; whether that is a per-file login requirement or throttling is still unknown.
+- ETag absence, the redirect host and Range support on the real CDN were not captured as headers in the live run. The download succeeded and matched the advertised length, which is consistent with them but does not prove them.
+- Generation with a Civitai-downloaded LoRA on the real engine. The FLUX.2 klein 4B model is not on disk and is about 5 GB, so it was not downloaded without asking. The fit check for klein rests on header matching only (see "Fit").
+- The GUI: no one has looked at the Browse tab, the license sheet, blur behavior, or the Installed detail pane in the running app. The app builds with xcodegen and xcodebuild.
+- Qwen and klein 9B classification against a loaded model, the klein 9B engine architecture string, the 4 GiB cap in practice, and Mage-Flow's Civitai label.
