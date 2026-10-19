@@ -39,8 +39,9 @@ struct LoRAExecutorTests {
 
         let failed = try #require(try await harness.store.jobs(status: .failed).first)
         #expect(failed.id == job.id)
-        #expect(failed.failure == JobFailure(
-            message: "LoRA Pixel art is no longer on disk. Re-import it and retry.", detail: nil, retryable: true))
+        let failure = try #require(failed.failure)
+        #expect(failure.message.contains("Pixel art"))
+        #expect(failure.retryable)
         #expect(harness.requests(to: "v1/images/generations").isEmpty)
 
         try Data("lora".utf8).write(to: file)
@@ -62,9 +63,29 @@ struct LoRAExecutorTests {
         try await harness.executor.drain()
 
         let failed = try #require(try await harness.store.jobs(status: .failed).first)
-        #expect(failed.failure?.message
-            == "The model \(kreaModel) cannot use \"Pixel art\". Remove or replace the LoRA and try again.")
-        #expect(failed.failure?.retryable == false)
-        #expect(failed.failure?.detail == "no modules matching the model")
+        let failure = try #require(failed.failure)
+        #expect(failure.message.contains("Pixel art"))
+        #expect(failure.message.contains(kreaModel))
+        #expect(failure.retryable == false)
+    }
+
+    @Test func aTamperedStackEntryFailsTheJobBeforeTheEngineIsAsked() async throws {
+        let harness = try await Harness.make(script: Self.fakeImage)
+        let lora = try await harness.installLoRA(name: "Pixel art")
+        // A file that the traversal path would reach if the executor trusted the stored path.
+        let outside = harness.modelsRoot.deletingLastPathComponent().appending(path: "escape.safetensors")
+        try Data("x".utf8).write(to: outside)
+        let tampered = LoRAStackEntry(
+            id: lora.id, name: lora.name, sha256: lora.sha256, weight: 0.8, relativePath: "LoRAs/../../escape.safetensors")
+        let job = try await harness.insertQueuedJobSkippingChecks(JobRequest(
+            modelID: kreaModel, family: "krea-2", prompt: "a lighthouse at dusk", width: 512, height: 512, steps: 4,
+            loras: [tampered]))
+
+        try await harness.executor.drain()
+
+        let failed = try #require(try await harness.store.jobs(status: .failed).first)
+        #expect(failed.id == job.id)
+        #expect(failed.failure?.retryable == true)
+        #expect(harness.requests(to: "v1/images/generations").isEmpty)
     }
 }

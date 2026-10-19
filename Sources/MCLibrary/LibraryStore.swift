@@ -134,7 +134,9 @@ public actor LibraryStore {
         try dbQueue.write { db in
             for entry in request.loras ?? [] {
                 guard let row = try LoRARecord.fetchOne(db, key: entry.id), row.sha256 == entry.sha256,
-                      FileManager.default.fileExists(atPath: paths.loraURL(relativePath: row.relativePath).path)
+                      row.relativePath == entry.relativePath,
+                      let file = paths.loraURL(relativePath: row.relativePath),
+                      FileManager.default.fileExists(atPath: file.path)
                 else { throw LibraryError.loraUnavailable(name: entry.name) }
             }
             let next = try Int.fetchOne(db, sql: "SELECT COALESCE(MAX(position), 0) + 1 FROM job WHERE status = ?",

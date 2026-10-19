@@ -6,7 +6,10 @@ import MCCatalog
 /// The result of importing one LoRA file. A duplicate returns the row already holding the same SHA-256.
 public enum LoRAImportOutcome: Sendable, Equatable {
     case added(LoRARecord)
+    /// The same content is recorded and its file is on disk. Nothing was written.
     case duplicate(existing: LoRARecord)
+    /// The same content is recorded but its file was missing. The copy was put back at the recorded path.
+    case restored(LoRARecord)
 }
 
 /// Why a LoRA file was refused or could not be imported (R3, KTD5).
@@ -57,8 +60,9 @@ extension LibraryStore {
 
     /// Imports the `.safetensors` file at `url`. The file is classified against `registry`, copied into
     /// `Models/LoRAs/<family>/` with its SHA-256 computed on the way, and recorded as one `lora` row.
-    /// Identical content already in the library returns `.duplicate` and writes nothing. Any failure
-    /// removes the partial copy and leaves no row.
+    /// Identical content already in the library returns `.duplicate` and writes nothing, or `.restored` when the
+    /// row's file was missing and is put back at its recorded path. Any failure removes the partial copy and
+    /// leaves no new row.
     public func importLoRA(
         from url: URL,
         registry: FamilyRegistry,
@@ -83,32 +87,48 @@ extension LibraryStore {
         let staged = try await Task.detached(priority: .utility) {
             try Self.stageCopy(from: url, to: partial, directory: directory, onProgress: onProgress)
         }.value
+        // Whatever happens from here on, the partial copy does not outlive this call. After a move it no longer exists.
+        defer { try? FileManager.default.removeItem(at: partial) }
 
         let typed = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let baseName = typed.isEmpty ? url.deletingPathExtension().lastPathComponent : typed
         return try await dbQueue.write { (db: Database) throws -> LoRAImportOutcome in
+            let fm = FileManager.default
             if let existing = try LoRARecord.filter(Column("sha256") == staged.sha256).fetchOne(db) {
-                try? FileManager.default.removeItem(at: partial)
-                return .duplicate(existing: existing)
+                guard let existingFile = paths.loraURL(relativePath: existing.relativePath) else {
+                    throw LoRAImportError.copyFailed(reason: "the record for \(existing.name) has an invalid path")
+                }
+                if fm.fileExists(atPath: existingFile.path) { return .duplicate(existing: existing) }
+                // The row is kept, so its missing file is restored to the recorded path.
+                do {
+                    try fm.createDirectory(at: existingFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+                    try fm.moveItem(at: partial, to: existingFile)
+                } catch {
+                    throw LoRAImportError.copyFailed(reason: error.localizedDescription)
+                }
+                return .restored(existing)
             }
             let taken = try Set(String.fetchAll(db, sql: "SELECT name FROM lora"))
             let finalName = Self.uniqueName(base: baseName, taken: taken)
             let fileName = "\(staged.sha256.prefix(10))-\(Self.fileSlug(finalName)).safetensors"
+            let relativePath = paths.loraRelativePath(family: family, fileName: fileName)
+            // A row that already owns this path has another hash with the same prefix. Never overwrite its file.
+            guard try LoRARecord.filter(Column("relative_path") == relativePath).fetchCount(db) == 0 else {
+                throw LoRAImportError.copyFailed(reason: "\(fileName) already belongs to another LoRA")
+            }
             let finalURL = directory.appending(path: fileName)
-            let fm = FileManager.default
             do {
                 try? fm.removeItem(at: finalURL) // an orphan from an interrupted import; no row names it
                 try fm.moveItem(at: partial, to: finalURL)
                 let record = LoRARecord(
                     id: UUID().uuidString, name: finalName, family: family, sha256: staged.sha256,
-                    relativePath: paths.loraRelativePath(family: family, fileName: fileName),
+                    relativePath: relativePath,
                     sizeBytes: staged.sizeBytes, triggerWords: [], notes: nil, createdAt: Date())
                 try record.insert(db)
                 // Return the stored row: GRDB keeps dates to the millisecond, so the in-memory value can differ.
                 return .added(try LoRARecord.fetchOne(db, key: record.id) ?? record)
             } catch {
                 try? fm.removeItem(at: finalURL)
-                try? fm.removeItem(at: partial)
                 throw LoRAImportError.copyFailed(reason: error.localizedDescription)
             }
         }
@@ -153,10 +173,16 @@ extension LibraryStore {
         return "\(base) \(number)"
     }
 
-    /// Lowercase ASCII-ish slug for file names: letters and digits kept, runs of anything else become one dash.
+    /// Lowercase slug for file names: letters and digits kept, runs of anything else become one dash. Capped at
+    /// 40 UTF-8 bytes on a character boundary, so a file name stays far below the 255-byte limit.
     static func fileSlug(_ name: String) -> String {
         let mapped = name.lowercased().map { $0.isLetter || $0.isNumber ? String($0) : "-" }.joined()
-        let slug = String(mapped.split(separator: "-").joined(separator: "-").prefix(60))
+        let collapsed = mapped.split(separator: "-").joined(separator: "-")
+        var slug = ""
+        for character in collapsed {
+            guard slug.utf8.count + String(character).utf8.count <= 40 else { break }
+            slug.append(character)
+        }
         return slug.isEmpty ? "lora" : slug
     }
 
@@ -171,12 +197,14 @@ extension LibraryStore {
 
     /// Whether the record's file is still on disk.
     public nonisolated func loraFileExists(_ record: LoRARecord) -> Bool {
-        FileManager.default.fileExists(atPath: paths.loraURL(relativePath: record.relativePath).path)
+        guard let file = paths.loraURL(relativePath: record.relativePath) else { return false }
+        return FileManager.default.fileExists(atPath: file.path)
     }
 
-    /// The absolute file URL of a LoRA record.
+    /// The absolute file URL of a LoRA record. A record whose path is not a LoRA path resolves to the LoRA
+    /// folder, so it never names a file outside it.
     public nonisolated func loraAbsoluteURL(of record: LoRARecord) -> URL {
-        paths.loraURL(relativePath: record.relativePath)
+        paths.loraURL(relativePath: record.relativePath) ?? paths.loraRoot
     }
 
     /// Total bytes of every LoRA row.
@@ -234,16 +262,22 @@ extension LibraryStore {
     /// ``LoRADeleteError/inUseByJob(count:)`` otherwise. Returns the number of saved images whose settings
     /// still name the LoRA; those images keep their settings, and reuse drops the LoRA with a notice.
     public func deleteLoRA(id: String) throws -> Int {
-        let (usage, url) = try dbQueue.write { (db: Database) throws -> (Int, URL) in
+        try dbQueue.write { (db: Database) throws -> Int in
             guard let row = try LoRARecord.fetchOne(db, key: id) else { throw LibraryError.notFound }
             let blocking = try Self.blockingJobCount(id: id, db: db)
             guard blocking == 0 else { throw LoRADeleteError.inUseByJob(count: blocking) }
             let usage = try Self.imageCount(sha256: row.sha256, db: db)
+            // The file goes first, inside the transaction: if it cannot be removed the throw rolls back and the row stays.
+            if let file = paths.loraURL(relativePath: row.relativePath) {
+                do {
+                    try FileManager.default.removeItem(at: file)
+                } catch let error as CocoaError where error.code == .fileNoSuchFile {
+                    // The file is already gone; the row can still go.
+                }
+            }
             try row.delete(db)
-            return (usage, paths.loraURL(relativePath: row.relativePath))
+            return usage
         }
-        try? FileManager.default.removeItem(at: url)
-        return usage
     }
 
     static func imageCount(sha256: String, db: Database) throws -> Int {

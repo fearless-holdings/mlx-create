@@ -48,8 +48,23 @@ public struct LibraryPaths: Sendable {
         "LoRAs/\(family)/\(fileName)"
     }
 
-    /// The absolute URL of a Models-root-relative path.
-    public func loraURL(relativePath: String) -> URL {
-        modelsRoot.appending(path: relativePath)
+    /// Whether `relativePath` is a Models-root path a LoRA file may live at: under `LoRAs/`, relative, with no
+    /// empty, `.` or `..` components. Paths come from the database, so every resolution goes through this check.
+    public static func isValidLoRARelativePath(_ relativePath: String) -> Bool {
+        guard relativePath.hasPrefix("LoRAs/"), !relativePath.contains("\\") else { return false }
+        return relativePath.split(separator: "/", omittingEmptySubsequences: false).allSatisfy {
+            !$0.isEmpty && $0 != "." && $0 != ".."
+        }
+    }
+
+    /// The absolute URL of a valid LoRA path under `modelsRoot`, or nil when the path is not a LoRA path.
+    public static func loraURL(relativePath: String, modelsRoot: URL) -> URL? {
+        guard isValidLoRARelativePath(relativePath) else { return nil }
+        return modelsRoot.appending(path: relativePath)
+    }
+
+    /// The absolute URL of a Models-root-relative LoRA path, or nil when the path is not a LoRA path.
+    public func loraURL(relativePath: String) -> URL? {
+        Self.loraURL(relativePath: relativePath, modelsRoot: modelsRoot)
     }
 }

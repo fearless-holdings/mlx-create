@@ -122,7 +122,8 @@ struct Harness {
     /// The returned entry is what a composer freezes into a job.
     func installLoRA(name: String, weight: Double = 0.8) async throws -> LoRAStackEntry {
         let id = UUID().uuidString
-        let sha = String(repeating: "ab", count: 32)
+        // Unique per call, so the library's unique SHA-256 index never sees two installs as one.
+        let sha = (UUID().uuidString + UUID().uuidString).replacingOccurrences(of: "-", with: "").lowercased()
         let relativePath = "LoRAs/krea-2/\(id).safetensors"
         let record = LoRARecord(
             id: id, name: name, family: "krea-2", sha256: sha, relativePath: relativePath, sizeBytes: 4,
@@ -132,6 +133,15 @@ struct Harness {
         try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data("lora".utf8).write(to: file)
         return LoRAStackEntry(id: id, name: name, sha256: sha, weight: weight, relativePath: relativePath)
+    }
+
+    /// Inserts a queued job without the enqueue checks, so a test can hand the executor a request the library would refuse.
+    func insertQueuedJobSkippingChecks(_ request: JobRequest) async throws -> Job {
+        let job = Job(
+            id: UUID(), projectID: projectID, mode: Job.textToImageMode, request: request,
+            batchCount: 1, seedPolicy: SeedPolicy.random.encoded, status: .queued, position: 1)
+        try await store.dbQueue.write { db in try JobRow(job).insert(db) }
+        return job
     }
 
     /// Requests the engine received, in order, filtered to one route.

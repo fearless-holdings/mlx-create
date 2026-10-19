@@ -18,23 +18,25 @@ import Testing
         return Fixture(store: store, models: models, sources: root.appending(path: "Sources", directoryHint: .isDirectory), registry: registry())
     }
 
-    /// Writes a minimal safetensors file with one tensor. `fill` varies the payload so content differs.
+    /// Writes a minimal safetensors file with one F16 tensor whose data range matches its shape. `fill` varies the
+    /// payload so content differs.
     static func writeSafetensors(_ url: URL, tensor: String, shape: [Int], fill: UInt8) throws {
+        let byteCount = shape.reduce(1, *) * 2
         let header: [String: Any] = [
-            tensor: ["dtype": "F16", "shape": shape, "data_offsets": [0, 8]],
+            tensor: ["dtype": "F16", "shape": shape, "data_offsets": [0, byteCount]],
             "__metadata__": ["format": "pt"],
         ]
         let json = try JSONSerialization.data(withJSONObject: header, options: [.sortedKeys])
         var bytes = withUnsafeBytes(of: UInt64(json.count).littleEndian) { Data($0) }
         bytes.append(json)
-        bytes.append(Data(repeating: fill, count: 8))
+        bytes.append(Data(repeating: fill, count: byteCount))
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try bytes.write(to: url)
     }
 
     static func alphaFile(_ fixture: Fixture, _ relative: String, fill: UInt8) throws -> URL {
         let url = fixture.sources.appending(path: relative)
-        try writeSafetensors(url, tensor: "lora_unet_double_0.img_attn.lora_down.weight", shape: [16, 3072], fill: fill)
+        try writeSafetensors(url, tensor: "lora_unet_double_0.img_attn.lora_down.weight", shape: [1, 3072], fill: fill)
         return url
     }
 
@@ -80,7 +82,7 @@ import Testing
 
     /// Imports an alpha LoRA and returns its record.
     static func importedAlpha(_ fixture: Fixture, fill: UInt8, name: String = "Pixel") async throws -> LoRARecord {
-        let url = try alphaFile(fixture, "\(name)-\(fill).safetensors", fill: fill)
+        let url = try alphaFile(fixture, "source-\(fill).safetensors", fill: fill)
         return try addedRecord(try await fixture.store.importLoRA(from: url, registry: fixture.registry, name: name))
     }
 
@@ -266,5 +268,107 @@ import Testing
         _ = try await Self.enqueue(fixture, using: record)
 
         #expect(try await fixture.store.jobs(status: .queued).count == 1)
+    }
+
+    @Test func reimportingAMissingFileRestoresItAtItsRecordedPath() async throws {
+        let fixture = try Self.makeFixture()
+        let record = try await Self.importedAlpha(fixture, fill: 18)
+        try FileManager.default.removeItem(at: fixture.store.loraAbsoluteURL(of: record))
+        let again = try Self.alphaFile(fixture, "again/Pixel.safetensors", fill: 18)
+
+        let outcome = try await fixture.store.importLoRA(from: again, registry: fixture.registry)
+
+        #expect(outcome == .restored(record))
+        #expect(fixture.store.loraFileExists(record))
+        #expect(try await fixture.store.loras() == [record])
+        _ = try await Self.enqueue(fixture, using: record)
+        #expect(try await fixture.store.jobs(status: .queued).count == 1)
+    }
+
+    @Test func reimportingWithTheFilePresentStaysADuplicate() async throws {
+        let fixture = try Self.makeFixture()
+        let record = try await Self.importedAlpha(fixture, fill: 19)
+        let again = try Self.alphaFile(fixture, "again/Pixel.safetensors", fill: 19)
+
+        let outcome = try await fixture.store.importLoRA(from: again, registry: fixture.registry)
+
+        #expect(outcome == .duplicate(existing: record))
+    }
+
+    @Test func aFileThatCannotBeRemovedKeepsItsRow() async throws {
+        let fixture = try Self.makeFixture()
+        let record = try await Self.importedAlpha(fixture, fill: 20)
+        let directory = fixture.models.appending(path: "LoRAs/alpha", directoryHint: .isDirectory)
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: directory.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: directory.path) }
+
+        let error = await Self.caughtError { _ = try await fixture.store.deleteLoRA(id: record.id) }
+
+        #expect(error != nil)
+        #expect(try await fixture.store.loras() == [record])
+        #expect(fixture.store.loraFileExists(record))
+    }
+
+    @Test func importNeverOverwritesAFileAnotherRowOwnsAndLeavesNoPartial() async throws {
+        let fixture = try Self.makeFixture()
+        let first = try await Self.importedAlpha(fixture, fill: 21)
+        let owned = fixture.store.loraAbsoluteURL(of: first)
+        try Data("owned".utf8).write(to: owned)
+        // Keep the path but swap the row for one with another hash, so a new import of the same bytes lands on it.
+        try await fixture.store.dbQueue.write { db in _ = try first.delete(db) }
+        let other = LoRARecord(
+            id: "other", name: "Other", family: "alpha", sha256: String(repeating: "f", count: 64),
+            relativePath: first.relativePath, sizeBytes: 5, triggerWords: [], notes: nil, createdAt: Date())
+        try await fixture.store.dbQueue.write { db in try other.insert(db) }
+        let source = try Self.alphaFile(fixture, "again/Pixel.safetensors", fill: 21)
+
+        let error = await Self.caughtError {
+            _ = try await fixture.store.importLoRA(from: source, registry: fixture.registry, name: "Pixel")
+        }
+
+        guard case .copyFailed? = error as? LoRAImportError else {
+            Issue.record("expected copyFailed, got \(String(describing: error))")
+            return
+        }
+        #expect(try Data(contentsOf: owned) == Data("owned".utf8))
+        #expect(try await fixture.store.loras().map(\.id) == ["other"])
+        let names = try FileManager.default.contentsOfDirectory(atPath: owned.deletingLastPathComponent().path)
+        #expect(names.allSatisfy { !$0.hasSuffix(".partial") })
+    }
+
+    @Test func aVeryLongNonASCIINameImportsWithAShortFileName() async throws {
+        let fixture = try Self.makeFixture()
+        let name = String(repeating: "映画é", count: 80)
+
+        let record = try await Self.importedAlpha(fixture, fill: 22, name: name)
+
+        #expect(record.name == name)
+        #expect(URL(fileURLWithPath: record.relativePath).lastPathComponent.utf8.count <= 255)
+        #expect(fixture.store.loraFileExists(record))
+    }
+
+    @Test func enqueueRejectsAStackEntryWhosePathIsNotTheRowsOrEscapesTheLoRAFolder() async throws {
+        let fixture = try Self.makeFixture()
+        let record = try await Self.importedAlpha(fixture, fill: 23)
+        let escaping = LoRARecord(
+            id: "escape", name: "Escape", family: "alpha", sha256: String(repeating: "e", count: 64),
+            relativePath: "../../x.safetensors", sizeBytes: 1, triggerWords: [], notes: nil, createdAt: Date())
+        try await fixture.store.dbQueue.write { db in try escaping.insert(db) }
+        let project = try await fixture.store.defaultProject()
+        let mismatched = LoRAStackEntry(
+            id: record.id, name: record.name, sha256: record.sha256, weight: 1,
+            relativePath: "LoRAs/alpha/elsewhere.safetensors")
+        let traversing = LoRAStackEntry(
+            id: "escape", name: "Escape", sha256: escaping.sha256, weight: 1, relativePath: escaping.relativePath)
+
+        for entry in [mismatched, traversing] {
+            let request = JobRequest(
+                modelID: "alpha-model", family: "alpha", prompt: "fox", width: 512, height: 512, loras: [entry])
+            let error = await Self.caughtError {
+                _ = try await fixture.store.enqueueJob(projectID: project.id, request: request, batchCount: 1, seedPolicy: "fixed")
+            }
+            #expect(error as? LibraryError == .loraUnavailable(name: entry.name))
+        }
+        #expect(try await fixture.store.jobs(status: .queued).isEmpty)
     }
 }

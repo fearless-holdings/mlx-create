@@ -160,9 +160,12 @@ public actor JobExecutor {
         let seed = policy.seed(savedCount: savedCount, using: &rng)
         // KTD6: every LoRA frozen into the job must still be on disk, or the job fails before the engine is asked.
         let loras = job.request.loras ?? []
-        let loraFiles = loras.map { modelsRoot.appending(path: $0.relativePath) }
-        for (entry, file) in zip(loras, loraFiles) where !FileManager.default.fileExists(atPath: file.path) {
-            throw ExecutorError.loraMissing(name: entry.name)
+        var loraFiles: [URL] = []
+        for entry in loras {
+            guard let file = LibraryPaths.loraURL(relativePath: entry.relativePath, modelsRoot: modelsRoot),
+                  FileManager.default.fileExists(atPath: file.path)
+            else { throw ExecutorError.loraMissing(name: entry.name) }
+            loraFiles.append(file)
         }
         let request = ImageRequest(
             model: job.request.modelID,

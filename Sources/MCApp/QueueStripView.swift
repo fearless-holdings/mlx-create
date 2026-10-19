@@ -171,7 +171,9 @@ struct JobCell: View {
         case .running:
             if let step = job.step, let total = job.total { "step \(step) of \(total)" } else { "running" }
         case .paused: "paused"
-        case .failed: job.canRetry ? "failed, retry available" : "failed"
+        case .failed:
+            [job.canRetry ? "failed, retry available" : "failed", job.failure?.message]
+                .compactMap { $0 }.joined(separator: ", ")
         case .cancelled: "cancelled"
         case .done: "done"
         }

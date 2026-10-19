@@ -600,13 +600,13 @@ Nothing is written to `~/.mlx-serve`, and other tools' model folders are not sca
 │ CFG      4.0             ├───────────────────────────────────┤                        │
 │ Negative prompt          │ Running   [Pause]                 │ ┌────┐ ┌────┐ ┌────┐   │
 │ low quality, blurry      │ ▣ 62%   ▢ queued   ▢ queued       │ │    │ │    │ │    │   │
-│ LoRAs     not yet built  │                                   │ └────┘ └────┘ └────┘   │
+│ LoRAs     compact rows   │                                   │ └────┘ └────┘ └────┘   │
 │ ×4  [Generate ⌘↩]        │                                   │  ⋮ loads more on scroll│
 └──────────────────────────┴───────────────────────────────────┴────────────────────────┘
 ```
 
 - **Main window (three panels, D33):**
-  - Generation panel (left): a multi-line prompt editor that takes the height above the settings, with the **Enhance** button beside it (not yet built, §8.8). The settings are inline, with no popover, and follow family capabilities (§8.3): seed and policy, size, steps, CFG scale and negative prompt, each shown only where the family allows it. The **LoRA stack** is an inline section (not yet built, §8.3). The batch stepper (×N), Generate (⌘↩) and the error line are pinned at the bottom. When no model can run, the settings area says "Choose an available model to see its settings."
+  - Generation panel (left): a multi-line prompt editor that takes the height above the settings, with the **Enhance** button beside it (not yet built, §8.8). The settings are inline, with no popover, and follow family capabilities (§8.3): seed and policy, size, steps, CFG scale and negative prompt, each shown only where the family allows it. The **LoRA stack** is an inline section of compact one-line rows that expand for weight and trigger-word chips, with a LoRA library sheet beside the model chip to manage and pick LoRAs (built, §8.3, D34). The batch stepper (×N), Generate (⌘↩) and the error line are pinned at the bottom. When no model can run, the settings area says "Choose an available model to see its settings."
   - Canvas (middle, top): the selected result or the live step preview, with zoom and pan; drop a PNG = restore. Shows the existing empty states (no models, only unavailable models, empty hint).
   - Queue strip (middle, under the canvas): the queue header (Running, Pausing, Paused, Queue empty, with Pause and Resume) and one cell per job, with live progress. Jobs only. Hidden while the canvas shows the empty hint.
   - Gallery panel (right): all of the project's finished images, newest first, as a scrolling grid that loads in pages. Clicking a thumbnail shows it in the canvas. Queued jobs never appear here.

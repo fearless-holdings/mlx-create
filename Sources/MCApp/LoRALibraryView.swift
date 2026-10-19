@@ -274,6 +274,7 @@ private struct LoRALibraryRow: View {
             }
             .disabled(addBlockReason != nil)
             .controlSize(.small)
+            .accessibilityLabel("Add \(item.name) to stack")
         }
         .padding(.vertical, 2)
     }
@@ -373,12 +374,16 @@ private struct LoRADetailView: View {
     }
 
     private func save() {
+        let newName = name.trimmingCharacters(in: .whitespaces)
         let words = triggers
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
         let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
         Task {
+            if !newName.isEmpty, newName != item.name {
+                await model.renameLoRA(id: item.id, to: newName)
+            }
             await model.updateLoRA(
                 id: item.id,
                 triggerWords: words,

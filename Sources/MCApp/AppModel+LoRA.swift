@@ -101,8 +101,13 @@ extension AppModel {
     /// Imports the files one by one with the bundled registry (R1-R4). Each file is checked on its own, so a refused
     /// file never stops the rest. Cancelling stops before the next file; files already copied stay in the library.
     public func importLoRAs(urls: [URL]) async -> LoRAImportSummary {
+        guard loraImportProgress == nil else {
+            loraNotice = "Another LoRA import is still running. Wait for it to finish, then try again."
+            return LoRAImportSummary()
+        }
         loraImportCancelRequested = false
         var summary = LoRAImportSummary()
+        loraImportProgress = LoRAImportProgress(currentFile: "", index: 0, total: urls.count, fraction: 0)
         for (offset, url) in urls.enumerated() {
             if loraImportCancelRequested || Task.isCancelled { break }
             let file = url.lastPathComponent
@@ -113,7 +118,7 @@ extension AppModel {
                     Task { @MainActor in self?.setLoRAImportFraction(index: index, fraction: fraction) }
                 }
                 switch outcome {
-                case .added(let record): summary.added.append(record.name)
+                case .added(let record), .restored(let record): summary.added.append(record.name)
                 case .duplicate(let existing): summary.duplicates.append(existing.name)
                 }
             } catch let error as LoRAImportError {

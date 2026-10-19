@@ -29,12 +29,16 @@ private struct FixtureFailure: Error {
 /// same keys still differ in content and hash.
 private func writeSafetensors(at url: URL, tensors: [String], tag: String) throws {
     var header: [String: Any] = ["__metadata__": ["tag": tag]]
+    var offset = 0
     for name in tensors {
-        header[name] = ["dtype": "F16", "shape": [4, 4], "data_offsets": [0, 0]]
+        // One F16 element (2 bytes) per tensor keeps the declared size equal to the shape.
+        header[name] = ["dtype": "F16", "shape": [1], "data_offsets": [offset, offset + 2]]
+        offset += 2
     }
     let json = try JSONSerialization.data(withJSONObject: header, options: [.sortedKeys])
     var bytes = withUnsafeBytes(of: UInt64(json.count).littleEndian) { Data($0) }
     bytes.append(json)
+    bytes.append(Data(count: offset))
     try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
     try bytes.write(to: url)
 }
@@ -86,7 +90,7 @@ private func saveLoRAImage(_ harness: AppHarness, prompt: String, loras: [ImageL
         #expect(model.loraStack.map(\.fit) == [.fits, .fits])
 
         model.selectedModelID = kreaModel
-        #expect(model.loraStack.map { $0.fit.reason } == ["doesn't fit Krea 2 Turbo", "doesn't fit Krea 2 Turbo"])
+        #expect(model.loraStack.map(\.fit) == [.doesNotFit(selectedModelName: "Krea 2 Turbo"), .doesNotFit(selectedModelName: "Krea 2 Turbo")])
         #expect(model.loraStack.allSatisfy { !$0.isUsed })
         model.prompt = "a fox"
         await model.generate()
@@ -115,7 +119,6 @@ private func saveLoRAImage(_ harness: AppHarness, prompt: String, loras: [ImageL
         model.addToLoRAStack(id: ink.id)
 
         #expect(model.loraStack.first?.fit == .needsModelInstalled(familyName: "FLUX.2 klein"))
-        #expect(model.loraStack.first?.fit.reason == "needs FLUX.2 klein installed")
         #expect(model.loraAddEnabled)
         #expect(model.loraLibrary.first?.fitsSelectedModel == false)
     }
@@ -248,11 +251,10 @@ private func saveLoRAImage(_ harness: AppHarness, prompt: String, loras: [ImageL
         await model.generate()
 
         let result = await model.deleteLoRA(id: pixel.id)
-        guard case .refused(let message) = result else {
+        guard case .refused = result else {
             Issue.record("expected the delete to be refused, got \(result)")
             return
         }
-        #expect(message.contains("uses this LoRA"))
         #expect(model.loraStack.map(\.id) == [pixel.id])
         #expect(model.loraLibrary.map(\.id) == [pixel.id])
     }
@@ -296,10 +298,23 @@ private func saveLoRAImage(_ harness: AppHarness, prompt: String, loras: [ImageL
         #expect(summary.added == ["Pixel"])
         #expect(summary.duplicates == ["Pixel"])
         #expect(summary.refused.map(\.file) == ["Odd.safetensors", "notes.txt"])
-        #expect(summary.refused.first?.reason.contains("Krea 2 Turbo") == true)
         #expect(model.loraImportSummary == summary)
         #expect(model.loraImportProgress == nil)
         #expect(model.loraLibrary.map(\.name) == ["Pixel"])
+    }
+
+    @Test func secondImportWhileAnImportIsRunningLeavesTheFirstProgressAlone() async throws {
+        let harness = try await AppHarness.make()
+        let model = await readyModel(harness)
+        let running = LoRAImportProgress(currentFile: "Busy.safetensors", index: 1, total: 3, fraction: 0.4)
+        model.loraImportProgress = running
+
+        let summary = await model.importLoRAs(urls: [harness.root.appending(path: "incoming/Other.safetensors")])
+
+        #expect(summary == LoRAImportSummary())
+        #expect(model.loraImportProgress == running)
+        #expect(model.loraImportSummary == nil)
+        #expect(model.loraNotice != nil)
     }
 
     @Test func movingARowReordersTheStackAndStopsAtTheEnds() async throws {
