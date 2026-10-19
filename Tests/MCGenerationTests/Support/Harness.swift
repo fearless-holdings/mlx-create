@@ -1,7 +1,7 @@
 import Foundation
 import MCEngine
 import MCGeneration
-import MCLibrary
+@testable import MCLibrary
 import Testing
 
 let kreaModel = "ddalcu/Krea-2-Turbo-MLX-Serve-mixed-4-8"
@@ -72,6 +72,7 @@ struct Harness {
     let executor: JobExecutor
     let endpoint: EngineEndpoint
     let projectID: UUID
+    let modelsRoot: URL
 
     static func make(
         loaded: Set<String> = [],
@@ -81,16 +82,20 @@ struct Harness {
         script: @escaping @Sendable (Int, EngineStubProtocol.Recorded) -> EngineStubProtocol.Reply
     ) async throws -> Harness {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("gen-\(UUID().uuidString)")
-        let store = try LibraryStore(libraryRoot: root)
+        let modelsRoot = root.appending(path: "Models", directoryHint: .isDirectory)
+        let store = try LibraryStore(libraryRoot: root, modelsRoot: modelsRoot)
         let engine = FakeEngine(loaded: loaded, known: known, holdLoads: holdLoads, script: script)
         let endpoint = EngineStubProtocol.register(handler: { engine.handle($0) })
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [EngineStubProtocol.self]
         let client = EngineClient(endpoint: { endpoint }, configuration: configuration)
         let queue = JobQueue(store: store)
-        let executor = JobExecutor(store: store, client: client, queue: queue, engineVersion: engineVersion)
+        let executor = JobExecutor(
+            store: store, modelsRoot: modelsRoot, client: client, queue: queue, engineVersion: engineVersion)
         let project = try await store.defaultProject()
-        return Harness(store: store, queue: queue, executor: executor, endpoint: endpoint, projectID: project.id)
+        return Harness(
+            store: store, queue: queue, executor: executor, endpoint: endpoint, projectID: project.id,
+            modelsRoot: modelsRoot)
     }
 
     func enqueue(
@@ -99,17 +104,34 @@ struct Harness {
         seedPolicy: SeedPolicy = .random,
         width: Int = 512,
         height: Int = 512,
-        steps: Int? = 4
+        steps: Int? = 4,
+        loras: [LoRAStackEntry] = []
     ) async throws -> Job {
         try await store.enqueueJob(
             projectID: projectID,
             request: JobRequest(
                 modelID: model, family: "krea-2-turbo", prompt: "a lighthouse at dusk",
-                width: width, height: height, steps: steps
+                width: width, height: height, steps: steps, loras: loras.isEmpty ? nil : loras
             ),
             batchCount: batch,
             seedPolicy: seedPolicy.encoded
         )
+    }
+
+    /// Records a krea-2 LoRA in the library and writes its file under the Models root, as an import does.
+    /// The returned entry is what a composer freezes into a job.
+    func installLoRA(name: String, weight: Double = 0.8) async throws -> LoRAStackEntry {
+        let id = UUID().uuidString
+        let sha = String(repeating: "ab", count: 32)
+        let relativePath = "LoRAs/krea-2/\(id).safetensors"
+        let record = LoRARecord(
+            id: id, name: name, family: "krea-2", sha256: sha, relativePath: relativePath, sizeBytes: 4,
+            triggerWords: [], notes: nil, createdAt: Date())
+        try await store.dbQueue.write { db in try record.insert(db) }
+        let file = modelsRoot.appending(path: relativePath)
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("lora".utf8).write(to: file)
+        return LoRAStackEntry(id: id, name: name, sha256: sha, weight: weight, relativePath: relativePath)
     }
 
     /// Requests the engine received, in order, filtered to one route.

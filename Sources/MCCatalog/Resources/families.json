@@ -15,7 +15,20 @@
       "defaultSize": { "width": 1024, "height": 1024 },
       "steps": { "defaultSteps": 4, "min": 1, "max": 100 },
       "guidance": null,
-      "supportsNegativePrompt": false
+      "supportsNegativePrompt": false,
+      "loraFingerprints": [
+        {
+          "tensorPatterns": [
+            { "kind": "prefix", "text": "blocks." },
+            { "kind": "contains", "text": ".attn.wq" }
+          ],
+          "blockCounts": [{ "family": "blocks", "allowedCounts": [28] }]
+        },
+        {
+          "tensorPatterns": [{ "kind": "contains", "text": ".attn.to_gate" }],
+          "blockCounts": [{ "family": "transformer_blocks", "allowedCounts": [28] }]
+        }
+      ]
     },
     {
       "id": "flux2-klein",
@@ -32,7 +45,23 @@
       "defaultSize": { "width": 1024, "height": 1024 },
       "steps": { "defaultSteps": 4, "min": 1, "max": 100 },
       "guidance": null,
-      "supportsNegativePrompt": false
+      "supportsNegativePrompt": false,
+      "loraFingerprints": [
+        {
+          "tensorPatterns": [
+            { "kind": "prefix", "text": "double_blocks." },
+            { "kind": "contains", "text": ".img_attn.qkv" }
+          ],
+          "blockCounts": [{ "family": "double_blocks", "allowedCounts": [5, 8] }]
+        },
+        {
+          "tensorPatterns": [
+            { "kind": "prefix", "text": "transformer_blocks." },
+            { "kind": "contains", "text": ".attn.to_q" }
+          ],
+          "blockCounts": [{ "family": "transformer_blocks", "allowedCounts": [5, 8] }]
+        }
+      ]
     },
     {
       "id": "qwen-image-2.1-turbo",
@@ -53,7 +82,13 @@
       "steps": { "defaultSteps": 8, "min": 8, "max": 8 },
       "stepsAreFixed": true,
       "guidance": null,
-      "supportsNegativePrompt": false
+      "supportsNegativePrompt": false,
+      "loraFingerprints": [
+        {
+          "tensorPatterns": [{ "kind": "contains", "text": ".attn.to_q" }],
+          "blockCounts": [{ "family": "transformer_blocks", "allowedCounts": [32] }]
+        }
+      ]
     }
   ]
 }

@@ -50,8 +50,7 @@ private func writeTurboIndex(under weightsRoot: URL) throws {
         try await eventually { model.selectedImage != nil }
         #expect(model.selection != jobID)
         #expect(model.selectedImage?.prompt == "a lighthouse at dusk")
-        #expect(model.runningProgress == nil)
-        #expect(model.queueHeader == .idle)
+        try await eventually { model.runningProgress == nil && model.queueHeader == .idle }
     }
 
     @Test func reuseRepopulatesPromptModelSizeStepsAndPinsTheSeed() async throws {

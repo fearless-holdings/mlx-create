@@ -38,15 +38,15 @@ import Synchronization
 
     @Test func firstLaunchCreatesOneDefaultProjectAndSecondLaunchKeepsIt() async throws {
         let root = try Self.tempRoot()
-        let first = try LibraryStore(libraryRoot: root)
+        let first = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
         let projectID = try await first.defaultProject().id
-        let second = try LibraryStore(libraryRoot: root)
+        let second = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
         #expect(try await second.defaultProject().id == projectID)
     }
 
     @Test func saveImageWritesPNGThumbnailAndRow() async throws {
         let root = try Self.tempRoot()
-        let store = try LibraryStore(libraryRoot: root)
+        let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
         let project = try await store.defaultProject()
         let job = try await store.enqueueJob(projectID: project.id, request: Self.request(), batchCount: 1, seedPolicy: "{}")
 
@@ -71,7 +71,7 @@ import Synchronization
 
     @Test func failureBeforeRowInsertLeavesNoFilesOrRow() async throws {
         let root = try Self.tempRoot()
-        let store = try LibraryStore(libraryRoot: root)
+        let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
         let project = try await store.defaultProject()
         await store.setBeforeRowInsertHook { throw InjectedFailure() }
 
@@ -88,13 +88,13 @@ import Synchronization
 
     @Test func leftoverPartialFilesAreSweptAtLaunch() throws {
         let root = try Self.tempRoot()
-        _ = try LibraryStore(libraryRoot: root)
+        _ = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
         let dir = root.appending(path: "Projects/abc/2026-10", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let partial = dir.appending(path: "junk.png.partial")
         try Data("x".utf8).write(to: partial)
 
-        _ = try LibraryStore(libraryRoot: root)
+        _ = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
         #expect(!FileManager.default.fileExists(atPath: partial.path))
     }
 
@@ -106,11 +106,11 @@ import Synchronization
         try Data("x".utf8).write(to: partial)
         let openedOnMain = Mutex<Bool?>(nil)
 
-        let store = try await LibraryStore.openOffActor(libraryRoot: root) { onMain in
+        let store = try await LibraryStore.openOffActor(libraryRoot: root, modelsRoot: root.appending(path: "Models")) { onMain in
             openedOnMain.withLock { $0 = onMain }
         }
 
-        #expect(FileManager.default.fileExists(atPath: LibraryPaths(root: root).database.path))
+        #expect(FileManager.default.fileExists(atPath: LibraryPaths(root: root, modelsRoot: root.appending(path: "Models")).database.path))
         #expect(!FileManager.default.fileExists(atPath: partial.path))
         #expect(try await store.defaultProject().name == "Default")
         #expect(openedOnMain.withLock { $0 } == false)
@@ -118,14 +118,14 @@ import Synchronization
 
     @Test func asyncOpenReusesAnExistingDefaultProject() async throws {
         let root = try Self.tempRoot()
-        let first = try await LibraryStore.open(libraryRoot: root)
+        let first = try await LibraryStore.open(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
         let projectID = try await first.defaultProject().id
-        let second = try await LibraryStore.open(libraryRoot: root)
+        let second = try await LibraryStore.open(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
         #expect(try await second.defaultProject().id == projectID)
     }
 
     @Test func embeddedMetadataRecordsTheRealPixelSizeNotTheRequest() async throws {
-        let store = try LibraryStore(libraryRoot: try Self.tempRoot())
+        let store = try LibraryStore(libraryRoot: try Self.tempRoot(), modelsRoot: try Self.tempRoot())
         let project = try await store.defaultProject()
         let job = try await store.enqueueJob(projectID: project.id, request: Self.request(), batchCount: 1, seedPolicy: "random")
         let saved = try await store.saveImage(
@@ -139,13 +139,13 @@ import Synchronization
 
     @Test func failureSurvivesReopenAndRetryClearsIt() async throws {
         let root = try Self.tempRoot()
-        let store = try LibraryStore(libraryRoot: root)
+        let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
         let project = try await store.defaultProject()
         let job = try await store.enqueueJob(projectID: project.id, request: Self.request(), batchCount: 2, seedPolicy: "random")
         let failure = JobFailure(message: "Not enough memory", detail: "engine said x", retryable: true)
         try await store.setJobStatus(job.id, .failed, failure: failure)
 
-        let reopened = try LibraryStore(libraryRoot: root)
+        let reopened = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
         #expect(try await reopened.jobs(status: .failed).first?.failure == failure)
 
         try await reopened.setJobStatus(job.id, .queued)
@@ -154,7 +154,7 @@ import Synchronization
 
     @Test func queueOrdersJobsAndRejectsMovingNonQueued() async throws {
         let root = try Self.tempRoot()
-        let store = try LibraryStore(libraryRoot: root)
+        let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
         let project = try await store.defaultProject()
         let a = try await store.enqueueJob(projectID: project.id, request: Self.request(), batchCount: 1, seedPolicy: "a")
         let b = try await store.enqueueJob(projectID: project.id, request: Self.request(), batchCount: 1, seedPolicy: "b")
@@ -178,7 +178,7 @@ import Synchronization
 
     @Test func failedPNGWriteLeavesNoPartialFile() async throws {
         let root = try Self.tempRoot()
-        let store = try LibraryStore(libraryRoot: root)
+        let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
         let project = try await store.defaultProject()
         // The hook writes the partial file and then fails, as a write cut short by a full disk would.
         await store.setBeforePartialWriteHook { url in
@@ -197,7 +197,7 @@ import Synchronization
 
     @Test func transitionChangesOnlyAJobStillInAnAllowedStatus() async throws {
         let root = try Self.tempRoot()
-        let store = try LibraryStore(libraryRoot: root)
+        let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
         let project = try await store.defaultProject()
         let cancelled = try await store.enqueueJob(projectID: project.id, request: Self.request(), batchCount: 1, seedPolicy: "random")
         try await store.setJobStatus(cancelled.id, .cancelled)

@@ -13,12 +13,13 @@ public actor LibraryStore {
 
     /// Opens (creating if needed) the library at `libraryRoot`, runs migrations, sweeps `*.partial` files
     /// and ensures the default project exists.
-    public init(libraryRoot: URL) throws {
-        paths = LibraryPaths(root: libraryRoot)
+    public init(libraryRoot: URL, modelsRoot: URL) throws {
+        paths = LibraryPaths(root: libraryRoot, modelsRoot: modelsRoot)
         try FileManager.default.createDirectory(at: libraryRoot, withIntermediateDirectories: true)
         dbQueue = try DatabaseQueue(path: paths.database.path)
         try Self.migrator.migrate(dbQueue)
         try Self.sweepPartials(under: libraryRoot)
+        try Self.sweepPartials(under: paths.loraRoot)
         try dbQueue.write { db in
             if try ProjectRow.filter(Column("is_default") == true).fetchCount(db) == 0 {
                 try ProjectRow(Project(name: "Default"), isDefault: true).insert(db)
@@ -28,17 +29,17 @@ public actor LibraryStore {
 
     /// Opens the library off the caller's actor (R15). Directory creation, migrations, the `.partial` sweep and the
     /// default project run on a detached task, so launch never blocks the main thread.
-    public static func open(libraryRoot: URL) async throws -> LibraryStore {
-        try await openOffActor(libraryRoot: libraryRoot) { _ in }
+    public static func open(libraryRoot: URL, modelsRoot: URL) async throws -> LibraryStore {
+        try await openOffActor(libraryRoot: libraryRoot, modelsRoot: modelsRoot) { _ in }
     }
 
     /// ``open(libraryRoot:)`` with a probe that reports whether the opening work ran on the main thread (R15 test seam).
     static func openOffActor(
-        libraryRoot: URL, observe: @escaping @Sendable (_ onMainThread: Bool) -> Void
+        libraryRoot: URL, modelsRoot: URL, observe: @escaping @Sendable (_ onMainThread: Bool) -> Void
     ) async throws -> LibraryStore {
         try await Task.detached(priority: .userInitiated) {
             observe(pthread_main_np() != 0)
-            return try LibraryStore(libraryRoot: libraryRoot)
+            return try LibraryStore(libraryRoot: libraryRoot, modelsRoot: modelsRoot)
         }.value
     }
 
@@ -131,6 +132,11 @@ public actor LibraryStore {
     @discardableResult
     public func enqueueJob(projectID: UUID, request: JobRequest, batchCount: Int, seedPolicy: String, mode: String = Job.textToImageMode) throws -> Job {
         try dbQueue.write { db in
+            for entry in request.loras ?? [] {
+                guard let row = try LoRARecord.fetchOne(db, key: entry.id), row.sha256 == entry.sha256,
+                      FileManager.default.fileExists(atPath: paths.loraURL(relativePath: row.relativePath).path)
+                else { throw LibraryError.loraUnavailable(name: entry.name) }
+            }
             let next = try Int.fetchOne(db, sql: "SELECT COALESCE(MAX(position), 0) + 1 FROM job WHERE status = ?",
                                         arguments: [JobStatus.queued.rawValue]) ?? 1
             let job = Job(
@@ -359,7 +365,7 @@ private struct ProjectRow: Codable, FetchableRecord, PersistableRecord {
     }
 }
 
-private struct JobRow: Codable, FetchableRecord, PersistableRecord {
+struct JobRow: Codable, FetchableRecord, PersistableRecord {
     static let databaseTableName = "job"
     var id: String
     var projectID: String
@@ -405,7 +411,7 @@ private struct JobRow: Codable, FetchableRecord, PersistableRecord {
     }
 }
 
-private struct ImageRow: Codable, FetchableRecord, PersistableRecord {
+struct ImageRow: Codable, FetchableRecord, PersistableRecord {
     static let databaseTableName = "image"
     var id: String
     var projectID: String

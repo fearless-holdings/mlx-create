@@ -152,7 +152,7 @@ struct AppHarness {
         catalogStore: CatalogStore? = nil
     ) async throws -> AppHarness {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("app-\(UUID().uuidString)")
-        let store = try LibraryStore(libraryRoot: root)
+        let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
         return try await assemble(
             root: root, store: store, models: models, loaded: loaded, registry: registry,
             initialState: initialState, defaults: defaults ?? UserDefaults(suiteName: UUID().uuidString)!,
@@ -200,7 +200,7 @@ struct AppHarness {
             registry: try registry ?? FamilyRegistry.bundled(),
             states: stream,
             weightsPath: Self.weightsRoot(in: root).path,
-            libraryPaths: LibraryPaths(root: root),
+            libraryPaths: LibraryPaths(root: root, modelsRoot: root.appending(path: "Models")),
             supervisor: supervisor,
             defaults: defaults, catalog: catalog, transport: transport, catalogStore: catalogStore)
         let project = try await store.defaultProject()

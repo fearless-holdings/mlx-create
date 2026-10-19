@@ -6,7 +6,7 @@ import Testing
 @Suite struct EnqueueJobModeTests {
     @Test func enqueueWithoutAModeStoresTextToImage() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("mode-\(UUID().uuidString)")
-        let store = try LibraryStore(libraryRoot: root)
+        let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
         let project = try await store.defaultProject()
         let job = try await store.enqueueJob(
             projectID: project.id,

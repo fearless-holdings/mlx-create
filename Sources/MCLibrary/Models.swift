@@ -7,6 +7,10 @@ public enum LibraryError: Error, Equatable {
     case notFound
     /// A move was requested for a job that is not queued.
     case notQueued
+    /// A LoRA a queued job uses is missing from the library, or its file is gone.
+    case loraUnavailable(name: String)
+    /// A name that is empty after trimming whitespace.
+    case invalidName
 }
 
 /// The settings for one saved image (HLD §8.9, D12). Stored in the `mlx-create` PNG chunk and in the `IMAGE.settings` column.

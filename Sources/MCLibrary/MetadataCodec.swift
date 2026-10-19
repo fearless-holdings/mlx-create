@@ -33,7 +33,17 @@ public enum MetadataCodec {
         fields.append("Seed: \(settings.seed)")
         fields.append("Size: \(settings.width)x\(settings.height)")
         fields.append("Model: \(settings.modelID)")
+        if let loras = settings.loras, !loras.isEmpty {
+            fields.append("Lora hashes: \"" + loras.map(a1111LoRAHash).joined(separator: ", ") + "\"")
+        }
         return text + "\n" + fields.joined(separator: ", ")
+    }
+
+    /// One `name: sha10` entry of the A1111 `Lora hashes` field (AutoV2: first 10 hex characters).
+    /// `:`, `,`, `"` and line breaks in the name become `_` so the field stays parseable.
+    static func a1111LoRAHash(_ lora: ImageLoRA) -> String {
+        let safeName = String(lora.name.map { ":,\"\n\r".contains($0) ? "_" : $0 })
+        return "\(safeName): \(lora.sha256.prefix(10))"
     }
 
     /// Returns `png` with the two metadata chunks inserted before `IDAT`. Image data is not re-encoded.

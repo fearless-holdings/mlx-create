@@ -165,7 +165,7 @@ enum CoordinatorFixture {
 
     @Test func installWithoutTheCurrentLicenseVersionMakesNoRequest() async throws {
         let root = CoordinatorFixture.scratchRoot()
-        let store = try LibraryStore(libraryRoot: root)
+        let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
         let transport = CompletingTransport(modelsRoot: root.appending(path: "Models"))
         let coordinator = InstallCoordinator(
             catalog: CoordinatorFixture.catalog(), store: store, transport: transport, rescan: {})
@@ -186,7 +186,7 @@ enum CoordinatorFixture {
         let root = CoordinatorFixture.scratchRoot()
         let transport = CompletingTransport(modelsRoot: root.appending(path: "Models"))
         let coordinator = InstallCoordinator(
-            catalog: CoordinatorFixture.catalog(), store: try LibraryStore(libraryRoot: root), transport: transport, rescan: {})
+            catalog: CoordinatorFixture.catalog(), store: try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models")), transport: transport, rescan: {})
 
         let error = await caught {
             try await coordinator.install(modelID: "not-in-catalog", acceptance: CoordinatorFixture.acceptance())
@@ -198,7 +198,7 @@ enum CoordinatorFixture {
 
     @Test func recordWritesTheRowBeforeTheRescanRunsOnce() async throws {
         let root = CoordinatorFixture.scratchRoot()
-        let store = try LibraryStore(libraryRoot: root)
+        let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
         let transport = CompletingTransport(modelsRoot: root.appending(path: "Models"))
         let recorder = RescanRecorder()
         let coordinator = InstallCoordinator(
@@ -228,7 +228,7 @@ enum CoordinatorFixture {
 
     @Test func failingRescanStillLeavesTheModelInstalled() async throws {
         let root = CoordinatorFixture.scratchRoot()
-        let store = try LibraryStore(libraryRoot: root)
+        let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
         let transport = CompletingTransport(modelsRoot: root.appending(path: "Models"))
         let coordinator = InstallCoordinator(
             catalog: CoordinatorFixture.catalog(), store: store, transport: transport,
@@ -244,7 +244,7 @@ enum CoordinatorFixture {
 
     @Test func laterCatalogLicenseVersionLeavesTheRecordedInstallAlone() async throws {
         let root = CoordinatorFixture.scratchRoot()
-        let store = try LibraryStore(libraryRoot: root)
+        let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
         let transport = CompletingTransport(modelsRoot: root.appending(path: "Models"))
         let first = InstallCoordinator(
             catalog: CoordinatorFixture.catalog(licenseVersion: "1 (June 22, 2026)"), store: store,
@@ -267,7 +267,7 @@ enum CoordinatorFixture {
 
     @Test func deletedFolderIsInstalledAgainAndItsRecordIsRefreshed() async throws {
         let root = CoordinatorFixture.scratchRoot()
-        let store = try LibraryStore(libraryRoot: root)
+        let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
         let transport = CompletingTransport(modelsRoot: root.appending(path: "Models"))
         let coordinator = InstallCoordinator(
             catalog: CoordinatorFixture.catalog(), store: store, transport: transport, rescan: {})
@@ -291,7 +291,7 @@ enum CoordinatorFixture {
     /// A refresh that drops the model while its install is running must not change the record the install writes.
     @Test func refreshThatDropsTheModelMidInstallLeavesTheRecordIntact() async throws {
         let root = CoordinatorFixture.scratchRoot()
-        let store = try LibraryStore(libraryRoot: root)
+        let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
         let transport = GatedTransport(modelsRoot: root.appending(path: "Models"))
         let coordinator = InstallCoordinator(
             catalog: CoordinatorFixture.catalog(sequence: 7), store: store, transport: transport, rescan: {})
@@ -314,7 +314,7 @@ enum CoordinatorFixture {
     /// A refresh that changes the model's family mid-install must not leak into the record.
     @Test func refreshThatChangesTheFamilyMidInstallLeavesTheRecordIntact() async throws {
         let root = CoordinatorFixture.scratchRoot()
-        let store = try LibraryStore(libraryRoot: root)
+        let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
         let transport = GatedTransport(modelsRoot: root.appending(path: "Models"))
         let coordinator = InstallCoordinator(
             catalog: CoordinatorFixture.catalog(sequence: 7), store: store, transport: transport, rescan: {})

@@ -15,7 +15,8 @@ import Testing
     }
 
     @Test func jobRequestSavedBeforeLoRASupportDecodesWithoutStack() async throws {
-        let store = try LibraryStore(libraryRoot: Self.scratchRoot())
+        let root = Self.scratchRoot()
+        let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models", directoryHint: .isDirectory))
         let project = try await store.defaultProject()
         let original = JobRequest(modelID: "krea-2-turbo", family: "krea-2", prompt: "a red fox", width: 512, height: 512, steps: 8)
 
@@ -51,7 +52,9 @@ import Testing
     }
 
     @Test func jobRequestStackRoundTripsThroughTheStore() async throws {
-        let store = try LibraryStore(libraryRoot: Self.scratchRoot())
+        let root = Self.scratchRoot()
+        let models = root.appending(path: "Models", directoryHint: .isDirectory)
+        let store = try LibraryStore(libraryRoot: root, modelsRoot: models)
         let project = try await store.defaultProject()
         let stack = [
             LoRAStackEntry(id: "lora-a", name: "Pixel art", sha256: Self.hash("a"), weight: 0.8,
@@ -62,6 +65,15 @@ import Testing
                            relativePath: "LoRAs/krea-2/cccccccccc-portrait.safetensors"),
         ]
         let request = JobRequest(modelID: "krea-2-turbo", family: "krea-2", prompt: "a fox", width: 512, height: 512, loras: stack)
+        for entry in stack {
+            let file = models.appending(path: entry.relativePath)
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data().write(to: file)
+            let record = LoRARecord(
+                id: entry.id, name: entry.name, family: "krea-2", sha256: entry.sha256, relativePath: entry.relativePath,
+                sizeBytes: 0, triggerWords: [], notes: nil, createdAt: Self.createdAt)
+            try await store.dbQueue.write { db in try record.insert(db) }
+        }
 
         let enqueued = try await store.enqueueJob(projectID: project.id, request: request, batchCount: 1, seedPolicy: "fixed")
 
@@ -75,7 +87,8 @@ import Testing
     }
 
     @Test func loraRecordRoundTripsAndRejectsDuplicateHash() async throws {
-        let store = try LibraryStore(libraryRoot: Self.scratchRoot())
+        let root = Self.scratchRoot()
+        let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models", directoryHint: .isDirectory))
         let record = LoRARecord(
             id: "lora-a", name: "Pixel art", family: "krea-2", sha256: Self.hash("a"),
             relativePath: "LoRAs/krea-2/aaaaaaaaaa-pixel-art.safetensors", sizeBytes: 1_234,

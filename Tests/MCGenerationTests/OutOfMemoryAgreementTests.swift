@@ -56,7 +56,9 @@ import Testing
             kind: .outOfMemory, message: EngineSupervisor.userMessage(for: .outOfMemory),
             detail: "Insufficient memory to load model", exit: nil
         )
-        let executor = JobExecutor(store: harness.store, client: client, queue: harness.queue, crashKind: { crash })
+        let executor = JobExecutor(
+            store: harness.store, modelsRoot: harness.modelsRoot, client: client, queue: harness.queue,
+            crashKind: { crash })
         let job = try await harness.enqueue(batch: 1)
         let run = Task { try await executor.drain() }
         try await eventually { harness.requests(to: "v1/images/generations").isEmpty == false }

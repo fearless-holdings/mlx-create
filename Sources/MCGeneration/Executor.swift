@@ -12,6 +12,7 @@ public actor JobExecutor {
     private static let crashPollInterval = Duration.milliseconds(100)
 
     private let store: LibraryStore
+    private let modelsRoot: URL
     private let client: EngineClient
     private let queue: JobQueue
     private let hub: ExecutorEventHub
@@ -32,14 +33,17 @@ public actor JobExecutor {
     /// `crashKind` returns the supervisor's latest crash. It is asked only when a generation loses its
     /// connection, and a crash then supplies the job's failure instead of the generic mapping (KTD6).
     /// `engineVersion` is the pinned engine's version, written into each saved image's settings.
+    /// `modelsRoot` is the Models root that each job's LoRA paths resolve against (KTD6).
     public init(
         store: LibraryStore,
+        modelsRoot: URL,
         client: EngineClient,
         queue: JobQueue,
         crashKind: @escaping @Sendable () async -> EngineCrash? = { nil },
         engineVersion: String? = nil
     ) {
         self.store = store
+        self.modelsRoot = modelsRoot
         self.client = client
         self.queue = queue
         self.hub = queue.hub
@@ -143,7 +147,7 @@ public actor JobExecutor {
                 if case EngineError.outOfMemory = error, OutOfMemoryFailure.refusalUnloadsResidentModels {
                     await unloadResidentModels()
                 }
-                try await setStatus(job.id, .failed, failure: await jobFailure(for: error))
+                try await setStatus(job.id, .failed, failure: await jobFailure(for: error, request: job.request))
                 return
             }
         }
@@ -154,6 +158,12 @@ public actor JobExecutor {
             throw ExecutorError.invalidSeedPolicy(job.seedPolicy)
         }
         let seed = policy.seed(savedCount: savedCount, using: &rng)
+        // KTD6: every LoRA frozen into the job must still be on disk, or the job fails before the engine is asked.
+        let loras = job.request.loras ?? []
+        let loraFiles = loras.map { modelsRoot.appending(path: $0.relativePath) }
+        for (entry, file) in zip(loras, loraFiles) where !FileManager.default.fileExists(atPath: file.path) {
+            throw ExecutorError.loraMissing(name: entry.name)
+        }
         let request = ImageRequest(
             model: job.request.modelID,
             prompt: job.request.prompt,
@@ -162,7 +172,9 @@ public actor JobExecutor {
             height: job.request.height,
             steps: job.request.steps,
             guidance: job.request.guidance,
-            seed: seed
+            seed: seed,
+            loraPaths: loras.isEmpty ? nil : loraFiles.map(\.path),
+            loraScales: loras.isEmpty ? nil : loras.map(\.weight)
         )
         let client = client
         let hub = hub
@@ -202,7 +214,8 @@ public actor JobExecutor {
             width: 0,
             height: 0,
             steps: result.total,
-            engineVersion: engineVersion
+            engineVersion: engineVersion,
+            loras: loras.isEmpty ? nil : loras.map { ImageLoRA(name: $0.name, sha256: $0.sha256, weight: $0.weight) }
         )
         let image = try await store.saveImage(NewImage(
             projectID: job.projectID,
@@ -241,11 +254,11 @@ public actor JobExecutor {
 
     /// A dropped connection is explained by the supervisor's crash when there is one; every other error
     /// keeps its own mapping.
-    private func jobFailure(for error: Error) async -> JobFailure {
+    private func jobFailure(for error: Error, request: JobRequest) async -> JobFailure {
         if Self.isConnectionLoss(error), let crash = await awaitCrash() {
             return FailureMapping.failure(for: crash)
         }
-        return FailureMapping.failure(for: error)
+        return FailureMapping.failure(for: error, request: request)
     }
 
     /// The supervisor publishes its crash shortly after the connection drops, so this polls briefly for it.

@@ -86,7 +86,8 @@ private final class Flag: @unchecked Sendable {
             try await Task.sleep(for: .seconds(60))
             return endpoint
         }, configuration: configuration)
-        let executor = JobExecutor(store: harness.store, client: client, queue: harness.queue)
+        let executor = JobExecutor(
+            store: harness.store, modelsRoot: harness.modelsRoot, client: client, queue: harness.queue)
         let job = try await harness.enqueue(batch: 1)
         let run = Task { try await executor.drain() }
         try await eventually { waiting.isSet }
@@ -249,7 +250,9 @@ private final class Flag: @unchecked Sendable {
         let crash = EngineCrash(
             kind: .missingWeights, message: "The model files are missing.", detail: "MISSING WEIGHT", exit: nil
         )
-        let executor = JobExecutor(store: harness.store, client: client, queue: harness.queue, crashKind: { crash })
+        let executor = JobExecutor(
+            store: harness.store, modelsRoot: harness.modelsRoot, client: client, queue: harness.queue,
+            crashKind: { crash })
         let job = try await harness.enqueue(batch: 1)
         let run = Task { try await executor.drain() }
         try await eventually { harness.requests(to: "v1/images/generations").isEmpty == false }
@@ -275,7 +278,7 @@ private final class Flag: @unchecked Sendable {
         // The supervisor publishes the crash only on the third look, as it would a moment after the connection drops.
         let looks = Counter()
         let executor = JobExecutor(
-            store: harness.store, client: client, queue: harness.queue,
+            store: harness.store, modelsRoot: harness.modelsRoot, client: client, queue: harness.queue,
             crashKind: { looks.next() >= 3 ? crash : nil }
         )
         let job = try await harness.enqueue(batch: 1)

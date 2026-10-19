@@ -333,7 +333,7 @@ A `ModelFamily` record describes how to drive one architecture:
 
 - `id` (e.g. `flux2-klein-4b`, `qwen-image-2.1`)
 - `capabilities`: fields, size grid, step defaults and range, guidance, negative prompt, LoRA support, modes
-- `loraFingerprint`: key patterns plus tensor shapes, used for compatibility checks
+- `loraFingerprints`: alternative layouts, each with key patterns, tensor shapes and block counts, used for compatibility checks
 - `civitaiBaseModels`: Civitai `baseModel` labels that map to this family
 - `promptPackId`
 

@@ -128,8 +128,8 @@ public final class AppModel {
         let queue = JobQueue(store: store)
         self.queue = queue
         self.executor = JobExecutor(
-            store: store, client: client, queue: queue, crashKind: { await gate.currentCrash() },
-            engineVersion: engineVersion)
+            store: store, modelsRoot: libraryPaths.modelsRoot, client: client, queue: queue,
+            crashKind: { await gate.currentCrash() }, engineVersion: engineVersion)
         self.composer = GenerationComposer(registry: registry, store: store)
         self.libraryPaths = libraryPaths
         self.selectedModelID = defaults.string(forKey: Self.lastUsedModelKey)
@@ -156,7 +156,7 @@ public final class AppModel {
 
         let registry = try FamilyRegistry.bundled()
         let libraryRoot = support.appending(path: "Library", directoryHint: .isDirectory)
-        let store = try await LibraryStore.open(libraryRoot: libraryRoot)
+        let store = try await LibraryStore.open(libraryRoot: libraryRoot, modelsRoot: modelsRoot)
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
         let userAgent = "mlx-create/\(version)"
         // The build's catalog URL (KTD4). Empty means no request, so the bundled catalog is the only source.
@@ -181,7 +181,7 @@ public final class AppModel {
         let client = EngineClient(endpoint: { try await gate.endpoint() })
         let model = AppModel(
             store: store, client: client, gate: gate, registry: registry, states: states,
-            weightsPath: paths.weights.path, libraryPaths: LibraryPaths(root: libraryRoot), supervisor: supervisor,
+            weightsPath: paths.weights.path, libraryPaths: LibraryPaths(root: libraryRoot, modelsRoot: modelsRoot), supervisor: supervisor,
             engineVersion: bundledEngineVersion(), catalog: catalog, transport: downloader, catalogStore: catalogStore)
         Task { await model.start() }
         return model
