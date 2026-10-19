@@ -104,7 +104,7 @@ struct CivitaiDownloadSpec: Equatable, Sendable {
 
     /// The Civitai page for the model at this version.
     var pageURL: String {
-        "https://civitai.com/models/\(modelID)?modelVersionId=\(versionID)"
+        "https://\(CivitaiClient.apiHost)/models/\(modelID)?modelVersionId=\(versionID)"
     }
 }
 

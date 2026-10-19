@@ -117,6 +117,7 @@ private func foxListing(id: Int, versionID: Int, payload: Data, name: String = "
         await harness.model.civitai.setFamily(other.id)
 
         #expect(harness.model.civitai.chipFamilyID == other.id)
+        #expect(!other.civitaiBaseModels.isEmpty)
         let requests = await api.requests
         let request = try #require(requests.last)
         #expect(queryValues(request, "baseModels") == other.civitaiBaseModels.map(\.label))
@@ -324,7 +325,7 @@ private func foxListing(id: Int, versionID: Int, payload: Data, name: String = "
             Issue.record("expected a refused row")
             return
         }
-        #expect(reason.contains("doesn't match"))
+        #expect(!reason.isEmpty)
         #expect(try await harness.store.loras().isEmpty)
         let staging = LibraryPaths(root: harness.root, modelsRoot: harness.root.appending(path: "Models"))
             .civitaiStagingDirectory

@@ -9,7 +9,7 @@ import Observation
 @MainActor
 @Observable
 final class CivitaiBrowseModel {
-    static let apiHost = "civitai.com"
+    static let apiHost = CivitaiClient.apiHost
 
     private(set) var query = ""
     private(set) var sort: CivitaiSort = .mostDownloaded
@@ -406,7 +406,12 @@ final class CivitaiBrowseModel {
         for await event in run.events {
             switch event.phase {
             case .downloading:
-                statuses[modelID] = .downloading(fraction: Self.fraction(event))
+                let fraction = Self.fraction(event)
+                // Only a change in the displayed whole percent is worth a write.
+                if case .downloading(let current) = statuses[modelID], Int(current * 100) == Int(fraction * 100) {
+                    break
+                }
+                statuses[modelID] = .downloading(fraction: fraction)
             case .staged(let result):
                 await commit(spec, acceptedAt: acceptedAt, result: result, slot: slot)
             case .failed(let error):

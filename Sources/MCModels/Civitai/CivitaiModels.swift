@@ -217,12 +217,20 @@ public struct CivitaiImage: Decodable, Sendable, Equatable {
 
 /// Civitai timestamps are ISO 8601, with fractional seconds on the API's own values (`2026-03-23T17:12:14.712Z`).
 enum CivitaiDate {
+    // ISO8601DateFormatter is not Sendable, but these are configured once and only read afterwards.
+    private nonisolated(unsafe) static let fractional: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+    private nonisolated(unsafe) static let plain: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
     static func parse(_ text: String) -> Date? {
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         if let date = fractional.date(from: text) { return date }
-        let plain = ISO8601DateFormatter()
-        plain.formatOptions = [.withInternetDateTime]
         return plain.date(from: text)
     }
 }

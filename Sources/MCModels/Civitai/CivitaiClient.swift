@@ -61,13 +61,13 @@ final class CivitaiRedirectGuard: NSObject, URLSessionTaskDelegate, @unchecked S
     }
 }
 
-/// Where the Civitai key may go: https to the API host `civitai.com`, on the default port (AGENTS.md non-negotiable 7).
+/// Where the Civitai key may go: https to the API host (``CivitaiClient/apiHost``) on the default port (AGENTS.md non-negotiable 7).
 /// Subdomains such as the file CDN are not the API host and never receive the key.
 enum CivitaiHostPolicy {
     static func mayCarryKey(_ url: URL?) -> Bool {
         guard let url,
               url.scheme?.lowercased() == "https",
-              url.host?.lowercased() == "civitai.com",
+              url.host?.lowercased() == CivitaiClient.apiHost,
               url.port == nil || url.port == 443
         else { return false }
         return true
@@ -124,8 +124,10 @@ public enum CivitaiSort: String, CaseIterable, Sendable {
 
 /// Civitai's public LoRA API: search, version detail and lookup by file hash (HLD §8.7). Anonymous unless a key is saved.
 public actor CivitaiClient {
-    /// `https://civitai.com/api/v1`, the only host that may receive the key.
-    public static let apiBase = URL(string: "https://civitai.com/api/v1")!
+    /// The API host. Only this host, over https on the default port, may receive the key.
+    public static let apiHost = "civitai.com"
+    /// `https://civitai.com/api/v1`, built from ``apiHost``.
+    public static let apiBase = URL(string: "https://\(apiHost)/api/v1")!
     static let pageSize = 20
 
     private let transport: any CivitaiTransport

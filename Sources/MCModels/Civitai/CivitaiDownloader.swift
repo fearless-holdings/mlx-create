@@ -208,7 +208,7 @@ private struct CivitaiTransfer: Sendable {
             throw CivitaiDownloadError.headerLengthOutOfRange(length: length)
         }
         let tail = try await fetchRange(head.url, from: 8, to: Int(8 + length) - 1)
-        if tail.status == 403 || tail.status == 410 { throw SignedURLExpired() }
+        try expireIfGone(tail.status)
         try checkStatus(tail.status, headers: tail.headers, url: tail.url, keySent: tail.keySent)
         try checkSize(tail.total)
         do {
@@ -234,7 +234,7 @@ private struct CivitaiTransfer: Sendable {
     /// keeps `from...to`, and drops the rest. Non-success statuses come back for the caller to judge.
     private func fetchRange(_ url: URL, from start: Int, to end: Int) async throws -> RangeReply {
         var requestHeaders = headers(for: url)
-        let keySent = requestHeaders["Authorization"] != nil
+        let keySent = carriesKey(requestHeaders)
         requestHeaders["Range"] = "bytes=\(start)-\(end)"
         let response = try await startRequest(url, headers: requestHeaders)
         defer { response.cancel() }
@@ -309,9 +309,8 @@ private struct CivitaiTransfer: Sendable {
         let requestHeaders = headers(for: resolved.url)
         let response = try await startRequest(resolved.url, headers: requestHeaders)
         defer { response.cancel() }
-        if response.status == 403 || response.status == 410 { throw SignedURLExpired() }
-        try checkStatus(response.status, headers: response.headers, url: response.url,
-                        keySent: requestHeaders["Authorization"] != nil)
+        try expireIfGone(response.status)
+        try checkStatus(response.status, headers: response.headers, url: response.url, keySent: carriesKey(requestHeaders))
         guard response.status == 200 else { throw CivitaiDownloadError.httpStatus(status: response.status) }
         if let reported = response.headers["content-length"].flatMap({ Int64($0) }), reported != advertised {
             throw CivitaiDownloadError.sizeMismatch(advertised: advertised, server: reported)
@@ -376,6 +375,16 @@ private struct CivitaiTransfer: Sendable {
     private func headers(for url: URL) -> [String: String] {
         guard let key = request.apiKey, policy.sendsKey(to: url) else { return [:] }
         return ["Authorization": "Bearer \(key)"]
+    }
+
+    /// Throws when a signed address has expired (403 or 410), so the run re-resolves once.
+    private func expireIfGone(_ status: Int) throws {
+        if status == 403 || status == 410 { throw SignedURLExpired() }
+    }
+
+    /// Whether a request carries the key. Tells a refused key from a missing one.
+    private func carriesKey(_ requestHeaders: [String: String]) -> Bool {
+        requestHeaders["Authorization"] != nil
     }
 
     private func startRequest(_ url: URL, headers: [String: String]) async throws -> CivitaiFileResponse {
