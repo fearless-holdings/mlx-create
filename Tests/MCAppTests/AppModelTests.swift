@@ -79,6 +79,45 @@ private func writeTurboIndex(under weightsRoot: URL) throws {
         #expect(model.seedText == "12345")
     }
 
+    @Test func tileReuseSettingsActsOnThatImageAndKeepsTheSelection() async throws {
+        let harness = try await AppHarness.make()
+        let model = harness.model
+        await model.start()
+        await model.refreshModels()
+        let image = try await harness.saveImage(prompt: "a fox in snow")
+        let other = try await harness.saveImage(prompt: "a heron")
+        await model.reload()
+        model.selection = other.id
+        model.prompt = "something unrelated"
+        model.seedChoice = .random
+
+        model.reuseSettings(of: image)
+        #expect(model.prompt == "a fox in snow")
+        #expect(model.seedChoice == .fixed)
+        #expect(model.seedText == "12345")
+        #expect(model.selection == other.id)
+    }
+
+    @Test func tileReusePromptLeavesModelSizeStepsAndSeedAlone() async throws {
+        let harness = try await AppHarness.make()
+        let model = harness.model
+        await model.start()
+        await model.refreshModels()
+        let image = try await harness.saveImage(prompt: "a fox in snow")
+        await model.reload()
+        model.prompt = "something unrelated"
+        model.size = ImageSize(width: 1024, height: 1024)
+        model.steps = 2
+        model.seedChoice = .random
+
+        model.reusePrompt(of: image)
+        #expect(model.prompt == "a fox in snow")
+        #expect(model.negativePrompt == (image.settings.negativePrompt ?? ""))
+        #expect(model.size == ImageSize(width: 1024, height: 1024))
+        #expect(model.steps == 2)
+        #expect(model.seedChoice == .random)
+    }
+
     @Test func turboModelWithSampleSigmasIsAvailableWithFixedSteps() async throws {
         let harness = try await AppHarness.make(models: [(kreaModel, "krea2_turbo"), (turboModelID, "qwen_image21")])
         try writeTurboIndex(under: harness.weightsRoot)

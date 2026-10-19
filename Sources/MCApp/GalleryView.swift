@@ -20,12 +20,17 @@ struct GalleryView: View {
     }
 }
 
-/// A gallery thumbnail. Clicking it selects the image, which the canvas then shows.
+/// A gallery thumbnail. Clicking it selects the image, which the canvas then shows. While the pointer is over it, a
+/// corner menu offers to reuse the prompt or all settings; the same actions are exposed to accessibility.
 struct ImageCell: View {
     let image: LibraryImage
     let thumbnailURL: URL
     let isSelected: Bool
     let onSelect: () -> Void
+    let onReusePrompt: () -> Void
+    let onReuseSettings: () -> Void
+
+    @State private var isHovering = false
 
     var body: some View {
         Button(action: onSelect) {
@@ -51,7 +56,32 @@ struct ImageCell: View {
             )
         }
         .buttonStyle(.plain)
+        // A sibling of the button, not part of its label, so using the menu does not select the tile.
+        .overlay(alignment: .topTrailing) {
+            if isHovering {
+                Menu {
+                    Button("Reuse prompt", action: onReusePrompt)
+                    Button("Reuse all settings", action: onReuseSettings)
+                } label: {
+                    Image(systemName: "arrow.counterclockwise")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 24, height: 24)
+                        .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 6))
+                }
+                .menuStyle(.button)
+                .buttonStyle(.plain)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .padding(6)
+                .help("Reuse this image's prompt or settings")
+                .accessibilityLabel("Reuse")
+            }
+        }
+        .onHover { isHovering = $0 }
         .accessibilityLabel("Image: \(image.prompt)")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityAction(named: "Reuse prompt", onReusePrompt)
+        .accessibilityAction(named: "Reuse all settings", onReuseSettings)
     }
 }
