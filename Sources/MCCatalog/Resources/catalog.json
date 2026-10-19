@@ -242,11 +242,11 @@
       },
       "name" : "Qwen-Image 2.1 Turbo",
       "quantization" : "4-bit",
-      "ram_gb" : 12,
+      "ram_gb" : 14.3,
       "repo" : "ddalcu\/Qwen-Image-2.1-Turbo-MLX-Serve-4bit",
       "revision" : "394f9477a956a0c4fd70ebcbe3a326d74ef0add4"
     }
   ],
   "schema_version" : 1,
-  "sequence" : 3
+  "sequence" : 4
 }

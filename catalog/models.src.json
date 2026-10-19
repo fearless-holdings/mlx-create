@@ -42,7 +42,7 @@
       "quantization": "4-bit",
       "repo": "ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-4bit",
       "ref": "main",
-      "ram_gb": 12.0,
+      "ram_gb": 14.3,
       "license": {
         "id": "qwen-research",
         "name": "Qwen Research License Agreement",
