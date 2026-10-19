@@ -1,16 +1,32 @@
+import AppKit
+import MCLibrary
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// The LoRA library sheet (plan U7): the manager and the picker. Search, a compatibility filter, import (button or
-/// drop), import progress and summary, and a detail pane for rename, trigger words, notes, reveal and delete.
+/// The sections of the LoRA sheet.
+private enum LoRASheetTab: String, CaseIterable, Identifiable {
+    case installed = "Installed"
+    case browse = "Browse Civitai"
+
+    var id: Self { self }
+}
+
+/// The LoRA library sheet (plan U7): the manager and the picker. Installed holds search, a compatibility filter, import
+/// (button or drop), import progress and summary, and a detail pane for rename, trigger words, notes, reveal and delete.
+/// Browse Civitai finds LoRAs for the selected model and downloads them into the library.
 struct LoRALibraryView: View {
     @Bindable var model: AppModel
     @Environment(\.dismiss) private var dismiss
+    @State private var tab: LoRASheetTab = .installed
     @State private var query = ""
     @State private var compatibleOnly = true
     @State private var selectedID: String?
     @State private var isImporting = false
     @State private var message: String?
+    /// The LoRA sources by LoRA id, loaded from the store. A local import has no entry.
+    @State private var sources: [String: LoRASource] = [:]
+    /// The Civitai model IDs stored by the Browse tab since the Installed tab was last shown.
+    @State private var justAddedModelIDs: Set<Int> = []
 
     private var selectedModelName: String? {
         model.selectedModel.map { ModelChip.title(for: $0) }
@@ -33,9 +49,17 @@ struct LoRALibraryView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
+            HStack(spacing: 12) {
                 Text("LoRAs")
                     .font(.title2.bold())
+                Picker("Section", selection: $tab) {
+                    ForEach(LoRASheetTab.allCases) { section in
+                        Text(section.rawValue).tag(section)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 280)
                 Spacer()
                 Button("Done") {
                     dismiss()
@@ -44,6 +68,24 @@ struct LoRALibraryView: View {
             }
             .padding(16)
             Divider()
+            switch tab {
+            case .installed:
+                installedContent
+            case .browse:
+                CivitaiBrowseView(model: model)
+            }
+        }
+        .frame(minWidth: 880, minHeight: 620)
+        .task {
+            await model.refreshLoRALibrary()
+        }
+        .onChange(of: selectedID) {
+            message = nil
+        }
+    }
+
+    private var installedContent: some View {
+        VStack(alignment: .leading, spacing: 0) {
             if model.loraLibrary.isEmpty {
                 emptyState
             } else {
@@ -65,13 +107,6 @@ struct LoRALibraryView: View {
             footer
                 .padding(12)
         }
-        .frame(minWidth: 720, minHeight: 520)
-        .task {
-            await model.refreshLoRALibrary()
-        }
-        .onChange(of: selectedID) {
-            message = nil
-        }
         .fileImporter(
             isPresented: $isImporting,
             allowedContentTypes: [UTType(filenameExtension: "safetensors") ?? .data],
@@ -82,6 +117,14 @@ struct LoRALibraryView: View {
         }
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
             LoRADrop.handle(providers, model: model)
+        }
+        .task(id: model.loraLibrary) {
+            sources = await model.loadLoRASources()
+        }
+        .onAppear {
+            // Marks from Browse show once, on the first Installed view after the add; showing this tab clears them.
+            justAddedModelIDs = model.civitai.addedModelIDs
+            model.civitai.installedTabShown()
         }
     }
 
@@ -142,7 +185,7 @@ struct LoRALibraryView: View {
         } else {
             HStack(spacing: 0) {
                 List(visibleItems, selection: $selectedID) { item in
-                    LoRALibraryRow(model: model, item: item)
+                    LoRALibraryRow(model: model, item: item, justAdded: isJustAdded(sources[item.id]))
                         .tag(item.id)
                 }
                 .frame(width: 300)
@@ -156,8 +199,15 @@ struct LoRALibraryView: View {
     @ViewBuilder
     private var detail: some View {
         if let item = model.loraLibrary.first(where: { $0.id == selectedID }) {
-            LoRADetailView(model: model, item: item, message: $message, selectedID: $selectedID)
-                .id(item.id)
+            LoRADetailView(
+                model: model,
+                item: item,
+                source: sources[item.id],
+                justAdded: isJustAdded(sources[item.id]),
+                message: $message,
+                selectedID: $selectedID
+            )
+            .id(item.id)
         } else {
             Text("Select a LoRA to rename it, edit its trigger words, reveal it, or delete it.")
                 .foregroundStyle(.secondary)
@@ -165,6 +215,10 @@ struct LoRALibraryView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(12)
         }
+    }
+
+    private func isJustAdded(_ source: LoRASource?) -> Bool {
+        source.map { justAddedModelIDs.contains($0.civitaiModelID) } ?? false
     }
 
     // MARK: Import feedback
@@ -227,10 +281,11 @@ struct LoRALibraryView: View {
     }
 }
 
-/// One library row: name, family, size, an "In stack" badge, and Add with its reason when it cannot be added.
+/// One library row: name, family, size, an "In stack" badge, a "Just added" mark, and Add with its reason when it cannot be added.
 private struct LoRALibraryRow: View {
     let model: AppModel
     let item: LoRALibraryItem
+    let justAdded: Bool
 
     private var addBlockReason: String? {
         if item.inStack { return "Already in the stack" }
@@ -248,6 +303,13 @@ private struct LoRALibraryRow: View {
                         .truncationMode(.middle)
                     if item.inStack {
                         Text("In stack")
+                            .font(.caption2)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(.quaternary, in: Capsule())
+                    }
+                    if justAdded {
+                        Text("Just added")
                             .font(.caption2)
                             .padding(.horizontal, 5)
                             .padding(.vertical, 1)
@@ -284,6 +346,8 @@ private struct LoRALibraryRow: View {
 private struct LoRADetailView: View {
     let model: AppModel
     let item: LoRALibraryItem
+    let source: LoRASource?
+    let justAdded: Bool
     @Binding var message: String?
     @Binding var selectedID: String?
 
@@ -293,9 +357,14 @@ private struct LoRADetailView: View {
     @State private var confirmingDelete = false
     @State private var deleteImpact = 0
 
-    init(model: AppModel, item: LoRALibraryItem, message: Binding<String?>, selectedID: Binding<String?>) {
+    init(
+        model: AppModel, item: LoRALibraryItem, source: LoRASource?, justAdded: Bool,
+        message: Binding<String?>, selectedID: Binding<String?>
+    ) {
         self.model = model
         self.item = item
+        self.source = source
+        self.justAdded = justAdded
         _message = message
         _selectedID = selectedID
         _name = State(initialValue: item.name)
@@ -319,6 +388,9 @@ private struct LoRADetailView: View {
                     Text("The file is missing from the LoRA library folder. Reveal it to check, or delete it here.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
+                }
+                if let source {
+                    CivitaiSourceSection(model: model, source: source, justAdded: justAdded, message: $message)
                 }
                 LabeledContent("Trigger words") {
                     TextField("Comma separated", text: $triggers)
@@ -399,5 +471,96 @@ private struct LoRADetailView: View {
         case .refused(let text), .failed(let text):
             message = text
         }
+    }
+}
+
+/// The Civitai facts of a downloaded LoRA: the page link, the preview, the license in plain words, and example prompts.
+/// Example prompts copy on click; nothing is inserted into the prompt.
+private struct CivitaiSourceSection: View {
+    let model: AppModel
+    let source: LoRASource
+    let justAdded: Bool
+    @Binding var message: String?
+
+    @State private var preview: NSImage?
+    @State private var previewRevealed = false
+
+    private var blurred: Bool {
+        CivitaiPreviewRule.isNSFW(level: source.previewNSFWLevel) && !model.civitai.includeNSFW && !previewRevealed
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Text("From Civitai")
+                    .font(.headline)
+                if justAdded {
+                    Text("Just added")
+                        .font(.caption2)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(.quaternary, in: Capsule())
+                }
+            }
+            if let preview {
+                ZStack {
+                    Image(nsImage: preview)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: 180, maxHeight: 180)
+                        .blur(radius: blurred ? 20 : 0)
+                    if blurred {
+                        Button("Show preview") {
+                            previewRevealed = true
+                        }
+                        .controlSize(.small)
+                    }
+                }
+                .accessibilityLabel(blurred ? "Hidden NSFW preview" : "Preview")
+            }
+            if let url = URL(string: source.pageURL) {
+                Link("View on Civitai", destination: url)
+                    .font(.callout)
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                ForEach(CivitaiLicenseText.lines(source.license), id: \.self) { line in
+                    Text("• \(line)")
+                }
+                Text("Accepted \(source.acceptedAt.formatted(date: .abbreviated, time: .shortened))")
+                    .padding(.top, 2)
+            }
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            if !source.examplePrompts.isEmpty {
+                Text("Example prompts (click to copy)")
+                    .font(.callout)
+                ForEach(source.examplePrompts, id: \.self) { prompt in
+                    Button {
+                        copy(prompt)
+                    } label: {
+                        Text(prompt)
+                            .font(.caption)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Copy example prompt")
+                }
+            }
+        }
+        .task(id: source.previewRelativePath) {
+            preview = await loadPreview()
+        }
+    }
+
+    private func loadPreview() async -> NSImage? {
+        guard let path = source.previewRelativePath else { return nil }
+        return NSImage(contentsOf: await model.loraPreviewURL(relativePath: path))
+    }
+
+    private func copy(_ prompt: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(prompt, forType: .string)
+        message = "Copied an example prompt."
     }
 }

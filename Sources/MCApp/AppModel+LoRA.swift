@@ -98,6 +98,20 @@ extension AppModel {
             family: family, variant: CivitaiBrowseRules.variant(forArchitecture: model.architecture))
     }
 
+    /// The Civitai source of each library LoRA, by LoRA id. A local import has none and has no entry.
+    func loadLoRASources() async -> [String: LoRASource] {
+        var sources: [String: LoRASource] = [:]
+        for record in loraRecords {
+            sources[record.id] = try? await store.loraSource(loraID: record.id)
+        }
+        return sources
+    }
+
+    /// Where a stored preview file lives on disk, from its path relative to the library root.
+    func loraPreviewURL(relativePath: String) async -> URL {
+        await store.paths.url(relativePath: relativePath)
+    }
+
     // MARK: Library
 
     /// Reads the LoRA library from the store, notes which files are missing, and prunes stack rows whose LoRA is gone.

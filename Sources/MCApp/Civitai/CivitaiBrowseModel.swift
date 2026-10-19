@@ -283,6 +283,27 @@ final class CivitaiBrowseModel {
         statuses = statuses.filter { $0.value != .added }
     }
 
+    /// Model IDs stored this session and not yet cleared. The Installed tab reads them before it clears the marks.
+    var addedModelIDs: Set<Int> {
+        Set(statuses.compactMap { $0.value == .added ? $0.key : nil })
+    }
+
+    /// One line for the download in progress and how many wait behind it, or nil when the queue is empty.
+    var activeDownloadLine: String? {
+        guard let first = queue.first else { return nil }
+        let name = first.spec.modelName
+        var line: String
+        if case .downloading(let fraction) = statuses[first.spec.modelID] {
+            line = "Downloading \(name) · \(Int(fraction * 100))%"
+        } else {
+            line = "Queued: \(name)"
+        }
+        if queue.count > 1 {
+            line += " · \(queue.count - 1) more waiting"
+        }
+        return line
+    }
+
     // MARK: Downloads
 
     /// Asks for the license of a result before its download. Nothing starts until the user accepts.
