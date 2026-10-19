@@ -91,7 +91,7 @@ extension LibraryStore {
         }
         let family: String
         switch registry.classifyLoRA(tensors: header.shapes) {
-        case .family(let id): family = id
+        case .family(let id, _): family = id
         case .unmatched(let names): throw LoRAImportError.unmatched(supportedFamilyNames: names)
         case .ambiguous(let ids): throw LoRAImportError.ambiguous(familyIDs: ids)
         }

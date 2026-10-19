@@ -6,7 +6,7 @@ import Testing
     @Test func keysAndShapesMatchingFamilyAClassifyToA() throws {
         let registry = syntheticRegistry()
         let tensors = alphaTensors()
-        #expect(registry.classifyLoRA(tensors: tensors) == .family("alpha"))
+        #expect(registry.classifyLoRA(tensors: tensors) == .family("alpha", variant: nil))
     }
 
     @Test func keysMatchingTwoFamiliesAreAmbiguousNotPicked() {
@@ -52,8 +52,8 @@ import Testing
     @Test func familyMatchesWhenAnyAlternativeMatches() {
         let family = syntheticFamily("alpha", fingerprints: [betaFingerprint(), alphaFingerprint()])
         let registry = FamilyRegistry(families: [family])
-        #expect(registry.classifyLoRA(tensors: alphaTensors()) == .family("alpha"))
-        #expect(registry.classifyLoRA(tensors: ["lora_te1_0.lora_down.weight": [16, 768]]) == .family("alpha"))
+        #expect(registry.classifyLoRA(tensors: alphaTensors()) == .family("alpha", variant: nil))
+        #expect(registry.classifyLoRA(tensors: ["lora_te1_0.lora_down.weight": [16, 768]]) == .family("alpha", variant: nil))
     }
 
     @Test func emptyFingerprintMatchesNothing() {

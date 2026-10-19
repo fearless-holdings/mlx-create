@@ -37,7 +37,8 @@
           ],
           "blockCounts": [{ "family": "transformer_blocks", "blockCount": 28 }]
         }
-      ]
+      ],
+      "civitaiBaseModels": [{ "label": "Krea 2" }]
     },
     {
       "id": "flux2-klein",
@@ -64,7 +65,8 @@
           "shapeHints": [
             { "pattern": { "kind": "contains", "text": ".img_attn.qkv" }, "dimension": 1, "size": 3072 }
           ],
-          "blockCounts": [{ "family": "double_blocks", "blockCount": 5 }]
+          "blockCounts": [{ "family": "double_blocks", "blockCount": 5 }],
+          "variant": "4b"
         },
         {
           "tensorPatterns": [
@@ -74,7 +76,8 @@
           "shapeHints": [
             { "pattern": { "kind": "contains", "text": ".img_attn.qkv" }, "dimension": 1, "size": 4096 }
           ],
-          "blockCounts": [{ "family": "double_blocks", "blockCount": 8 }]
+          "blockCounts": [{ "family": "double_blocks", "blockCount": 8 }],
+          "variant": "9b"
         },
         {
           "tensorPatterns": [
@@ -85,8 +88,13 @@
           "shapeHints": [
             { "pattern": { "kind": "contains", "text": ".attn.to_q" }, "dimension": 1, "size": 4096 }
           ],
-          "blockCounts": [{ "family": "transformer_blocks", "blockCount": 8 }]
+          "blockCounts": [{ "family": "transformer_blocks", "blockCount": 8 }],
+          "variant": "9b"
         }
+      ],
+      "civitaiBaseModels": [
+        { "label": "Flux.2 Klein 4B", "variant": "4b" },
+        { "label": "Flux.2 Klein 9B", "variant": "9b" }
       ]
     },
     {
@@ -142,7 +150,8 @@
           ],
           "blockCounts": [{ "family": "transformer_blocks", "blockCount": 32 }]
         }
-      ]
+      ],
+      "civitaiBaseModels": [{ "label": "Qwen 2.1" }]
     }
   ]
 }

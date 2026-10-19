@@ -8,19 +8,19 @@ import Testing
 @Suite struct LoRARealSampleFingerprintTests {
     @Test func realHeadersClassifyToTheirFamily() throws {
         let registry = try FamilyRegistry.bundled()
-        let cases: [(fixture: String, family: String)] = [
-            ("lora-klein-9b-diffusers", "flux2-klein"),
-            ("lora-klein-9b-bfl", "flux2-klein"),
-            ("lora-klein-4b-bfl", "flux2-klein"),
-            ("lora-qwen-attention", "qwen-image-2.1-turbo"),
-            ("lora-qwen-ai-toolkit", "qwen-image-2.1-turbo"),
-            ("lora-krea-comfyui", "krea-2-turbo"),
-            ("lora-krea-realism", "krea-2-turbo"),
-            ("lora-krea-darkbrush", "krea-2-turbo"),
+        let cases: [(fixture: String, family: String, variant: String?)] = [
+            ("lora-klein-9b-diffusers", "flux2-klein", "9b"),
+            ("lora-klein-9b-bfl", "flux2-klein", "9b"),
+            ("lora-klein-4b-bfl", "flux2-klein", "4b"),
+            ("lora-qwen-attention", "qwen-image-2.1-turbo", nil),
+            ("lora-qwen-ai-toolkit", "qwen-image-2.1-turbo", nil),
+            ("lora-krea-comfyui", "krea-2-turbo", nil),
+            ("lora-krea-realism", "krea-2-turbo", nil),
+            ("lora-krea-darkbrush", "krea-2-turbo", nil),
         ]
-        for (fixture, family) in cases {
+        for (fixture, family, variant) in cases {
             let tensors = try loadFixture(fixture)
-            #expect(registry.classifyLoRA(tensors: tensors) == .family(family), "\(fixture)")
+            #expect(registry.classifyLoRA(tensors: tensors) == .family(family, variant: variant), "\(fixture)")
         }
     }
 
@@ -28,16 +28,16 @@ import Testing
         let registry = try FamilyRegistry.bundled()
         // Blocks 0-7 of a 32-block Qwen LoRA: the 8-block klein diffusers layout must not claim it.
         let qwen = keepingBlocks(try loadFixture("lora-qwen-attention"), family: "transformer_blocks", below: 8)
-        #expect(registry.classifyLoRA(tensors: qwen) == .family("qwen-image-2.1-turbo"))
+        #expect(registry.classifyLoRA(tensors: qwen) == .family("qwen-image-2.1-turbo", variant: nil))
 
         let qwenAIToolkit = keepingBlocks(try loadFixture("lora-qwen-ai-toolkit"), family: "transformer_blocks", below: 8)
-        #expect(registry.classifyLoRA(tensors: qwenAIToolkit) == .family("qwen-image-2.1-turbo"))
+        #expect(registry.classifyLoRA(tensors: qwenAIToolkit) == .family("qwen-image-2.1-turbo", variant: nil))
 
         let krea = keepingBlocks(try loadFixture("lora-krea-comfyui"), family: "blocks", below: 20)
-        #expect(registry.classifyLoRA(tensors: krea) == .family("krea-2-turbo"))
+        #expect(registry.classifyLoRA(tensors: krea) == .family("krea-2-turbo", variant: nil))
 
         let klein = keepingBlocks(try loadFixture("lora-klein-9b-diffusers"), family: "transformer_blocks", below: 3)
-        #expect(registry.classifyLoRA(tensors: klein) == .family("flux2-klein"))
+        #expect(registry.classifyLoRA(tensors: klein) == .family("flux2-klein", variant: "9b"))
     }
 
     @Test func kleinDiffusersAndQwenAttentionDoNotClaimEachOthersFiles() throws {

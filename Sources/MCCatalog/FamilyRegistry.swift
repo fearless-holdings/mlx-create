@@ -37,6 +37,17 @@ public struct FamilyRegistry: Sendable {
         candidates(forArchitecture: arch).first?.requiresTrait
     }
 
+    /// The family and size variant a Civitai base-model label names (KTD7), matched exactly, or `nil` when no
+    /// shipped family lists it.
+    public func familyAndVariant(forCivitaiLabel label: String) -> (family: ModelFamily, variant: String?)? {
+        for family in families {
+            if let entry = family.civitaiBaseModels.first(where: { $0.label == label }) {
+                return (family: family, variant: entry.variant)
+            }
+        }
+        return nil
+    }
+
     private func candidates(forArchitecture arch: String) -> [ModelFamily] {
         families.filter { $0.architectures.contains(arch) }
     }
