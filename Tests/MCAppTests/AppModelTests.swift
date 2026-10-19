@@ -313,6 +313,54 @@ private func writeTurboIndex(under weightsRoot: URL) throws {
         #expect(model.hasMoreImages == false)
     }
 
+    @Test func imageSavedWhilePagingIsNotDuplicatedOrReordered() async throws {
+        let harness = try await AppHarness.make()
+        let model = harness.model
+        var saved: [LibraryImage] = []
+        for index in 0..<(AppModel.galleryPageSize + 5) {
+            saved.append(try await harness.saveImage(prompt: "image \(index)"))
+        }
+        let newestFirst = saved.reversed().map(\.id)
+
+        await model.reload()
+        // The test sends no save event, so this image reaches the gallery on the next reload, not through paging.
+        let late = try await harness.saveImage(prompt: "late image")
+        // The late save shifts every offset by one, so the next page starts on an image the gallery already shows.
+        await model.loadMoreImages()
+        #expect(model.galleryImages.map(\.id) == newestFirst)
+        #expect(model.hasMoreImages == false)
+
+        await model.reload()
+        #expect(model.galleryImages.map(\.id) == [late.id] + newestFirst.dropLast())
+        #expect(model.hasMoreImages)
+
+        await model.loadMoreImages()
+        #expect(model.galleryImages.map(\.id) == [late.id] + newestFirst)
+        #expect(model.hasMoreImages == false)
+    }
+
+    @Test func pagingToAnExactMultipleOfThePageSizeLeavesNoNextPage() async throws {
+        let harness = try await AppHarness.make()
+        let model = harness.model
+        var saved: [LibraryImage] = []
+        for index in 0..<(AppModel.galleryPageSize * 2) {
+            saved.append(try await harness.saveImage(prompt: "image \(index)"))
+        }
+        let newestFirst = saved.reversed().map(\.id)
+
+        await model.reload()
+        #expect(model.galleryImages.count == AppModel.galleryPageSize)
+        #expect(model.hasMoreImages)
+
+        await model.loadMoreImages()
+        #expect(model.galleryImages.map(\.id) == newestFirst)
+        #expect(model.hasMoreImages == false)
+
+        await model.reload()
+        #expect(model.galleryImages.map(\.id) == newestFirst)
+        #expect(model.hasMoreImages == false)
+    }
+
     @Test func progressUpdatesOnlyTheRunningJobsStep() async throws {
         let harness = try await AppHarness.make(script: { number, _ in
             if number == 1 {

@@ -95,6 +95,21 @@ import Testing
         #expect(model.canvasMode == .content)
     }
 
+    @Test func aQueuedJobWithoutAnImageShowsTheCanvasContent() async throws {
+        let harness = try await AppHarness.make()
+        let model = harness.model
+        await model.reload()
+        #expect(model.queueJobs.isEmpty)
+        #expect(model.galleryImages.isEmpty)
+        #expect(model.canvasMode == .emptyHint)
+
+        _ = try await harness.enqueue(batch: 1)
+        await model.reload()
+        #expect(model.queueJobs.map(\.status) == [.queued])
+        #expect(model.galleryImages.isEmpty)
+        #expect(model.canvasMode == .content)
+    }
+
     @Test func launchDefaultIsTheLastUsedModelWhenItIsStillAvailable() async throws {
         let defaults = UserDefaults(suiteName: UUID().uuidString)!
         defaults.set(fluxModel, forKey: "lastUsedModelID")

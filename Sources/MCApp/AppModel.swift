@@ -90,6 +90,8 @@ public final class AppModel {
     private let composer: GenerationComposer
     private let libraryPaths: LibraryPaths
     private var galleryLoaded = false
+    /// Bumped whenever a gallery page or a prepended image changes `galleryImages`. See `reloadGallery`.
+    private var galleryRevision = 0
     private var isLoadingMoreImages = false
     private var tasks: [Task<Void, Never>] = []
     private var started = false
@@ -625,15 +627,19 @@ public final class AppModel {
     }
 
     /// Fetches the first gallery page. When more pages are already loaded, it refetches all of them instead, so a
-    /// reload never collapses the gallery back to one page under the user's scroll position.
+    /// reload never collapses the gallery back to one page under the user's scroll position. A reload that a page
+    /// or a prepended image overtook drops its result, because that change already carries fresher data.
     private func reloadGallery() async {
+        let revision = galleryRevision
         do {
             let project = try await store.defaultProject()
             let count = max(Self.galleryPageSize, galleryImages.count)
-            let images = try await store.recentImages(projectID: project.id, limit: count, offset: 0)
-            galleryImages = images
-            hasMoreImages = images.count == count
+            // One extra row shows whether another page follows, so an exact multiple of the page size is right.
+            let rows = try await store.recentImages(projectID: project.id, limit: count + 1, offset: 0)
             galleryLoaded = true
+            guard revision == galleryRevision else { return }
+            galleryImages = Array(rows.prefix(count))
+            hasMoreImages = rows.count > count
         } catch {
             lastError = message(for: error)
         }
@@ -646,12 +652,17 @@ public final class AppModel {
         defer { isLoadingMoreImages = false }
         do {
             let project = try await store.defaultProject()
-            let page = try await store.recentImages(
-                projectID: project.id, limit: Self.galleryPageSize, offset: galleryImages.count)
+            // One extra row shows whether another page follows, so an exact multiple of the page size is right.
+            let rows = try await store.recentImages(
+                projectID: project.id, limit: Self.galleryPageSize + 1, offset: galleryImages.count)
             // A save that lands while this page is read shifts the offsets by one, so skip images already shown.
             let shown = Set(galleryImages.map(\.id))
-            galleryImages += page.filter { !shown.contains($0.id) }
-            hasMoreImages = page.count == Self.galleryPageSize
+            let fresh = rows.prefix(Self.galleryPageSize).filter { !shown.contains($0.id) }
+            hasMoreImages = rows.count > Self.galleryPageSize
+            if !fresh.isEmpty {
+                galleryImages += fresh
+                galleryRevision += 1
+            }
         } catch {
             lastError = message(for: error)
         }
@@ -665,6 +676,7 @@ public final class AppModel {
             let image = try await store.image(id: imageID)
             guard let image, !galleryImages.contains(where: { $0.id == imageID }) else { return }
             galleryImages.insert(image, at: 0)
+            galleryRevision += 1
         } catch {
             lastError = message(for: error)
         }

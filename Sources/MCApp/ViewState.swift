@@ -37,7 +37,7 @@ public enum CanvasMode: Equatable, Sendable {
 public struct SettingsControls: Equatable, Sendable {
     public var sizes: [ImageSize]
     public var steps: StepsCapability
-    /// True when the family fixes the step count; the popover shows it read-only.
+    /// True when the family fixes the step count; the generation panel shows it read-only.
     public var stepsAreFixed: Bool
     public var guidance: GuidanceCapability?
     public var showsNegativePrompt: Bool

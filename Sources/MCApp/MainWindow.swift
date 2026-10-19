@@ -24,7 +24,7 @@ public struct MainWindow: View {
                     if model.canvasMode != .emptyHint {
                         Divider()
                         QueueStripView(model: model)
-                            .frame(height: 120)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 .frame(minWidth: 400, maxWidth: .infinity, maxHeight: .infinity)
