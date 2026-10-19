@@ -34,11 +34,11 @@ struct LoRASection: View {
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                    Button("Add LoRA…") {
-                        model.isLoRALibraryPresented = true
+                    if model.loraAddEnabled {
+                        Button("Add LoRA…") {
+                            model.isLoRALibraryPresented = true
+                        }
                     }
-                    .disabled(!model.loraAddEnabled)
-                    .help(model.loraAddEnabled ? "Add a LoRA from the library" : "The selected model takes no LoRAs")
                 } header: {
                     HStack {
                         Text("LoRAs")
@@ -122,7 +122,7 @@ struct LoRARowView: View {
             if let reason = row.fit.reason {
                 Text(reason)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(row.fit == .fileMissing ? Color.red : Color.secondary)
             }
         }
         .accessibilityElement(children: .combine)

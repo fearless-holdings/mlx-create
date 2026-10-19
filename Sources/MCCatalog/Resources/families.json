@@ -22,11 +22,20 @@
             { "kind": "prefix", "text": "blocks." },
             { "kind": "contains", "text": ".attn.wq" }
           ],
-          "blockCounts": [{ "family": "blocks", "allowedCounts": [28] }]
+          "shapeHints": [
+            { "pattern": { "kind": "contains", "text": ".attn.wq" }, "dimension": 1, "size": 6144 }
+          ],
+          "blockCounts": [{ "family": "blocks", "blockCount": 28 }]
         },
         {
-          "tensorPatterns": [{ "kind": "contains", "text": ".attn.to_gate" }],
-          "blockCounts": [{ "family": "transformer_blocks", "allowedCounts": [28] }]
+          "tensorPatterns": [
+            { "kind": "prefix", "text": "transformer_blocks." },
+            { "kind": "contains", "text": ".attn.to_gate" }
+          ],
+          "shapeHints": [
+            { "pattern": { "kind": "contains", "text": ".attn.to_gate" }, "dimension": 1, "size": 6144 }
+          ],
+          "blockCounts": [{ "family": "transformer_blocks", "blockCount": 28 }]
         }
       ]
     },
@@ -52,14 +61,31 @@
             { "kind": "prefix", "text": "double_blocks." },
             { "kind": "contains", "text": ".img_attn.qkv" }
           ],
-          "blockCounts": [{ "family": "double_blocks", "allowedCounts": [5, 8] }]
+          "shapeHints": [
+            { "pattern": { "kind": "contains", "text": ".img_attn.qkv" }, "dimension": 1, "size": 3072 }
+          ],
+          "blockCounts": [{ "family": "double_blocks", "blockCount": 5 }]
+        },
+        {
+          "tensorPatterns": [
+            { "kind": "prefix", "text": "double_blocks." },
+            { "kind": "contains", "text": ".img_attn.qkv" }
+          ],
+          "shapeHints": [
+            { "pattern": { "kind": "contains", "text": ".img_attn.qkv" }, "dimension": 1, "size": 4096 }
+          ],
+          "blockCounts": [{ "family": "double_blocks", "blockCount": 8 }]
         },
         {
           "tensorPatterns": [
             { "kind": "prefix", "text": "transformer_blocks." },
-            { "kind": "contains", "text": ".attn.to_q" }
+            { "kind": "contains", "text": ".attn.to_q" },
+            { "kind": "suffix", "text": ".lora_A.weight" }
           ],
-          "blockCounts": [{ "family": "transformer_blocks", "allowedCounts": [5, 8] }]
+          "shapeHints": [
+            { "pattern": { "kind": "contains", "text": ".attn.to_q" }, "dimension": 1, "size": 4096 }
+          ],
+          "blockCounts": [{ "family": "transformer_blocks", "blockCount": 8 }]
         }
       ]
     },
@@ -85,8 +111,36 @@
       "supportsNegativePrompt": false,
       "loraFingerprints": [
         {
-          "tensorPatterns": [{ "kind": "contains", "text": ".attn.to_q" }],
-          "blockCounts": [{ "family": "transformer_blocks", "allowedCounts": [32] }]
+          "tensorPatterns": [
+            { "kind": "prefix", "text": "transformer_blocks." },
+            { "kind": "contains", "text": ".attn.to_q" },
+            { "kind": "suffix", "text": ".lora.down.weight" }
+          ],
+          "shapeHints": [
+            { "pattern": { "kind": "contains", "text": ".attn.to_q" }, "dimension": 1, "size": 4096 }
+          ],
+          "blockCounts": [{ "family": "transformer_blocks", "blockCount": 32 }]
+        },
+        {
+          "tensorPatterns": [
+            { "kind": "prefix", "text": "transformer_blocks." },
+            { "kind": "contains", "text": ".attn.to_q" },
+            { "kind": "suffix", "text": ".lora_down.weight" }
+          ],
+          "shapeHints": [
+            { "pattern": { "kind": "contains", "text": ".attn.to_q" }, "dimension": 1, "size": 4096 }
+          ],
+          "blockCounts": [{ "family": "transformer_blocks", "blockCount": 32 }]
+        },
+        {
+          "tensorPatterns": [
+            { "kind": "prefix", "text": "transformer_blocks." },
+            { "kind": "contains", "text": ".img_mlp.gate_up" }
+          ],
+          "shapeHints": [
+            { "pattern": { "kind": "contains", "text": ".img_mlp.gate_up" }, "dimension": 1, "size": 4096 }
+          ],
+          "blockCounts": [{ "family": "transformer_blocks", "blockCount": 32 }]
         }
       ]
     }

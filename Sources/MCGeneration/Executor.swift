@@ -158,14 +158,11 @@ public actor JobExecutor {
             throw ExecutorError.invalidSeedPolicy(job.seedPolicy)
         }
         let seed = policy.seed(savedCount: savedCount, using: &rng)
-        // KTD6: every LoRA frozen into the job must still be on disk, or the job fails before the engine is asked.
+        // KTD6: every LoRA frozen into the job must still be the file that was imported, or the job fails before the engine is asked.
         let loras = job.request.loras ?? []
         var loraFiles: [URL] = []
         for entry in loras {
-            guard let file = LibraryPaths.loraURL(relativePath: entry.relativePath, modelsRoot: modelsRoot),
-                  FileManager.default.fileExists(atPath: file.path)
-            else { throw ExecutorError.loraMissing(name: entry.name) }
-            loraFiles.append(file)
+            loraFiles.append(try await loraFile(for: entry, modelID: job.request.modelID))
         }
         let request = ImageRequest(
             model: job.request.modelID,
@@ -227,6 +224,22 @@ public actor JobExecutor {
             settings: settings
         ))
         hub.send(.imageSaved(jobID: job.id, imageID: image.id))
+    }
+
+    /// The file a frozen LoRA entry names, checked against the library row it came from (KTD6, R17). A missing file is
+    /// retryable. A file whose size no longer matches the imported size is not, because re-importing cannot restore it.
+    /// Only the recorded size is compared, so no file is hashed when a job starts.
+    private func loraFile(for entry: LoRAStackEntry, modelID: String) async throws -> URL {
+        guard let file = LibraryPaths.loraURL(relativePath: entry.relativePath, modelsRoot: modelsRoot),
+              let record = try await store.loraRecord(id: entry.id),
+              record.relativePath == entry.relativePath,
+              FileManager.default.fileExists(atPath: file.path)
+        else { throw ExecutorError.loraMissing(name: entry.name, modelID: modelID) }
+        let size = (try? FileManager.default.attributesOfItem(atPath: file.path)[.size] as? NSNumber)?.int64Value
+        guard record.sha256 == entry.sha256, size == record.sizeBytes else {
+            throw ExecutorError.loraChanged(name: entry.name, modelID: modelID)
+        }
+        return file
     }
 
     /// Makes the job's model resident before its stream starts, unless the job was cancelled first.

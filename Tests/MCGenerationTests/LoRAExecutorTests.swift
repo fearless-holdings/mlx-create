@@ -41,6 +41,7 @@ struct LoRAExecutorTests {
         #expect(failed.id == job.id)
         let failure = try #require(failed.failure)
         #expect(failure.message.contains("Pixel art"))
+        #expect(failure.message.contains(kreaModel))
         #expect(failure.retryable)
         #expect(harness.requests(to: "v1/images/generations").isEmpty)
 
@@ -67,6 +68,23 @@ struct LoRAExecutorTests {
         #expect(failure.message.contains("Pixel art"))
         #expect(failure.message.contains(kreaModel))
         #expect(failure.retryable == false)
+    }
+
+    @Test func aLoRAFileChangedSinceImportFailsNonRetryablyBeforeTheEngineIsAsked() async throws {
+        let harness = try await Harness.make(script: Self.fakeImage)
+        let lora = try await harness.installLoRA(name: "Pixel art")
+        _ = try await harness.enqueue(batch: 1, loras: [lora])
+        // The import recorded 4 bytes; a different size means the file is no longer the one that was imported.
+        try Data("changed lora bytes".utf8).write(to: harness.modelsRoot.appending(path: lora.relativePath))
+
+        try await harness.executor.drain()
+
+        let failed = try #require(try await harness.store.jobs(status: .failed).first)
+        let failure = try #require(failed.failure)
+        #expect(failure.message.contains("Pixel art"))
+        #expect(failure.message.contains(kreaModel))
+        #expect(failure.retryable == false)
+        #expect(harness.requests(to: "v1/images/generations").isEmpty)
     }
 
     @Test func aTamperedStackEntryFailsTheJobBeforeTheEngineIsAsked() async throws {

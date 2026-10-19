@@ -158,16 +158,18 @@ public struct LoRAShapeHint: Sendable, Codable, Hashable {
     }
 }
 
-/// A block family and the number of blocks a LoRA must carry for it, e.g. `double_blocks` with `[5, 8]`.
-/// The count is the highest `family.N.` index found plus one, after the wrapper prefix is stripped.
+/// A block family and the number of blocks the full model has, e.g. `double_blocks` with `5`. A LoRA may cover
+/// only some of them (partial coverage is accepted), but every `family.N.` index found after the wrapper prefix
+/// is stripped must be below `blockCount`, so a file that reaches a block the model lacks matches nothing.
 public struct LoRABlockCount: Sendable, Codable, Hashable {
     /// Block-name prefix without the trailing dot, e.g. `double_blocks` or `transformer_blocks`.
     public let family: String
-    public let allowedCounts: [Int]
+    /// The block count of the full model, taken from real sample headers.
+    public let blockCount: Int
 
-    public init(family: String, allowedCounts: [Int]) {
+    public init(family: String, blockCount: Int) {
         self.family = family
-        self.allowedCounts = allowedCounts
+        self.blockCount = blockCount
     }
 }
 
@@ -218,8 +220,8 @@ public struct LoRAFingerprint: Sendable, Codable, Hashable {
         guard everyHintMet else { return false }
         let names = named.map { $0.name }
         return blockCounts.allSatisfy { requirement in
-            guard let count = blockCount(of: requirement.family, in: names) else { return false }
-            return requirement.allowedCounts.contains(count)
+            guard let highest = highestBlockIndex(of: requirement.family, in: names) else { return false }
+            return highest < requirement.blockCount
         }
     }
 }
@@ -233,14 +235,14 @@ private func loraNameWithoutWrapper(_ name: String) -> String {
     return String(name.dropFirst(prefix.count))
 }
 
-/// The number of blocks in `family`: the highest `family.N.` index plus one, or `nil` if none exist.
-private func blockCount(of family: String, in names: [String]) -> Int? {
+/// The highest `family.N.` block index in `names`, or `nil` if the family has no indexed tensor.
+private func highestBlockIndex(of family: String, in names: [String]) -> Int? {
     let prefix = family + "."
     let indices = names.compactMap { name -> Int? in
         guard name.hasPrefix(prefix) else { return nil }
         return Int(name.dropFirst(prefix.count).prefix { $0 != "." })
     }
-    return indices.max().map { $0 + 1 }
+    return indices.max()
 }
 
 /// The outcome of classifying one LoRA file against the families (KTD4).
@@ -255,6 +257,7 @@ public enum LoRAFamilyMatch: Sendable, Equatable {
 extension FamilyRegistry {
     /// Picks the family a LoRA belongs to from its tensor names and shapes. Families without a
     /// fingerprint never match and are not listed as supported.
+    /// A file that two families both accept is `.ambiguous`: the classifier never guesses between them.
     public func classifyLoRA(tensors: [String: [Int]]) -> LoRAFamilyMatch {
         let fingerprinted = families.filter(\.acceptsLoRAs)
         let matched = fingerprinted.filter { family in

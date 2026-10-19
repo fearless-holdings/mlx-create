@@ -25,15 +25,18 @@ private struct FixtureFailure: Error {
     let message: String
 }
 
-/// Writes a header-only safetensors file with the given tensor names. `tag` lands in `__metadata__`, so files with the
-/// same keys still differ in content and hash.
+/// Writes a header-only safetensors file with the given tensor names. Each tensor takes the shape its bundled fingerprint's
+/// dimension hint expects (see `loraShape`), so the registry accepts the file. `tag` lands in `__metadata__`, so files with
+/// the same keys still differ in content and hash.
 private func writeSafetensors(at url: URL, tensors: [String], tag: String) throws {
     var header: [String: Any] = ["__metadata__": ["tag": tag]]
     var offset = 0
     for name in tensors {
-        // One F16 element (2 bytes) per tensor keeps the declared size equal to the shape.
-        header[name] = ["dtype": "F16", "shape": [1], "data_offsets": [offset, offset + 2]]
-        offset += 2
+        let shape = loraShape(of: name)
+        // F16: two bytes per element.
+        let size = shape.reduce(1, *) * 2
+        header[name] = ["dtype": "F16", "shape": shape, "data_offsets": [offset, offset + size]]
+        offset += size
     }
     let json = try JSONSerialization.data(withJSONObject: header, options: [.sortedKeys])
     var bytes = withUnsafeBytes(of: UInt64(json.count).littleEndian) { Data($0) }
@@ -41,6 +44,12 @@ private func writeSafetensors(at url: URL, tensors: [String], tag: String) throw
     bytes.append(Data(count: offset))
     try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
     try bytes.write(to: url)
+}
+
+/// The lora_A shape a bundled fingerprint expects: rank 4 by input width. Krea's attention takes 6144 (`attn.wq`); FLUX.2
+/// klein's image attention takes 3072 (`img_attn.qkv`). Rank 4 keeps a whole Krea LoRA near 1.4 MB.
+private func loraShape(of tensor: String) -> [Int] {
+    tensor.contains(".attn.wq") ? [4, 6144] : [4, 3072]
 }
 
 /// Starts the model and reads the installed models. Pass `paused` when the test queues jobs and must see them stay queued:
@@ -257,6 +266,24 @@ private func saveLoRAImage(_ harness: AppHarness, prompt: String, loras: [ImageL
         }
         #expect(model.loraStack.map(\.id) == [pixel.id])
         #expect(model.loraLibrary.map(\.id) == [pixel.id])
+    }
+
+    @Test func aStackedLoRAWhoseFileIsGoneHasTheFileMissingStateAndGenerateRefusesBeforeQueueing() async throws {
+        let harness = try await AppHarness.make()
+        let model = await readyModel(harness, paused: true)
+        let pixel = try await importLoRA(harness, .krea, name: "Pixel Art")
+        model.addToLoRAStack(id: pixel.id)
+        try FileManager.default.removeItem(at: harness.store.loraAbsoluteURL(of: pixel))
+        await model.refreshLoRALibrary()
+
+        #expect(model.loraStack.map(\.fit) == [.fileMissing])
+        #expect(model.loraStack.map(\.isUsed) == [false])
+        model.prompt = "a fox"
+        await model.generate()
+
+        #expect(try await harness.store.jobs(status: .queued).isEmpty)
+        #expect(model.lastError?.contains("Pixel Art") == true)
+        #expect(model.loraStack.map(\.id) == [pixel.id])
     }
 
     @Test func weightsClampToTheActiveRangeAndNarrowingClampsBack() async throws {

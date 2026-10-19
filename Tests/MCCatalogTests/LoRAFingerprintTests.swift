@@ -111,11 +111,11 @@ import Testing
         let withCounts = """
         {
           "tensorPatterns": [{ "kind": "contains", "text": ".attn.to_q" }],
-          "blockCounts": [{ "family": "transformer_blocks", "allowedCounts": [8, 32] }]
+          "blockCounts": [{ "family": "transformer_blocks", "blockCount": 32 }]
         }
         """
         let decoded = try JSONDecoder().decode(LoRAFingerprint.self, from: Data(withCounts.utf8))
-        #expect(decoded.blockCounts == [LoRABlockCount(family: "transformer_blocks", allowedCounts: [8, 32])])
+        #expect(decoded.blockCounts == [LoRABlockCount(family: "transformer_blocks", blockCount: 32)])
 
         let withoutCounts = """
         { "tensorPatterns": [{ "kind": "contains", "text": ".attn.to_q" }] }
@@ -124,17 +124,18 @@ import Testing
         #expect(plain.blockCounts == [])
     }
 
-    @Test func blockCountMustBeInAllowedSet() {
-        let fingerprint = transformerFingerprint(allowed: [8])
+    @Test func blockIndicesMustStayBelowTheModelBlockCount() {
+        // Indices 0..<8 are the model's blocks. Partial coverage passes; index 8 does not exist in an 8-block model.
+        let fingerprint = transformerFingerprint(blockCount: 8)
         #expect(fingerprint.matches(tensors: transformerTensors(blocks: 8)))
-        #expect(!fingerprint.matches(tensors: transformerTensors(blocks: 7)))
+        #expect(fingerprint.matches(tensors: transformerTensors(blocks: 3)))
         #expect(!fingerprint.matches(tensors: transformerTensors(blocks: 9)))
     }
 
     @Test func blockFamilyAbsentFromTensorsDoesNotMatch() {
         // `.attn.to_q` is present, but only under `single_transformer_blocks`, not `transformer_blocks`.
         let tensors = ["single_transformer_blocks.0.attn.to_q.lora_A.weight": [32, 4096]]
-        #expect(!transformerFingerprint(allowed: [1]).matches(tensors: tensors))
+        #expect(!transformerFingerprint(blockCount: 1).matches(tensors: tensors))
     }
 
     @Test func wrapperPrefixIsStrippedBeforePatternsMatch() {
@@ -146,7 +147,7 @@ import Testing
     }
 
     @Test func fingerprintRoundTripsThroughCodable() throws {
-        let family = syntheticFamily("alpha", fingerprints: [alphaFingerprint(), transformerFingerprint(allowed: [8, 32])])
+        let family = syntheticFamily("alpha", fingerprints: [alphaFingerprint(), transformerFingerprint(blockCount: 32)])
         let data = try JSONEncoder().encode(family)
         let decoded = try JSONDecoder().decode(ModelFamily.self, from: data)
         #expect(decoded == family)
@@ -157,6 +158,15 @@ import Testing
         let expected: Set<String> = ["krea-2-turbo", "flux2-klein", "qwen-image-2.1-turbo"]
         let fingerprinted = Set(registry.families.filter(\.acceptsLoRAs).map(\.id))
         #expect(fingerprinted == expected)
+    }
+
+    @Test func everyBundledFingerprintCarriesAShapeHint() throws {
+        let registry = try FamilyRegistry.bundled()
+        for family in registry.families where family.acceptsLoRAs {
+            for fingerprint in family.loraFingerprints ?? [] {
+                #expect(!fingerprint.shapeHints.isEmpty, "\(family.id) ships a fingerprint without a shape hint")
+            }
+        }
     }
 }
 
@@ -181,10 +191,10 @@ private func betaFingerprint() -> LoRAFingerprint {
     ])
 }
 
-private func transformerFingerprint(allowed: [Int]) -> LoRAFingerprint {
+private func transformerFingerprint(blockCount: Int) -> LoRAFingerprint {
     LoRAFingerprint(
         tensorPatterns: [TensorNamePattern(kind: .contains, text: ".attn.to_q")],
-        blockCounts: [LoRABlockCount(family: "transformer_blocks", allowedCounts: allowed)])
+        blockCounts: [LoRABlockCount(family: "transformer_blocks", blockCount: blockCount)])
 }
 
 private func transformerTensors(blocks: Int) -> [String: [Int]] {

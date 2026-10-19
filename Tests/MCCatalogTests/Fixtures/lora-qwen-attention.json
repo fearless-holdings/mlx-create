@@ -1,0 +1,21 @@
+{
+  "source": "https://huggingface.co/lightx2v/Qwen-Image-2.1-Lightning pytorch_lora_weights.safetensors (header only, reduced to one tensor per module name plus the highest block index)",
+  "tensors": {
+    "transformer.transformer_blocks.0.attn.to_k.lora.down.weight": [16, 4096],
+    "transformer.transformer_blocks.0.attn.to_k.lora.up.weight": [4096, 16],
+    "transformer.transformer_blocks.0.attn.to_out.0.lora.down.weight": [16, 4096],
+    "transformer.transformer_blocks.0.attn.to_out.0.lora.up.weight": [4096, 16],
+    "transformer.transformer_blocks.0.attn.to_q.lora.down.weight": [16, 4096],
+    "transformer.transformer_blocks.0.attn.to_q.lora.up.weight": [4096, 16],
+    "transformer.transformer_blocks.0.attn.to_v.lora.down.weight": [16, 4096],
+    "transformer.transformer_blocks.0.attn.to_v.lora.up.weight": [4096, 16],
+    "transformer.transformer_blocks.31.attn.to_k.lora.down.weight": [16, 4096],
+    "transformer.transformer_blocks.31.attn.to_k.lora.up.weight": [4096, 16],
+    "transformer.transformer_blocks.31.attn.to_out.0.lora.down.weight": [16, 4096],
+    "transformer.transformer_blocks.31.attn.to_out.0.lora.up.weight": [4096, 16],
+    "transformer.transformer_blocks.31.attn.to_q.lora.down.weight": [16, 4096],
+    "transformer.transformer_blocks.31.attn.to_q.lora.up.weight": [4096, 16],
+    "transformer.transformer_blocks.31.attn.to_v.lora.down.weight": [16, 4096],
+    "transformer.transformer_blocks.31.attn.to_v.lora.up.weight": [4096, 16]
+  }
+}

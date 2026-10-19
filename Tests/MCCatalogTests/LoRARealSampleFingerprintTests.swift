@@ -2,180 +2,106 @@ import Foundation
 import Testing
 @testable import MCCatalog
 
-/// Tensor-name sets reconstructed from real LoRA headers read over HTTP range requests. Names, wrapper
-/// prefixes, suffix styles and block counts come from that evidence; shapes are plausible placeholders
-/// because no fingerprint reads them. Every test classifies against the bundled `families.json`.
+/// Tensor names and shapes read from the headers of public sample LoRAs over HTTP range requests (header
+/// only; each fixture's `source` names the file). Fixtures keep every module name once, plus the first
+/// and last block of each block run, so partial-coverage tests below derive from the real evidence.
 @Suite struct LoRARealSampleFingerprintTests {
-    private let wrappers = ["", "diffusion_model.", "base_model.model.", "transformer."]
-    private let suffixStyles = [
-        SuffixStyle(down: ".lora_A.weight", up: ".lora_B.weight"),
-        SuffixStyle(down: ".lora_down.weight", up: ".lora_up.weight"),
-        SuffixStyle(down: ".lora.down.weight", up: ".lora.up.weight"),
-    ]
-
-    @Test func flux2Klein4BBFLLayoutClassifiesToFlux2Klein() throws {
+    @Test func realHeadersClassifyToTheirFamily() throws {
         let registry = try FamilyRegistry.bundled()
-        for wrapper in wrappers {
-            for style in suffixStyles {
-                let tensors = klein4BFLTensors(wrapper: wrapper, style: style, doubleBlocks: 5)
-                #expect(
-                    registry.classifyLoRA(tensors: tensors) == .family("flux2-klein"),
-                    "BFL wrapper '\(wrapper)' suffix '\(style.down)'")
-            }
-        }
-    }
-
-    @Test func flux2Klein9BDiffusersLayoutClassifiesToFlux2Klein() throws {
-        let registry = try FamilyRegistry.bundled()
-        for wrapper in wrappers {
-            for style in suffixStyles {
-                let tensors = diffusersTensors(wrapper: wrapper, style: style, blocks: 8, hidden: 4096)
-                #expect(
-                    registry.classifyLoRA(tensors: tensors) == .family("flux2-klein"),
-                    "klein 9B wrapper '\(wrapper)' suffix '\(style.down)'")
-            }
-        }
-    }
-
-    @Test func flux2Klein4BDiffusersLayoutClassifiesToFlux2Klein() throws {
-        let registry = try FamilyRegistry.bundled()
-        for wrapper in wrappers {
-            for style in suffixStyles {
-                let tensors = diffusersTensors(wrapper: wrapper, style: style, blocks: 5, hidden: 3072)
-                #expect(
-                    registry.classifyLoRA(tensors: tensors) == .family("flux2-klein"),
-                    "klein 4B diffusers wrapper '\(wrapper)' suffix '\(style.down)'")
-            }
-        }
-    }
-
-    @Test func qwenImage21ThirtyTwoBlockLayoutClassifiesToQwen() throws {
-        let registry = try FamilyRegistry.bundled()
-        for wrapper in wrappers {
-            for style in suffixStyles {
-                let tensors = diffusersTensors(wrapper: wrapper, style: style, blocks: 32, hidden: 4096)
-                #expect(
-                    registry.classifyLoRA(tensors: tensors) == .family("qwen-image-2.1-turbo"),
-                    "qwen wrapper '\(wrapper)' suffix '\(style.down)'")
-            }
-        }
-    }
-
-    @Test func kreaNativeLayoutClassifiesToKrea() throws {
-        let registry = try FamilyRegistry.bundled()
-        for wrapper in wrappers {
-            for style in suffixStyles {
-                let tensors = kreaNativeTensors(wrapper: wrapper, style: style)
-                #expect(
-                    registry.classifyLoRA(tensors: tensors) == .family("krea-2-turbo"),
-                    "krea native wrapper '\(wrapper)' suffix '\(style.down)'")
-            }
-        }
-    }
-
-    @Test func kreaDiffusersAliasLayoutClassifiesToKrea() throws {
-        let registry = try FamilyRegistry.bundled()
-        for wrapper in wrappers {
-            for style in suffixStyles {
-                let tensors = kreaAliasTensors(wrapper: wrapper, style: style)
-                #expect(
-                    registry.classifyLoRA(tensors: tensors) == .family("krea-2-turbo"),
-                    "krea alias wrapper '\(wrapper)' suffix '\(style.down)'")
-            }
-        }
-    }
-
-    @Test func sdxlStyleLoraIsUnmatchedAndListsAllThreeFamilies() throws {
-        let registry = try FamilyRegistry.bundled()
-        let tensors: [String: [Int]] = [
-            "lora_unet_down_blocks_0_attentions_0_proj_in.lora_down.weight": [32, 320],
-            "lora_unet_down_blocks_0_attentions_0_proj_in.lora_up.weight": [320, 32],
-            "lora_unet_mid_block_attentions_0_proj_out.lora_down.weight": [32, 1280],
+        let cases: [(fixture: String, family: String)] = [
+            ("lora-klein-9b-diffusers", "flux2-klein"),
+            ("lora-klein-9b-bfl", "flux2-klein"),
+            ("lora-klein-4b-bfl", "flux2-klein"),
+            ("lora-qwen-attention", "qwen-image-2.1-turbo"),
+            ("lora-qwen-ai-toolkit", "qwen-image-2.1-turbo"),
+            ("lora-krea-comfyui", "krea-2-turbo"),
+            ("lora-krea-realism", "krea-2-turbo"),
+            ("lora-krea-darkbrush", "krea-2-turbo"),
         ]
-        #expect(
-            registry.classifyLoRA(tensors: tensors)
-                == .unmatched(supportedFamilyNames: ["Krea 2 Turbo", "FLUX.2 klein", "Qwen-Image 2.1 Turbo"]))
+        for (fixture, family) in cases {
+            let tensors = try loadFixture(fixture)
+            #expect(registry.classifyLoRA(tensors: tensors) == .family(family), "\(fixture)")
+        }
     }
 
-    @Test func klein4BFLLayoutWithSixDoubleBlocksIsUnmatched() throws {
-        // Six double blocks is outside the [5, 8] the BFL alternative allows, and the file has no
-        // `transformer_blocks`, so no other alternative can rescue it.
+    @Test func partialBlockCoverageIsAccepted() throws {
         let registry = try FamilyRegistry.bundled()
-        let tensors = klein4BFLTensors(wrapper: "diffusion_model.", style: suffixStyles[0], doubleBlocks: 6)
-        #expect(
-            registry.classifyLoRA(tensors: tensors)
-                == .unmatched(supportedFamilyNames: ["Krea 2 Turbo", "FLUX.2 klein", "Qwen-Image 2.1 Turbo"]))
+        // Blocks 0-7 of a 32-block Qwen LoRA: the 8-block klein diffusers layout must not claim it.
+        let qwen = keepingBlocks(try loadFixture("lora-qwen-attention"), family: "transformer_blocks", below: 8)
+        #expect(registry.classifyLoRA(tensors: qwen) == .family("qwen-image-2.1-turbo"))
+
+        let qwenAIToolkit = keepingBlocks(try loadFixture("lora-qwen-ai-toolkit"), family: "transformer_blocks", below: 8)
+        #expect(registry.classifyLoRA(tensors: qwenAIToolkit) == .family("qwen-image-2.1-turbo"))
+
+        let krea = keepingBlocks(try loadFixture("lora-krea-comfyui"), family: "blocks", below: 20)
+        #expect(registry.classifyLoRA(tensors: krea) == .family("krea-2-turbo"))
+
+        let klein = keepingBlocks(try loadFixture("lora-klein-9b-diffusers"), family: "transformer_blocks", below: 3)
+        #expect(registry.classifyLoRA(tensors: klein) == .family("flux2-klein"))
     }
 
-    // MARK: - Fixtures
-
-    private struct SuffixStyle {
-        let down: String
-        let up: String
-    }
-
-    private let diffusersAttentionModules = ["attn.to_q", "attn.to_k", "attn.to_v", "attn.to_out.0"]
-
-    private func klein4BFLTensors(wrapper: String, style: SuffixStyle, doubleBlocks: Int) -> [String: [Int]] {
-        loraTensors(
-            wrapper: wrapper, style: style, hidden: 3072,
-            blocks: [
-                (name: "double_blocks", count: doubleBlocks,
-                 modules: ["img_attn.qkv", "img_attn.proj", "txt_attn.qkv", "txt_attn.proj"]),
-                (name: "single_blocks", count: 20, modules: ["linear1", "linear2"]),
-            ],
-            standalone: [
-                "double_stream_modulation_img.lin", "double_stream_modulation_txt.lin",
-                "single_stream_modulation.lin", "final_layer.linear", "img_in", "txt_in",
-                "time_in.in_layer", "time_in.out_layer",
-            ])
-    }
-
-    private func diffusersTensors(wrapper: String, style: SuffixStyle, blocks: Int, hidden: Int) -> [String: [Int]] {
-        loraTensors(
-            wrapper: wrapper, style: style, hidden: hidden,
-            blocks: [(name: "transformer_blocks", count: blocks, modules: diffusersAttentionModules)])
-    }
-
-    private func kreaNativeTensors(wrapper: String, style: SuffixStyle) -> [String: [Int]] {
-        loraTensors(
-            wrapper: wrapper, style: style, hidden: 6144,
-            blocks: [(
-                name: "blocks", count: 28,
-                modules: ["attn.wq", "attn.wk", "attn.wv", "attn.wo", "attn.gate", "mlp.gate", "mlp.up", "mlp.down"]
-            )],
-            standalone: ["last.linear", "tmlp.0", "tmlp.2", "tproj.1", "first"])
-    }
-
-    private func kreaAliasTensors(wrapper: String, style: SuffixStyle) -> [String: [Int]] {
-        loraTensors(
-            wrapper: wrapper, style: style, hidden: 6144,
-            blocks: [(
-                name: "transformer_blocks", count: 28,
-                modules: diffusersAttentionModules + ["attn.to_gate", "ff.gate", "ff.up", "ff.down"]
-            )],
-            standalone: ["final_layer.linear", "time_embed.linear_1", "time_embed.linear_2", "time_mod_proj"])
-    }
-
-    /// Down/up pairs shaped [rank, in] and [out, rank], plus a scalar `.alpha` per module.
-    private func loraTensors(
-        wrapper: String, style: SuffixStyle, hidden: Int,
-        blocks: [(name: String, count: Int, modules: [String])], standalone: [String] = []
-    ) -> [String: [Int]] {
-        var modules: [String] = []
-        for block in blocks {
-            for index in 0..<block.count {
-                modules += block.modules.map { "\(block.name).\(index).\($0)" }
-            }
+    @Test func kleinDiffusersAndQwenAttentionDoNotClaimEachOthersFiles() throws {
+        let registry = try FamilyRegistry.bundled()
+        // Klein's diffusers layout uses `.lora_A.weight`; the Qwen samples use `.lora.down.weight` and
+        // `.lora_down.weight`. A 32-block file renamed to klein's suffix is too deep for klein's 8 blocks.
+        var renamed: [String: [Int]] = [:]
+        for (name, shape) in try loadFixture("lora-qwen-attention") {
+            renamed[name.replacingOccurrences(of: ".lora.down.weight", with: ".lora_A.weight")] = shape
         }
-        modules += standalone
+        #expect(registry.classifyLoRA(tensors: renamed) == unmatchedAll())
+    }
 
-        var tensors: [String: [Int]] = [:]
-        for module in modules {
-            tensors["\(wrapper)\(module)\(style.down)"] = [32, hidden]
-            tensors["\(wrapper)\(module)\(style.up)"] = [hidden, 32]
-            tensors["\(wrapper)\(module).alpha"] = []
+    @Test func blockIndexBeyondTheModelIsUnmatched() throws {
+        let registry = try FamilyRegistry.bundled()
+        let qwen = try loadFixture("lora-qwen-attention")
+            .merging(["transformer.transformer_blocks.32.attn.to_q.lora.down.weight": [16, 4096]]) { a, _ in a }
+        #expect(registry.classifyLoRA(tensors: qwen) == unmatchedAll())
+
+        let krea = try loadFixture("lora-krea-realism")
+            .merging(["base_model.model.blocks.28.attn.wq.lora_A.weight": [32, 6144]]) { a, _ in a }
+        #expect(registry.classifyLoRA(tensors: krea) == unmatchedAll())
+
+        let kleinBFL4B = try loadFixture("lora-klein-4b-bfl")
+            .merging(["base_model.model.double_blocks.5.img_attn.qkv.lora_A.weight": [16, 3072]]) { a, _ in a }
+        #expect(registry.classifyLoRA(tensors: kleinBFL4B) == unmatchedAll())
+
+        let kleinBFL9B = try loadFixture("lora-klein-9b-bfl")
+            .merging(["diffusion_model.double_blocks.8.img_attn.qkv.lora_A.weight": [16, 4096]]) { a, _ in a }
+        #expect(registry.classifyLoRA(tensors: kleinBFL9B) == unmatchedAll())
+    }
+
+    @Test func sdxlStyleKeysAreUnmatched() throws {
+        let registry = try FamilyRegistry.bundled()
+        let sdxl = try loadFixture("lora-negative-sdxl")
+        #expect(registry.classifyLoRA(tensors: sdxl) == unmatchedAll())
+    }
+
+    // MARK: - Helpers
+
+    private struct Fixture: Decodable {
+        let tensors: [String: [Int]]
+    }
+
+    private func loadFixture(_ name: String) throws -> [String: [Int]] {
+        let url = try #require(Bundle.module.url(forResource: name, withExtension: "json", subdirectory: "Fixtures"))
+        return try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: url)).tensors
+    }
+
+    private func unmatchedAll() -> LoRAFamilyMatch {
+        .unmatched(supportedFamilyNames: ["Krea 2 Turbo", "FLUX.2 klein", "Qwen-Image 2.1 Turbo"])
+    }
+
+    /// Drops tensors of `family` blocks at or above `limit`; tensors outside any block run are kept.
+    private func keepingBlocks(_ tensors: [String: [Int]], family: String, below limit: Int) -> [String: [Int]] {
+        tensors.filter { entry in blockIndex(of: entry.key, family: family).map { $0 < limit } ?? true }
+    }
+
+    /// The `N` in a `family.N.` path component, or `nil` when the name has no such component.
+    private func blockIndex(of name: String, family: String) -> Int? {
+        let parts = name.split(separator: ".")
+        for position in parts.indices.dropLast() where parts[position] == family {
+            if let index = Int(parts[position + 1]) { return index }
         }
-        return tensors
+        return nil
     }
 }

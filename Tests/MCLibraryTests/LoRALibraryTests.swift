@@ -203,6 +203,74 @@ import Testing
         #expect(!fixture.store.loraFileExists(record))
     }
 
+    @Test func aJobRowWhoseRequestCannotBeDecodedBlocksEveryLoRADelete() async throws {
+        let fixture = try Self.makeFixture()
+        let record = try await Self.importedAlpha(fixture, fill: 12)
+        let other = try await Self.importedAlpha(fixture, fill: 13, name: "Other")
+        let project = try await fixture.store.defaultProject()
+        try await fixture.store.dbQueue.write { db in
+            try db.execute(
+                sql: "INSERT INTO job (id, project_id, mode, request, batch_count, seed_policy, status, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                arguments: [UUID().uuidString, project.id.uuidString, Job.textToImageMode, "{not json", 1, "fixed", JobStatus.queued.rawValue, 1])
+        }
+
+        #expect(try await fixture.store.loraBlockingJobs(id: record.id) == 1)
+        #expect(try await fixture.store.loraBlockingJobs(id: other.id) == 1)
+        let error = await Self.caughtError { _ = try await fixture.store.deleteLoRA(id: other.id) }
+        #expect(error as? LoRADeleteError == .inUseByJob(count: 1))
+        #expect(fixture.store.loraFileExists(other))
+    }
+
+    @Test func aFailedJobWhoseFailureCannotBeDecodedBlocksDelete() async throws {
+        let fixture = try Self.makeFixture()
+        let record = try await Self.importedAlpha(fixture, fill: 14)
+        let job = try await Self.enqueue(fixture, using: record)
+        try await fixture.store.dbQueue.write { db in
+            try db.execute(
+                sql: "UPDATE job SET status = ?, failure = ? WHERE id = ?",
+                arguments: [JobStatus.failed.rawValue, "garbage", job.id.uuidString])
+        }
+
+        #expect(try await fixture.store.loraBlockingJobs(id: record.id) == 1)
+        let error = await Self.caughtError { _ = try await fixture.store.deleteLoRA(id: record.id) }
+        #expect(error as? LoRADeleteError == .inUseByJob(count: 1))
+        #expect(fixture.store.loraFileExists(record))
+    }
+
+    @Test func aFailedRowCommitRemovesTheCopyTheImportMoved() async throws {
+        let fixture = try Self.makeFixture()
+        let source = try Self.alphaFile(fixture, "a/rollback.safetensors", fill: 15)
+        try await fixture.store.dbQueue.write { db in
+            try db.execute(sql: "CREATE TRIGGER refuse_lora_insert BEFORE INSERT ON lora BEGIN SELECT RAISE(ABORT, 'refused'); END")
+        }
+
+        let error = await Self.caughtError {
+            _ = try await fixture.store.importLoRA(from: source, registry: fixture.registry)
+        }
+
+        #expect(error as? LoRAImportError != nil)
+        #expect(try await fixture.store.loras().isEmpty)
+        let family = fixture.models.appending(path: "LoRAs/alpha", directoryHint: .isDirectory)
+        #expect(((try? FileManager.default.contentsOfDirectory(atPath: family.path)) ?? []).isEmpty)
+    }
+
+    @Test func openingTheLibrarySweepsAnUnreferencedLoRAFileAndKeepsAReferencedOne() async throws {
+        let fixture = try Self.makeFixture()
+        let record = try await Self.importedAlpha(fixture, fill: 16)
+        let orphan = fixture.models.appending(path: "LoRAs/alpha/orphan.safetensors")
+        try Data("orphan".utf8).write(to: orphan)
+        let weights = fixture.models.appending(path: "Weights/keep.txt")
+        try FileManager.default.createDirectory(at: weights.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("weights".utf8).write(to: weights)
+        let libraryRoot = fixture.models.deletingLastPathComponent().appending(path: "Library", directoryHint: .isDirectory)
+
+        let reopened = try LibraryStore(libraryRoot: libraryRoot, modelsRoot: fixture.models)
+
+        #expect(!FileManager.default.fileExists(atPath: orphan.path))
+        #expect(reopened.loraFileExists(record))
+        #expect(FileManager.default.fileExists(atPath: weights.path))
+    }
+
     @Test func deleteReportsHowManySavedImagesStillNameTheLoRA() async throws {
         let fixture = try Self.makeFixture()
         let record = try await Self.importedAlpha(fixture, fill: 9)

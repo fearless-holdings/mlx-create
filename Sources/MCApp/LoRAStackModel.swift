@@ -50,6 +50,8 @@ public enum LoRAFit: Equatable, Sendable {
     case needsModelInstalled(familyName: String)
     /// The selected model's family accepts no LoRAs at all.
     case modelTakesNoLoRAs
+    /// The LoRA's file is gone from the library folder. No model switch makes it usable, so this outranks the fit (R17).
+    case fileMissing
 
     /// The plain reason a greyed row shows, or nil when the LoRA fits.
     public var reason: String? {
@@ -58,6 +60,7 @@ public enum LoRAFit: Equatable, Sendable {
         case .doesNotFit(let name): "doesn't fit \(name)"
         case .needsModelInstalled(let familyName): "needs \(familyName) installed"
         case .modelTakesNoLoRAs: "this model takes no LoRAs"
+        case .fileMissing: "file missing from the LoRA library: re-import or remove it"
         }
     }
 }

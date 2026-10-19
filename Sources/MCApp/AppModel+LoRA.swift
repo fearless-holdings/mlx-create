@@ -36,7 +36,10 @@ extension AppModel {
         let installed = installedLoRAFamilyIDs
         return loraSlots.compactMap { slot -> LoRAStackRow? in
             guard let record = loraRecords.first(where: { $0.id == slot.id }) else { return nil }
-            let fit = loraFit(for: record, selected: selected, installed: installed)
+            // A missing file outranks the fit: no model switch makes it usable (R17).
+            let fit: LoRAFit = loraMissingFileIDs.contains(record.id)
+                ? .fileMissing
+                : loraFit(for: record, selected: selected, installed: installed)
             let words = record.triggerWords
             let missingHint = slot.isEnabled && !words.isEmpty
                 && !words.contains { LoRAStackRules.containsWord($0, in: prompt) }
@@ -261,12 +264,16 @@ extension AppModel {
     func frozenLoRAStack() throws -> [LoRAStackEntry] {
         let selected = loraFamily
         let installed = installedLoRAFamilyIDs
-        let rows = loraSlots.compactMap { slot -> LoRADraftRow? in
+        let rows = try loraSlots.compactMap { slot -> LoRADraftRow? in
             guard let record = loraRecords.first(where: { $0.id == slot.id }) else { return nil }
             let entry = LoRAStackEntry(
                 id: record.id, name: record.name, sha256: record.sha256, weight: slot.weight,
                 relativePath: record.relativePath)
             let fits = loraFit(for: record, selected: selected, installed: installed) == .fits
+            // R17: a LoRA the job would use needs its file. Refuse before anything is queued.
+            if slot.isEnabled, fits, slot.weight != 0, !store.loraFileExists(record) {
+                throw LibraryError.loraUnavailable(name: record.name)
+            }
             return LoRADraftRow(entry: entry, isEnabled: slot.isEnabled, fits: fits)
         }
         return try GenerationComposer.freezeLoRAs(rows)

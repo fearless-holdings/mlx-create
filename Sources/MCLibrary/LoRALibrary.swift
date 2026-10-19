@@ -2,6 +2,7 @@ import CryptoKit
 import Foundation
 import GRDB
 import MCCatalog
+import Synchronization
 
 /// The result of importing one LoRA file. A duplicate returns the row already holding the same SHA-256.
 public enum LoRAImportOutcome: Sendable, Equatable {
@@ -54,6 +55,19 @@ public enum LoRADeleteError: Error, LocalizedError, Sendable, Equatable {
     }
 }
 
+/// Where an import's copy was moved to, and the row path that names it.
+private struct LoRAPlacement: Sendable {
+    let url: URL
+    let relativePath: String
+}
+
+/// Holds the placement of the copy an import moved, for its failure path. A class, so the write closure can capture it.
+private final class LoRAPlacementSlot: Sendable {
+    private let state = Mutex<LoRAPlacement?>(nil)
+    var value: LoRAPlacement? { state.withLock { $0 } }
+    func set(_ placement: LoRAPlacement) { state.withLock { $0 = placement } }
+}
+
 /// LoRA import, listing, rename, delete and usage (plan U3, KTD1, KTD6, D34). Mirrors `LibraryStore+InstalledModels`.
 extension LibraryStore {
     // MARK: Import
@@ -92,45 +106,63 @@ extension LibraryStore {
 
         let typed = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let baseName = typed.isEmpty ? url.deletingPathExtension().lastPathComponent : typed
-        return try await dbQueue.write { (db: Database) throws -> LoRAImportOutcome in
-            let fm = FileManager.default
-            if let existing = try LoRARecord.filter(Column("sha256") == staged.sha256).fetchOne(db) {
-                guard let existingFile = paths.loraURL(relativePath: existing.relativePath) else {
-                    throw LoRAImportError.copyFailed(reason: "the record for \(existing.name) has an invalid path")
+        // Set once the copy is moved into place, so a commit that fails afterwards can take it back out (below).
+        let placed = LoRAPlacementSlot()
+        do {
+            return try await dbQueue.write { (db: Database) throws -> LoRAImportOutcome in
+                let fm = FileManager.default
+                if let existing = try LoRARecord.filter(Column("sha256") == staged.sha256).fetchOne(db) {
+                    guard let existingFile = paths.loraURL(relativePath: existing.relativePath) else {
+                        throw LoRAImportError.copyFailed(reason: "the record for \(existing.name) has an invalid path")
+                    }
+                    if fm.fileExists(atPath: existingFile.path) { return .duplicate(existing: existing) }
+                    // The row is kept, so its missing file is restored to the recorded path.
+                    do {
+                        try fm.createDirectory(at: existingFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+                        try fm.moveItem(at: partial, to: existingFile)
+                    } catch {
+                        throw LoRAImportError.copyFailed(reason: error.localizedDescription)
+                    }
+                    return .restored(existing)
                 }
-                if fm.fileExists(atPath: existingFile.path) { return .duplicate(existing: existing) }
-                // The row is kept, so its missing file is restored to the recorded path.
+                let taken = try Set(String.fetchAll(db, sql: "SELECT name FROM lora"))
+                let finalName = Self.uniqueName(base: baseName, taken: taken)
+                let fileName = "\(staged.sha256.prefix(10))-\(Self.fileSlug(finalName)).safetensors"
+                let relativePath = paths.loraRelativePath(family: family, fileName: fileName)
+                // A row that already owns this path has another hash with the same prefix. Never overwrite its file.
+                guard try LoRARecord.filter(Column("relative_path") == relativePath).fetchCount(db) == 0 else {
+                    throw LoRAImportError.copyFailed(reason: "\(fileName) already belongs to another LoRA")
+                }
+                let finalURL = directory.appending(path: fileName)
                 do {
-                    try fm.createDirectory(at: existingFile.deletingLastPathComponent(), withIntermediateDirectories: true)
-                    try fm.moveItem(at: partial, to: existingFile)
+                    try? fm.removeItem(at: finalURL) // an orphan from an interrupted import; no row names it
+                    try fm.moveItem(at: partial, to: finalURL)
                 } catch {
                     throw LoRAImportError.copyFailed(reason: error.localizedDescription)
                 }
-                return .restored(existing)
-            }
-            let taken = try Set(String.fetchAll(db, sql: "SELECT name FROM lora"))
-            let finalName = Self.uniqueName(base: baseName, taken: taken)
-            let fileName = "\(staged.sha256.prefix(10))-\(Self.fileSlug(finalName)).safetensors"
-            let relativePath = paths.loraRelativePath(family: family, fileName: fileName)
-            // A row that already owns this path has another hash with the same prefix. Never overwrite its file.
-            guard try LoRARecord.filter(Column("relative_path") == relativePath).fetchCount(db) == 0 else {
-                throw LoRAImportError.copyFailed(reason: "\(fileName) already belongs to another LoRA")
-            }
-            let finalURL = directory.appending(path: fileName)
-            do {
-                try? fm.removeItem(at: finalURL) // an orphan from an interrupted import; no row names it
-                try fm.moveItem(at: partial, to: finalURL)
+                placed.set(LoRAPlacement(url: finalURL, relativePath: relativePath))
                 let record = LoRARecord(
                     id: UUID().uuidString, name: finalName, family: family, sha256: staged.sha256,
                     relativePath: relativePath,
                     sizeBytes: staged.sizeBytes, triggerWords: [], notes: nil, createdAt: Date())
-                try record.insert(db)
+                do {
+                    try record.insert(db)
+                } catch {
+                    throw LoRAImportError.copyFailed(reason: error.localizedDescription)
+                }
                 // Return the stored row: GRDB keeps dates to the millisecond, so the in-memory value can differ.
                 return .added(try LoRARecord.fetchOne(db, key: record.id) ?? record)
-            } catch {
-                try? fm.removeItem(at: finalURL)
-                throw LoRAImportError.copyFailed(reason: error.localizedDescription)
             }
+        } catch {
+            // The copy may be in place with no committed row: the write threw after the move, or the commit itself failed.
+            // Remove it unless a row names its path. If that cannot be read, keep the file; the open-time sweep collects it.
+            if let placement = placed.value {
+                let owned = try? await dbQueue.read { (db: Database) throws -> Bool in
+                    try LoRARecord.filter(Column("relative_path") == placement.relativePath).fetchCount(db) > 0
+                }
+                if owned == false { try? FileManager.default.removeItem(at: placement.url) }
+            }
+            throw error
         }
     }
 
@@ -207,6 +239,11 @@ extension LibraryStore {
         paths.loraURL(relativePath: record.relativePath) ?? paths.loraRoot
     }
 
+    /// The `lora` row with this id, or nil when it was deleted.
+    public func loraRecord(id: String) throws -> LoRARecord? {
+        try dbQueue.read { (db: Database) throws -> LoRARecord? in try LoRARecord.fetchOne(db, key: id) }
+    }
+
     /// Total bytes of every LoRA row.
     public func loraTotalBytes() throws -> Int64 {
         try dbQueue.read { (db: Database) throws -> Int64 in
@@ -251,7 +288,8 @@ extension LibraryStore {
         }
     }
 
-    /// Jobs that block deleting this LoRA: queued, running, paused, or failed with a retryable error.
+    /// Jobs that block deleting this LoRA: queued, running, paused, or failed with a retryable error. A row that
+    /// cannot be read blocks too (KTD6).
     public func loraBlockingJobs(id: String) throws -> Int {
         try dbQueue.read { (db: Database) throws -> Int in
             try Self.blockingJobCount(id: id, db: db)
@@ -288,13 +326,25 @@ extension LibraryStore {
     }
 
     static func blockingJobCount(id: String, db: Database) throws -> Int {
-        let jobs = try JobRow
+        try JobRow
             .filter(Column("status") != JobStatus.done.rawValue && Column("status") != JobStatus.cancelled.rawValue)
             .fetchAll(db)
-            .map(\.job)
-        return jobs.filter { (job: Job) in
-            guard job.request.loras?.contains(where: { $0.id == id }) == true else { return false }
-            return job.status != .failed || job.failure?.retryable == true
-        }.count
+            .filter { Self.blocksDelete($0, loraID: id) }
+            .count
+    }
+
+    /// Whether a job row keeps `loraID` from being deleted (KTD6). It fails closed: a row whose status, request or failure
+    /// cannot be read blocks every LoRA, because the row cannot be shown to be free of one.
+    static func blocksDelete(_ row: JobRow, loraID: String) -> Bool {
+        guard let status = JobStatus(rawValue: row.status) else { return true }
+        guard status != .done, status != .cancelled else { return false }
+        guard let request = JSONCoding.decode(JobRequest.self, from: row.request) else { return true }
+        var failure: JobFailure?
+        if let text = row.failure {
+            guard let decoded = JSONCoding.decode(JobFailure.self, from: text) else { return true }
+            failure = decoded
+        }
+        guard request.loras?.contains(where: { $0.id == loraID }) == true else { return false }
+        return status != .failed || failure?.retryable == true
     }
 }
