@@ -387,7 +387,8 @@ public final class AppModel {
     /// Rescans the models folder and lists the image models the engine reports.
     public func refreshModels() async {
         do {
-            models = try await InstalledModels(registry: registry).refresh(using: client)
+            let installed = InstalledModels(registry: registry, weightsRoot: URL(fileURLWithPath: weightsPath, isDirectory: true))
+            models = try await installed.refresh(using: client)
             browser.setEngineModelIDs(Set(models.map(\.id)))
             modelsLoaded = true
             chooseSelection()
@@ -480,6 +481,7 @@ public final class AppModel {
         guidance = settings.guidance
         seedChoice = .fixed
         seedText = String(UInt32(truncatingIfNeeded: settings.seed))
+        fitComposerToSelectedFamily()
     }
 
     // MARK: Queue actions

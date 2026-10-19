@@ -55,9 +55,10 @@ Field rules:
 - `files[].path` is a relative `/`-separated path with no leading `/`, no empty segment and no `..` segment. Every path must pass `WeightFilePolicy.check` (KTD21). Duplicate paths within a model are rejected.
 - `files[].sha256` is 64 lowercase hex characters. For LFS files it is the tree API's `lfs.oid`. For small non-LFS files it is computed by `mc-catalog build` from a download of the file at the pinned commit (KTD1).
 - `download_bytes` equals the sum of `files[].size`. Every `files[].size` must be greater than 0: a zero-byte file is not a legitimate weight file, so the catalog is rejected.
-- `ram_gb` is the engine's measured preflight need for Krea (17.6, `docs/lld/engine.md` §5.9). For klein 4B it is the HLD figure of 8, to be measured in U7.
+- `ram_gb` is the engine's measured preflight need for Krea (17.6, `docs/lld/engine.md` §5.9). For klein 4B it is the HLD figure of 8, to be measured in U7. For Qwen-Image 2.1 Turbo it is 14.3: the engine's staged peak (11.81 GiB, read from its `[preflight]` log with `MLX_SERVE_QWEN_IMAGE_LOW_MEMORY=1`) plus its load headroom, `min(peak/8, 6 GiB) + 1 GiB`. The pack ships an edit tower, so the engine bills the larger edit transient. The app launches the engine with that variable (D32), so the staged need is the real need on every Mac; without it a Mac with a working set above about 18.4 GiB would need about 18.8 GB.
 - `license.commercial_use` is a boolean. `license.summary` is the text the license sheet shows (KTD10). For Krea it names the content-filter clause (§4.2) and the USD 1M trailing-revenue cap (§2.3), per D26.
 - `family` must match a `FamilyRegistry` record id (`families.json`). A catalog entry for an unknown family is ignored by the app, not rejected by the loader (HLD §8.4).
+- Installed-model family detection (app side, not catalog): an installed folder matches a family by the engine's architecture from `/v1/models`. A family may also require a checkpoint trait. Qwen-Image 2.1 Turbo requires a non-empty `sample_sigmas` list, read from `Weights/<model id>/model_index.json`. A missing, unreadable or malformed file counts as trait absent, and the folder stays unavailable with the "not supported by this app yet" reason. Only architectures that declare a trait are probed (D31).
 - Model `id` values are unique within a catalog.
 
 ## 3. Verification order

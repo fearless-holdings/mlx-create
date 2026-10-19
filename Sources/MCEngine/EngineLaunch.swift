@@ -19,13 +19,16 @@ public enum EngineLaunch {
         ]
     }
 
-    /// Built from exactly these four variables; nothing is inherited from the app's environment.
+    /// Built from exactly these variables; nothing is inherited from the app's environment.
+    /// `MLX_SERVE_QWEN_IMAGE_LOW_MEMORY=1` pins the engine's staged Qwen-Image plan on every Mac, so the
+    /// catalog `ram_gb` for Qwen packs (the staged need) holds regardless of the machine's working set (D32).
     public static func environment(home: URL, apiKey: String, temporaryDirectory: URL) -> [String: String] {
         [
             "HOME": home.path,
             keyEnvironmentName: apiKey,
             "PATH": "/usr/bin:/bin",
             "TMPDIR": temporaryDirectory.path,
+            "MLX_SERVE_QWEN_IMAGE_LOW_MEMORY": "1",
         ]
     }
 

@@ -21,9 +21,24 @@ public struct FamilyRegistry: Sendable {
         return FamilyRegistry(families: file.families)
     }
 
-    /// The family whose `architectures` contains `arch`, or `nil` when no verified record covers it.
-    public func family(forArchitecture arch: String) -> ModelFamily? {
-        families.first { $0.architectures.contains(arch) }
+    /// The family whose `architectures` contains `arch` and whose required trait, if any, is in
+    /// `traits`, or `nil` when no verified record covers it. `traits` are checkpoint facts the caller
+    /// read from the pack (KTD5); the default empty set matches only records that need no trait.
+    public func family(forArchitecture arch: String, traits: Set<String> = []) -> ModelFamily? {
+        candidates(forArchitecture: arch).first { family in
+            guard let trait = family.requiresTrait else { return true }
+            return traits.contains(trait)
+        }
+    }
+
+    /// The trait the record for `arch` needs before it applies, or `nil` when it needs none or no
+    /// record covers `arch`. A caller probes the pack only when this is non-nil.
+    public func requiredTrait(forArchitecture arch: String) -> String? {
+        candidates(forArchitecture: arch).first?.requiresTrait
+    }
+
+    private func candidates(forArchitecture arch: String) -> [ModelFamily] {
+        families.filter { $0.architectures.contains(arch) }
     }
 
     /// Rounds each dimension up to the family's grid multiple, then clamps it into `min...max`.

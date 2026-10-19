@@ -102,6 +102,7 @@ The t2i slice only runs models already sitting in the weights folder, so a new u
 - Production catalog signing key and where its private half lives. The dev key is replaced before release by editing the pinned key list and re-signing the bundled catalog.
 - Production catalog URL, set through the build configuration (KTD4).
 - A legal read of the Krea 2 Community License against D1 and D3, because section 9.1 terminates the license automatically on breach. This does not change the plan.
+- A legal read of the Qwen Research License on Qwen-Image 2.1 Turbo (research and evaluation only, no commercial use), read from the pack's own `LICENSE` at the pinned commit. Same status as the Krea read above; the Turbo entry does not ship until it is done.
 
 **Deferred to implementation**
 

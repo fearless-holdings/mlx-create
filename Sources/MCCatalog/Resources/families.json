@@ -33,6 +33,27 @@
       "steps": { "defaultSteps": 4, "min": 1, "max": 100 },
       "guidance": null,
       "supportsNegativePrompt": false
+    },
+    {
+      "id": "qwen-image-2.1-turbo",
+      "displayName": "Qwen-Image 2.1 Turbo",
+      "architectures": ["qwen_image21"],
+      "requiresTrait": "sample_sigmas",
+      "sizeGrid": { "multiple": 16, "min": 256, "max": 2048 },
+      "sizePresets": [
+        { "width": 1024, "height": 1024 },
+        { "width": 768, "height": 768 },
+        { "width": 512, "height": 512 },
+        { "width": 832, "height": 1248 },
+        { "width": 1248, "height": 832 },
+        { "width": 1344, "height": 768 },
+        { "width": 768, "height": 1344 }
+      ],
+      "defaultSize": { "width": 1024, "height": 1024 },
+      "steps": { "defaultSteps": 8, "min": 8, "max": 8 },
+      "stepsAreFixed": true,
+      "guidance": null,
+      "supportsNegativePrompt": false
     }
   ]
 }

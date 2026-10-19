@@ -23,6 +23,13 @@ private func fluxModel(_ registry: FamilyRegistry) throws -> InstalledModel {
     return InstalledModel(id: "ddalcu/FLUX.2-klein-4B", architecture: "flux2-klein", family: family, availability: .available)
 }
 
+private let turboID = "ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-4bit"
+
+private func turboModel(_ registry: FamilyRegistry) throws -> InstalledModel {
+    let family = try #require(registry.family(forArchitecture: "qwen_image21", traits: ["sample_sigmas"]))
+    return InstalledModel(id: turboID, architecture: "qwen_image21", family: family, availability: .available)
+}
+
 private func draft(
     model: InstalledModel,
     prompt: String = "a red fox in snow",
@@ -170,5 +177,15 @@ struct GenerationComposerTests {
 
         #expect(job.batchCount == 1)
         #expect(SeedPolicy(encoded: job.seedPolicy) == .fixed(77))
+    }
+
+    @Test func fixedStepsFamilyDropsDraftSteps() async throws {
+        let registry = try FamilyRegistry.bundled()
+        let store = try makeStore()
+        let composer = GenerationComposer(registry: registry, store: store)
+
+        let job = try await composer.enqueue(draft(model: try turboModel(registry), steps: 20))
+
+        #expect(job.request.steps == nil)
     }
 }

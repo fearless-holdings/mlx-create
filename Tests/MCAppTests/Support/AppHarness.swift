@@ -129,6 +129,13 @@ struct AppHarness {
     /// The stub engine behind this app, so a test can change the models it reports.
     let engine: FakeEngine
 
+    /// The models folder this harness's app scans for `model_index.json` probes. It sits under the harness's own temp root.
+    var weightsRoot: URL { Self.weightsRoot(in: root) }
+
+    static func weightsRoot(in root: URL) -> URL {
+        root.appending(path: "Weights", directoryHint: .isDirectory)
+    }
+
     /// An engine that answers every generation with 404, for tests that must not reach the engine.
     static let idleEngine: FakeEngine.Script = { _, _ in .init(status: 404, body: Data(), tail: nil) }
 
@@ -192,7 +199,7 @@ struct AppHarness {
             gate: gate,
             registry: try registry ?? FamilyRegistry.bundled(),
             states: stream,
-            weightsPath: "/tmp/mlx-create-tests/Weights",
+            weightsPath: Self.weightsRoot(in: root).path,
             libraryPaths: LibraryPaths(root: root),
             supervisor: supervisor,
             defaults: defaults, catalog: catalog, transport: transport, catalogStore: catalogStore)

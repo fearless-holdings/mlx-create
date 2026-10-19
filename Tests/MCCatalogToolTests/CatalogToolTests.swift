@@ -250,7 +250,10 @@ enum BuildFixture {
         _ = try CatalogSignature.verify(
             catalogBytes: bundled.bytes, signatureBytes: bundled.signature, keys: PinnedKeys.keys)
         let catalog = try Catalog.decodeValidated(bundled.bytes)
-        #expect(catalog.models.map(\.id) == ["flux2-klein-4b-mflux-4bit", "krea-2-turbo-mixed-4-8"])
+        #expect(
+            catalog.models.map(\.id) == [
+                "flux2-klein-4b-mflux-4bit", "krea-2-turbo-mixed-4-8", "qwen-image-2.1-turbo-4bit",
+            ])
     }
 
     @Test func bundledCatalogPassesTheReleaseGateWithNoCatalogURL() throws {
