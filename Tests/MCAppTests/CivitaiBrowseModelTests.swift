@@ -16,9 +16,9 @@ private func testKeychain() -> CivitaiKeychain {
 /// A harness with one selected FLUX.2 klein 4B model, a scripted Civitai API and file host.
 @MainActor
 private func browseHarness(
-    api: ScriptedCivitaiAPI,
+    api: any CivitaiTransport,
     files: ScriptedCivitaiFileHost? = nil,
-    keychain: CivitaiKeychain,
+    keychain: any CivitaiKeyStore,
     preview: (@Sendable (URL) async -> Data?)? = nil,
     models: [(id: String, architecture: String)] = [(kleinModelID, kleinArchitecture)],
     selected: String? = kleinModelID
@@ -45,6 +45,42 @@ private func foxListing(id: Int, versionID: Int, payload: Data, name: String = "
         id: versionID, name: "v1", baseModel: "Flux.2 Klein 4B", publishedAt: "2026-02-01T00:00:00.000Z",
         trainedWords: ["wcfox", "watercolor"], file: file)
     return civitaiModelJSON(id: id, name: name, baseModels: ["Flux.2 Klein 4B"], versions: [version])
+}
+
+/// A FLUX.2 klein 4B LoRA listing with a placeholder file, for tests about the search rows only.
+private func kleinListing(id: Int, nsfw: Bool = false) -> [String: Any] {
+    let version = civitaiVersionJSON(
+        id: id * 10, name: "v1", baseModel: "Flux.2 Klein 4B", publishedAt: "2026-02-01T00:00:00.000Z",
+        file: civitaiFileJSON(url: "https://civitai.com/api/download/models/\(id * 10)", sha256: "00", size: 1))
+    return civitaiModelJSON(
+        id: id, name: "Klein \(id)", baseModels: ["Flux.2 Klein 4B"], versions: [version], nsfw: nsfw)
+}
+
+/// A FLUX.2 klein 4B LoRA listing whose one file carries `sha256` as its hash.
+private func listingWithHash(id: Int, sha256: String, size: Int) -> [String: Any] {
+    let version = civitaiVersionJSON(
+        id: id * 10, name: "v1", baseModel: "Flux.2 Klein 4B", publishedAt: "2026-02-01T00:00:00.000Z",
+        file: civitaiFileJSON(url: "https://civitai.com/api/download/models/\(id * 10)", sha256: sha256, size: size))
+    return civitaiModelJSON(id: id, name: "Hash \(id)", baseModels: ["Flux.2 Klein 4B"], versions: [version])
+}
+
+/// Page one lists `first` and points at cursor `c2`; the request for `c2` gets `second` and no further cursor.
+private func twoPages(_ first: [[String: Any]], _ second: [[String: Any]]) -> @Sendable (URLRequest) -> CivitaiResponse {
+    let firstBody = (try? JSONSerialization.data(withJSONObject: civitaiPage(first, nextCursor: "c2"))) ?? Data()
+    let secondBody = (try? JSONSerialization.data(withJSONObject: civitaiPage(second))) ?? Data()
+    return { request in
+        CivitaiResponse(status: 200, body: queryValue(request, "cursor") == "c2" ? secondBody : firstBody)
+    }
+}
+
+/// A Keychain whose every call fails, to check that a read error is shown and never sends a keyless download.
+private struct FailingKeyStore: CivitaiKeyStore {
+    struct Locked: LocalizedError {
+        var errorDescription: String? { "The Keychain is locked." }
+    }
+
+    func read() throws -> String? { throw Locked() }
+    func write(_ key: String) throws { throw Locked() }
 }
 
 @MainActor
@@ -86,7 +122,8 @@ private func foxListing(id: Int, versionID: Int, payload: Data, name: String = "
 
         harness.model.civitai.setQuery("f")
         harness.model.civitai.setQuery("fox")
-        try await Task.sleep(for: .milliseconds(900))
+        try await eventually { await api.requests.count == 1 }
+        try await Task.sleep(for: .milliseconds(100))
 
         let requests = await api.requests
         #expect(requests.count == 1)
@@ -412,5 +449,169 @@ private func foxListing(id: Int, versionID: Int, payload: Data, name: String = "
 
         let relaunched = try await harness.relaunch()
         #expect(relaunched.model.civitai.includeNSFW)
+    }
+
+    @Test func cancelAfterStagingStoresNothingAndRemovesTheStagedFile() async throws {
+        let payload = try safetensorsFile(klein4BTensors(), tag: "fox")
+        let png = PNGFixture.make(width: 64, height: 64)
+        let gate = PreviewGate()
+        let api = ScriptedCivitaiAPI(reply: searchReply([foxListing(id: 42, versionID: 420, payload: payload)]))
+        let files = ScriptedCivitaiFileHost(payload: payload)
+        let keychain = testKeychain()
+        defer { try? keychain.delete() }
+        let harness = try await browseHarness(
+            api: api, files: files, keychain: keychain, preview: { _ in await gate.fetch(png) })
+        await harness.model.civitai.search()
+
+        harness.model.civitai.requestDownload(modelID: 42)
+        harness.model.civitai.acceptPendingLicense()
+        try await eventually { await gate.started }
+        harness.model.civitai.cancelDownload(modelID: 42)
+        await gate.release()
+        await harness.model.civitai.waitForDownloads()
+
+        #expect(try await harness.store.loras().isEmpty)
+        let staging = LibraryPaths(root: harness.root, modelsRoot: harness.root.appending(path: "Models"))
+            .civitaiStagingDirectory
+        let staged = (try? FileManager.default.contentsOfDirectory(atPath: staging.path)) ?? []
+        #expect(staged.isEmpty)
+        #expect(harness.model.civitai.rows.first?.status == .available)
+    }
+
+    @Test func overlappingLoadMoreCallsRequestAndAppendOnePageOnce() async throws {
+        let api = GatedCivitaiAPI(reply: twoPages(
+            [kleinListing(id: 1), kleinListing(id: 2)], [kleinListing(id: 3), kleinListing(id: 4)]))
+        let keychain = testKeychain()
+        defer { try? keychain.delete() }
+        let harness = try await browseHarness(api: api, keychain: keychain)
+        await harness.model.civitai.search()
+
+        await api.hold()
+        async let first: Void = harness.model.civitai.loadMore()
+        async let second: Void = harness.model.civitai.loadMore()
+        try await eventually { await api.requests.count == 2 }
+        await api.release()
+        await first
+        await second
+
+        #expect(await api.requests.count == 2)
+        #expect(harness.model.civitai.rows.map(\.id) == [1, 2, 3, 4])
+    }
+
+    @Test func aLaterPageKeepsTheSearchFilterAndANewSelectionStartsAFreshSearch() async throws {
+        let api = ScriptedCivitaiAPI(reply: twoPages([kleinListing(id: 1)], [kleinListing(id: 2)]))
+        let keychain = testKeychain()
+        defer { try? keychain.delete() }
+        let harness = try await browseHarness(
+            api: api, keychain: keychain, models: [(kleinModelID, kleinArchitecture), (kreaModel, "krea2_turbo")])
+        await harness.model.civitai.showTab()
+        #expect(harness.model.civitai.rows.map(\.id) == [1])
+
+        // The selection moves to a Krea model: the next page still uses the Klein filter it started with.
+        harness.model.selectedModelID = kreaModel
+        await harness.model.civitai.loadMore()
+        let paged = await api.requests
+        let page = try #require(paged.last)
+        #expect(queryValue(page, "cursor") == "c2")
+        #expect(queryValues(page, "baseModels") == ["Flux.2 Klein 4B"])
+        #expect(harness.model.civitai.rows.map(\.id) == [1, 2])
+
+        // A new selection starts a fresh search for its own family and drops the old rows.
+        let krea = try #require(FamilyRegistry.bundled().families.first { $0.id == "krea-2-turbo" })
+        await api.setReply(searchReply([kleinListing(id: 3)]))
+        await harness.model.civitai.showTab()
+        let fresh = await api.requests
+        let search = try #require(fresh.last)
+        #expect(queryValue(search, "cursor") == nil)
+        #expect(queryValues(search, "baseModels") == krea.civitaiBaseModels.map(\.label))
+        #expect(harness.model.civitai.rows.map(\.id) == [3])
+    }
+
+    @Test func returningToTheTabKeepsTheLoadedPages() async throws {
+        let api = ScriptedCivitaiAPI(reply: twoPages([kleinListing(id: 1)], [kleinListing(id: 2)]))
+        let keychain = testKeychain()
+        defer { try? keychain.delete() }
+        let harness = try await browseHarness(api: api, keychain: keychain)
+        await harness.model.civitai.showTab()
+        await harness.model.civitai.loadMore()
+
+        await harness.model.civitai.showTab()
+
+        #expect(await api.requests.count == 2)
+        #expect(harness.model.civitai.rows.map(\.id) == [1, 2])
+    }
+
+    @Test func aRefusedSavedKeyShowsTheRefusedPromptInBrowse() async throws {
+        let api = ScriptedCivitaiAPI(reply: { _ in civitaiResponse(["message": "Invalid key"], status: 401) })
+        let keychain = testKeychain()
+        defer { try? keychain.delete() }
+        try keychain.write("test-saved-key")
+        let harness = try await browseHarness(api: api, keychain: keychain)
+
+        await harness.model.civitai.search()
+
+        #expect(harness.model.civitai.state == .needsKey(message: CivitaiError.keyRefused.errorDescription))
+    }
+
+    @Test func aFileHashThatIsNotSixtyFourHexDigitsStartsNoDownload() async throws {
+        let payload = try safetensorsFile(klein4BTensors(), tag: "fox")
+        let api = ScriptedCivitaiAPI(reply: searchReply([
+            listingWithHash(id: 42, sha256: String(repeating: "a", count: 63), size: payload.count),
+            listingWithHash(id: 43, sha256: String(repeating: "g", count: 64), size: payload.count),
+            listingWithHash(id: 44, sha256: String(repeating: "b", count: 64), size: payload.count),
+        ]))
+        let files = ScriptedCivitaiFileHost(payload: payload)
+        let keychain = testKeychain()
+        defer { try? keychain.delete() }
+        let harness = try await browseHarness(api: api, files: files, keychain: keychain)
+        await harness.model.civitai.search()
+
+        #expect(harness.model.civitai.rows.map(\.canDownload) == [false, false, true])
+        harness.model.civitai.requestDownload(modelID: 42)
+        harness.model.civitai.requestDownload(modelID: 43)
+        #expect(harness.model.civitai.pendingLicense == nil)
+        #expect(await files.requests.isEmpty)
+        // The valid hash is the control: the same listing with a 64-digit hash does offer a download.
+        harness.model.civitai.requestDownload(modelID: 44)
+        #expect(harness.model.civitai.pendingLicense?.modelID == 44)
+    }
+
+    @Test func aKeychainReadFailureIsShownAndNeverSendsAKeylessDownload() async throws {
+        let payload = try safetensorsFile(klein4BTensors(), tag: "fox")
+        let api = ScriptedCivitaiAPI(reply: searchReply([foxListing(id: 42, versionID: 420, payload: payload)]))
+        let files = ScriptedCivitaiFileHost(payload: payload)
+        let harness = try await browseHarness(api: api, files: files, keychain: FailingKeyStore())
+        #expect(harness.model.civitai.hasSavedKey == false)
+        #expect(harness.model.civitai.keyError?.contains("The Keychain is locked.") == true)
+
+        await harness.model.civitai.search()
+        harness.model.civitai.requestDownload(modelID: 42)
+        harness.model.civitai.acceptPendingLicense()
+        await harness.model.civitai.waitForDownloads()
+
+        #expect(harness.model.civitai.rows.first?.status == .failed(message: "The Keychain is locked."))
+        #expect(await files.requests.isEmpty)
+        #expect(try await harness.store.loras().isEmpty)
+    }
+
+    @Test func nsfwPreviewsStayBlurredUntilRevealedAndNSFWResultsNeedTheOptIn() async throws {
+        let api = ScriptedCivitaiAPI(reply: searchReply([kleinListing(id: 7, nsfw: true)]))
+        let keychain = testKeychain()
+        defer { try? keychain.delete() }
+        let harness = try await browseHarness(api: api, keychain: keychain)
+
+        await harness.model.civitai.search()
+        let optedOut = try #require(await api.requests.last)
+        #expect(queryValue(optedOut, "nsfw") == "false")
+
+        await harness.model.civitai.setIncludeNSFW(true)
+        let optedIn = try #require(await api.requests.last)
+        #expect(queryValue(optedIn, "nsfw") == "true")
+        let row = try #require(harness.model.civitai.rows.first)
+        #expect(row.isNSFW)
+        #expect(harness.model.civitai.isBlurred(row))
+
+        harness.model.civitai.reveal(row.id)
+        #expect(!harness.model.civitai.isBlurred(row))
     }
 }

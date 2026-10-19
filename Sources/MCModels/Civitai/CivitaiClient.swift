@@ -33,7 +33,10 @@ public struct URLSessionCivitaiTransport: CivitaiTransport {
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
         config.httpAdditionalHeaders = ["User-Agent": userAgent]
         config.timeoutIntervalForRequest = 30
-        session = URLSession(configuration: config, delegate: CivitaiRedirectGuard(), delegateQueue: nil)
+        session = URLSession(
+            configuration: config,
+            delegate: CivitaiRedirectGuard(policy: CivitaiTransportPolicy(apiHost: CivitaiClient.apiHost)),
+            delegateQueue: nil)
     }
 
     public func perform(_ request: URLRequest) async throws -> CivitaiResponse {
@@ -43,9 +46,15 @@ public struct URLSessionCivitaiTransport: CivitaiTransport {
     }
 }
 
-/// Removes the Authorization header from any redirect that leaves `civitai.com` over https (KTD2), rather than
-/// relying on Foundation to strip it.
+/// Keeps the API session on the API host. A redirect that leaves `civitai.com`, or is not https, is refused: the 3xx
+/// response is returned rather than followed keyless. Key handling on a same-host hop is the policy's rule.
 final class CivitaiRedirectGuard: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    private let policy: CivitaiTransportPolicy
+
+    init(policy: CivitaiTransportPolicy) {
+        self.policy = policy
+    }
+
     func urlSession(
         _ session: URLSession,
         task: URLSessionTask,
@@ -53,31 +62,28 @@ final class CivitaiRedirectGuard: NSObject, URLSessionTaskDelegate, @unchecked S
         newRequest request: URLRequest,
         completionHandler: @escaping @Sendable (URLRequest?) -> Void
     ) {
+        let carriesKey = task.currentRequest?.value(forHTTPHeaderField: "Authorization") != nil
+        guard let from = task.currentRequest?.url ?? response.url, let to = request.url,
+              case .follow(let keepKey) = policy.redirect(from: from, to: to, carriesKey: carriesKey),
+              to.host?.lowercased() == policy.apiHost
+        else {
+            completionHandler(nil)
+            return
+        }
         var next = request
-        if !CivitaiHostPolicy.mayCarryKey(next.url) {
+        if !keepKey {
             next.setValue(nil, forHTTPHeaderField: "Authorization")
         }
         completionHandler(next)
     }
 }
 
-/// Where the Civitai key may go: https to the API host (``CivitaiClient/apiHost``) on the default port (AGENTS.md non-negotiable 7).
-/// Subdomains such as the file CDN are not the API host and never receive the key.
-enum CivitaiHostPolicy {
-    static func mayCarryKey(_ url: URL?) -> Bool {
-        guard let url,
-              url.scheme?.lowercased() == "https",
-              url.host?.lowercased() == CivitaiClient.apiHost,
-              url.port == nil || url.port == 443
-        else { return false }
-        return true
-    }
-}
-
 /// Failures the Civitai client reports. `errorDescription` is plain language for the UI.
 public enum CivitaiError: Error, Sendable, Equatable, LocalizedError {
-    /// 401 or 403. Civitai wants a key, or refuses the one sent. `message` is Civitai's own text when it sent one.
+    /// 401 or 403 when no key was sent: Civitai wants one. `message` is Civitai's own text when it sent one.
     case needsKey(message: String?)
+    /// 401 or 403 when the saved key was sent: Civitai refused it.
+    case keyRefused
     /// 404: no such model or version.
     case notFound
     /// 429: too many requests.
@@ -97,6 +103,8 @@ public enum CivitaiError: Error, Sendable, Equatable, LocalizedError {
         switch self {
         case .needsKey:
             return "This LoRA needs a Civitai key. Add your key and try again."
+        case .keyRefused:
+            return "Civitai refused your saved API key. Replace it in the Civitai key field and try again."
         case .notFound:
             return "Civitai no longer lists this LoRA."
         case .rateLimited:
@@ -129,6 +137,7 @@ public actor CivitaiClient {
     /// `https://civitai.com/api/v1`, built from ``apiHost``.
     public static let apiBase = URL(string: "https://\(apiHost)/api/v1")!
     static let pageSize = 20
+    private static let policy = CivitaiTransportPolicy(apiHost: apiHost)
 
     private let transport: any CivitaiTransport
     private let savedKey: @Sendable () -> String?
@@ -198,8 +207,10 @@ public actor CivitaiClient {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        if let key = savedKey(), !key.isEmpty, CivitaiHostPolicy.mayCarryKey(url) {
+        var keySent = false
+        if let key = savedKey(), !key.isEmpty, Self.policy.sendsKey(to: url) {
             request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+            keySent = true
         }
 
         let response: CivitaiResponse
@@ -214,10 +225,10 @@ public actor CivitaiClient {
         } catch {
             throw CivitaiError.network
         }
-        return try Self.decode(response, as: type)
+        return try Self.decode(response, as: type, keySent: keySent)
     }
 
-    private static func decode<T: Decodable>(_ response: CivitaiResponse, as type: T.Type) throws -> T {
+    private static func decode<T: Decodable>(_ response: CivitaiResponse, as type: T.Type, keySent: Bool) throws -> T {
         switch response.status {
         case 200..<300:
             do {
@@ -226,6 +237,7 @@ public actor CivitaiClient {
                 throw CivitaiError.malformedResponse
             }
         case 401, 403:
+            if keySent { throw CivitaiError.keyRefused }
             throw CivitaiError.needsKey(message: errorMessage(response.body))
         case 404:
             throw CivitaiError.notFound

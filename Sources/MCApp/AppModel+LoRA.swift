@@ -102,7 +102,12 @@ extension AppModel {
     func loadLoRASources() async -> [String: LoRASource] {
         var sources: [String: LoRASource] = [:]
         for record in loraRecords {
-            sources[record.id] = try? await store.loraSource(loraID: record.id)
+            do {
+                sources[record.id] = try await store.loraSource(loraID: record.id)
+            } catch {
+                // Kept visible: a LoRA whose source cannot be read must not look like a local import.
+                lastError = "The Civitai source of \(record.name) could not be read: \(message(for: error))"
+            }
         }
         return sources
     }

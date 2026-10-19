@@ -136,7 +136,7 @@ public final class AppModel {
         catalogStore: CatalogStore? = nil,
         civitaiTransport: (any CivitaiTransport)? = nil,
         civitaiFileTransport: (any CivitaiFileTransport)? = nil,
-        civitaiKeychain: CivitaiKeychain = CivitaiKeychain(),
+        civitaiKeychain: any CivitaiKeyStore = CivitaiKeychain(),
         civitaiPreviewFetch: (@Sendable (URL) async -> Data?)? = nil
     ) {
         self.store = store

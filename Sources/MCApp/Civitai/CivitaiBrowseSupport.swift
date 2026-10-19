@@ -28,6 +28,17 @@ enum CivitaiBrowseRules {
             .map(\.label)
     }
 
+    /// True for exactly 64 hex digits: the SHA-256 shape a download is verified against.
+    static func isSHA256Hex(_ text: String) -> Bool {
+        text.count == 64 && text.allSatisfy(\.isHexDigit)
+    }
+
+    /// An NSFW preview stays blurred until the user reveals it (AE4, D15). The NSFW opt-in only decides whether NSFW
+    /// results appear at all.
+    static func isBlurred(isNSFW: Bool, revealed: Bool) -> Bool {
+        isNSFW && !revealed
+    }
+
     /// The version a download takes (KTD9): the newest with a downloadable `.safetensors` file whose base model is one of
     /// `labels`, else the newest such version overall. Civitai lists newest first, so ties keep the listing order.
     static func chooseVersion(_ versions: [CivitaiModelVersion], labels: [String]) -> CivitaiModelVersion? {
@@ -127,7 +138,7 @@ struct CivitaiResultRow: Identifiable, Equatable, Sendable {
     let name: String
     let creatorName: String?
     let downloadCount: Int?
-    /// Blurred in the UI until the user opts in to NSFW results.
+    /// NSFW results are blurred until the user reveals each preview (see `CivitaiBrowseRules.isBlurred`).
     let isNSFW: Bool
     let versionName: String?
     let sizeBytes: Int64?
@@ -179,17 +190,51 @@ struct CivitaiQueuedDownload {
     let acceptedAt: Date
     /// Nil while queued, set once the downloader has started the transfer.
     var run: CivitaiDownloadRun?
+    /// Set when the user cancels a running download. A file that has already staged is then discarded, not committed.
+    var cancelRequested = false
 }
 
-/// Fetches a Civitai image for the preview. Never throws: a failed fetch leaves the LoRA without a preview.
+/// Fetches a Civitai preview image. Never throws: a failed or oversized fetch leaves the LoRA without a preview. Only
+/// https is fetched, and the session keeps no cookies and times out.
 enum CivitaiPreviewFetch {
+    /// The largest preview kept. A larger body is refused, so one bad URL cannot fill memory.
+    static let sizeCap = 10 << 20
+    private static let timeout: TimeInterval = 15
+
+    /// Ephemeral and cookie-free, so nothing from the Civitai API session reaches the preview host.
+    private static let session: URLSession = {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.httpCookieStorage = nil
+        configuration.httpShouldSetCookies = false
+        configuration.httpCookieAcceptPolicy = .never
+        configuration.timeoutIntervalForRequest = timeout
+        return URLSession(configuration: configuration)
+    }()
+
     static func fetch(_ url: URL) async -> Data? {
         guard url.scheme?.lowercased() == "https" else { return nil }
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
-            return (response as? HTTPURLResponse)?.statusCode == 200 ? data : nil
+            let (bytes, response) = try await session.bytes(from: url)
+            guard let http = response as? HTTPURLResponse, http.statusCode == 200,
+                  http.url?.scheme?.lowercased() == "https",
+                  response.expectedContentLength <= Int64(sizeCap)
+            else { return nil }
+            var data = Data()
+            for try await byte in bytes {
+                guard data.count < sizeCap else { return nil }
+                data.append(byte)
+            }
+            return data
         } catch {
             return nil
         }
     }
 }
+
+/// The Keychain calls the Browse tab makes. `CivitaiKeychain` is the app's conformance; tests inject a failing one.
+public protocol CivitaiKeyStore: Sendable {
+    func read() throws -> String?
+    func write(_ key: String) throws
+}
+
+extension CivitaiKeychain: CivitaiKeyStore {}

@@ -152,7 +152,7 @@ struct AppHarness {
         catalogStore: CatalogStore? = nil,
         civitaiTransport: (any CivitaiTransport)? = nil,
         civitaiFileTransport: (any CivitaiFileTransport)? = nil,
-        civitaiKeychain: CivitaiKeychain? = nil,
+        civitaiKeychain: (any CivitaiKeyStore)? = nil,
         civitaiPreviewFetch: (@Sendable (URL) async -> Data?)? = nil
     ) async throws -> AppHarness {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("app-\(UUID().uuidString)")
@@ -193,7 +193,7 @@ struct AppHarness {
         catalogStore: CatalogStore?,
         civitaiTransport: (any CivitaiTransport)?,
         civitaiFileTransport: (any CivitaiFileTransport)?,
-        civitaiKeychain: CivitaiKeychain?,
+        civitaiKeychain: (any CivitaiKeyStore)?,
         civitaiPreviewFetch: (@Sendable (URL) async -> Data?)?
     ) async throws -> AppHarness {
         let engine = FakeEngine(loaded: loaded, models: models, script: script)

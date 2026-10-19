@@ -9,7 +9,6 @@ import Observation
 @MainActor
 @Observable
 final class CivitaiBrowseModel {
-    static let apiHost = CivitaiClient.apiHost
 
     private(set) var query = ""
     private(set) var sort: CivitaiSort = .mostDownloaded
@@ -35,10 +34,20 @@ final class CivitaiBrowseModel {
     private var searchGeneration = 0
     /// The model whose download needs a key. Saving a key retries it.
     private var keyRetryModelID: Int?
+    /// The label filter and preferred labels of the active search. Later pages reuse them, so a new selection never
+    /// mixes families into one list.
+    private var activeFilter: [String] = []
+    private var activePreferred: [String] = []
+    /// The selection key the last search ran for. Nil until a search has run; the tab searches when it differs.
+    private var searchedSelectionKey: String?
+    /// The search generation and cursor of the page now loading. A second `loadMore` waits for it.
+    private var loadingCursor: (generation: Int, cursor: String)?
+    /// NSFW model IDs whose preview the user revealed. Kept across tab switches.
+    private(set) var revealedIDs: Set<Int> = []
 
     private let client: CivitaiClient
     private let downloader: CivitaiDownloader
-    private let keychain: CivitaiKeychain
+    private let keychain: any CivitaiKeyStore
     private let store: LibraryStore
     private let registry: FamilyRegistry
     private let stagingDirectory: URL
@@ -53,7 +62,7 @@ final class CivitaiBrowseModel {
     init(
         client: CivitaiClient,
         downloader: CivitaiDownloader,
-        keychain: CivitaiKeychain,
+        keychain: any CivitaiKeyStore,
         store: LibraryStore,
         registry: FamilyRegistry,
         stagingDirectory: URL,
@@ -75,7 +84,13 @@ final class CivitaiBrowseModel {
         self.now = now
         self.previewFetch = previewFetch
         includeNSFW = defaults.bool(forKey: nsfwDefaultsKey)
-        hasSavedKey = (try? keychain.read()) != nil
+        do {
+            hasSavedKey = try keychain.read() != nil
+        } catch {
+            // The Keychain refused the read, so whether a key is saved is unknown. The message never names the key.
+            hasSavedKey = false
+            keyError = "The saved Civitai key could not be read from the Keychain. \(error.localizedDescription)"
+        }
     }
 
     /// Wires the selection and the library refresh. `AppModel` calls this once it is fully initialized, since both
@@ -117,6 +132,15 @@ final class CivitaiBrowseModel {
     /// The family the chip shows: the override, else the selected model's family.
     var chipFamilyID: String? {
         familyOverride ?? selectionProvider()?.family.id
+    }
+
+    /// Whether a row's preview is blurred: an NSFW preview until the user reveals it.
+    func isBlurred(_ row: CivitaiResultRow) -> Bool {
+        CivitaiBrowseRules.isBlurred(isNSFW: row.isNSFW, revealed: revealedIDs.contains(row.id))
+    }
+
+    func reveal(_ id: Int) {
+        revealedIDs.insert(id)
     }
 
     // MARK: Search
@@ -164,40 +188,61 @@ final class CivitaiBrowseModel {
         await search()
     }
 
-    /// Runs the search from the first page. Without a selected model it does nothing.
+    /// The selection the tab searches for. A change to the family or the size is a different key.
+    var selectionKey: String {
+        guard let selection = selectionProvider() else { return "" }
+        return "\(selection.family.id)|\(selection.variant ?? "")"
+    }
+
+    /// Runs when the Browse tab appears and when the selection changes. A search for the same selection stays, so
+    /// returning to the tab keeps the loaded pages.
+    func showTab() async {
+        guard searchedSelectionKey != selectionKey else { return }
+        await search()
+    }
+
+    /// Runs the search from the first page, and clears the rows it replaces. Without a selected model it only clears.
     func search() async {
         searchGeneration += 1
         let generation = searchGeneration
-        guard let selection = selectionProvider() else {
-            foundModels = []
-            cursor = nil
-            searchState = .loading
-            return
-        }
-        searchState = .loading
+        loadingCursor = nil
         cursor = nil
-        await refreshInstalled()
-        await fetchPage(generation: generation, selection: selection, cursor: nil)
-    }
-
-    /// Loads the next page of the current search.
-    func loadMore() async {
-        guard let cursor, searchState == .results, let selection = selectionProvider() else { return }
-        await fetchPage(generation: searchGeneration, selection: selection, cursor: cursor)
-    }
-
-    private func fetchPage(generation: Int, selection: CivitaiSelection, cursor: String?) async {
+        foundModels = []
+        searchedSelectionKey = selectionKey
+        searchState = .loading
+        guard let selection = selectionProvider() else { return }
         let active = activeSelection(selection)
-        let filter = showIncompatible ? [] : CivitaiBrowseRules.labels(family: active.family, variant: active.variant)
-        let preferred = CivitaiBrowseRules.labels(family: selection.family, variant: selection.variant)
+        activeFilter = showIncompatible ? [] : CivitaiBrowseRules.labels(family: active.family, variant: active.variant)
+        activePreferred = CivitaiBrowseRules.labels(family: selection.family, variant: selection.variant)
+        await refreshInstalled()
+        await fetchPage(generation: generation, cursor: nil)
+    }
+
+    /// Loads the next page of the current search, with the label filter that search started with. A call while a page
+    /// is already loading does nothing, so no page is requested or appended twice.
+    func loadMore() async {
+        guard let cursor, searchState == .results, loadingCursor == nil else { return }
+        let generation = searchGeneration
+        loadingCursor = (generation, cursor)
+        defer {
+            if loadingCursor?.generation == generation { loadingCursor = nil }
+        }
+        await fetchPage(generation: generation, cursor: cursor)
+    }
+
+    private func fetchPage(generation: Int, cursor: String?) async {
         do {
             let page = try await client.search(
-                query: query, sort: sort, baseModelLabels: filter, includeNSFW: includeNSFW, cursor: cursor)
+                query: query, sort: sort, baseModelLabels: activeFilter, includeNSFW: includeNSFW, cursor: cursor)
             guard generation == searchGeneration else { return }
-            let fresh = page.items.map { makeFound($0, preferred: preferred) }
-            let combined = cursor == nil ? fresh : foundModels + fresh
+            // A model already listed is never listed again, so overlapping loads cannot duplicate a row.
+            var listed = Set(foundModels.map(\.id))
+            let fresh = page.items.compactMap { item -> CivitaiFoundModel? in
+                guard listed.insert(item.id).inserted else { return nil }
+                return makeFound(item, preferred: activePreferred)
+            }
             // Stable: the selected model's label first, then Civitai's own order.
-            foundModels = combined.enumerated().sorted { lhs, rhs in
+            foundModels = (foundModels + fresh).enumerated().sorted { lhs, rhs in
                 if lhs.element.matchesSelectedModel != rhs.element.matchesSelectedModel {
                     return lhs.element.matchesSelectedModel
                 }
@@ -231,6 +276,7 @@ final class CivitaiBrowseModel {
     private static func browseState(for error: CivitaiError) -> CivitaiBrowseState {
         switch error {
         case .needsKey(let message): .needsKey(message: message)
+        case .keyRefused: .needsKey(message: error.errorDescription)
         case .regionLimited: .regionLimited
         default: .failed(message: error.localizedDescription)
         }
@@ -249,7 +295,7 @@ final class CivitaiBrowseModel {
 
     private static func makeSpec(model: CivitaiModel, version: CivitaiModelVersion) -> CivitaiDownloadSpec? {
         guard let file = version.safetensorsFile, let url = file.downloadURL, let sha = file.sha256,
-              let size = file.sizeBytes
+              CivitaiBrowseRules.isSHA256Hex(sha), let size = file.sizeBytes
         else { return nil }
         let image = version.images.first { $0.url != nil }
         return CivitaiDownloadSpec(
@@ -331,6 +377,8 @@ final class CivitaiBrowseModel {
     func cancelDownload(modelID: Int) {
         guard let index = queue.firstIndex(where: { $0.spec.modelID == modelID }) else { return }
         if let run = queue[index].run {
+            // Stops the transfer now. A transfer that has already staged is discarded by `commit` instead.
+            queue[index].cancelRequested = true
             run.cancel()
         } else {
             queue.remove(at: index)
@@ -381,12 +429,21 @@ final class CivitaiBrowseModel {
 
     private func run(_ spec: CivitaiDownloadSpec, acceptedAt: Date) async {
         let modelID = spec.modelID
+        let apiKey: String?
+        do {
+            apiKey = try keychain.read()
+        } catch {
+            // An unreadable key is never sent keyless: the download fails here with the Keychain's message.
+            queue.removeAll { $0.spec.modelID == modelID }
+            statuses[modelID] = .failed(message: error.localizedDescription)
+            return
+        }
         let slot = CivitaiClassificationSlot()
         let selection = selectionProvider()
         let registry = self.registry
         let request = CivitaiDownloadRequest(
-            versionID: spec.versionID, downloadURL: spec.downloadURL, apiHost: Self.apiHost,
-            apiKey: try? keychain.read(), expectedSHA256: spec.sha256, advertisedSize: spec.sizeBytes,
+            versionID: spec.versionID, downloadURL: spec.downloadURL, apiHost: CivitaiClient.apiHost,
+            apiKey: apiKey, expectedSHA256: spec.sha256, advertisedSize: spec.sizeBytes,
             classify: { prefixAndHeader, totalFileSize in
                 let match = try CivitaiFileRule.classify(
                     prefixAndHeader: prefixAndHeader, totalFileSize: totalFileSize, registry: registry,
@@ -430,6 +487,10 @@ final class CivitaiBrowseModel {
         _ spec: CivitaiDownloadSpec, acceptedAt: Date, result: CivitaiDownloadResult, slot: CivitaiClassificationSlot
     ) async {
         let modelID = spec.modelID
+        guard !isCancelled(modelID) else {
+            discardCancelled(result, modelID: modelID)
+            return
+        }
         guard let match = slot.match else {
             statuses[modelID] = .failed(message: "The file was not classified, so it was not added.")
             return
@@ -437,6 +498,11 @@ final class CivitaiBrowseModel {
         var preview: Data?
         if let url = spec.previewURL {
             preview = await previewFetch(url)
+        }
+        // Cancelled while the preview loaded: the verified file is discarded and nothing is stored.
+        guard !isCancelled(modelID) else {
+            discardCancelled(result, modelID: modelID)
+            return
         }
         let source = LoRASource(
             civitaiModelID: spec.modelID, civitaiVersionID: spec.versionID, pageURL: spec.pageURL,
@@ -457,6 +523,16 @@ final class CivitaiBrowseModel {
         }
         await refreshInstalled()
         await libraryChanged()
+    }
+
+    private func isCancelled(_ modelID: Int) -> Bool {
+        queue.first { $0.spec.modelID == modelID }?.cancelRequested ?? true
+    }
+
+    /// Removes a verified file the user cancelled before it reached the library, and clears the row.
+    private func discardCancelled(_ result: CivitaiDownloadResult, modelID: Int) {
+        try? FileManager.default.removeItem(at: result.stagedURL)
+        statuses[modelID] = nil
     }
 
     private func failureStatus(_ error: CivitaiDownloadError, modelID: Int) -> CivitaiRowStatus {

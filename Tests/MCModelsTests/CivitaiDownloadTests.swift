@@ -393,4 +393,112 @@ struct CivitaiDownloadTests {
         #expect(local.redirect(from: localFrom, to: localTo, carriesKey: true)
             == .refuse(reason: "the server redirected the key-bearing request to plain http"))
     }
+
+    @Test func keyGoesOnlyToTheHTTPSAPIHostOnTheDefaultPort() throws {
+        let production = CivitaiTransportPolicy(apiHost: "civitai.com")
+        let cases: [(url: String, sends: Bool)] = [
+            ("https://civitai.com/api/v1/models", true),
+            ("https://CIVITAI.com/api/v1/models", true),
+            ("http://civitai.com/api/v1/models", false),
+            ("https://civitai.com:8443/api/v1/models", false),
+            ("https://b2.civitai.com/signed/file.safetensors", false),
+            ("https://image.civitai.com/preview.jpeg", false),
+            ("https://civitai.com.example.net/api/v1/models", false),
+            ("https://localhost/api/v1/models", false),
+        ]
+        for entry in cases {
+            let url = try #require(URL(string: entry.url))
+            #expect(production.sendsKey(to: url) == entry.sends, "\(entry.url)")
+        }
+    }
+}
+
+/// Scripted header replies for the downloader: each open returns the next reply, and running out throws.
+private final class ScriptedFileTransport: CivitaiFileTransport, @unchecked Sendable {
+    struct Reply: Sendable {
+        let status: Int
+        let headers: [String: String]
+        let body: Data
+    }
+
+    private let lock = NSLock()
+    private var replies: [Reply]
+    private var opened = 0
+
+    init(_ replies: [Reply]) {
+        self.replies = replies
+    }
+
+    var openCount: Int { lock.withLock { opened } }
+
+    func open(_ request: CivitaiFileRequest) async throws -> CivitaiFileResponse {
+        let reply: Reply? = lock.withLock {
+            opened += 1
+            return replies.isEmpty ? nil : replies.removeFirst()
+        }
+        guard let reply else { throw URLError(.badServerResponse) }
+        let (stream, continuation) = AsyncThrowingStream.makeStream(of: Data.self, throwing: Error.self)
+        if !reply.body.isEmpty { continuation.yield(reply.body) }
+        continuation.finish()
+        return CivitaiFileResponse(
+            status: reply.status, headers: reply.headers, url: request.url, body: stream, cancel: {})
+    }
+}
+
+@Suite struct CivitaiDownloadStatusTests {
+    private func run(
+        _ replies: [ScriptedFileTransport.Reply],
+        key: String? = nil
+    ) async throws -> (events: [CivitaiDownloadEvent], transport: ScriptedFileTransport) {
+        let directory = try TemporaryDirectory()
+        let transport = ScriptedFileTransport(replies)
+        let downloader = CivitaiDownloader(transport: transport, plaintextHosts: [], availableBytes: { _ in Int64.max / 4 })
+        let request = CivitaiDownloadRequest(
+            versionID: 42,
+            downloadURL: try #require(URL(string: "https://civitai.com/api/download/models/42")),
+            apiHost: "civitai.com",
+            apiKey: key,
+            expectedSHA256: String(repeating: "0", count: 64),
+            advertisedSize: 10,
+            classify: { _, _ in },
+            stagingDirectory: directory.url.appending(path: "staging"))
+        let events = await collect(await downloader.start(request))
+        return (events, transport)
+    }
+
+    private func status(_ code: Int, headers: [String: String] = [:]) -> ScriptedFileTransport.Reply {
+        .init(status: code, headers: headers, body: Data())
+    }
+
+    @Test func notFoundIsNotFound() async throws {
+        let (events, _) = try await run([status(404)])
+        #expect(terminal(events) == .failed(.notFound))
+    }
+
+    @Test func tooManyRequestsCarriesRetryAfter() async throws {
+        let (events, _) = try await run([status(429, headers: ["retry-after": "120"])])
+        #expect(terminal(events) == .failed(.rateLimited(retryAfter: "120")))
+    }
+
+    @Test func regionLimitedIsRegionLimited() async throws {
+        let (events, _) = try await run([status(451)])
+        #expect(terminal(events) == .failed(.regionLimited))
+    }
+
+    /// A 403 on the API address during the header-tail read is a refused request, not an expired signed URL, so it
+    /// is never re-resolved.
+    @Test func forbiddenOnTheAPIHopIsNotAnExpiredSignedURL() async throws {
+        let header = Data([2, 0, 0, 0, 0, 0, 0, 0])
+        let head = ScriptedFileTransport.Reply(
+            status: 206, headers: ["content-range": "bytes 0-7/10"], body: header)
+        let (events, transport) = try await run([head, status(403)])
+
+        #expect(terminal(events) == .failed(.needsKey))
+        #expect(transport.openCount == 2)
+    }
+
+    @Test func forbiddenWithSavedKeyIsKeyRefused() async throws {
+        let (events, _) = try await run([status(403)], key: "saved-key")
+        #expect(terminal(events) == .failed(.keyRefused))
+    }
 }

@@ -155,3 +155,55 @@ func queryValues(_ request: URLRequest, _ name: String) -> [String] {
     let items = request.url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false)?.queryItems } ?? []
     return items.filter { $0.name == name }.compactMap(\.value)
 }
+
+/// A scripted Civitai API that holds every request while `hold()` is in effect, so a test can overlap calls.
+actor GatedCivitaiAPI: CivitaiTransport {
+    private(set) var requests: [URLRequest] = []
+    private var holding = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+    private let reply: @Sendable (URLRequest) -> CivitaiResponse
+
+    init(reply: @escaping @Sendable (URLRequest) -> CivitaiResponse) {
+        self.reply = reply
+    }
+
+    func hold() {
+        holding = true
+    }
+
+    func release() {
+        holding = false
+        let pending = waiters
+        waiters = []
+        pending.forEach { $0.resume() }
+    }
+
+    func perform(_ request: URLRequest) async throws -> CivitaiResponse {
+        requests.append(request)
+        if holding {
+            await withCheckedContinuation { waiters.append($0) }
+        }
+        return reply(request)
+    }
+}
+
+/// Holds a preview fetch until the test releases it, and records that one has begun.
+actor PreviewGate {
+    private(set) var started = false
+    private var released = false
+    private var waiter: CheckedContinuation<Void, Never>?
+
+    func fetch(_ data: Data?) async -> Data? {
+        started = true
+        if !released {
+            await withCheckedContinuation { waiter = $0 }
+        }
+        return data
+    }
+
+    func release() {
+        released = true
+        waiter?.resume()
+        waiter = nil
+    }
+}

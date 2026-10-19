@@ -43,7 +43,6 @@ enum CivitaiLicenseText {
 struct CivitaiBrowseView: View {
     @Bindable var model: AppModel
     @State private var showingKey = false
-    @State private var revealedIDs: Set<Int> = []
 
     private var browse: CivitaiBrowseModel { model.civitai }
 
@@ -55,7 +54,7 @@ struct CivitaiBrowseView: View {
         VStack(alignment: .leading, spacing: 0) {
             header
                 .padding(12)
-            if showingKey {
+            if showingKey || browse.keyError != nil {
                 CivitaiKeyField(browse: browse)
                     .padding(.horizontal, 12)
                     .padding(.bottom, 10)
@@ -66,8 +65,8 @@ struct CivitaiBrowseView: View {
             footer
                 .padding(12)
         }
-        .task {
-            await browse.search()
+        .task(id: browse.selectionKey) {
+            await browse.showTab()
         }
         .sheet(isPresented: licensePresented) {
             if let pending = browse.pendingLicense {
@@ -222,9 +221,7 @@ struct CivitaiBrowseView: View {
             CivitaiResultRowView(
                 browse: browse,
                 row: row,
-                modelName: selectedModelName,
-                isRevealed: revealedIDs.contains(row.id),
-                onReveal: { revealedIDs.insert(row.id) })
+                modelName: selectedModelName)
                 .onAppear {
                     // Reaching the last row loads the next page. `loadMore` does nothing without a cursor.
                     if row.id == rows.last?.id {
@@ -304,12 +301,11 @@ private struct CivitaiResultRowView: View {
     let browse: CivitaiBrowseModel
     let row: CivitaiResultRow
     let modelName: String?
-    let isRevealed: Bool
-    let onReveal: () -> Void
 
-    /// Blurred while NSFW and neither the NSFW opt-in is on nor this preview was revealed.
+    /// Blurred while the preview is NSFW and the user has not revealed it (AE4). The NSFW opt-in only decides whether
+    /// NSFW results appear.
     private var blurred: Bool {
-        row.isNSFW && !browse.includeNSFW && !isRevealed
+        browse.isBlurred(row)
     }
 
     private var detailLine: String {
@@ -366,7 +362,7 @@ private struct CivitaiResultRowView: View {
             .blur(radius: blurred ? 18 : 0)
             if blurred {
                 Button("Show") {
-                    onReveal()
+                    browse.reveal(row.id)
                 }
                 .controlSize(.mini)
                 .accessibilityLabel("Show NSFW preview of \(row.name)")

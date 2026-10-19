@@ -28,7 +28,11 @@ public struct CivitaiTransportPolicy: Sendable, Equatable {
 
     /// Whether the key may be sent with a request for `url`.
     public func sendsKey(to url: URL) -> Bool {
-        accepts(url) && url.host?.lowercased() == apiHost
+        guard accepts(url), url.host?.lowercased() == apiHost else { return false }
+        // Production reaches the API host over https only, so this is the default-port rule. Plain http reaches here
+        // only for a host named in `plaintextHosts`.
+        if url.scheme?.lowercased() == "https" { return url.port == nil || url.port == 443 }
+        return true
     }
 
     public enum Redirect: Sendable, Equatable {
@@ -53,7 +57,7 @@ public struct CivitaiTransportPolicy: Sendable, Equatable {
         if sameHost && carriesKey && target.scheme?.lowercased() != "https" {
             return .refuse(reason: "the server redirected the key-bearing request to plain http")
         }
-        return .follow(keepKey: sameHost && carriesKey)
+        return .follow(keepKey: sameHost && carriesKey && sendsKey(to: target))
     }
 }
 
@@ -111,6 +115,8 @@ public struct URLSessionCivitaiFileTransport: CivitaiFileTransport {
         config.httpShouldSetCookies = false
         config.httpCookieAcceptPolicy = .never
         config.httpCookieStorage = nil
+        config.timeoutIntervalForRequest = 60
+        config.timeoutIntervalForResource = 7200
         session = URLSession(configuration: config)
     }
 

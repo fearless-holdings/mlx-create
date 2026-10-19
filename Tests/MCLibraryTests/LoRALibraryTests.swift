@@ -468,7 +468,7 @@ import Testing
             triggerWords: ["pixel art"], source: sampleSource(), previewImage: nil)
     }
 
-    @Test func aStagedDownloadOfRecordedContentIsADuplicateAndAddsNoRowOrSource() async throws {
+    @Test func aStagedDownloadOfRecordedContentIsADuplicateAndAddsNoLoRARow() async throws {
         let fixture = try Self.makeFixture()
         let record = try await Self.importedAlpha(fixture, fill: 30)
         let again = try Self.staged(fixture, fill: 30)
@@ -477,7 +477,7 @@ import Testing
 
         #expect(outcome == .duplicate(existing: record))
         #expect(try await fixture.store.loras() == [record])
-        #expect(try await fixture.store.loraSource(loraID: record.id) == nil)
+        #expect(try await fixture.store.loraSource(loraID: record.id)?.civitaiVersionID == LoRALibraryTests.sampleSource().civitaiVersionID)
         #expect(!FileManager.default.fileExists(atPath: again.url.path))
     }
 
@@ -493,6 +493,37 @@ import Testing
         #expect(fixture.store.loraFileExists(record))
         #expect(try await fixture.store.loras() == [record])
         #expect(!FileManager.default.fileExists(atPath: again.url.path))
+    }
+
+    @Test func aRestoredLoRAGainsTheCivitaiSourceOfTheDownloadThatRestoredIt() async throws {
+        let fixture = try Self.makeFixture()
+        let record = try await Self.importedAlpha(fixture, fill: 35)
+        try FileManager.default.removeItem(at: fixture.store.loraAbsoluteURL(of: record))
+        let again = try Self.staged(fixture, fill: 35)
+
+        let outcome = try await Self.commitStaged(fixture, again, name: "Pixel")
+
+        #expect(outcome == .restored(record))
+        #expect(try await fixture.store.loraSource(loraID: record.id) != nil)
+        #expect(try await fixture.store.loras() == [record])
+    }
+
+    @Test func aDuplicateKeepsTheSourceAlreadyRecordedForIt() async throws {
+        let fixture = try Self.makeFixture()
+        let file = try Self.staged(fixture, fill: 36)
+        let first = try Self.addedRecord(try await Self.commitStaged(fixture, file, name: "Pixel"))
+        let again = try Self.staged(fixture, fill: 36)
+        var other = Self.sampleSource()
+        other.civitaiVersionID = 303
+        other.pageURL = "https://civitai.com/models/101?modelVersionId=303"
+
+        let outcome = try await fixture.store.commitStagedLoRA(
+            staged: again.url, sha256: again.sha256, sizeBytes: again.size, family: "alpha", variant: nil, name: "Other",
+            triggerWords: [], source: other, previewImage: nil)
+
+        #expect(outcome == .duplicate(existing: first))
+        #expect(try await fixture.store.loras() == [first])
+        #expect(try await fixture.store.loraSource(loraID: first.id)?.civitaiVersionID == 202)
     }
 
     @Test func aStagedDownloadWithANameTakenByAnotherLoRAGetsANumericSuffix() async throws {

@@ -145,8 +145,13 @@ public struct CivitaiFile: Decodable, Sendable, Equatable, Identifiable {
     /// The signed download URL Civitai advertises. Downloads resolve it again per attempt.
     public let downloadURL: URL?
 
+    /// Size in bytes, or nil when Civitai's value is not a plausible size (not finite, negative, or over 1 PB). The
+    /// 4 GiB cap is enforced by the downloader.
     public var sizeBytes: Int64? {
-        sizeKB.map { Int64(($0 * 1024).rounded()) }
+        guard let sizeKB, sizeKB.isFinite, sizeKB >= 0 else { return nil }
+        let bytes = (sizeKB * 1024).rounded()
+        guard bytes <= 1e15 else { return nil }
+        return Int64(bytes)
     }
 
     /// Civitai's metadata says SafeTensor and the name ends in `.safetensors`.

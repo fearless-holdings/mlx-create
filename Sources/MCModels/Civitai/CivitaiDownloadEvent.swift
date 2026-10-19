@@ -68,6 +68,12 @@ public enum CivitaiDownloadError: Error, Sendable, Equatable, LocalizedError {
     /// A redirect was not followed, so the response is the 3xx itself.
     case redirectRefused(reason: String)
     case httpStatus(status: Int)
+    /// 404: the file is no longer listed. Nothing was transferred.
+    case notFound
+    /// 429: Civitai is limiting requests. `retryAfter` is the Retry-After header as sent, when present.
+    case rateLimited(retryAfter: String?)
+    /// 451: this region is not served this file.
+    case regionLimited
     /// The server's length disagrees with the advertised size. `server` is what it reported or sent.
     case sizeMismatch(advertised: Int64, server: Int64)
     /// The 8-byte prefix names a header length of zero or more than the safetensors limit.
@@ -100,6 +106,12 @@ public enum CivitaiDownloadError: Error, Sendable, Equatable, LocalizedError {
             return "The download was stopped: \(reason)."
         case .httpStatus(let status):
             return "Civitai answered HTTP \(status) for this download."
+        case .notFound:
+            return "Civitai no longer lists this file. Refresh Browse and try again."
+        case .rateLimited(let retryAfter):
+            return Self.rateLimitedMessage(retryAfter)
+        case .regionLimited:
+            return "Civitai doesn't serve this file in your region."
         case .sizeMismatch(let advertised, let server):
             return "The server reports \(server) bytes, but Civitai lists \(advertised) bytes for this file."
         case .headerLengthOutOfRange(let length):
@@ -115,5 +127,15 @@ public enum CivitaiDownloadError: Error, Sendable, Equatable, LocalizedError {
         case .network(let reason):
             return "The download failed: \(reason)."
         }
+    }
+
+    private static func rateLimitedMessage(_ retryAfter: String?) -> String {
+        guard let retryAfter, !retryAfter.isEmpty else {
+            return "Civitai is limiting downloads right now. Wait a minute and try again."
+        }
+        if let seconds = Int(retryAfter) {
+            return "Civitai is limiting downloads right now. Wait \(seconds) seconds and try again."
+        }
+        return "Civitai is limiting downloads right now. It asked you to retry after \(retryAfter)."
     }
 }

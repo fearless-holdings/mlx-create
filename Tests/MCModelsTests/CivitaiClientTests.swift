@@ -240,47 +240,39 @@ private let testKey = "civitai-test-key-7f3a"
         #expect(transport.requests.allSatisfy { $0.value(forHTTPHeaderField: "Authorization") == nil })
     }
 
-    @Test func keyMayOnlyGoToTheHTTPSAPIHost() {
-        #expect(CivitaiHostPolicy.mayCarryKey(URL(string: "https://civitai.com/api/v1/models")))
-        #expect(CivitaiHostPolicy.mayCarryKey(URL(string: "https://CIVITAI.com/api/v1/models")))
-        #expect(!CivitaiHostPolicy.mayCarryKey(URL(string: "http://civitai.com/api/v1/models")))
-        #expect(!CivitaiHostPolicy.mayCarryKey(URL(string: "https://civitai.com:8443/api/v1/models")))
-        #expect(!CivitaiHostPolicy.mayCarryKey(URL(string: "https://b2.civitai.com/signed/file.safetensors")))
-        #expect(!CivitaiHostPolicy.mayCarryKey(URL(string: "https://image.civitai.com/preview.jpeg")))
-        #expect(!CivitaiHostPolicy.mayCarryKey(URL(string: "https://civitai.com.example.net/api/v1/models")))
-        #expect(!CivitaiHostPolicy.mayCarryKey(URL(string: "https://localhost/api/v1/models")))
-        #expect(!CivitaiHostPolicy.mayCarryKey(nil))
-    }
-
-    @Test func redirectLeavingCivitaiDropsTheKeyAndSameHostKeepsIt() async throws {
+    @Test func apiSessionRefusesRedirectsOffTheAPIHostOrOffHTTPS() async throws {
         let session = URLSession(configuration: .ephemeral)
         defer { session.finishTasksAndInvalidate() }
         let origin = try #require(URL(string: "https://civitai.com/api/v1/models"))
-        let task = session.dataTask(with: origin)
+        var originRequest = URLRequest(url: origin)
+        originRequest.setValue("Bearer \(testKey)", forHTTPHeaderField: "Authorization")
+        let task = session.dataTask(with: originRequest)
         let redirect = try #require(HTTPURLResponse(url: origin, statusCode: 302, httpVersion: nil, headerFields: nil))
-        let redirectGuard = CivitaiRedirectGuard()
+        let guardian = CivitaiRedirectGuard(policy: CivitaiTransportPolicy(apiHost: CivitaiClient.apiHost))
 
         func followRedirect(to target: String) async throws -> URLRequest? {
             var next = URLRequest(url: try #require(URL(string: target)))
             next.setValue("Bearer \(testKey)", forHTTPHeaderField: "Authorization")
             return await withCheckedContinuation { (continuation: CheckedContinuation<URLRequest?, Never>) in
-                redirectGuard.urlSession(
+                guardian.urlSession(
                     session, task: task, willPerformHTTPRedirection: redirect, newRequest: next,
                     completionHandler: { continuation.resume(returning: $0) })
             }
         }
 
+        // A same-host https hop is followed and keeps the key.
         let sameHost = try await followRedirect(to: "https://civitai.com/api/download/models/2797480")
         #expect(sameHost?.value(forHTTPHeaderField: "Authorization") == "Bearer \(testKey)")
 
+        // A hop off the API host is refused, so the 3xx comes back instead of a keyless follow.
         let cdn = try await followRedirect(to: "https://b2.civitai.com/signed/file.safetensors?sig=1")
-        #expect(cdn?.value(forHTTPHeaderField: "Authorization") == nil)
-
-        let downgraded = try await followRedirect(to: "http://civitai.com/api/v1/models")
-        #expect(downgraded?.value(forHTTPHeaderField: "Authorization") == nil)
-
+        #expect(cdn == nil)
         let elsewhere = try await followRedirect(to: "https://localhost/x")
-        #expect(elsewhere?.value(forHTTPHeaderField: "Authorization") == nil)
+        #expect(elsewhere == nil)
+
+        // A step down to plain http is refused, even on the API host.
+        let downgraded = try await followRedirect(to: "http://civitai.com/api/v1/models")
+        #expect(downgraded == nil)
     }
 
     @Test func invalidHashIsRefusedBeforeAnyRequest() async throws {
@@ -324,6 +316,15 @@ private let testKey = "civitai-test-key-7f3a"
 
             #expect(error as? CivitaiError == .needsKey(message: "Login required to download this file."))
         }
+    }
+
+    @Test func refusedSavedKeyIsKeyRefusedNotNeedsKey() async throws {
+        let transport = CivitaiScriptedTransport([civitaiReply(401, body: #"{"message":"Invalid key"}"#)])
+        let client = CivitaiClient(transport: transport, savedKey: { testKey })
+
+        let error = await caught { try await client.versionDetail(id: 2797480) }
+
+        #expect(error as? CivitaiError == .keyRefused)
     }
 
     @Test func regionLimitedResponseIsItsOwnError() async throws {
@@ -386,5 +387,15 @@ private let testKey = "civitai-test-key-7f3a"
         let error = await caught { try await client.versionDetail(id: 2797480) }
 
         #expect(error as? CivitaiError == .malformedResponse)
+    }
+
+    @Test func impossibleFileSizesReadAsUnknownNotATrap() throws {
+        func size(_ value: String) throws -> Int64? {
+            let json = Data(#"{"id":1,"name":"a.safetensors","sizeKB":\#(value)}"#.utf8)
+            return try JSONDecoder().decode(CivitaiFile.self, from: json).sizeBytes
+        }
+        #expect(try size("1e17") == nil)
+        #expect(try size("-5") == nil)
+        #expect(try size("1024") == 1_048_576)
     }
 }

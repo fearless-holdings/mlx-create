@@ -71,6 +71,8 @@ Status: built per `docs/plans/2026-10-19-1605-feat-civitai-lora-browse-download-
 - Header peek: after license acceptance, the safetensors header is range-read from the resolved CDN URL (8 bytes for the length, then the header, bounded by the existing 100 MiB limit) and classified. A refusal costs only those header bytes and writes nothing. A 401 or 403 here is the needs-key signal.
 - Bulk transfer: streams to `Models/.partial/civitai/<versionId>.partial` while hashing. A running byte counter aborts and deletes the staged file if received bytes exceed the advertised size or the 4 GiB cap. The SHA-256 must match Civitai's. The file is then classified again, and that result is the authority.
 - Commit: a staged-file entry point in `LibraryStore` shares the import's commit routine (duplicate, name-clash suffix, restored handling) and moves the file to `Models/LoRAs/<family>/<sha10>-<slug>.safetensors`. The staging directory lives outside `Models/LoRAs/`, so `sweepUnreferencedLoRAs` cannot delete a download in progress. It is swept at store open.
+- A duplicate or restored commit adds no second LoRA row, but when the commit carries a Civitai source and the existing LoRA has none, the `lora_source` row is attached to the existing LoRA in the same write. An existing source is never overwritten.
+- Cancel works until the commit's database write: a cancel that arrives after the transfer staged, or during the preview fetch, deletes the staged file and stores nothing.
 
 ### Size variant
 

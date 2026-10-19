@@ -167,7 +167,10 @@ extension LibraryStore {
                     guard let existingFile = paths.loraURL(relativePath: existing.relativePath) else {
                         throw LoRAImportError.copyFailed(reason: "the record for \(existing.name) has an invalid path")
                     }
-                    if fm.fileExists(atPath: existingFile.path) { return .duplicate(existing: existing) }
+                    if fm.fileExists(atPath: existingFile.path) {
+                        try Self.attachSourceIfMissing(commit.source, loraID: existing.id, db: db)
+                        return .duplicate(existing: existing)
+                    }
                     // The row is kept, so its missing file is restored to the recorded path.
                     do {
                         try fm.createDirectory(at: existingFile.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -175,6 +178,7 @@ extension LibraryStore {
                     } catch {
                         throw LoRAImportError.copyFailed(reason: error.localizedDescription)
                     }
+                    try Self.attachSourceIfMissing(commit.source, loraID: existing.id, db: db)
                     return .restored(existing)
                 }
 
@@ -305,6 +309,15 @@ extension LibraryStore {
             slug.append(character)
         }
         return slug.isEmpty ? "lora" : slug
+    }
+
+    /// Records a Civitai source for an existing LoRA that has none (a local import), so a later download of the same
+    /// content keeps its provenance. A LoRA that already has a source keeps it. Never creates a LoRA row. The source's
+    /// preview is not stored on this path, so its path is cleared.
+    static func attachSourceIfMissing(_ source: LoRASource?, loraID: String, db: Database) throws {
+        guard var stored = source, try LoRASourceRow.fetchOne(db, key: loraID) == nil else { return }
+        stored.previewRelativePath = nil
+        try LoRASourceRow(loraID: loraID, source: stored).insert(db)
     }
 
     // MARK: Listing and paths
