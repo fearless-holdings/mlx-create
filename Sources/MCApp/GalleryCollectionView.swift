@@ -116,7 +116,9 @@ struct GalleryCollection: NSViewRepresentable {
                 image: image,
                 thumbnailURL: model.thumbnailURL(for: image),
                 isSelected: appliedSelection == id,
-                onSelect: { [model = self.model] in model.selection = id }
+                onSelect: { [model = self.model] in model.selection = id },
+                onReusePrompt: { [model = self.model] in model.reusePrompt(of: image) },
+                onReuseSettings: { [model = self.model] in model.reuseSettings(of: image) }
             ))
             return item
         }

@@ -472,9 +472,15 @@ public final class AppModel {
         }
     }
 
-    /// ⌘R: the selected image's prompt, model, size, steps and seed (pinned as fixed) go back into the composer.
+    /// ⌘R: the selected image's settings go back into the composer.
     public func reuseSelectedImageSettings() async {
         guard let image = selectedImage else { return }
+        reuseSettings(of: image)
+    }
+
+    /// Gallery tile menu: the image's prompt, model, size, steps and seed (pinned as fixed) go back into the composer.
+    /// The selection does not change.
+    public func reuseSettings(of image: LibraryImage) {
         let settings = image.settings
         if let model = models.first(where: { $0.id == settings.modelID }), ModelSelection.isSelectable(model) {
             selectedModelID = settings.modelID
@@ -489,6 +495,12 @@ public final class AppModel {
         seedChoice = .fixed
         seedText = String(UInt32(truncatingIfNeeded: settings.seed))
         fitComposerToSelectedFamily()
+    }
+
+    /// Gallery tile menu: only the prompt and negative prompt are copied. Model, size, steps and seed stay as they are.
+    public func reusePrompt(of image: LibraryImage) {
+        prompt = image.settings.prompt
+        negativePrompt = image.settings.negativePrompt ?? ""
     }
 
     // MARK: Queue actions
