@@ -1,11 +1,72 @@
 import MCCatalog
 import SwiftUI
 
-/// The ⚙ popover (HLD §8.3). Shows only controls ``AppModel/controls`` allows for the selected family (R7).
-struct SettingsPopover: View {
+/// The left panel of the three-panel layout (HLD §10): the multi-line prompt, the settings inline, and a pinned bottom
+/// row with the ×N batch stepper, Generate (⌘↩) and the error line. Settings show only the controls
+/// ``AppModel/controls`` allows for the selected family (R7).
+struct GenerationPanel: View {
     @Bindable var model: AppModel
 
+    /// The prompt editor never gets shorter than this. When the window is too short for the settings beside it, the
+    /// whole top area scrolls instead of squeezing the prompt.
+    private static let promptMinHeight: CGFloat = 120
+
     var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ViewThatFits(in: .vertical) {
+                // Roomy: the prompt takes the height the settings leave over.
+                layout(promptFillsHeight: true)
+                // Short: the same content scrolls, with the prompt held at its minimum.
+                ScrollView {
+                    layout(promptFillsHeight: false)
+                }
+            }
+            .frame(maxHeight: .infinity)
+
+            Divider()
+            bottomRow
+        }
+        .frame(minWidth: 320, idealWidth: 340, maxHeight: .infinity)
+    }
+
+    private func layout(promptFillsHeight: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            promptEditor
+                .frame(
+                    minHeight: Self.promptMinHeight,
+                    idealHeight: Self.promptMinHeight,
+                    maxHeight: promptFillsHeight ? .infinity : Self.promptMinHeight)
+            settings
+        }
+        .padding(12)
+    }
+
+    // MARK: Prompt
+
+    private var promptEditor: some View {
+        TextEditor(text: $model.prompt)
+            .font(.body)
+            .scrollContentBackground(.hidden)
+            .padding(6)
+            .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(nsColor: .separatorColor)))
+            .overlay(alignment: .topLeading) {
+                if model.prompt.isEmpty {
+                    Text("Describe an image")
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 7)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
+            .accessibilityLabel("Prompt")
+    }
+
+    // MARK: Settings
+
+    @ViewBuilder
+    private var settings: some View {
         if let controls = model.controls {
             Form {
                 seedSection
@@ -23,12 +84,12 @@ struct SettingsPopover: View {
                 }
             }
             .formStyle(.grouped)
-            .frame(width: 360)
+            .scrollDisabled(true)
+            .fixedSize(horizontal: false, vertical: true)
         } else {
             Text("Choose an available model to see its settings.")
                 .foregroundStyle(.secondary)
-                .padding()
-                .frame(width: 280)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -120,5 +181,37 @@ struct SettingsPopover: View {
                 Text("CFG scale")
             }
         }
+    }
+
+    // MARK: Bottom row
+
+    private var bottomRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 10) {
+                Stepper(value: $model.batchCount, in: 1...16) {
+                    Text("×\(model.batchCount)")
+                        .monospacedDigit()
+                }
+                .fixedSize()
+                .accessibilityLabel("Batch count")
+                .accessibilityValue("\(model.batchCount)")
+
+                Spacer(minLength: 0)
+
+                Button("Generate") {
+                    Task { await model.generate() }
+                }
+                .keyboardShortcut(.return, modifiers: .command)
+                .disabled(!model.canGenerate)
+                .buttonStyle(.borderedProminent)
+            }
+            if let error = model.lastError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(12)
     }
 }

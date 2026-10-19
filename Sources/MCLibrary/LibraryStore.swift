@@ -273,16 +273,21 @@ public actor LibraryStore {
         }
     }
 
-    /// The project's most recent images, newest first.
-    public func recentImages(projectID: UUID, limit: Int) throws -> [LibraryImage] {
+    /// The project's most recent images, newest first, skipping the first `offset`. Callers page with growing offsets.
+    public func recentImages(projectID: UUID, limit: Int, offset: Int = 0) throws -> [LibraryImage] {
         try dbQueue.read { db in
             try ImageRow
                 .filter(Column("project_id") == projectID.uuidString)
-                .order(Column("created_at").desc)
-                .limit(limit)
+                .order(Column("created_at").desc, Column("id").desc)
+                .limit(limit, offset: offset)
                 .fetchAll(db)
                 .map(\.image)
         }
+    }
+
+    /// One image by id, or nil when the library has none. A just-saved image is read this way.
+    public func image(id: UUID) throws -> LibraryImage? {
+        try dbQueue.read { db in try ImageRow.fetchOne(db, key: id.uuidString)?.image }
     }
 
     /// One image's settings, for ⌘R reuse.

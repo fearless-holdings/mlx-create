@@ -220,7 +220,7 @@ struct AppHarness {
             seedPolicy: SeedPolicy.random.encoded)
     }
 
-    /// A saved image with settings, for ⌘R and filmstrip checks.
+    /// A saved image with settings, for ⌘R and gallery checks.
     func saveImage(prompt: String, model: String = kreaModel, width: Int = 768, height: Int = 768) async throws -> LibraryImage {
         try await store.saveImage(NewImage(
             projectID: projectID, jobID: nil,

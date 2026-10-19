@@ -1,7 +1,7 @@
 import Foundation
 import MCGeneration
 
-/// How queue jobs read in the filmstrip and queue header (U8 steps 4 and 5).
+/// How queue jobs read in the queue strip and queue header (U8 steps 4 and 5).
 enum QueuePresentation {
     static let promptSnippetLength = 60
 

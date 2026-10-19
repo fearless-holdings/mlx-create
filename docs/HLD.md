@@ -19,7 +19,7 @@ This document records the agreed product decisions, the system architecture, the
 
 ### Goals
 
-- **G1:** Native macOS 26.2+ app with a canvas-first generation UI, Projects, and a per-project gallery.
+- **G1:** Native macOS 26.2+ app with a three-panel generation workspace (prompt and settings, canvas with queue strip, gallery of finished images), Projects, and a per-project gallery.
 - **G2:** Text-to-image generation in v1, with every mlx-serve control that makes sense for the selected model family (steps, CFG, negative prompt, size, seed, LoRA stack).
 - **G3:** A prompt **Enhance** button backed by a local, uncensored LLM that knows how each model family wants to be prompted and what the active LoRAs need.
 - **G4:** Preselected models with recommendations tuned to the user's Mac, calibrated on the device itself.
@@ -58,7 +58,7 @@ Settled during the design interview. Later documents cite these IDs.
 | D15 | Civitai: **anonymous by default, optional API key** (Keychain); NSFW previews blurred until opt-in | |
 | D16 | Recommendations = **signed remote catalog + on-device calibration** | Real seconds-per-image estimates on every Mac |
 | D17 | Storage is **fully separate** from other tools (own Application Support root, relocatable) | Achieved by launching the engine with `HOME` pointed at our root (§7.4); no engine change |
-| D18 | **Canvas-first** main window; the gallery is a separate mode | |
+| D18 | ~~**Canvas-first** main window; the gallery is a separate mode~~ **Superseded by D33** for the layout. Whether a separate Gallery mode still ships is an open question (§10) | |
 | D19 | **Sparkle** updates + **opt-in anonymous analytics** | |
 | D20 | Model licenses **shown, accepted on download**; defaults favour permissive licenses; we never redistribute weights | Some curated weights carry non-commercial licenses |
 | D21 | Until the signed catalog exists (D16), a **bundled capability record per verified family** (`families.json`) drives the settings surface (§8.3–8.4) | Only families whose size grid, step default and guidance support were checked against the pinned engine source get a record; other installed models show as unavailable |
@@ -73,6 +73,7 @@ Settled during the design interview. Later documents cite these IDs.
 | D30 | **Network seams are injected protocols, so tests run without the network.** `ModelTransport` (MCModels), `CatalogTransport` (MCCatalog) and `HubClient` (MCCatalogTool) are injected and supply scripted responses, including interrupted transfers. `ModelDownloader` is an actor; its `ModelTransport` requirements are async where needed and `ModelInstaller` awaits them. The app supplies the URLSession-backed implementations. These protocols join the seams this HLD names (`ModelSource`, `Entitlements`, `ModelFamily`) | Install and catalog tests need scripted replies and interrupted-transfer cases, which `URLProtocol` stubbing makes awkward and process-global. The seams are the ones AGENTS.md allows |
 | D31 | **Qwen-Image 2.1 Turbo is its own family, told apart by a checkpoint trait rather than by architecture.** Plain and Turbo packs report the same engine architecture (`qwen_image21`), so the registry matches an installed model on architecture plus a required trait: a non-empty `sample_sigmas` list in the pack's `Weights/<model id>/model_index.json`. Only architectures that declare a trait are probed. A family may declare its steps fixed (`stepsAreFixed`, §8.3): the checkpoint sets the step grid, so the app sends no `steps`, shows the fixed count read-only, and records the engine's actual total (D24). The Turbo pack is under the Qwen Research License, which allows research and evaluation only; the license sheet states that at download and the user accepts it (D20, D26). A legal read is a release prerequisite, beside Krea's | Engine metadata cannot tell the packs apart, and the engine ignores a requested step count when the checkpoint carries its own grid, so a stepper would mislead. The restriction is shown before download rather than hidden |
 | D32 | **The engine always runs Qwen-Image's staged plan, so the catalog `ram_gb` for Qwen packs is the staged preflight need.** The app launches the engine with the fixed variable `MLX_SERVE_QWEN_IMAGE_LOW_MEMORY=1` (an upstream knob; the engine stays stock). Turbo's `ram_gb` is 14.3: the staged peak (11.81 GiB, which includes the edit-tower transient) plus the engine's load headroom, `min(peak/8, 6 GiB) + 1 GiB`. Turbo 4-bit therefore does not run on a 16 GB Mac (usable working set ≈11.9 GB): the browser shows `exceeds` there, and §8.5 lists it from the 24 GB tier. The cost is that the text encoder reloads for each request on large Macs | Without the variable the engine stages only when the working set is below ≈18.4 GiB, so the need would be ≈18.8 GB on larger Macs and one catalog scalar could not describe both. Pinning the staged plan keeps the fit band truthful on every tier |
+| D33 | **Three-panel main window** supersedes the layout half of D18 (the canvas-first stack with a shared filmstrip and a ⚙ settings popover). Left: generation, with a multi-line prompt, Enhance beside it (not yet built), inline settings, and the batch and Generate controls at the bottom. Middle: the canvas, with the queue strip under it (jobs only). Right: the gallery of finished images, paged, always visible. | Requested by the user. A multi-line prompt and inline settings need room that a popover and a shared strip cannot give, and mixing queue placeholders into the gallery forces every render to filter one array. The LoRA stack is an inline section, not yet built. A separate full-window Gallery mode and the ⌘1/⌘2 switch are an open question (§10). Plan: `docs/plans/2026-10-19-1105-feat-three-panel-main-layout-plan.md` |
 
 ## 4. Constraints and assumptions
 
@@ -125,9 +126,9 @@ The app is a client of a private, localhost-only engine process. All inference s
 ```mermaid
 flowchart TB
   subgraph UI["UI layer (SwiftUI + AppKit bridges)"]
-    canvas["Canvas + filmstrip"]
-    prompt["Prompt bar + settings popover"]
-    gallery["Gallery mode"]
+    canvas["Canvas + queue strip"]
+    prompt["Generation panel<br/>(prompt + inline settings)"]
+    gallery["Gallery panel"]
     models["Models window<br/>(Installed / Browse)"]
     onboarding["Onboarding + calibration"]
   end
@@ -277,10 +278,10 @@ A typed async client: `generateImage(_:) -> AsyncThrowingStream<GenEvent>`, `cha
 The **JobQueue** is app-owned and persisted in SQLite, so it survives relaunches. It runs one job at a time to match the engine.
 
 - **Job** = one composed request × batch count. The executor expands a job into N **generations**, each a separate engine request with its seed from the job's seed policy: random, fixed, increment from base, or reuse from a selected image.
-- The user can reorder, pause, cancel (current or queued), and retry failed jobs. The queue strip in the filmstrip shows placeholders with live progress.
+- The user can reorder, pause, cancel (current or queued), and retry failed jobs. The queue strip under the canvas shows one cell per job with live progress.
 - **Throughput rules:**
   - Keep the active image model resident across consecutive jobs.
-  - Pre-warm with `/v1/load-model` when the user changes model in the prompt bar.
+  - Pre-warm with `/v1/load-model` when the user changes model in the generation panel.
   - Don't reorder the user's queue. The engine already reuses an identical LoRA stack between requests (`src/gen.zig:753-757`), so consecutive generations within a job pay the attach cost once.
 
 ```mermaid
@@ -300,11 +301,11 @@ sequenceDiagram
     Q->>E: generateImage(request, seed_i, stream, preview)
     E->>S: POST /v1/images/generations (SSE)
     S-->>E: progress {step,total} (+ preview JPEG once F1 ships upstream)
-    E-->>U: live preview + progress on canvas/filmstrip
+    E-->>U: live preview + progress on canvas + queue strip
     S-->>E: complete (base64 PNG)
     E->>M: inject A1111 "parameters" + mlx-create JSON chunks
     M->>L: write file, HEIC thumbnail, Image row (FTS)
-    L-->>U: result appears in canvas + filmstrip
+    L-->>U: result appears in canvas + gallery
   end
   Note over Q,S: Cancel = cancel task → connection closes → engine aborts denoise
 ```
@@ -316,7 +317,7 @@ Controls are driven by the family's capability record (§8.4), so the UI never s
 | Control | Shown when | Notes |
 |---|---|---|
 | Prompt, Enhance ✨ | always | |
-| Negative prompt | family supports it | Collapsed by default |
+| Negative prompt | family supports it | Shown inline, always visible when the family supports it |
 | Size / aspect presets | always | The family size grid from its capability record (D25): FLUX.2 klein multiples of 32 in [256, 1536]; Krea multiples of 16 in [256, 2048] (`src/gen.zig:2366`) |
 | Steps | always, unless the family's steps are fixed (D31) | Family default, quality presets (Fast / Balanced / Quality), max 100. A family with `stepsAreFixed` (Qwen-Image 2.1 Turbo, 8 steps) shows the fixed count read-only, sends no `steps`, and hides the stepper |
 | CFG / guidance | family supports guidance (e.g. klein base, `supportsGuidance()`) | Hidden for distilled turbo models |
@@ -421,7 +422,7 @@ sequenceDiagram
   P->>E: ensure enhancer LLM loaded (tier policy)
   P->>E: /v1/chat/completions, stream, json_schema {prompt, negative_prompt?, notes}
   E-->>P: streamed tokens
-  P-->>U: inline diff in prompt bar (accept / revert / regenerate)
+  P-->>U: inline diff in the prompt editor (accept / revert / regenerate)
   P->>E: unload LLM on 16 GB tier, re-warm image model
 ```
 
@@ -570,27 +571,34 @@ Nothing is written to `~/.mlx-serve`, and other tools' model folders are not sca
 ## 10. User experience
 
 ```
-┌──────────────────────────────────────────────────────────────────────┐
-│ [Project: Portraits ▾]   ( Canvas | Gallery )   [Qwen-Image 4bit ●]  ⏳2 │  toolbar
-├──────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│                         current / selected result                    │  canvas: zoom, pan,
-│                       (live step preview while running)              │  drop PNG = restore
-│                                                                      │
-├──────────────────────────────────────────────────────────────────────┤
-│ ▢ ▢ ▢ ▢ ▢ ▢ ▢ ▣(62%) ▢(queued) ▢(queued)                              │  filmstrip + queue
-├──────────────────────────────────────────────────────────────────────┤
-│ a woman reading in a sunlit café, film grain…        ✨  ⚙  ×4  [Generate ⌘↩] │  prompt bar
-│ LoRAs: [film-look 0.8 ✕] [+]                                          │
-└──────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│ [Project: Portraits ▾]                                            [Qwen-Image 4bit ●] │
+├──────────────────────────┬───────────────────────────────────┬────────────────────────┤
+│ Prompt                   │                                   │ Gallery                │
+│ a woman reading in a     │      current / selected result    │ newest first, paged    │
+│ sunlit café, film grain… │  (live step preview while running)│ ┌────┐ ┌────┐ ┌────┐   │
+│ [Enhance]  not yet built │                                   │ │    │ │    │ │    │   │
+│                          │                                   │ └────┘ └────┘ └────┘   │
+│ Settings                 │                                   │                        │
+│ Seed     random  42      │                                   │ ┌────┐ ┌────┐ ┌────┐   │
+│ Size     1024 × 1024     │                                   │ │    │ │    │ │    │   │
+│ Steps    20              │                                   │ └────┘ └────┘ └────┘   │
+│ CFG      4.0             ├───────────────────────────────────┤                        │
+│ Negative prompt          │ Running   [Pause]                 │ ┌────┐ ┌────┐ ┌────┐   │
+│ low quality, blurry      │ ▣ 62%   ▢ queued   ▢ queued       │ │    │ │    │ │    │   │
+│ LoRAs     not yet built  │                                   │ └────┘ └────┘ └────┘   │
+│ ×4  [Generate ⌘↩]        │                                   │  ⋮ loads more on scroll│
+└──────────────────────────┴───────────────────────────────────┴────────────────────────┘
 ```
 
-- **Canvas mode:**
-  - Canvas: the selected result or the live preview.
-  - Filmstrip: the project's recent results plus queue placeholders.
-  - Prompt bar, with a **⚙ settings popover** driven by family capabilities (§8.3).
+- **Main window (three panels, D33):**
+  - Generation panel (left): a multi-line prompt editor that takes the height above the settings, with the **Enhance** button beside it (not yet built, §8.8). The settings are inline, with no popover, and follow family capabilities (§8.3): seed and policy, size, steps, CFG scale and negative prompt, each shown only where the family allows it. The **LoRA stack** is an inline section (not yet built, §8.3). The batch stepper (×N), Generate (⌘↩) and the error line are pinned at the bottom. When no model can run, the settings area says "Choose an available model to see its settings."
+  - Canvas (middle, top): the selected result or the live step preview, with zoom and pan; drop a PNG = restore. Shows the existing empty states (no models, only unavailable models, empty hint).
+  - Queue strip (middle, under the canvas): the queue header (Running, Pausing, Paused, Queue empty, with Pause and Resume) and one cell per job, with live progress. Jobs only. Hidden while the canvas shows the empty hint.
+  - Gallery panel (right): all of the project's finished images, newest first, as a scrolling grid that loads in pages. Clicking a thumbnail shows it in the canvas. Queued jobs never appear here.
   - Model chip with a fit badge (comfortable/tight) and a seconds-per-image estimate.
-- **Gallery mode:** full grid with search. Double-click opens an image in the canvas.
+  - The dividers between the panels are draggable, and each panel keeps a minimum width.
+- **Gallery mode (open question):** a separate full-window grid with search; double-click opens an image in the canvas. Whether it still ships in a later phase, or the right panel grows to host search, is undecided (D33).
 - **Models window:** an *Installed* tab and a *Browse* tab (Curated / Civitai / CivArchive), plus the download list.
 - **Onboarding:**
   1. Hardware scan.
@@ -599,7 +607,7 @@ Nothing is written to `~/.mlx-serve`, and other tools' model folders are not sca
   4. Calibration render.
   5. Analytics opt-in.
   6. First project.
-- **Keyboard first:** ⌘↩ generate, ⌘E enhance, ⌘. cancel, ⌘1/⌘2 Canvas/Gallery, ⌘R reuse settings of the selected image.
+- **Keyboard first:** ⌘↩ generate, ⌘E enhance (not yet built), ⌘. cancel, ⌘1/⌘2 Canvas/Gallery (open question, see Gallery mode above), ⌘R reuse settings of the selected image.
 
 ## 11. Memory and performance strategy
 

@@ -7,7 +7,7 @@ import Testing
 @testable import MCApp
 
 @MainActor
-@Suite struct SettingsPopoverStateTests {
+@Suite struct SettingsControlsStateTests {
     @Test func controlsFollowTheSelectedFamilyRecord() async throws {
         let harness = try await AppHarness.make()
         let model = harness.model
@@ -92,6 +92,21 @@ import Testing
 
         _ = try await harness.saveImage(prompt: "a fox")
         await model.reload()
+        #expect(model.canvasMode == .content)
+    }
+
+    @Test func aQueuedJobWithoutAnImageShowsTheCanvasContent() async throws {
+        let harness = try await AppHarness.make()
+        let model = harness.model
+        await model.reload()
+        #expect(model.queueJobs.isEmpty)
+        #expect(model.galleryImages.isEmpty)
+        #expect(model.canvasMode == .emptyHint)
+
+        _ = try await harness.enqueue(batch: 1)
+        await model.reload()
+        #expect(model.queueJobs.map(\.status) == [.queued])
+        #expect(model.galleryImages.isEmpty)
         #expect(model.canvasMode == .content)
     }
 

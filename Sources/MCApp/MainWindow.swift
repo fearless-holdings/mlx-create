@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// The canvas-first main window (HLD §10, v1 parts): toolbar with the project name and model chip,
-/// engine banner, canvas, filmstrip with queue, and the prompt bar.
+/// The three-panel main window: toolbar with the project name and model chip, engine banner,
+/// generation panel (left), canvas over the queue strip (middle), and the gallery (right).
 public struct MainWindow: View {
     @Bindable var model: AppModel
 
@@ -15,15 +15,25 @@ public struct MainWindow: View {
                 EngineStatusBanner(banner: banner, onRestart: { Task { await model.restartEngine() } })
                 Divider()
             }
-            CanvasView(model: model)
-            if model.canvasMode != .emptyHint {
-                Divider()
-                FilmstripView(model: model)
+            HSplitView {
+                GenerationPanel(model: model)
+                    .frame(minWidth: 320, idealWidth: 340)
+                VStack(spacing: 0) {
+                    CanvasView(model: model)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    if model.canvasMode != .emptyHint {
+                        Divider()
+                        QueueStripView(model: model)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .frame(minWidth: 400, maxWidth: .infinity, maxHeight: .infinity)
+                .layoutPriority(1)
+                GalleryView(model: model)
+                    .frame(minWidth: 200, idealWidth: 260)
             }
-            Divider()
-            PromptBar(model: model)
         }
-        .frame(minWidth: 820, minHeight: 620)
+        .frame(minWidth: 1100, minHeight: 640)
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 Text(model.projectName)
@@ -42,7 +52,7 @@ public struct MainWindow: View {
 }
 
 /// Keyboard shortcuts for actions that are not on a visible control: ⌘. cancel and ⌘R reuse.
-/// ⌘↩ lives on the Generate button in ``PromptBar``. The buttons are zero-size and hidden from VoiceOver.
+/// ⌘↩ lives on the Generate button in ``GenerationPanel``. The buttons are zero-size and hidden from VoiceOver.
 private struct ShortcutButtons: View {
     let model: AppModel
 
