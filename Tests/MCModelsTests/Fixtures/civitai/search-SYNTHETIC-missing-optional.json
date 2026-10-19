@@ -1,0 +1,20 @@
+{
+  "items": [
+    {
+      "id": 7001,
+      "name": "Bare LoRA"
+    },
+    {
+      "id": 7002,
+      "name": "Plain LoRA",
+      "nsfw": false,
+      "someFutureField": { "nested": [1, 2] },
+      "creator": null,
+      "stats": null,
+      "allowCommercialUse": null,
+      "modelVersions": [
+        { "id": 8001, "name": "v1" }
+      ]
+    }
+  ]
+}
