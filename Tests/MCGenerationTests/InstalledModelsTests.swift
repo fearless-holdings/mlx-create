@@ -252,6 +252,5 @@ struct InstalledModelsRefreshTests {
             return
         }
         #expect(reason.contains("qwen_image21"))
-        #expect(reason.contains("not supported by this app yet"))
     }
 }

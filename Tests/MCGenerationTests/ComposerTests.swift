@@ -188,20 +188,4 @@ struct GenerationComposerTests {
 
         #expect(job.request.steps == nil)
     }
-
-    @Test func reuseOfFixedStepsImageSendsNoSteps() async throws {
-        let registry = try FamilyRegistry.bundled()
-        let store = try makeStore()
-        let composer = GenerationComposer(registry: registry, store: store)
-        let settings = ImageSettings(
-            prompt: "a heron", modelID: turboID, family: "qwen-image-2.1-turbo",
-            requestedWidth: 1024, requestedHeight: 1024, requestedSteps: 8,
-            seed: 5, width: 1024, height: 1024, steps: 8)
-
-        let reuse = composer.draft(reusing: settings, model: try turboModel(registry))
-        #expect(reuse.steps == nil)
-
-        let job = try await composer.enqueue(reuse)
-        #expect(job.request.steps == nil)
-    }
 }

@@ -22,6 +22,15 @@ func imageCount(_ model: AppModel) -> Int {
     }
 }
 
+private let turboModelID = "ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-4bit"
+
+/// Writes the Turbo pack's `model_index.json` with the non-empty `sample_sigmas` that marks it as Turbo.
+private func writeTurboIndex(under weightsRoot: URL) throws {
+    let folder = weightsRoot.appending(path: turboModelID, directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    try Data(#"{"sample_sigmas": [1.0, 0.8, 0.5, 0.2]}"#.utf8).write(to: folder.appending(path: "model_index.json"))
+}
+
 @MainActor
 @Suite struct AppModelTests {
     @Test func generateQueuesAPlaceholderShowsProgressThenSelectsTheResult() async throws {
@@ -73,6 +82,57 @@ func imageCount(_ model: AppModel) -> Int {
         #expect(model.steps == 6)
         #expect(model.seedChoice == .fixed)
         #expect(model.seedText == "12345")
+    }
+
+    @Test func turboModelWithSampleSigmasIsAvailableWithFixedSteps() async throws {
+        let harness = try await AppHarness.make(models: [(kreaModel, "krea2_turbo"), (turboModelID, "qwen_image21")])
+        try writeTurboIndex(under: harness.weightsRoot)
+        let model = harness.model
+        await model.start()
+        await model.refreshModels()
+
+        #expect(model.models.first { $0.id == turboModelID }?.availability == .available)
+        model.selectedModelID = turboModelID
+        #expect(model.controls?.stepsAreFixed == true)
+    }
+
+    @Test func turboModelWithoutModelIndexStaysUnavailable() async throws {
+        let harness = try await AppHarness.make(models: [(kreaModel, "krea2_turbo"), (turboModelID, "qwen_image21")])
+        let model = harness.model
+        await model.start()
+        await model.refreshModels()
+
+        let entry = try #require(model.models.first { $0.id == turboModelID })
+        #expect(entry.family == nil)
+        guard case .unavailable = entry.availability else {
+            Issue.record("expected the Turbo model to stay unavailable without sample_sigmas")
+            return
+        }
+    }
+
+    @Test func reuseOfFixedStepsImageKeepsStepsNilOnAnyModel() async throws {
+        let harness = try await AppHarness.make(models: [(kreaModel, "krea2_turbo"), (turboModelID, "qwen_image21")])
+        try writeTurboIndex(under: harness.weightsRoot)
+        let model = harness.model
+        await model.start()
+        await model.refreshModels()
+        let image = try await harness.store.saveImage(NewImage(
+            projectID: harness.projectID, jobID: nil,
+            pngData: PNGFixture.make(width: 1024, height: 1024),
+            settings: ImageSettings(
+                prompt: "a heron", negativePrompt: nil, modelID: turboModelID, family: "qwen-image-2.1-turbo",
+                requestedWidth: 1024, requestedHeight: 1024, requestedSteps: 8, guidance: nil,
+                seed: 5, width: 1024, height: 1024, steps: 8)))
+        await model.reload()
+        model.selection = image.id
+        #expect(model.canReuse)
+
+        await model.reuseSelectedImageSettings()
+        #expect(model.selectedModelID == turboModelID)
+        #expect(model.steps == nil)
+
+        model.selectedModelID = kreaModel
+        #expect(model.steps == nil)
     }
 
     @Test func switchingToAFamilyWithoutGuidanceHidesAndClearsTheGuidanceValue() async throws {

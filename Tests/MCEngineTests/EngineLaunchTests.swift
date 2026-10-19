@@ -48,9 +48,10 @@ import Testing
         #expect(large["--max-resident-models"] == "3")
     }
 
-    @Test func environmentIsBuiltFromExactlyFourVariables() {
+    @Test func environmentIsBuiltNotInherited() {
         let env = EngineLaunch.environment(home: home, apiKey: secret, temporaryDirectory: tmp)
-        #expect(Set(env.keys) == ["HOME", "MLXC_ENGINE_KEY", "PATH", "TMPDIR"])
+        #expect(Set(env.keys) == ["HOME", "MLXC_ENGINE_KEY", "PATH", "TMPDIR", "MLX_SERVE_QWEN_IMAGE_LOW_MEMORY"])
+        #expect(env["MLX_SERVE_QWEN_IMAGE_LOW_MEMORY"] == "1")
         #expect(env["HOME"] == home.path)
         #expect(env["MLXC_ENGINE_KEY"] == secret)
         #expect(env["TMPDIR"] == tmp.path)

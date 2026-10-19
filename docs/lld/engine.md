@@ -197,14 +197,14 @@ public struct EngineCrash: Sendable, Error {
 ### 5.2 Launch
 
 ```
-HOME=<AppSupport>/Engine  MLXC_ENGINE_KEY=<key>  PATH=/usr/bin:/bin  TMPDIR=<user tmp>
+HOME=<AppSupport>/Engine  MLXC_ENGINE_KEY=<key>  PATH=/usr/bin:/bin  TMPDIR=<user tmp>  MLX_SERVE_QWEN_IMAGE_LOW_MEMORY=1
 <bundle>/Contents/MacOS/mlx-serve --serve --host 127.0.0.1 --port <port> \
   --api-key-env MLXC_ENGINE_KEY --api-key-strict \
   --model-dir <Models>/Weights \
   --max-resident-mem auto --max-resident-models <tier> --log-level info
 ```
 
-- **Environment is built, not inherited.** `Process.environment` is set to exactly the four variables above. Nothing from the app's environment leaks through, `DYLD_*` and `MLX_*` included. Tier flags come from HLD §11. `--idle-evict-secs` gets added once §11 fixes the per-tier values.
+- **Environment is built, not inherited.** `Process.environment` is set to exactly the variables above. Nothing from the app's environment leaks through, `DYLD_*` and `MLX_*` included; the one `MLX_SERVE_*` variable is a fixed constant, not a pass-through. `MLX_SERVE_QWEN_IMAGE_LOW_MEMORY=1` forces the engine's staged Qwen-Image plan (text encoder loaded per request) on every machine, so the catalog's staged `ram_gb` is the real need on 16 GB and on large Macs alike (D32). Tier flags come from HLD §11. `--idle-evict-secs` gets added once §11 fixes the per-tier values.
 - **API key:** 32 bytes from `SecRandomCopyBytes`, base64url-encoded, regenerated on every launch, restarts included. It lives in memory only.
   - `--api-key-env` keeps the key out of argv, because the process table is world-readable [observed in `--help`]. Same-user processes can still read another process's environment, so this protects against other users, not against same-user malware.
   - `--api-key-strict` is **required**. Without it upstream exempts loopback callers from the key [observed in `--help`], and every caller of a `127.0.0.1` engine is loopback. `/health` stays open by design.

@@ -43,7 +43,7 @@ Upstream mlx-serve's own app offers this model. mlx-create does not, because `fa
 
 **License and fit**
 - R7. The install flow shows the Qwen Research License, states that commercial use is not allowed, and requires acceptance before download (D20, D26).
-- R8. The catalog `ram_gb` is the pinned engine's staged-plan preflight need, computed from the pack's file sizes (`rest + max(text_encoder, 4 GiB)`, `qwenImagePeakBytesForStaging` in `src/gen.zig` at v26.10.2), so it is right for the 16 GB Macs the pack targets. It is not upstream's estimate and not a peak measured on a larger Mac.
+- R8. The catalog `ram_gb` is the pinned engine's staged-plan preflight need (14.3 GB, the staged peak plus load headroom as read from the engine's `[preflight]` log), and the app pins the staged plan by launching the engine with `MLX_SERVE_QWEN_IMAGE_LOW_MEMORY=1` (D32). It is not upstream's estimate. Turbo 4-bit does not fit a 16 GB Mac; the fit band shows `exceeds` there and §8.5 lists the model from the 24 GB tier. (Corrected after review: the earlier computed 10.6/12.0 figures omitted the edit-tower transient.)
 
 ### Scope Boundaries
 
@@ -58,7 +58,7 @@ Upstream mlx-serve's own app offers this model. mlx-create does not, because `fa
 ### Key Decisions
 
 - **Ship Turbo with its license shown, not hidden.** The license is research and evaluation only. The license sheet says so plainly, and a legal read is a release prerequisite beside the Krea one. Governs R7. (session-settled: user-approved, chosen over holding the entry out of the bundle: the sheet makes the restriction visible before download.)
-- **4-bit only.** It is the pack that fits a 16 GB Mac. Governs R1, R8. (session-settled: user-approved, chosen over also shipping 8-bit: the 8-bit pack follows later.)
+- **4-bit only.** It is the smallest Turbo pack. It does not fit a 16 GB Mac (R8, D32). Governs R1, R8. (session-settled: user-approved, chosen over also shipping 8-bit: the 8-bit pack follows later. The 16 GB premise was wrong and was corrected after review.)
 
 ### Dependencies
 
@@ -91,7 +91,7 @@ flowchart LR
 
 - **Model id equals the folder path under `Weights/`.** This is inferred from the install layout (`Weights/<org>/<repo>`) and the Krea fixture id. The smoke run (U6) confirms it. A mismatch leaves Turbo unavailable, which fails safe.
 - **License.** Research-only terms are a commercial exposure for the product. R7 and the legal read cover it.
-- **RAM.** Upstream estimates 13 GB. The engine loads Qwen's text encoder per request on small machines and keeps it resident on large ones, so a figure measured in the app on this 48 GB Mac overstates the 16 GB need (klein already measured 8.9 against a catalog 8.0). R8 therefore uses the computed staged-plan need, confirmed in U6 by a standalone engine run with `MLX_SERVE_QWEN_IMAGE_LOW_MEMORY=1`.
+- **RAM.** Upstream estimates 13 GB. The engine stages the text encoder only when the GPU working set is small, so the need would differ by machine. D32 pins the staged plan with an engine launch variable, and R8's 14.3 GB is read from the engine's preflight log in a standalone run.
 - **Catalog signing.** The bundled `catalog.json` must be rebuilt and re-signed, and its sequence rises by one. A stale signature fails `mc-catalog verify`.
 
 ## Implementation Units
