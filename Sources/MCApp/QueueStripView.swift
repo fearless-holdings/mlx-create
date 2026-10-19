@@ -151,6 +151,13 @@ struct JobCell: View {
             Label("Failed", systemImage: "exclamationmark.triangle")
                 .font(.caption)
                 .foregroundStyle(.red)
+            if let message = job.failure?.message {
+                Text(message)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(3)
+            }
         case .cancelled:
             Label("Cancelled", systemImage: "xmark.circle").font(.caption)
         case .done:

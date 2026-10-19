@@ -6,6 +6,7 @@ import SwiftUI
 /// ``AppModel/controls`` allows for the selected family (R7).
 struct GenerationPanel: View {
     @Bindable var model: AppModel
+    @State private var isLoRADropTargeted = false
 
     /// The prompt editor never gets shorter than this. When the window is too short for the settings beside it, the
     /// whole top area scrolls instead of squeezing the prompt.
@@ -27,6 +28,17 @@ struct GenerationPanel: View {
             bottomRow
         }
         .frame(minWidth: 320, idealWidth: 340, maxHeight: .infinity)
+        .overlay {
+            if isLoRADropTargeted {
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.accentColor, lineWidth: 2)
+                    .padding(4)
+                    .allowsHitTesting(false)
+            }
+        }
+        .onDrop(of: [.fileURL], isTargeted: $isLoRADropTargeted) { providers in
+            LoRADrop.handle(providers, model: model)
+        }
     }
 
     private func layout(promptFillsHeight: Bool) -> some View {
@@ -38,6 +50,7 @@ struct GenerationPanel: View {
                     maxHeight: promptFillsHeight ? .infinity : Self.promptMinHeight)
             ModelChip(model: model)
             settings
+            LoRASection(model: model)
         }
         .padding(12)
     }

@@ -76,10 +76,26 @@ public final class AppModel {
     public var lastError: String?
     public var selection: UUID?
 
-    private let store: LibraryStore
+    /// LoRA state (U6). The stack is plain state: rows derive from it, so a model switch never edits it.
+    var loraSlots: [LoRAStackSlot] = []
+    /// The LoRA library as last read from the store.
+    var loraRecords: [LoRARecord] = []
+    /// Library LoRAs whose file is missing from disk, as of the last refresh.
+    var loraMissingFileIDs: Set<String> = []
+    /// The tier the LoRA memory hint reads. The app keeps the current tier; tests set another.
+    var loraMemoryTier = MemoryTier.current
+    /// A neutral one-line note about the stack, for example LoRAs a reuse left out.
+    var loraNotice: String?
+    var isLoRALibraryPresented = false
+    var loraImportProgress: LoRAImportProgress?
+    var loraImportSummary: LoRAImportSummary?
+    /// Set by `cancelLoRAImport()` and checked between files.
+    var loraImportCancelRequested = false
+
+    let store: LibraryStore
     private let client: EngineClient
     private let gate: EngineGate
-    private let registry: FamilyRegistry
+    let registry: FamilyRegistry
     private let states: AsyncStream<EngineState>
     private let supervisor: EngineSupervisor?
     private let defaults: UserDefaults
@@ -447,9 +463,16 @@ public final class AppModel {
             lastError = "Seed must be a whole number from 0 to 4294967295."
             return
         }
+        let loras: [LoRAStackEntry]
+        do {
+            loras = try frozenLoRAStack()
+        } catch {
+            lastError = message(for: error)
+            return
+        }
         let draft = GenerationDraft(
             model: model, prompt: prompt, negativePrompt: negativePrompt, size: size,
-            steps: steps, guidance: guidance, batchCount: batchCount, seedPolicy: seedPolicy)
+            steps: steps, guidance: guidance, batchCount: batchCount, seedPolicy: seedPolicy, loras: loras)
         do {
             let job = try await composer.enqueue(draft)
             selection = job.id
@@ -458,6 +481,7 @@ public final class AppModel {
             await startDraining()
         } catch {
             lastError = message(for: error)
+            await refreshLoRALibrary()
         }
     }
 
@@ -478,7 +502,7 @@ public final class AppModel {
         reuseSettings(of: image)
     }
 
-    /// Gallery tile menu: the image's prompt, model, size, steps and seed (pinned as fixed) go back into the composer.
+    /// Gallery tile menu: the image's prompt, model, size, steps, seed (pinned as fixed) and LoRA stack go back into the composer.
     /// The selection does not change.
     public func reuseSettings(of image: LibraryImage) {
         let settings = image.settings
@@ -494,6 +518,7 @@ public final class AppModel {
         guidance = settings.guidance
         seedChoice = .fixed
         seedText = String(UInt32(truncatingIfNeeded: settings.seed))
+        restoreLoRAStack(from: settings.loras ?? [])
         fitComposerToSelectedFamily()
     }
 
@@ -602,6 +627,7 @@ public final class AppModel {
     func reload() async {
         await reloadQueue()
         await reloadGallery()
+        await refreshLoRALibrary()
     }
 
     /// Rebuilds the queue strip and header. Placeholders come first: the running job, the queue in order, then paused,
@@ -718,7 +744,7 @@ public final class AppModel {
     }
 
     /// The text shown for an error: the user-facing copy the layer already wrote, or the framework's description.
-    private func message(for error: Error) -> String {
+    func message(for error: Error) -> String {
         switch error {
         case let crash as EngineCrash: crash.message
         case let engine as EngineError: engine.userMessage
@@ -727,6 +753,10 @@ public final class AppModel {
         case GenerationError.invalidBatchCount: "Batch count must be at least 1."
         case JobQueueError.notFailed: "Only failed jobs can be retried."
         case LibraryError.notQueued: "Only queued jobs can be moved."
+        case LibraryError.loraUnavailable(let name):
+            "\"\(name)\" is missing from the library or its file is gone. Remove it from the stack or re-import it."
+        case LoRAStackError.tooMany:
+            "A job can use up to \(GenerationComposer.maxLoRAs) LoRAs. Remove one to generate."
         default: error.localizedDescription
         }
     }

@@ -109,7 +109,7 @@ struct ModelChip: View {
         }
     }
 
-    private static func title(for installed: InstalledModel) -> String {
+    static func title(for installed: InstalledModel) -> String {
         installed.family?.displayName ?? installed.id
     }
 }
