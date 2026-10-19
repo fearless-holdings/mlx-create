@@ -121,6 +121,63 @@ import Testing
             #expect(readError(url) == .overlappingData(tensor: "b.weight"))
         }
     }
+
+    // MARK: In-memory read from a range peek (KTD3)
+
+    @Test func aPrefixAndHeaderPeekReadsTheSameHeaderAsTheWholeFile() throws {
+        try withScratchDir { dir in
+            let url = dir.appendingPathComponent("peek.safetensors")
+            let header: [String: Any] = [
+                "__metadata__": ["format": "pt"],
+                "blocks.0.lora_down.weight": tensor(shape: [2, 4], offsets: [0, 32]),
+            ]
+            try SafetensorsFixture.write(header: header, dataBytes: 32, to: url)
+            let whole = try Data(contentsOf: url)
+            // Only the prefix and header are supplied, as a range read would return them. The data is never sent.
+            let peek = whole.prefix(8 + declaredLength(of: whole))
+
+            let fromPeek = try SafetensorsHeader.read(prefixAndHeader: Data(peek), totalFileSize: UInt64(whole.count))
+            let fromFile = try SafetensorsHeader.read(from: url)
+            #expect(fromPeek == fromFile)
+        }
+    }
+
+    @Test func thePeekUsesTheTotalFileSizeForTheDataRegionChecks() throws {
+        try withScratchDir { dir in
+            let url = dir.appendingPathComponent("short.safetensors")
+            let header: [String: Any] = ["w": tensor(shape: [2, 4], offsets: [0, 32])]
+            try SafetensorsFixture.write(header: header, dataBytes: 32, to: url)
+            let whole = try Data(contentsOf: url)
+            let peek = Data(whole.prefix(8 + declaredLength(of: whole)))
+
+            // The tensor needs 32 data bytes; a file that declares fewer is refused even though the peek is complete.
+            #expect(peekError(peek, totalFileSize: UInt64(8 + declaredLength(of: whole) + 4)) == .offsetOutOfRange(tensor: "w"))
+        }
+    }
+
+    @Test func aPeekShorterThanItsDeclaredHeaderIsUnreadable() throws {
+        try withScratchDir { dir in
+            let url = dir.appendingPathComponent("cut.safetensors")
+            try SafetensorsFixture.write(header: ["w": tensor(shape: [2, 4], offsets: [0, 32])], dataBytes: 32, to: url)
+            let whole = try Data(contentsOf: url)
+            let cut = Data(whole.prefix(8 + declaredLength(of: whole) - 1))
+
+            guard case .unreadable? = peekError(cut, totalFileSize: UInt64(whole.count)) else {
+                Issue.record("expected unreadable for a truncated header")
+                return
+            }
+        }
+    }
+
+    @Test func aPeekDeclaringAHeaderLargerThanTheFileIsRefused() {
+        var peek = Data([0xff, 0xff, 0, 0, 0, 0, 0, 0])
+        peek.append(Data(repeating: 0x7b, count: 16))
+        #expect(peekError(peek, totalFileSize: 64) == .headerLengthOutOfRange(declared: 0xffff, fileSize: 64))
+    }
+
+    @Test func aPeekWithoutItsLengthPrefixIsRefused() {
+        #expect(peekError(Data([1, 2, 3]), totalFileSize: 100) == .headerLengthOutOfRange(declared: 0, fileSize: 100))
+    }
 }
 
 // MARK: - Helpers
@@ -163,4 +220,18 @@ private enum SafetensorsFixture {
         out.append(Data(repeating: 0, count: dataBytes))
         try out.write(to: url)
     }
+}
+
+private func peekError(_ peek: Data, totalFileSize: UInt64) -> SafetensorsError? {
+    do {
+        _ = try SafetensorsHeader.read(prefixAndHeader: peek, totalFileSize: totalFileSize)
+        return nil
+    } catch {
+        return error as? SafetensorsError
+    }
+}
+
+/// The header length a file's 8-byte little-endian prefix declares.
+private func declaredLength(of bytes: Data) -> Int {
+    Int((0..<8).reduce(UInt64(0)) { $0 | UInt64(bytes[$1]) << UInt64(8 * $1) })
 }

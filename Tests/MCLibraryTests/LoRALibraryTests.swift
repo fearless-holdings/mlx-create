@@ -439,4 +439,137 @@ import Testing
         }
         #expect(try await fixture.store.jobs(status: .queued).isEmpty)
     }
+
+    // MARK: Staged commit (KTD4)
+
+    /// Writes an alpha LoRA into the Civitai staging folder, as a finished download leaves it, and returns its hash and size.
+    static func staged(_ fixture: Fixture, fill: UInt8) throws -> (url: URL, sha256: String, size: Int64) {
+        let url = fixture.models.appending(path: ".partial/civitai/\(UUID().uuidString).partial")
+        try writeSafetensors(url, tensor: "lora_unet_double_0.img_attn.lora_down.weight", shape: [1, 3072], fill: fill)
+        let size = (try FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.int64Value ?? 0
+        return (url, try Sha256File.hex(of: url), size)
+    }
+
+    static func sampleSource(previewRelativePath: String? = nil) -> LoRASource {
+        LoRASource(
+            civitaiModelID: 101, civitaiVersionID: 202, pageURL: "https://civitai.com/models/101?modelVersionId=202",
+            license: CivitaiLicenseFlags(
+                allowNoCredit: true, allowCommercialUse: ["Sell"], allowDerivatives: true, allowDifferentLicense: false),
+            acceptedAt: Date(timeIntervalSince1970: 1_700_000_000), previewRelativePath: previewRelativePath,
+            previewNSFWLevel: 1, examplePrompts: ["pixel fox"])
+    }
+
+    /// Commits a staged alpha LoRA with trigger words and a source, and no preview.
+    static func commitStaged(
+        _ fixture: Fixture, _ file: (url: URL, sha256: String, size: Int64), name: String, variant: String? = nil
+    ) async throws -> LoRAImportOutcome {
+        try await fixture.store.commitStagedLoRA(
+            staged: file.url, sha256: file.sha256, sizeBytes: file.size, family: "alpha", variant: variant, name: name,
+            triggerWords: ["pixel art"], source: sampleSource(), previewImage: nil)
+    }
+
+    @Test func aStagedDownloadOfRecordedContentIsADuplicateAndAddsNoRowOrSource() async throws {
+        let fixture = try Self.makeFixture()
+        let record = try await Self.importedAlpha(fixture, fill: 30)
+        let again = try Self.staged(fixture, fill: 30)
+
+        let outcome = try await Self.commitStaged(fixture, again, name: "Pixel")
+
+        #expect(outcome == .duplicate(existing: record))
+        #expect(try await fixture.store.loras() == [record])
+        #expect(try await fixture.store.loraSource(loraID: record.id) == nil)
+        #expect(!FileManager.default.fileExists(atPath: again.url.path))
+    }
+
+    @Test func aStagedDownloadWhoseRecordedFileIsMissingIsRestoredAtItsPath() async throws {
+        let fixture = try Self.makeFixture()
+        let record = try await Self.importedAlpha(fixture, fill: 31)
+        try FileManager.default.removeItem(at: fixture.store.loraAbsoluteURL(of: record))
+        let again = try Self.staged(fixture, fill: 31)
+
+        let outcome = try await Self.commitStaged(fixture, again, name: "Pixel")
+
+        #expect(outcome == .restored(record))
+        #expect(fixture.store.loraFileExists(record))
+        #expect(try await fixture.store.loras() == [record])
+        #expect(!FileManager.default.fileExists(atPath: again.url.path))
+    }
+
+    @Test func aStagedDownloadWithANameTakenByAnotherLoRAGetsANumericSuffix() async throws {
+        let fixture = try Self.makeFixture()
+        let first = try await Self.importedAlpha(fixture, fill: 32, name: "Pixel")
+        let file = try Self.staged(fixture, fill: 33)
+
+        let added = try Self.addedRecord(try await Self.commitStaged(fixture, file, name: "Pixel"))
+
+        #expect(first.name == "Pixel")
+        #expect(added.name == "Pixel 2")
+        #expect(added.sha256 == file.sha256)
+        #expect(added.sha256 != first.sha256)
+    }
+
+    @Test func aStagedDownloadCommitsUnderItsHashAndSlugWithItsSourceAndTriggerWords() async throws {
+        let fixture = try Self.makeFixture()
+        let file = try Self.staged(fixture, fill: 34)
+
+        let added = try Self.addedRecord(try await Self.commitStaged(fixture, file, name: "Pixel Art!", variant: "4b"))
+
+        #expect(added.relativePath == "LoRAs/alpha/\(file.sha256.prefix(10))-pixel-art.safetensors")
+        #expect(added.family == "alpha")
+        #expect(added.variant == "4b")
+        #expect(added.triggerWords == ["pixel art"])
+        #expect(added.sizeBytes == file.size)
+        #expect(try Sha256File.hex(of: fixture.store.loraAbsoluteURL(of: added)) == file.sha256)
+        #expect(!FileManager.default.fileExists(atPath: file.url.path))
+        #expect(try await fixture.store.loraSource(loraID: added.id) == Self.sampleSource())
+    }
+
+    @Test func aHostileNameNeverChangesTheDestinationPath() async throws {
+        let fixture = try Self.makeFixture()
+        let file = try Self.staged(fixture, fill: 35)
+
+        let added = try Self.addedRecord(try await Self.commitStaged(fixture, file, name: "../../x"))
+
+        let fileName = "\(file.sha256.prefix(10))-x.safetensors"
+        #expect(added.relativePath == "LoRAs/alpha/\(fileName)")
+        let family = fixture.models.appending(path: "LoRAs/alpha", directoryHint: .isDirectory)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: family.path) == [fileName])
+        #expect(!FileManager.default.fileExists(atPath: fixture.models.appending(path: "x.safetensors").path))
+        #expect(!FileManager.default.fileExists(atPath: fixture.models.appending(path: "LoRAs/x.safetensors").path))
+    }
+
+    @Test func aCommitThatFailsAfterTheMoveLeavesNoFileNoRowAndNoSource() async throws {
+        let fixture = try Self.makeFixture()
+        let file = try Self.staged(fixture, fill: 36)
+        try await fixture.store.dbQueue.write { db in
+            try db.execute(sql: "CREATE TRIGGER refuse_source_insert BEFORE INSERT ON lora_source BEGIN SELECT RAISE(ABORT, 'refused'); END")
+        }
+
+        let error = await Self.caughtError { _ = try await Self.commitStaged(fixture, file, name: "Pixel") }
+
+        #expect(error as? LoRAImportError != nil)
+        #expect(try await fixture.store.loras().isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: file.url.path))
+        let family = fixture.models.appending(path: "LoRAs/alpha", directoryHint: .isDirectory)
+        #expect(((try? FileManager.default.contentsOfDirectory(atPath: family.path)) ?? []).isEmpty)
+    }
+
+    @Test func aLocalImportStoresTheVariantItsFingerprintNames() async throws {
+        let fixture = try Self.makeFixture()
+        let source = fixture.sources.appending(path: "klein.safetensors")
+        try Self.writeSafetensors(
+            source, tensor: "lora_unet_single_blocks.0.linear1.lora_down.weight", shape: [1, 3072], fill: 37)
+        let registry = FamilyRegistry(families: [Self.family("klein", fingerprint: LoRAFingerprint(
+            tensorPatterns: [
+                TensorNamePattern(kind: .prefix, text: "lora_unet_single_"),
+                TensorNamePattern(kind: .suffix, text: ".lora_down.weight"),
+            ],
+            variant: "4b"))])
+
+        let record = try Self.addedRecord(try await fixture.store.importLoRA(from: source, registry: registry))
+
+        #expect(record.family == "klein")
+        #expect(record.variant == "4b")
+        #expect(try await fixture.store.loras() == [record])
+    }
 }

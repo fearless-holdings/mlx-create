@@ -67,4 +67,32 @@ public struct LibraryPaths: Sendable {
     public func loraURL(relativePath: String) -> URL? {
         Self.loraURL(relativePath: relativePath, modelsRoot: modelsRoot)
     }
+
+    /// `<Models>/.partial/civitai`, where a Civitai download is staged until its hash and fit are checked (KTD4). It is
+    /// outside `LoRAs/`, so an unfinished download is never mistaken for a LoRA. Swept at every open.
+    public var civitaiStagingDirectory: URL {
+        modelsRoot.appending(path: ".partial", directoryHint: .isDirectory).appending(path: "civitai", directoryHint: .isDirectory)
+    }
+
+    /// `Thumbnails/LoRA`, relative to the library root: one HEIC preview per downloaded LoRA (KTD11). Outside `Models/LoRAs/`.
+    public static let loraPreviewFolder = "Thumbnails/LoRA"
+
+    /// The folder the LoRA previews live in, under the library root.
+    public var loraPreviewDirectory: URL {
+        root.appending(path: Self.loraPreviewFolder, directoryHint: .isDirectory)
+    }
+
+    /// `Thumbnails/LoRA/<lora-id>.heic`, relative to the library root (the form stored in `lora_source.preview_relative_path`).
+    public func loraPreviewRelativePath(loraID: String) -> String {
+        "\(Self.loraPreviewFolder)/\(loraID).heic"
+    }
+
+    /// Whether `relativePath` is a library-root path a LoRA preview may live at: under ``loraPreviewFolder``, relative,
+    /// with no empty, `.` or `..` components. Paths come from the database, so every resolution goes through this check.
+    public static func isValidLoRAPreviewRelativePath(_ relativePath: String) -> Bool {
+        guard relativePath.hasPrefix(loraPreviewFolder + "/"), !relativePath.contains("\\") else { return false }
+        return relativePath.split(separator: "/", omittingEmptySubsequences: false).allSatisfy {
+            !$0.isEmpty && $0 != "." && $0 != ".."
+        }
+    }
 }

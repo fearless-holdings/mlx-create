@@ -9,6 +9,9 @@ public struct LoRARecord: Codable, FetchableRecord, PersistableRecord, Equatable
     public var id: String
     public var name: String
     public var family: String
+    /// The size variant the file's fingerprint names (for example `4b` or `9b`), or nil for rows imported before v5 and
+    /// for layouts that name none (KTD6).
+    public var variant: String?
     /// Lowercase hex SHA-256 (64 characters).
     public var sha256: String
     public var relativePath: String
@@ -19,11 +22,12 @@ public struct LoRARecord: Codable, FetchableRecord, PersistableRecord, Equatable
 
     public init(
         id: String, name: String, family: String, sha256: String, relativePath: String, sizeBytes: Int64,
-        triggerWords: [String], notes: String?, createdAt: Date
+        triggerWords: [String], notes: String?, createdAt: Date, variant: String? = nil
     ) {
         self.id = id
         self.name = name
         self.family = family
+        self.variant = variant
         self.sha256 = sha256
         self.relativePath = relativePath
         self.sizeBytes = sizeBytes
@@ -37,6 +41,7 @@ public struct LoRARecord: Codable, FetchableRecord, PersistableRecord, Equatable
         id = try c.decode(String.self, forKey: .id)
         name = try c.decode(String.self, forKey: .name)
         family = try c.decode(String.self, forKey: .family)
+        variant = try c.decodeIfPresent(String.self, forKey: .variant)
         sha256 = try c.decode(String.self, forKey: .sha256)
         relativePath = try c.decode(String.self, forKey: .relativePath)
         sizeBytes = try c.decode(Int64.self, forKey: .sizeBytes)
@@ -55,6 +60,7 @@ public struct LoRARecord: Codable, FetchableRecord, PersistableRecord, Equatable
         try c.encode(id, forKey: .id)
         try c.encode(name, forKey: .name)
         try c.encode(family, forKey: .family)
+        try c.encode(variant, forKey: .variant)
         try c.encode(sha256, forKey: .sha256)
         try c.encode(relativePath, forKey: .relativePath)
         try c.encode(sizeBytes, forKey: .sizeBytes)
@@ -64,7 +70,7 @@ public struct LoRARecord: Codable, FetchableRecord, PersistableRecord, Equatable
     }
 
     public enum CodingKeys: String, CodingKey {
-        case id, name, family, sha256, notes
+        case id, name, family, variant, sha256, notes
         case relativePath = "relative_path"
         case sizeBytes = "size_bytes"
         case triggerWords = "trigger_words"

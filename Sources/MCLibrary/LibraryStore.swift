@@ -20,6 +20,7 @@ public actor LibraryStore {
         try Self.migrator.migrate(dbQueue)
         try Self.sweepPartials(under: libraryRoot)
         try Self.sweepPartials(under: paths.loraRoot)
+        try Self.sweepPartials(under: paths.civitaiStagingDirectory)
         Self.sweepUnreferencedLoRAs(paths: paths, dbQueue: dbQueue)
         try dbQueue.write { db in
             if try ProjectRow.filter(Column("is_default") == true).fetchCount(db) == 0 {
@@ -103,6 +104,12 @@ public actor LibraryStore {
                 t.column("notes", .text)
                 t.column("created_at", .datetime).notNull()
             }
+        }
+        migrator.registerMigration("v5-lora-source") { db in
+            try db.alter(table: "lora") { t in
+                t.add(column: "variant", .text)
+            }
+            try Self.createLoRASourceTable(db)
         }
         return migrator
     }

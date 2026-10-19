@@ -55,20 +55,37 @@ public enum LoRADeleteError: Error, LocalizedError, Sendable, Equatable {
     }
 }
 
-/// Where an import's copy was moved to, and the row path that names it.
+/// What one commit writes (KTD4). The staged file is moved into the library or removed; it never outlives the commit.
+struct LoRACommit: Sendable {
+    let staged: URL
+    let sha256: String
+    let sizeBytes: Int64
+    let family: String
+    let variant: String?
+    /// The display name before the clash check. Never empty.
+    let baseName: String
+    let triggerWords: [String]
+    let source: LoRASource?
+    /// The encoded HEIC preview, or nil when there is none.
+    let preview: Data?
+}
+
+/// Where a commit moved the LoRA file and wrote its preview, for its failure path.
 private struct LoRAPlacement: Sendable {
     let url: URL
     let relativePath: String
+    var previewURL: URL?
 }
 
-/// Holds the placement of the copy an import moved, for its failure path. A class, so the write closure can capture it.
+/// Holds the placement of what a commit moved, for its failure path. A class, so the write closure can capture it.
 private final class LoRAPlacementSlot: Sendable {
     private let state = Mutex<LoRAPlacement?>(nil)
     var value: LoRAPlacement? { state.withLock { $0 } }
     func set(_ placement: LoRAPlacement) { state.withLock { $0 = placement } }
+    func setPreview(_ url: URL) { state.withLock { $0?.previewURL = url } }
 }
 
-/// LoRA import, listing, rename, delete and usage (plan U3, KTD1, KTD6, D34). Mirrors `LibraryStore+InstalledModels`.
+/// LoRA import, commit, listing, rename, delete and usage (plan U3, KTD1, KTD4, KTD5, KTD6, D34). Mirrors `LibraryStore+InstalledModels`.
 extension LibraryStore {
     // MARK: Import
 
@@ -90,8 +107,11 @@ extension LibraryStore {
             throw LoRAImportError.safetensors(error)
         }
         let family: String
+        let variant: String?
         switch registry.classifyLoRA(tensors: header.shapes) {
-        case .family(let id, _): family = id
+        case .family(let id, let matched):
+            family = id
+            variant = matched
         case .unmatched(let names): throw LoRAImportError.unmatched(supportedFamilyNames: names)
         case .ambiguous(let ids): throw LoRAImportError.ambiguous(familyIDs: ids)
         }
@@ -101,17 +121,49 @@ extension LibraryStore {
         let staged = try await Task.detached(priority: .utility) {
             try Self.stageCopy(from: url, to: partial, directory: directory, onProgress: onProgress)
         }.value
-        // Whatever happens from here on, the partial copy does not outlive this call. After a move it no longer exists.
-        defer { try? FileManager.default.removeItem(at: partial) }
 
         let typed = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let baseName = typed.isEmpty ? url.deletingPathExtension().lastPathComponent : typed
-        // Set once the copy is moved into place, so a commit that fails afterwards can take it back out (below).
+        return try await commitLoRA(LoRACommit(
+            staged: partial, sha256: staged.sha256, sizeBytes: staged.sizeBytes, family: family, variant: variant,
+            baseName: baseName, triggerWords: [], source: nil, preview: nil))
+    }
+
+    /// Stores a finished Civitai download (KTD4). The caller has verified the SHA-256 and classified the file, and passes
+    /// that result as `family` and `variant`. `staged` must be on the library's volume (the staging folder is inside the
+    /// Models root), so the move is a rename and never a second copy. The staged file is moved into `LoRAs/<family>/`, or
+    /// removed when the content is already recorded. The duplicate, restore and name-clash rules are those of
+    /// ``importLoRA(from:registry:name:onProgress:)``. The source row is written in the same write as the LoRA row.
+    /// A preview that cannot be encoded or written is left out and never fails the commit.
+    public func commitStagedLoRA(
+        staged: URL, sha256: String, sizeBytes: Int64, family: String, variant: String?, name: String,
+        triggerWords: [String], source: LoRASource, previewImage: Data?
+    ) async throws -> LoRAImportOutcome {
+        let typed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !typed.isEmpty else {
+            try? FileManager.default.removeItem(at: staged)
+            throw LibraryError.invalidName
+        }
+        let preview = await Task.detached(priority: .utility) { () -> Data? in
+            guard let previewImage else { return nil }
+            return try? Thumbnails.makeHEIC(fromImageData: previewImage, maxPixelSize: 512)
+        }.value
+        return try await commitLoRA(LoRACommit(
+            staged: staged, sha256: sha256, sizeBytes: sizeBytes, family: family, variant: variant, baseName: typed,
+            triggerWords: triggerWords, source: source, preview: preview))
+    }
+
+    /// The commit both import paths share (KTD4): the duplicate, restore and name-clash rules, the move into
+    /// `LoRAs/<family>/`, the optional preview, and the row inserts, all in one write. Consumes `commit.staged`.
+    func commitLoRA(_ commit: LoRACommit) async throws -> LoRAImportOutcome {
+        // Whatever happens from here on, the staged file does not outlive this call. After a move it no longer exists.
+        defer { try? FileManager.default.removeItem(at: commit.staged) }
+        // Set once the file is moved into place, so a commit that fails afterwards can take it back out (below).
         let placed = LoRAPlacementSlot()
         do {
             return try await dbQueue.write { (db: Database) throws -> LoRAImportOutcome in
                 let fm = FileManager.default
-                if let existing = try LoRARecord.filter(Column("sha256") == staged.sha256).fetchOne(db) {
+                if let existing = try LoRARecord.filter(Column("sha256") == commit.sha256).fetchOne(db) {
                     guard let existingFile = paths.loraURL(relativePath: existing.relativePath) else {
                         throw LoRAImportError.copyFailed(reason: "the record for \(existing.name) has an invalid path")
                     }
@@ -119,48 +171,74 @@ extension LibraryStore {
                     // The row is kept, so its missing file is restored to the recorded path.
                     do {
                         try fm.createDirectory(at: existingFile.deletingLastPathComponent(), withIntermediateDirectories: true)
-                        try fm.moveItem(at: partial, to: existingFile)
+                        try fm.moveItem(at: commit.staged, to: existingFile)
                     } catch {
                         throw LoRAImportError.copyFailed(reason: error.localizedDescription)
                     }
                     return .restored(existing)
                 }
+
+                guard Self.isSafeFolderName(commit.family) else {
+                    throw LoRAImportError.copyFailed(reason: "\"\(commit.family)\" is not a family folder")
+                }
                 let taken = try Set(String.fetchAll(db, sql: "SELECT name FROM lora"))
-                let finalName = Self.uniqueName(base: baseName, taken: taken)
-                let fileName = "\(staged.sha256.prefix(10))-\(Self.fileSlug(finalName)).safetensors"
-                let relativePath = paths.loraRelativePath(family: family, fileName: fileName)
+                let finalName = Self.uniqueName(base: commit.baseName, taken: taken)
+                let fileName = "\(commit.sha256.prefix(10))-\(Self.fileSlug(finalName)).safetensors"
+                let relativePath = paths.loraRelativePath(family: commit.family, fileName: fileName)
+                guard LibraryPaths.isValidLoRARelativePath(relativePath) else {
+                    throw LoRAImportError.copyFailed(reason: "\(fileName) is not a LoRA path")
+                }
                 // A row that already owns this path has another hash with the same prefix. Never overwrite its file.
                 guard try LoRARecord.filter(Column("relative_path") == relativePath).fetchCount(db) == 0 else {
                     throw LoRAImportError.copyFailed(reason: "\(fileName) already belongs to another LoRA")
                 }
+                let directory = paths.loraDirectory(family: commit.family)
                 let finalURL = directory.appending(path: fileName)
                 do {
+                    try fm.createDirectory(at: directory, withIntermediateDirectories: true)
                     try? fm.removeItem(at: finalURL) // an orphan from an interrupted import; no row names it
-                    try fm.moveItem(at: partial, to: finalURL)
+                    try fm.moveItem(at: commit.staged, to: finalURL)
                 } catch {
                     throw LoRAImportError.copyFailed(reason: error.localizedDescription)
                 }
-                placed.set(LoRAPlacement(url: finalURL, relativePath: relativePath))
+                placed.set(LoRAPlacement(url: finalURL, relativePath: relativePath, previewURL: nil))
+
+                let loraID = UUID().uuidString
+                var stored = commit.source
+                stored?.previewRelativePath = nil
+                if let heic = commit.preview {
+                    let previewRelativePath = paths.loraPreviewRelativePath(loraID: loraID)
+                    let previewURL = paths.url(relativePath: previewRelativePath)
+                    // A preview that cannot be written is left out; the LoRA is still stored.
+                    if (try? Self.writePreview(heic, to: previewURL)) != nil {
+                        placed.setPreview(previewURL)
+                        stored?.previewRelativePath = previewRelativePath
+                    }
+                }
+
                 let record = LoRARecord(
-                    id: UUID().uuidString, name: finalName, family: family, sha256: staged.sha256,
-                    relativePath: relativePath,
-                    sizeBytes: staged.sizeBytes, triggerWords: [], notes: nil, createdAt: Date())
+                    id: loraID, name: finalName, family: commit.family, sha256: commit.sha256,
+                    relativePath: relativePath, sizeBytes: commit.sizeBytes, triggerWords: commit.triggerWords,
+                    notes: nil, createdAt: Date(), variant: commit.variant)
                 do {
                     try record.insert(db)
+                    if let stored { try LoRASourceRow(loraID: loraID, source: stored).insert(db) }
                 } catch {
                     throw LoRAImportError.copyFailed(reason: error.localizedDescription)
                 }
                 // Return the stored row: GRDB keeps dates to the millisecond, so the in-memory value can differ.
-                return .added(try LoRARecord.fetchOne(db, key: record.id) ?? record)
+                return .added(try LoRARecord.fetchOne(db, key: loraID) ?? record)
             }
         } catch {
-            // The copy may be in place with no committed row: the write threw after the move, or the commit itself failed.
-            // Remove it unless a row names its path. If that cannot be read, keep the file; the open-time sweep collects it.
+            // The move may have happened with no committed row: the write threw after it, or the commit itself failed.
+            // Remove the file unless a row names its path. If that cannot be read, keep the file; the open-time sweep collects it.
             if let placement = placed.value {
                 let owned = try? await dbQueue.read { (db: Database) throws -> Bool in
                     try LoRARecord.filter(Column("relative_path") == placement.relativePath).fetchCount(db) > 0
                 }
                 if owned == false { try? FileManager.default.removeItem(at: placement.url) }
+                // The preview's id belongs to this commit alone, and its row never committed, so nothing names it.
+                if let previewURL = placement.previewURL { try? FileManager.default.removeItem(at: previewURL) }
             }
             throw error
         }
@@ -195,6 +273,17 @@ extension LibraryStore {
             if let typed = error as? LoRAImportError { throw typed }
             throw LoRAImportError.copyFailed(reason: error.localizedDescription)
         }
+    }
+
+    /// Writes an encoded preview, creating its folder. The write is atomic, so a failure leaves no file.
+    private static func writePreview(_ heic: Data, to url: URL) throws {
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try heic.write(to: url, options: .atomic)
+    }
+
+    /// A family id usable as one folder name: not empty, not `.` or `..`, and no separator.
+    static func isSafeFolderName(_ name: String) -> Bool {
+        !name.isEmpty && name != "." && name != ".." && !name.contains("/") && !name.contains("\\")
     }
 
     /// `base`, or `base 2`, `base 3`… when `base` is already taken.
@@ -296,7 +385,7 @@ extension LibraryStore {
         }
     }
 
-    /// Deletes a LoRA row and its file in one step, unless a blocking job uses it (KTD6). Throws
+    /// Deletes a LoRA row, its file and its preview in one step, unless a blocking job uses it (KTD6). Throws
     /// ``LoRADeleteError/inUseByJob(count:)`` otherwise. Returns the number of saved images whose settings
     /// still name the LoRA; those images keep their settings, and reuse drops the LoRA with a notice.
     public func deleteLoRA(id: String) throws -> Int {
@@ -305,16 +394,27 @@ extension LibraryStore {
             let blocking = try Self.blockingJobCount(id: id, db: db)
             guard blocking == 0 else { throw LoRADeleteError.inUseByJob(count: blocking) }
             let usage = try Self.imageCount(sha256: row.sha256, db: db)
-            // The file goes first, inside the transaction: if it cannot be removed the throw rolls back and the row stays.
+            // The files go first, inside the transaction: if one cannot be removed the throw rolls back and the row stays.
+            // The preview goes first, so a failure there removes nothing. Its source row cascades with the LoRA's.
+            let previewPath = try String.fetchOne(
+                db, sql: "SELECT preview_relative_path FROM lora_source WHERE lora_id = ?", arguments: [id])
+            if let previewPath, LibraryPaths.isValidLoRAPreviewRelativePath(previewPath) {
+                try Self.removeFile(paths.url(relativePath: previewPath))
+            }
             if let file = paths.loraURL(relativePath: row.relativePath) {
-                do {
-                    try FileManager.default.removeItem(at: file)
-                } catch let error as CocoaError where error.code == .fileNoSuchFile {
-                    // The file is already gone; the row can still go.
-                }
+                try Self.removeFile(file)
             }
             try row.delete(db)
             return usage
+        }
+    }
+
+    /// Removes `file`. A file that is already gone is not an error. Any other failure is thrown, so the caller's write rolls back.
+    private static func removeFile(_ file: URL) throws {
+        do {
+            try FileManager.default.removeItem(at: file)
+        } catch let error as CocoaError where error.code == .fileNoSuchFile {
+            // The file is already gone; the row can still go.
         }
     }
 
