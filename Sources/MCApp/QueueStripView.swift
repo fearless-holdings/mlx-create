@@ -1,8 +1,8 @@
 import SwiftUI
 import MCLibrary
 
-/// Filmstrip + queue (HLD §10): recent project images and queue placeholders, with the queue header.
-struct FilmstripView: View {
+/// Queue strip (HLD §10): the queue header and one cell per job, under the canvas. Jobs only; finished images live in the gallery.
+struct QueueStripView: View {
     @Bindable var model: AppModel
 
     var body: some View {
@@ -11,13 +11,8 @@ struct FilmstripView: View {
                 .padding(.horizontal, 12)
             ScrollView(.horizontal) {
                 LazyHStack(spacing: 8) {
-                    ForEach(model.filmstrip) { item in
-                        switch item {
-                        case .image(let image):
-                            ImageCell(model: model, image: image)
-                        case .job(let job):
-                            JobCell(model: model, job: job)
-                        }
+                    ForEach(model.queueJobs) { job in
+                        JobCell(model: model, job: job)
                     }
                 }
                 .padding(.horizontal, 12)
@@ -28,7 +23,7 @@ struct FilmstripView: View {
 }
 
 /// Queue header: Running with Pause, Pausing… while the current generation finishes, Paused with Resume.
-private struct QueueHeaderView: View {
+struct QueueHeaderView: View {
     let model: AppModel
 
     var body: some View {
@@ -60,41 +55,9 @@ private struct QueueHeaderView: View {
     }
 }
 
-private struct ImageCell: View {
-    let model: AppModel
-    let image: LibraryImage
-
-    var body: some View {
-        let selected = model.selection == image.id
-        Button {
-            model.selection = image.id
-        } label: {
-            AsyncImage(url: model.thumbnailURL(for: image)) { phase in
-                switch phase {
-                case .success(let picture):
-                    picture.resizable().scaledToFill()
-                case .failure:
-                    Image(systemName: "photo").foregroundStyle(.secondary)
-                default:
-                    ProgressView().controlSize(.small)
-                }
-            }
-            .frame(width: 96, height: 96)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(selected ? Color.accentColor : Color.clear, lineWidth: 3)
-            )
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Image: \(image.prompt)")
-        .accessibilityAddTraits(selected ? .isSelected : [])
-    }
-}
-
 /// A queue placeholder. Context menu and VoiceOver actions offer Move Up, Move Down, Cancel and Retry;
 /// ⌥↑ and ⌥↓ move the selected placeholder from the keyboard.
-private struct JobCell: View {
+struct JobCell: View {
     let model: AppModel
     let job: JobItem
 

@@ -7,7 +7,7 @@ import Testing
 @testable import MCApp
 
 @MainActor
-@Suite struct SettingsPopoverStateTests {
+@Suite struct SettingsControlsStateTests {
     @Test func controlsFollowTheSelectedFamilyRecord() async throws {
         let harness = try await AppHarness.make()
         let model = harness.model

@@ -27,7 +27,7 @@ public enum CanvasMode: Equatable, Sendable {
     case noModels
     /// Image models exist but none can be driven: list each with its reason, no Reveal action.
     case onlyUnavailable([UnavailableModelRow])
-    /// A model is available but nothing has been generated: show the "Type a prompt and press ⌘↩" hint, hide the filmstrip.
+    /// A model is available but nothing has been generated: show the "Type a prompt and press ⌘↩" hint, hide the queue strip.
     case emptyHint
     /// Show the selected image or the running generation's step bar.
     case content
@@ -54,7 +54,7 @@ public struct SettingsControls: Equatable, Sendable {
     }
 }
 
-/// Queue position of a job placeholder in the filmstrip, with the actions its context menu offers.
+/// A job in the queue strip, with the actions its context menu offers.
 public struct JobItem: Equatable, Sendable, Identifiable {
     public let id: UUID
     public var status: JobStatus
@@ -87,19 +87,6 @@ public struct JobItem: Equatable, Sendable, Identifiable {
         self.canMoveDown = canMoveDown
         self.canCancel = canCancel
         self.canRetry = canRetry
-    }
-}
-
-/// One cell of the filmstrip: a saved image or a queue placeholder.
-public enum FilmstripItem: Equatable, Sendable, Identifiable {
-    case image(LibraryImage)
-    case job(JobItem)
-
-    public var id: UUID {
-        switch self {
-        case .image(let image): image.id
-        case .job(let job): job.id
-        }
     }
 }
 

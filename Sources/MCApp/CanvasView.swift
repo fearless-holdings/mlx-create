@@ -32,7 +32,7 @@ private struct ContentCanvas: View {
                 SelectedImageView(model: model, image: image)
                     .id(image.id)
             } else if model.runningProgress == nil {
-                Text("Select an image in the filmstrip, or generate one.")
+                Text("Select an image in the gallery, or generate one.")
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }

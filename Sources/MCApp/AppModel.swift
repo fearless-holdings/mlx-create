@@ -32,7 +32,8 @@ public final class AppModel {
     private static let lastUsedModelKey = "lastUsedModelID"
     /// The defaults key for a user pause (KTD14). Set by `pauseQueue`, cleared by `resumeQueue`.
     static let queuePausedDefaultsKey = "queuePaused"
-    private static let recentImageLimit = 200
+    /// Gallery images per page. Pages load on demand, so every image in the library can be reached.
+    static let galleryPageSize = 60
     private static let shutdownLimit: Duration = .seconds(3)
 
     public let weightsPath: String
@@ -47,7 +48,12 @@ public final class AppModel {
     public private(set) var models: [InstalledModel] = []
     private var modelsLoaded = false
     public private(set) var projectName = "Untitled"
-    public private(set) var filmstrip: [FilmstripItem] = []
+    /// The queue strip in display order: the running job, the queue in order, then paused, failed and cancelled jobs.
+    public private(set) var queueJobs: [JobItem] = []
+    /// Finished images loaded so far, newest first. Later pages load through `loadMoreImages()`.
+    public private(set) var galleryImages: [LibraryImage] = []
+    /// Whether the library holds images past those in `galleryImages`.
+    public private(set) var hasMoreImages = false
     public private(set) var queueHeader: QueueHeader = .idle
     public private(set) var runningProgress: RunningProgress?
     private var warmingModelID: String?
@@ -83,7 +89,8 @@ public final class AppModel {
     private let executor: JobExecutor
     private let composer: GenerationComposer
     private let libraryPaths: LibraryPaths
-    private var recentImages: [LibraryImage] = []
+    private var galleryLoaded = false
+    private var isLoadingMoreImages = false
     private var tasks: [Task<Void, Never>] = []
     private var started = false
     private var queueRecovered = false
@@ -250,13 +257,13 @@ public final class AppModel {
     public var canvasMode: CanvasMode {
         if !modelsLoaded {
             // Before the first scan the models are unknown, so the canvas must not claim there are none.
-            return filmstrip.isEmpty ? .emptyHint : .content
+            return hasQueueOrGallery ? .content : .emptyHint
         }
         if models.isEmpty { return .noModels }
         if !models.contains(where: ModelSelection.isSelectable) {
             return .onlyUnavailable(ModelSelection.unavailableRows(models))
         }
-        if filmstrip.isEmpty { return .emptyHint }
+        if !hasQueueOrGallery { return .emptyHint }
         return .content
     }
 
@@ -267,7 +274,7 @@ public final class AppModel {
     }
 
     public var selectedImage: LibraryImage? {
-        recentImages.first { $0.id == selection }
+        galleryImages.first { $0.id == selection }
     }
 
     public var canReuse: Bool {
@@ -279,11 +286,9 @@ public final class AppModel {
         return false
     }
 
-    private var jobItems: [JobItem] {
-        filmstrip.compactMap { item -> JobItem? in
-            guard case .job(let job) = item else { return nil }
-            return job
-        }
+    /// Whether the canvas has anything to show: a queue strip entry or a gallery image.
+    private var hasQueueOrGallery: Bool {
+        !queueJobs.isEmpty || !galleryImages.isEmpty
     }
 
     public func fileURL(for image: LibraryImage) -> URL {
@@ -488,10 +493,9 @@ public final class AppModel {
 
     /// ⌘.: cancels the running job, or the selected queued placeholder when nothing runs.
     public func cancelRunningOrSelected() async {
-        let items = jobItems
-        if let running = items.first(where: { $0.status == .running }) {
+        if let running = queueJobs.first(where: { $0.status == .running }) {
             await cancel(running.id)
-        } else if let selected = items.first(where: { $0.id == selection }), selected.status == .queued {
+        } else if let selected = queueJobs.first(where: { $0.id == selection }), selected.status == .queued {
             await cancel(selected.id)
         }
     }
@@ -562,28 +566,33 @@ public final class AppModel {
         case .progress(let jobID, let step, let total):
             runningProgress = RunningProgress(jobID: jobID, step: step, total: total)
             updateStep(jobID: jobID, step: step, total: total)
-            if !jobItems.contains(where: { $0.id == jobID && $0.status == .running }) {
+            if !queueJobs.contains(where: { $0.id == jobID && $0.status == .running }) {
                 await reload()
             }
         case .imageSaved(let jobID, let imageID):
             if selection == jobID { selection = imageID }
-            await reload()
+            await prependImage(id: imageID)
+            await reloadQueue()
         case .jobChanged:
             await reload()
         }
     }
 
     private func updateStep(jobID: UUID, step: Int, total: Int) {
-        guard let index = filmstrip.firstIndex(where: { $0.id == jobID }),
-              case .job(var item) = filmstrip[index] else { return }
-        item.step = step
-        item.total = total
-        filmstrip[index] = .job(item)
+        guard let index = queueJobs.firstIndex(where: { $0.id == jobID }) else { return }
+        queueJobs[index].step = step
+        queueJobs[index].total = total
     }
 
-    /// Rebuilds the queue header, the filmstrip and the image cache from the library. Placeholders come first:
-    /// the running job, the queue in order, then paused, failed and cancelled jobs. Done jobs appear as images.
+    /// Rebuilds the queue strip, the queue header and the gallery from the library.
     func reload() async {
+        await reloadQueue()
+        await reloadGallery()
+    }
+
+    /// Rebuilds the queue strip and header. Placeholders come first: the running job, the queue in order, then paused,
+    /// failed and cancelled jobs. Done jobs appear as images in the gallery instead.
+    private func reloadQueue() async {
         do {
             let project = try await store.defaultProject()
             projectName = project.name
@@ -594,25 +603,68 @@ public final class AppModel {
             let failed = try await store.jobs(status: .failed).filter { $0.projectID == project.id }
             let cancelled = try await store.jobs(status: .cancelled).filter { $0.projectID == project.id }
 
-            var items: [FilmstripItem] = []
+            var items: [JobItem] = []
             if let running {
-                items.append(.job(try await placeholder(for: running)))
+                items.append(try await placeholder(for: running))
             }
             for (index, job) in queued.enumerated() {
-                items.append(.job(try await placeholder(
-                    for: job, canMoveUp: index > 0, canMoveDown: index < queued.count - 1)))
+                items.append(try await placeholder(
+                    for: job, canMoveUp: index > 0, canMoveDown: index < queued.count - 1))
             }
             for job in paused + failed + cancelled {
-                items.append(.job(try await placeholder(for: job)))
+                items.append(try await placeholder(for: job))
             }
-
-            let images = try await store.recentImages(projectID: project.id, limit: Self.recentImageLimit)
-            recentImages = images
-            filmstrip = items + images.map(FilmstripItem.image)
+            queueJobs = items
             queueHeader = QueuePresentation.header(isRunning: running != nil, pauseRequested: snapshot.isPauseRequested)
             if runningProgress?.jobID != running?.id {
                 runningProgress = nil
             }
+        } catch {
+            lastError = message(for: error)
+        }
+    }
+
+    /// Fetches the first gallery page. When more pages are already loaded, it refetches all of them instead, so a
+    /// reload never collapses the gallery back to one page under the user's scroll position.
+    private func reloadGallery() async {
+        do {
+            let project = try await store.defaultProject()
+            let count = max(Self.galleryPageSize, galleryImages.count)
+            let images = try await store.recentImages(projectID: project.id, limit: count, offset: 0)
+            galleryImages = images
+            hasMoreImages = images.count == count
+            galleryLoaded = true
+        } catch {
+            lastError = message(for: error)
+        }
+    }
+
+    /// Appends the next gallery page, newest first. Does nothing when no images remain or a page is already loading.
+    public func loadMoreImages() async {
+        guard hasMoreImages, !isLoadingMoreImages else { return }
+        isLoadingMoreImages = true
+        defer { isLoadingMoreImages = false }
+        do {
+            let project = try await store.defaultProject()
+            let page = try await store.recentImages(
+                projectID: project.id, limit: Self.galleryPageSize, offset: galleryImages.count)
+            // A save that lands while this page is read shifts the offsets by one, so skip images already shown.
+            let shown = Set(galleryImages.map(\.id))
+            galleryImages += page.filter { !shown.contains($0.id) }
+            hasMoreImages = page.count == Self.galleryPageSize
+        } catch {
+            lastError = message(for: error)
+        }
+    }
+
+    /// Puts a just-saved image at the front of the loaded gallery without reloading it. Before the first gallery
+    /// load there is nothing to prepend to, and that load reads the image anyway.
+    private func prependImage(id imageID: UUID) async {
+        guard galleryLoaded else { return }
+        do {
+            let image = try await store.image(id: imageID)
+            guard let image, !galleryImages.contains(where: { $0.id == imageID }) else { return }
+            galleryImages.insert(image, at: 0)
         } catch {
             lastError = message(for: error)
         }

@@ -9,17 +9,12 @@ import Testing
 
 @MainActor
 func jobItem(_ model: AppModel, _ id: UUID) -> JobItem? {
-    for item in model.filmstrip {
-        if case .job(let job) = item, job.id == id { return job }
-    }
-    return nil
+    model.queueJobs.first { $0.id == id }
 }
 
 @MainActor
 func imageCount(_ model: AppModel) -> Int {
-    model.filmstrip.reduce(0) { count, item in
-        if case .image = item { count + 1 } else { count }
-    }
+    model.galleryImages.count
 }
 
 private let turboModelID = "ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-4bit"
@@ -246,5 +241,98 @@ private func writeTurboIndex(under weightsRoot: URL) throws {
         #expect(imageCount(model) == 1)
         #expect(model.runningProgress == nil)
         #expect(model.queueHeader == .idle)
+    }
+
+    @Test func queueStripListsTheRunningJobThenQueuedJobsInOrderWithoutImages() async throws {
+        let harness = try await AppHarness.make(script: { number, _ in
+            if number == 1 {
+                return .init(status: 200, body: PNGFixture.sseHead(steps: 2), tail: PNGFixture.sseTail(width: 512, height: 512))
+            }
+            return .init(status: 200, body: PNGFixture.sseReply(width: 512, height: 512), tail: nil)
+        })
+        let first = try await harness.enqueue(batch: 1, prompt: "first")
+        let second = try await harness.enqueue(batch: 1, prompt: "second")
+        let third = try await harness.enqueue(batch: 1, prompt: "third")
+        let model = harness.model
+        await model.start()
+        try await eventually { jobItem(model, first.id)?.status == .running }
+
+        #expect(model.queueJobs.map(\.id) == [first.id, second.id, third.id])
+        #expect(model.queueJobs.map(\.status) == [.running, .queued, .queued])
+        #expect(model.galleryImages.isEmpty)
+
+        EngineStubProtocol.finishHeld(harness.endpoint)
+        try await eventually { try await harness.store.jobs(status: .done).count == 3 }
+    }
+
+    @Test func savedImagesJoinTheGalleryNewestFirstWhileTheJobCountsThem() async throws {
+        let harness = try await AppHarness.make(script: { number, _ in
+            if number == 3 {
+                return .init(status: 200, body: PNGFixture.sseHead(steps: 2), tail: PNGFixture.sseTail(width: 512, height: 512))
+            }
+            return .init(status: 200, body: PNGFixture.sseReply(width: 512, height: 512), tail: nil)
+        })
+        let model = harness.model
+        await model.start()
+        await model.refreshModels()
+        model.prompt = "a lighthouse at dusk"
+        model.batchCount = 3
+
+        await model.generate()
+        let jobID = try #require(model.selection)
+        try await eventually { imageCount(model) == 2 && jobItem(model, jobID)?.savedCount == 2 }
+
+        let stored = try await harness.store.recentImages(projectID: harness.projectID, limit: 10)
+        #expect(model.galleryImages.map(\.id) == stored.map(\.id))
+        #expect(jobItem(model, jobID)?.status == .running)
+
+        await model.cancelRunningOrSelected()
+        EngineStubProtocol.finishHeld(harness.endpoint)
+        try await eventually { jobItem(model, jobID)?.status == .cancelled }
+    }
+
+    @Test func galleryLoadsOnePageAtATimeNewestFirst() async throws {
+        let harness = try await AppHarness.make()
+        let model = harness.model
+        var saved: [LibraryImage] = []
+        for index in 0..<(AppModel.galleryPageSize + 5) {
+            saved.append(try await harness.saveImage(prompt: "image \(index)"))
+        }
+        let newestFirst = saved.reversed().map(\.id)
+
+        await model.reload()
+        #expect(model.galleryImages.map(\.id) == Array(newestFirst.prefix(AppModel.galleryPageSize)))
+        #expect(model.hasMoreImages)
+
+        await model.loadMoreImages()
+        #expect(model.galleryImages.map(\.id) == newestFirst)
+        #expect(model.hasMoreImages == false)
+
+        await model.loadMoreImages()
+        #expect(model.galleryImages.map(\.id) == newestFirst)
+        #expect(model.hasMoreImages == false)
+    }
+
+    @Test func progressUpdatesOnlyTheRunningJobsStep() async throws {
+        let harness = try await AppHarness.make(script: { number, _ in
+            if number == 1 {
+                return .init(status: 200, body: PNGFixture.sseHead(steps: 2), tail: PNGFixture.sseTail(width: 512, height: 512))
+            }
+            return .init(status: 200, body: PNGFixture.sseReply(width: 512, height: 512), tail: nil)
+        })
+        let running = try await harness.enqueue(batch: 1, prompt: "running")
+        let queued = try await harness.enqueue(batch: 1, prompt: "queued")
+        let model = harness.model
+        await model.start()
+
+        try await eventually { jobItem(model, running.id)?.step == 2 }
+        #expect(jobItem(model, running.id)?.total == 2)
+        #expect(jobItem(model, running.id)?.status == .running)
+        #expect(jobItem(model, queued.id)?.status == .queued)
+        #expect(jobItem(model, queued.id)?.step == nil)
+        #expect(jobItem(model, queued.id)?.total == nil)
+
+        EngineStubProtocol.finishHeld(harness.endpoint)
+        try await eventually { try await harness.store.jobs(status: .done).count == 2 }
     }
 }
