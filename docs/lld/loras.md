@@ -1,17 +1,20 @@
 # LLD: LoRA library and stack
 
-Implements HLD D34 and the plan `docs/plans/2026-10-19-1341-feat-lora-support-and-management-plan.md`. Local `.safetensors` files only; Civitai/CivArchive is out of scope.
+Implements HLD D34 and the plans `docs/plans/2026-10-19-1341-feat-lora-support-and-management-plan.md` (local import) and `docs/plans/2026-10-19-1605-feat-civitai-lora-browse-download-plan.md` (Civitai browse and download, see the last section). CivArchive stays deferred.
 
 ## Data and files
 
-- Table `lora` (migration `v4-lora`, `LoRARecord`): id, name, family, `sha256` (unique), `relative_path`, size, trigger words, notes, created.
+- Table `lora` (migration `v4-lora`, `LoRARecord`): id, name, family, `sha256` (unique), `relative_path`, size, trigger words, notes, created. Migration `v5-lora-source` adds a nullable `variant` and the `lora_source` table (last section). Existing rows keep a null variant.
 - Files live at `Models/LoRAs/<family>/<sha10>-<slug>.safetensors`, outside `Weights`. Rows and jobs store the path relative to the Models root (D17). `LibraryStore` and `JobExecutor` both take `modelsRoot`.
 - Import (`LibraryStore.importLoRA`): read the safetensors header only, classify by fingerprint, stream-copy to `.partial` while hashing, resolve duplicates on the unique hash (`.duplicate`, nothing added), auto-suffix a clashing name, move into place, insert the row. `.partial` files under `LoRAs` are swept at open.
 - Delete (`deleteLoRA`) runs in one write transaction. It refuses while a queued, running, paused or retryable-failed job holds the LoRA. `enqueueJob` validates each frozen LoRA (row, hash, file) inside its own write transaction, so a delete cannot slip between them.
+- Delete also removes the LoRA's `lora_source` row (cascade) and its preview file, in the same transaction; a failed file removal rolls back.
 
 ## Fit
 
 `families.json` carries `loraFingerprints` per family: alternative layouts. Each has tensor-name patterns (prefix, suffix or substring, all required), shape hints (a tensor whose name matches must have `shape[dimension] == size`, all required) and block counts. Wrapper prefixes (`base_model.model.`, `diffusion_model.`, `transformer.`) are stripped before matching. A family with no fingerprint accepts no LoRAs. Flat kohya names (`lora_unet_...`) are not supported. Fit is per family; klein 4B and 9B are told apart by shape (3072 vs 4096), not by name.
+
+The size variant (`4b` or `9b`) is reported with the family id: `classifyLoRA` returns an optional `variant` from each fingerprint, so a 9B file is not gated as 4B. Klein's `4b` and `9b` fingerprints carry the variant; Krea and Qwen have none.
 
 Block counts are the full model's block count. A LoRA may cover only some blocks (partial coverage is accepted), but a file matches only when every `family.N.` index is below the count, so a file reaching a block the model lacks matches nothing. The counts are observed: highest index in the real samples plus one (klein BFL 5 double blocks, klein diffusers 8, Krea 28, Qwen 32). They are not read from model configs, so a model with more blocks would be refused, never misclassified.
 
@@ -43,3 +46,44 @@ Krea-2 Turbo (mixed 4/8) with `gokaygokay/Krea-2-Realism-LoRA` (469 MB), launche
 - A relative or missing path returns 400 `'lora_path'/'lora_paths' must be absolute path(s) to .safetensors file(s)`.
 - The engine needs `POST /v1/models/rescan` after the model directory is set, and the load id is the full folder name, not the short id.
 - Not yet verified: fingerprints for FLUX.2 klein and Qwen match the real headers but have not been checked against a loaded model, and the GUI is untested.
+
+## Civitai browse and download (planned; nothing here is verified yet)
+
+Status: designed in `docs/plans/2026-10-19-1605-feat-civitai-lora-browse-download-plan.md`; not built. Nothing below has been observed in the built app. The only evidence is an anonymous probe on 2026-10-19: base-model labels, version metadata with SHA-256 and `trainedWords`, 307 redirects to a signed CDN URL, 401 on 14 of 30 sampled download URLs, and no ETag from the CDN. The plan's live smoke (U9) and the record (U8) decide what is actually true. Until then, treat each claim here as a design assumption.
+
+### Browse tab
+
+- A "Browse Civitai" tab beside Installed in the LoRA library sheet (HLD §10, D34). Results are LoRAs only, filtered by the selected model's Civitai base-model label (`civitaiBaseModels` in `families.json`). FLUX.2 klein 4B and 9B have separate labels. Labels seen 2026-10-19: `Flux.2 Klein 4B`, `Flux.2 Klein 9B`, `Krea 2`, `Qwen 2.1`. Matching is exact: `Flux.2 Klein` returned nothing. Mage-Flow was not probed and has no label, so it is not offered.
+- A family chip overrides the filter for the session. "Show incompatible" removes the label filter, with the selected model's label sorted first.
+- No selected model: the tab asks the user to select one and sends no request.
+- NSFW results are hidden unless a persisted opt-in is on (off by default). Previews stay blurred until revealed, per session.
+
+### Key and redirects (KTD2)
+
+- The key lives in Keychain only. `Authorization: Bearer` goes only on https requests to `civitai.com`, never in a URL, never logged.
+- The downloader follows redirects itself and drops the header on any host change or any non-https target. Foundation's default is not relied on. Only https URLs are followed.
+- A 401 or 403 on the download URL means "needs key". A saved key that is still refused shows its own message, not a loop. Whether a 401 means a per-file login requirement or throttling is not established.
+
+### Download path (KTD1, KTD3, KTD4, KTD10)
+
+- One stream per file. The downloader does not require an ETag, because Civitai's CDN sends none; an interrupted download restarts from zero.
+- Size cap: a fixed 4 GiB. Over the cap, or without free disk (the existing 1 GiB headroom), the request is refused before the file request is made.
+- Header peek: after license acceptance, the safetensors header is range-read from the resolved CDN URL (8 bytes for the length, then the header, bounded by the existing 100 MiB limit) and classified. A refusal costs only those header bytes and writes nothing. A 401 or 403 here is the needs-key signal.
+- Bulk transfer: streams to `Models/.partial/civitai/<versionId>.partial` while hashing. A running byte counter aborts and deletes the staged file if received bytes exceed the advertised size or the 4 GiB cap. The SHA-256 must match Civitai's. The file is then classified again, and that result is the authority.
+- Commit: a staged-file entry point in `LibraryStore` shares the import's commit routine (duplicate, name-clash suffix, restored handling) and moves the file to `Models/LoRAs/<family>/<sha10>-<slug>.safetensors`. The staging directory lives outside `Models/LoRAs/`, so `sweepUnreferencedLoRAs` cannot delete a download in progress. It is swept at store open.
+
+### Size variant
+
+- `LoRAFingerprint` gains an optional `variant`, and `classifyLoRA` reports it with the family id. Klein BFL 4B (hidden 3072) gives `4b`; klein 9B (hidden 4096, BFL or diffusers layout) gives `9b`. Krea and Qwen give none.
+- The variant is stored on the `lora` row. A LoRA whose variant differs from the selected model's is greyed out, for local imports and Browse alike. A null variant is never gated. The selected model's variant comes from its engine architecture string (`flux2-klein-4b` gives `4b`). The klein 9B string is unverified.
+
+### lora_source table and v5 migration
+
+- Migration `v5-lora-source` adds nullable `lora.variant` and the table `lora_source`, keyed by `lora_id` with cascade delete. Columns: Civitai model id, version id, page URL, license and commercial-use flags as JSON, `accepted_at`, preview path, preview NSFW level, and example prompts as JSON. `v4-lora` is not edited. `LoRARecord` decode stays strict, with no new required field.
+- Local imports write no `lora_source` row. Civitai's `trainedWords` fill the LoRA's trigger words.
+- Previews: one image per download, fetched once from Civitai's image CDN, re-encoded to HEIC with `Thumbnails`, and stored under the library's preview directory outside `Models/LoRAs/`. Deleting the LoRA removes the file. A preview failure never fails the download.
+
+### Deferred and unverified
+
+- Deferred: CivArchive, fetch by pasted link or hash, drop-a-PNG fetch, update checks, a curated Civitai shelf, and parallel downloads.
+- Not verified yet: the 4 GiB cap in practice, the meaning of 401 (gated or throttled), signed-URL expiry, the klein 9B engine architecture string, and Qwen and klein 9B classification against a loaded model. Klein 4B is the only family planned for the live smoke.

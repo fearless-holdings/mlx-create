@@ -55,7 +55,7 @@ Settled during the design interview. Later documents cite these IDs.
 | D12 | PNG metadata: **A1111 `parameters` + mlx-create JSON** | Civitai and other tools interoperate. Dropping an image restores its settings |
 | D13 | v1 power tools: **batch count + seed controls, persistent queue, live step previews** | X/Y plot, wildcards and styles are out of v1 |
 | D14 | **No sampler picker**; curated per-family defaults | Distilled and turbo flow models degrade with off-schedule samplers |
-| D15 | Civitai: **anonymous by default, optional API key** (Keychain); NSFW previews blurred until opt-in | |
+| D15 | Civitai: **anonymous by default, optional API key** (Keychain, sent only to `civitai.com`); NSFW results hidden and previews blurred until opt-in, in the model browser and the LoRA library's Browse tab (D34) | |
 | D16 | Recommendations = **signed remote catalog + on-device calibration** | Real seconds-per-image estimates on every Mac |
 | D17 | Storage is **fully separate** from other tools (own Application Support root, relocatable) | Achieved by launching the engine with `HOME` pointed at our root (§7.4); no engine change |
 | D18 | ~~**Canvas-first** main window; the gallery is a separate mode~~ **Superseded by D33** for the layout. Whether a separate Gallery mode still ships is an open question (§10) | |
@@ -74,7 +74,9 @@ Settled during the design interview. Later documents cite these IDs.
 | D31 | **Qwen-Image 2.1 Turbo is its own family, told apart by a checkpoint trait rather than by architecture.** Plain and Turbo packs report the same engine architecture (`qwen_image21`), so the registry matches an installed model on architecture plus a required trait: a non-empty `sample_sigmas` list in the pack's `Weights/<model id>/model_index.json`. Only architectures that declare a trait are probed. A family may declare its steps fixed (`stepsAreFixed`, §8.3): the checkpoint sets the step grid, so the app sends no `steps`, shows the fixed count read-only, and records the engine's actual total (D24). The Turbo pack is under the Qwen Research License, which allows research and evaluation only; the license sheet states that at download and the user accepts it (D20, D26). A legal read is a release prerequisite, beside Krea's | Engine metadata cannot tell the packs apart, and the engine ignores a requested step count when the checkpoint carries its own grid, so a stepper would mislead. The restriction is shown before download rather than hidden |
 | D32 | **The engine always runs Qwen-Image's staged plan, so the catalog `ram_gb` for Qwen packs is the staged preflight need.** The app launches the engine with the fixed variable `MLX_SERVE_QWEN_IMAGE_LOW_MEMORY=1` (an upstream knob; the engine stays stock). Turbo's `ram_gb` is 14.3: the staged peak (11.81 GiB, which includes the edit-tower transient) plus the engine's load headroom, `min(peak/8, 6 GiB) + 1 GiB`. Turbo 4-bit therefore does not run on a 16 GB Mac (usable working set ≈11.9 GB): the browser shows `exceeds` there, and §8.5 lists it from the 24 GB tier. The cost is that the text encoder reloads for each request on large Macs | Without the variable the engine stages only when the working set is below ≈18.4 GiB, so the need would be ≈18.8 GB on larger Macs and one catalog scalar could not describe both. Pinning the staged plan keeps the fit band truthful on every tier |
 | D33 | **Three-panel main window** supersedes the layout half of D18 (the canvas-first stack with a shared filmstrip and a ⚙ settings popover). Left: generation, with a multi-line prompt, Enhance beside it (not yet built), inline settings, and the batch and Generate controls at the bottom. Middle: the canvas, with the queue strip under it (jobs only). Right: the gallery of finished images, paged, always visible. | Requested by the user. A multi-line prompt and inline settings need room that a popover and a shared strip cannot give, and mixing queue placeholders into the gallery forces every render to filter one array. The LoRA stack is an inline section, not yet built. A separate full-window Gallery mode and the ⌘1/⌘2 switch are an open question (§10). Plan: `docs/plans/2026-10-19-1105-feat-three-panel-main-layout-plan.md` |
-| D34 | **LoRAs live in their own `lora` table (migration `v4-lora`), with files at `Models/LoRAs/<family>/<sha10>-<slug>.safetensors` and no JSON sidecar.** Fit is per family, decided by tensor-key and shape fingerprints (§8.6); a family without a fingerprint offers no LoRA control. Local import only in this phase; Civitai and CivArchive are separate work. | `installed_model` is checkpoint-shaped (repo, revision, catalog sequence, license) and does not fit LoRAs. The database is the record, and paths stay relative to the Models root so the relocatable root (D17) keeps working. Amends §9 |
+| D34 | **LoRAs live in their own `lora` table (migration `v4-lora`), with files at `Models/LoRAs/<family>/<sha10>-<slug>.safetensors` and no JSON sidecar.** Fit is per family, decided by tensor-key and shape fingerprints (§8.6); a family without a fingerprint offers no LoRA control. Civitai LoRA browse and download is in scope, through a Browse Civitai tab in the LoRA library sheet (§10), with source metadata in `lora_source` (migration `v5-lora-source`). CivArchive, fetch by link or hash, and update checks stay deferred. | `installed_model` is checkpoint-shaped (repo, revision, catalog sequence, license) and does not fit LoRAs. The database is the record, and paths stay relative to the Models root so the relocatable root (D17) keeps working. Amends §9 |
+
+**Amendment (2026-10-19, D34):** Civitai LoRA browsing and download move from "separate work" into scope. The browser is a tab in the LoRA library sheet, not a Models-window tab. A finished download goes to the library only and is not attached to the generation stack. Design and open items: `docs/lld/loras.md`, section "Civitai browse and download".
 
 ## 4. Constraints and assumptions
 
@@ -90,6 +92,7 @@ Settled during the design interview. Later documents cite these IDs.
 - **Upstream binary:** every release attaches `mlx-serve-bin-macos-arm64.tar.gz` (binary, dylibs, LICENSE, NOTICE), which upstream's own Homebrew formula pins by version and sha256 (`Formula/mlx-serve.rb:4-6`).
 - **Video output:** the server returns raw `rgb8` frames plus `pcm_s16le`, and the client muxes them (`docs/api.md:66`).
 - **Civitai API:** public endpoints without auth. A bearer token unlocks gated content. Responses can be SFW-only in restricted regions regardless of the `nsfw` param ([developer.civitai.com reference](https://developer.civitai.com/site/reference/)).
+- **NSFW opt-in:** NSFW results are hidden until the user opts in, and their previews stay blurred until revealed. This applies to the model browser and the LoRA library's Browse tab (D15, D34).
 
 ## 5. System context
 
@@ -334,10 +337,10 @@ A `ModelFamily` record describes how to drive one architecture:
 - `id` (e.g. `flux2-klein-4b`, `qwen-image-2.1`)
 - `capabilities`: fields, size grid, step defaults and range, guidance, negative prompt, LoRA support, modes
 - `loraFingerprints`: alternative layouts, each with key patterns, tensor shapes and block counts, used for compatibility checks
-- `civitaiBaseModels`: Civitai `baseModel` labels that map to this family
+- `civitaiBaseModels`: Civitai `baseModel` labels that map to this family, each with an optional size variant (`4b` or `9b`, for FLUX.2 klein). Bundled in `families.json` for now (see below).
 - `promptPackId`
 
-Families and their mappings come from the signed catalog (§8.5), so new Civitai labels or capability corrections ship without an app release. The family list itself is bounded by what the bundled engine implements; a catalog entry for an unknown engine family is ignored.
+Families and their mappings are meant to come from the signed catalog (§8.5), so new capability corrections ship without an app release. Until a remote path exists, `civitaiBaseModels` is bundled in `families.json`, so a new Civitai label needs an app release (`docs/lld/loras.md`). The family list itself is bounded by what the bundled engine implements; a catalog entry for an unknown engine family is ignored.
 
 ### 8.5 Catalog, Recommender and Calibrator
 
@@ -380,7 +383,7 @@ Seed tiers, taken from mlx-serve's presets in `Services/MediaGen.swift` and fina
 ### 8.6 ModelManager (local checkpoints and LoRAs)
 
 - **Inventory:** every installed checkpoint, LoRA and enhancer LLM, with source, SHA-256, size, family, license and acceptance timestamp, trigger words, example prompts and preview images (cached from Civitai/CivArchive metadata).
-- **Compatibility check:** before a LoRA can be attached, the app reads the `.safetensors` header (JSON only, bounded read). It matches key names and tensor **shapes** against each family's fingerprint, so a klein-4B LoRA is distinguished from a klein-9B one. Incompatible LoRAs are greyed out for the current model. The engine's `LoraNoMatch` 400 stays the final authority.
+- **Compatibility check:** before a LoRA can be attached, the app reads the `.safetensors` header (JSON only, bounded read). It matches key names and tensor **shapes** against each family's fingerprint, so a klein-4B LoRA is distinguished from a klein-9B one, and the matched variant (`4b` or `9b`) is stored on the row. A LoRA whose variant differs from the selected model's is greyed out too; a model or LoRA without a variant is never gated on it. Incompatible LoRAs are greyed out for the current model. The engine's `LoraNoMatch` 400 stays the final authority. For Civitai downloads the header is checked before any bulk transfer, and the file's own classification, not the Civitai label, decides.
 - **Formats:** `.safetensors` only. Pickle formats (`.ckpt`, `.pt`, `.bin`) are rejected because they can execute code.
 - **Operations:** rename, delete (with a "used by N images" hint), reveal in Finder, disk usage per category. Imported local `.safetensors` files go through the same fingerprinting.
 - **v1 checkpoints** are curated catalog entries downloaded from HF. Community fine-tune checkpoints wait for F5 (phase 4).
@@ -393,11 +396,11 @@ Seed tiers, taken from mlx-serve's presets in `Services/MediaGen.swift` and fina
 | **Civitai** | Browse/search LoRAs for supported families, with versions, previews, trigger words, example prompts and hashes | `GET /api/v1/models` filtered by `types=LORA` and `baseModels` from family mappings; `/api/v1/model-versions/{id}`; `/api/v1/model-versions/by-hash/{sha256}`; downloads via `/api/download/models/{versionId}` with a bearer token when a key is set |
 | **CivArchive** | Find models deleted from Civitai by SHA-256 or name, cross-platform search, mirror download links | API integration as done by ComfyUI-LoRA-Manager; endpoint contract to be confirmed in the LLD (§15) |
 
-**Browser UX:**
+**Browser UX** (Civitai LoRA browsing is the Browse Civitai tab in the LoRA library sheet, D34):
 
 - Results are filtered to compatible families by default; "show incompatible" is a toggle.
 - Each entry shows license and commercial-use flags, which the user accepts at download (D20).
-- NSFW items are hidden unless the user opts in, and blurred until revealed (D15).
+- NSFW items are hidden unless the user opts in, and blurred until revealed (D15). The opt-in applies in the LoRA library's Browse tab too.
 - Region-restricted SFW-only responses are surfaced honestly ("Civitai limits results in your region").
 
 **ModelDownloader** (an actor; each file moves through `FileDownloader`; reuses `ChunkedDownload.swift` and `DownloadManager.swift`):
@@ -407,6 +410,8 @@ Seed tiers, taken from mlx-serve's presets in `Services/MediaGen.swift` and fina
 - SHA-256 verification against the source hash, then atomic move into `Models/`.
 - `POST /v1/models/rescan` after checkpoint or LLM installs. LoRAs need no rescan because they are passed by path.
 - Runs as a background-capable download list with a global concurrency limit (default 3 files).
+
+**Civitai LoRA downloader** (`CivitaiDownloader`, a single-stream path separate from `ModelDownloader`, because the HF path needs a repo and a 40-hex revision and Civitai's CDN sends no ETag): one stream per file, with a range-read header peek and fit check before the bulk transfer; https only; the API key header goes only to `civitai.com`, and any redirect drops it; a 4 GiB size cap, enforced against the advertised size and a running byte counter; SHA-256 verified before commit. Details: `docs/lld/loras.md`.
 
 ### 8.8 PromptEnhancer
 
@@ -467,7 +472,7 @@ The initial packs are seeded from mlx-serve's `PromptRewriter.swift` (MIT) and i
 - **Analytics (D19):**
   - Opt-in at onboarding, off by default, anonymous, through a privacy-first vendor.
   - **Events:** launch, generation completed (family, steps, resolution bucket, duration, tier, chip class), enhancer used, download completed (family, source type), errors by class.
-  - **Never sent:** prompts, images, file names, Civitai item IDs or names, API keys.
+  - **Never sent to our servers or analytics:** prompts, images, file names, Civitai item IDs or names, API keys. Civitai itself receives the lookups and downloads the user makes (§12).
   - Crash diagnostics via MetricKit, uploaded only when the user opts in.
 
 ## 9. Data model
@@ -613,7 +618,7 @@ Nothing is written to `~/.mlx-serve`, and other tools' model folders are not sca
   - Model chip with a fit badge (comfortable/tight) and a seconds-per-image estimate.
   - The dividers between the panels are draggable, and each panel keeps a minimum width.
 - **Gallery mode (open question):** a separate full-window grid with search; double-click opens an image in the canvas. Whether it still ships in a later phase, or the right panel grows to host search, is undecided (D33).
-- **Models window:** an *Installed* tab and a *Browse* tab (Curated / Civitai / CivArchive), plus the download list.
+- **Models window:** an *Installed* tab and a *Browse* tab (Curated; CivArchive when built), plus the download list. Civitai LoRA browsing is not here. It is the Browse Civitai tab in the LoRA library sheet beside the model chip (D34).
 - **Onboarding:**
   1. Hardware scan.
   2. Recommended starter set with license acceptance.
@@ -639,16 +644,16 @@ Nothing is written to `~/.mlx-serve`, and other tools' model folders are not sca
 
 - The engine is bound to `127.0.0.1` and protected by a random per-launch API key, so other local processes can't drive it. LAN features are off.
 - The engine accepts LoRA paths only from loopback (`src/gen.zig:5302`).
-- The Civitai API key is stored in Keychain and sent only to `civitai.com`.
+- The Civitai API key is stored in Keychain and sent only over https to `civitai.com`, never to any other host and never in a URL. A redirect to another host drops it, and the key is never logged.
 - Catalog, prompt packs and appcast are signature-verified. Downloads are hash-verified. Pickle formats are refused.
-- Prompts and images never leave the device. Analytics is opt-in and content-free (§8.10).
+- Prompts, images and file names never leave the device to our servers or analytics. Civitai itself necessarily sees which LoRAs the user looks up and downloads, but our servers and analytics never receive Civitai item IDs or names. Analytics is opt-in and content-free (§8.10).
 - Hardened runtime and notarization. No microphone or camera entitlements. Sandboxing is deferred to the LLD (mlx-serve's MAS variant shows the engine can run sandboxed, but App Store distribution is out of scope).
 
 ## 13. Phased roadmap
 
 | Phase | Scope | Backend work |
 |---|---|---|
-| **v1.0** | Text→image on FLUX.2-klein 4B/9B, Qwen-Image 2.1 (+Turbo), Krea-2 Turbo, Mage-Flow. Civitai/CivArchive LoRAs. Enhancer with packs + LoRA context. Projects + gallery + prompt search. Persistent queue, batch and seed policies. Step progress (live previews when F1 lands). A1111 metadata and drop-to-restore. Catalog + calibration. Sparkle, opt-in analytics, Entitlements seam | F1 upstream PR |
+| **v1.0** | Text→image on FLUX.2-klein 4B/9B, Qwen-Image 2.1 (+Turbo), Krea-2 Turbo, Mage-Flow. Civitai LoRA browse and download (D34); CivArchive LoRAs deferred. Enhancer with packs + LoRA context. Projects + gallery + prompt search. Persistent queue, batch and seed policies. Step progress (live previews when F1 lands). A1111 metadata and drop-to-restore. Catalog + calibration. Sparkle, opt-in analytics, Entitlements seam | F1 upstream PR |
 | **v1.x** | Img2img variation (`strength`), instruction edit (`mode:edit`, `ref_images`, Qwen / Mage-Flow Edit), transparent PNG | None, already in the engine. F3 optional |
 | **v2.0** | Text/image→video (LTX, MiniMax-H3) with AVFoundation mux, video in projects and gallery, video prompt packs | None, already in the engine |
 | **v2.x** | Inpaint/outpaint (mask canvas), upscale + hires-fix, community fine-tune import | F4, F5. Upscaler approach decided in the LLD |

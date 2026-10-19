@@ -7,7 +7,7 @@ Modules: `MCCatalog` (catalog schema, signature, loader), `MCCatalogTool` (`mc-c
 | In scope | Out of scope |
 |---|---|
 | Catalog schema v1, validation, Ed25519 signature, pinned keys | Engine supervision (`docs/lld/engine.md`) |
-| Loader precedence, rollback rule, daily ETag refresh | Prompt packs, enhancer models, Civitai and CivArchive sources |
+| Loader precedence, rollback rule, daily ETag refresh | Prompt packs, enhancer models, CivArchive source, Civitai LoRA downloads (`docs/lld/loras.md`) |
 | Download and staging protocol, install state machine, error mapping | Removing, updating or repairing installed models |
 | Signing procedure, key rotation and compromise response | Production key custody (owner action, release prerequisite) |
 
@@ -112,8 +112,8 @@ The refresh outcome is a value (`skippedFresh`, `skippedNoURL`, `notModified`, `
 ## 6. Network posture (KTD20, R11)
 
 - Catalog and download requests use an ephemeral `URLSession` configuration: `httpShouldSetCookies = false`, cookie accept policy `never`, no shared cache.
-- The only additional header is `User-Agent: mlx-create/<version>`, plus `If-None-Match` for catalog refresh and `Range` for download resumes.
-- Requests carry no prompts, images, file names, Civitai identifiers or user identifiers. Hugging Face necessarily learns which repo and revision is fetched.
+- Catalog and Hugging Face requests add only `User-Agent: mlx-create/<version>`, plus `If-None-Match` for catalog refresh and `Range` for download resumes. Civitai requests (`docs/lld/loras.md`) add the same User-Agent and `Range` for the header peek, and `Authorization: Bearer` only to `civitai.com` when a key is saved.
+- No request to our servers or analytics carries prompts, images, file names, Civitai identifiers or user identifiers. Hugging Face necessarily learns which repo and revision is fetched. Civitai necessarily learns which models, versions and search text the user looks up or downloads, and receives no more than that.
 
 ## 7. Download protocol (KTD5, KTD6, KTD8)
 
