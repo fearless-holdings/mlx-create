@@ -89,6 +89,19 @@ public actor LibraryStore {
             }
         }
         migrator.registerMigration("v3-installed-model", migrate: Self.createInstalledModelTable)
+        migrator.registerMigration("v4-lora") { db in
+            try db.create(table: "lora") { t in
+                t.primaryKey("id", .text).notNull()
+                t.column("name", .text).notNull()
+                t.column("family", .text).notNull()
+                t.column("sha256", .text).notNull().unique()
+                t.column("relative_path", .text).notNull()
+                t.column("size_bytes", .integer).notNull()
+                t.column("trigger_words", .text).notNull()
+                t.column("notes", .text)
+                t.column("created_at", .datetime).notNull()
+            }
+        }
         return migrator
     }
 
