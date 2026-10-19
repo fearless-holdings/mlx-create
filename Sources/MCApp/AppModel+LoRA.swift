@@ -86,6 +86,18 @@ extension AppModel {
         loraMemoryTier.maxResidentModels == 1 && loraStack.filter(\.isUsed).count > 4
     }
 
+    // MARK: Civitai
+
+    /// The family and size the Civitai Browse tab judges results and files against: the selected model's (KTD6).
+    /// Nil when no model is selected or its family accepts no LoRAs, so the tab shows its prompt and sends nothing.
+    var civitaiSelection: CivitaiSelection? {
+        guard let model = selectedModel, ModelSelection.isSelectable(model), let family = model.family,
+              family.acceptsLoRAs
+        else { return nil }
+        return CivitaiSelection(
+            family: family, variant: CivitaiBrowseRules.variant(forArchitecture: model.architecture))
+    }
+
     // MARK: Library
 
     /// Reads the LoRA library from the store, notes which files are missing, and prunes stack rows whose LoRA is gone.

@@ -32,6 +32,8 @@ public final class AppModel {
     private static let lastUsedModelKey = "lastUsedModelID"
     /// The defaults key for a user pause (KTD14). Set by `pauseQueue`, cleared by `resumeQueue`.
     static let queuePausedDefaultsKey = "queuePaused"
+    /// The defaults key for the Civitai NSFW opt-in (plan U6, R7). Persisted across launches.
+    static let civitaiIncludeNSFWKey = "civitaiIncludeNSFW"
     /// Gallery images per page. Pages load on demand, so every image in the library can be reached.
     static let galleryPageSize = 60
     private static let shutdownLimit: Duration = .seconds(3)
@@ -93,6 +95,8 @@ public final class AppModel {
     var loraImportCancelRequested = false
 
     let store: LibraryStore
+    /// The Civitai Browse tab. It owns the Civitai client, downloader and Keychain, so downloads outlive the sheet.
+    let civitai: CivitaiBrowseModel
     private let client: EngineClient
     private let gate: EngineGate
     let registry: FamilyRegistry
@@ -129,7 +133,11 @@ public final class AppModel {
         defaults: UserDefaults = .standard,
         catalog: Catalog? = nil,
         transport: (any ModelTransport)? = nil,
-        catalogStore: CatalogStore? = nil
+        catalogStore: CatalogStore? = nil,
+        civitaiTransport: (any CivitaiTransport)? = nil,
+        civitaiFileTransport: (any CivitaiFileTransport)? = nil,
+        civitaiKeychain: CivitaiKeychain = CivitaiKeychain(),
+        civitaiPreviewFetch: (@Sendable (URL) async -> Data?)? = nil
     ) {
         self.store = store
         self.client = client
@@ -151,11 +159,26 @@ public final class AppModel {
         self.selectedModelID = defaults.string(forKey: Self.lastUsedModelKey)
         queueHeader = QueuePresentation.header(
             isRunning: false, pauseRequested: defaults.bool(forKey: Self.queuePausedDefaultsKey))
+        let civitaiClient = CivitaiClient(
+            transport: civitaiTransport ?? URLSessionCivitaiTransport(userAgent: "mlx-create"),
+            savedKey: { try? civitaiKeychain.read() })
+        civitai = CivitaiBrowseModel(
+            client: civitaiClient,
+            downloader: CivitaiDownloader(transport: civitaiFileTransport ?? URLSessionCivitaiFileTransport()),
+            keychain: civitaiKeychain, store: store, registry: registry,
+            stagingDirectory: libraryPaths.civitaiStagingDirectory, defaults: defaults,
+            nsfwDefaultsKey: Self.civitaiIncludeNSFWKey,
+            previewFetch: civitaiPreviewFetch ?? CivitaiPreviewFetch.fetch)
         installs = makeInstalls(catalog: catalog, transport: transport)
         browser = ModelBrowserModel(
             catalog: catalog, installs: installs,
             weightsRoot: URL(fileURLWithPath: weightsPath, isDirectory: true),
             workingSetGB: ModelBrowserModel.systemUsableWorkingSetGB(), engineModelIDs: [])
+        civitai.connect(
+            selection: { [weak self] in self?.civitaiSelection },
+            libraryChanged: { [weak self] in
+                if let self { await self.refreshLoRALibrary() }
+            })
     }
 
     /// The production app: the bundled engine, the library and queue in Application Support, and the bundled registry.
@@ -198,7 +221,8 @@ public final class AppModel {
         let model = AppModel(
             store: store, client: client, gate: gate, registry: registry, states: states,
             weightsPath: paths.weights.path, libraryPaths: LibraryPaths(root: libraryRoot, modelsRoot: modelsRoot), supervisor: supervisor,
-            engineVersion: bundledEngineVersion(), catalog: catalog, transport: downloader, catalogStore: catalogStore)
+            engineVersion: bundledEngineVersion(), catalog: catalog, transport: downloader, catalogStore: catalogStore,
+            civitaiTransport: URLSessionCivitaiTransport(userAgent: userAgent))
         Task { await model.start() }
         return model
     }
