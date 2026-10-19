@@ -118,6 +118,22 @@ private func writeTurboIndex(under weightsRoot: URL) throws {
         #expect(model.seedChoice == .random)
     }
 
+    @Test func tileReuseSettingsWithAnUninstalledModelReportsItAndStillAppliesTheRest() async throws {
+        let harness = try await AppHarness.make()
+        let model = harness.model
+        await model.start()
+        await model.refreshModels()
+        let image = try await harness.saveImage(prompt: "a fox in snow", model: "someone/not-installed")
+        await model.reload()
+        let installedModel = model.selectedModelID
+
+        model.reuseSettings(of: image)
+        #expect(model.lastError != nil)
+        #expect(model.selectedModelID == installedModel)
+        #expect(model.prompt == "a fox in snow")
+        #expect(model.seedText == "12345")
+    }
+
     @Test func turboModelWithSampleSigmasIsAvailableWithFixedSteps() async throws {
         let harness = try await AppHarness.make(models: [(kreaModel, "krea2_turbo"), (turboModelID, "qwen_image21")])
         try writeTurboIndex(under: harness.weightsRoot)
