@@ -154,7 +154,7 @@ struct BrowserRig {
         workingSetGB: Double? = BrowserFixture.workingSetGB
     ) async throws -> BrowserRig {
         let root = FileManager.default.temporaryDirectory.appending(path: "browser-\(UUID().uuidString)")
-        let store = try LibraryStore(libraryRoot: root)
+        let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
         let transport = ScriptedTransport(
             modelsRoot: root.appending(path: "Models", directoryHint: .isDirectory), outcomes: outcomes, staged: staged)
         let installs = InstallCoordinator(

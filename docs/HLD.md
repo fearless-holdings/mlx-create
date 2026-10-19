@@ -74,6 +74,7 @@ Settled during the design interview. Later documents cite these IDs.
 | D31 | **Qwen-Image 2.1 Turbo is its own family, told apart by a checkpoint trait rather than by architecture.** Plain and Turbo packs report the same engine architecture (`qwen_image21`), so the registry matches an installed model on architecture plus a required trait: a non-empty `sample_sigmas` list in the pack's `Weights/<model id>/model_index.json`. Only architectures that declare a trait are probed. A family may declare its steps fixed (`stepsAreFixed`, §8.3): the checkpoint sets the step grid, so the app sends no `steps`, shows the fixed count read-only, and records the engine's actual total (D24). The Turbo pack is under the Qwen Research License, which allows research and evaluation only; the license sheet states that at download and the user accepts it (D20, D26). A legal read is a release prerequisite, beside Krea's | Engine metadata cannot tell the packs apart, and the engine ignores a requested step count when the checkpoint carries its own grid, so a stepper would mislead. The restriction is shown before download rather than hidden |
 | D32 | **The engine always runs Qwen-Image's staged plan, so the catalog `ram_gb` for Qwen packs is the staged preflight need.** The app launches the engine with the fixed variable `MLX_SERVE_QWEN_IMAGE_LOW_MEMORY=1` (an upstream knob; the engine stays stock). Turbo's `ram_gb` is 14.3: the staged peak (11.81 GiB, which includes the edit-tower transient) plus the engine's load headroom, `min(peak/8, 6 GiB) + 1 GiB`. Turbo 4-bit therefore does not run on a 16 GB Mac (usable working set ≈11.9 GB): the browser shows `exceeds` there, and §8.5 lists it from the 24 GB tier. The cost is that the text encoder reloads for each request on large Macs | Without the variable the engine stages only when the working set is below ≈18.4 GiB, so the need would be ≈18.8 GB on larger Macs and one catalog scalar could not describe both. Pinning the staged plan keeps the fit band truthful on every tier |
 | D33 | **Three-panel main window** supersedes the layout half of D18 (the canvas-first stack with a shared filmstrip and a ⚙ settings popover). Left: generation, with a multi-line prompt, Enhance beside it (not yet built), inline settings, and the batch and Generate controls at the bottom. Middle: the canvas, with the queue strip under it (jobs only). Right: the gallery of finished images, paged, always visible. | Requested by the user. A multi-line prompt and inline settings need room that a popover and a shared strip cannot give, and mixing queue placeholders into the gallery forces every render to filter one array. The LoRA stack is an inline section, not yet built. A separate full-window Gallery mode and the ⌘1/⌘2 switch are an open question (§10). Plan: `docs/plans/2026-10-19-1105-feat-three-panel-main-layout-plan.md` |
+| D34 | **LoRAs live in their own `lora` table (migration `v4-lora`), with files at `Models/LoRAs/<family>/<sha10>-<slug>.safetensors` and no JSON sidecar.** Fit is per family, decided by tensor-key and shape fingerprints (§8.6); a family without a fingerprint offers no LoRA control. Local import only in this phase; Civitai and CivArchive are separate work. | `installed_model` is checkpoint-shaped (repo, revision, catalog sequence, license) and does not fit LoRAs. The database is the record, and paths stay relative to the Models root so the relocatable root (D17) keeps working. Amends §9 |
 
 ## 4. Constraints and assumptions
 
@@ -332,7 +333,7 @@ A `ModelFamily` record describes how to drive one architecture:
 
 - `id` (e.g. `flux2-klein-4b`, `qwen-image-2.1`)
 - `capabilities`: fields, size grid, step defaults and range, guidance, negative prompt, LoRA support, modes
-- `loraFingerprint`: key patterns plus tensor shapes, used for compatibility checks
+- `loraFingerprints`: alternative layouts, each with key patterns, tensor shapes and block counts, used for compatibility checks
 - `civitaiBaseModels`: Civitai `baseModel` labels that map to this family
 - `promptPackId`
 
@@ -478,7 +479,7 @@ erDiagram
   PROJECT ||--o{ JOB : "queued in"
   JOB ||--o{ IMAGE : produces
   INSTALLED_MODEL ||--o{ IMAGE : "checkpoint used"
-  IMAGE }o--o{ INSTALLED_MODEL : "LoRAs used (by sha256)"
+  IMAGE }o--o{ LORA : "LoRAs used (by sha256)"
   INSTALLED_MODEL ||--o{ CALIBRATION : measured
 
   PROJECT {
@@ -520,7 +521,7 @@ erDiagram
   }
   INSTALLED_MODEL {
     string id
-    string kind "checkpoint|lora|llm"
+    string kind "checkpoint|llm"
     string family
     string source "catalog|civitai|civarchive|local"
     json source_ids
@@ -534,6 +535,17 @@ erDiagram
     json trigger_words
     json example_prompts
   }
+  LORA {
+    string id
+    string name
+    string family
+    string sha256 "unique"
+    string relative_path "relative to the Models root"
+    int64 size_bytes
+    json trigger_words
+    string notes
+    datetime created_at
+  }
   CALIBRATION {
     string model_id
     string resolution
@@ -546,6 +558,8 @@ erDiagram
 
 `JOB.mode` and `IMAGE.media_type` already cover the later phases (D7). The v1 executor only accepts `t2i`.
 
+`lora` rows are not `installed_model` rows: a LoRA has no repo, revision or catalog sequence (D34). `sha256` is unique, so re-importing the same file is a duplicate, not a second row.
+
 ### On-disk layout
 
 ```
@@ -556,7 +570,7 @@ erDiagram
 │   └── Thumbnails/<image-id>.heic
 ├── Models/                        # relocatable (external drive supported)
 │   ├── Weights/<org>/<repo>/      # checkpoints + enhancer LLMs (--model-dir)
-│   ├── LoRAs/<family>/<sha10>-<slug>.safetensors (+ .json metadata sidecar)
+│   ├── LoRAs/<family>/<sha10>-<slug>.safetensors   # content-addressed; the lora table is the record (D34)
 │   ├── .partial/<install-id>/     # staged installs: chunks and resume sidecars (D27)
 │   └── .partial/<install-id>.install.json   # staging manifest, beside the staging folder, never inside it (D27)
 ├── Engine/                        # engine HOME: .mlx-serve/{logs,kv-cache,…}, pid
@@ -586,13 +600,13 @@ Nothing is written to `~/.mlx-serve`, and other tools' model folders are not sca
 │ CFG      4.0             ├───────────────────────────────────┤                        │
 │ Negative prompt          │ Running   [Pause]                 │ ┌────┐ ┌────┐ ┌────┐   │
 │ low quality, blurry      │ ▣ 62%   ▢ queued   ▢ queued       │ │    │ │    │ │    │   │
-│ LoRAs     not yet built  │                                   │ └────┘ └────┘ └────┘   │
+│ LoRAs     compact rows   │                                   │ └────┘ └────┘ └────┘   │
 │ ×4  [Generate ⌘↩]        │                                   │  ⋮ loads more on scroll│
 └──────────────────────────┴───────────────────────────────────┴────────────────────────┘
 ```
 
 - **Main window (three panels, D33):**
-  - Generation panel (left): a multi-line prompt editor that takes the height above the settings, with the **Enhance** button beside it (not yet built, §8.8). The settings are inline, with no popover, and follow family capabilities (§8.3): seed and policy, size, steps, CFG scale and negative prompt, each shown only where the family allows it. The **LoRA stack** is an inline section (not yet built, §8.3). The batch stepper (×N), Generate (⌘↩) and the error line are pinned at the bottom. When no model can run, the settings area says "Choose an available model to see its settings."
+  - Generation panel (left): a multi-line prompt editor that takes the height above the settings, with the **Enhance** button beside it (not yet built, §8.8). The settings are inline, with no popover, and follow family capabilities (§8.3): seed and policy, size, steps, CFG scale and negative prompt, each shown only where the family allows it. The **LoRA stack** is an inline section of compact one-line rows that expand for weight and trigger-word chips, with a LoRA library sheet beside the model chip to manage and pick LoRAs (built, §8.3, D34). The batch stepper (×N), Generate (⌘↩) and the error line are pinned at the bottom. When no model can run, the settings area says "Choose an available model to see its settings."
   - Canvas (middle, top): the selected result or the live step preview, with zoom and pan; drop a PNG = restore. Shows the existing empty states (no models, only unavailable models, empty hint).
   - Queue strip (middle, under the canvas): the queue header (Running, Pausing, Paused, Queue empty, with Pause and Resume) and one cell per job, with live progress. Jobs only. Hidden while the canvas shows the empty hint.
   - Gallery panel (right): all of the project's finished images, newest first, as a scrolling grid that loads in pages. Clicking a thumbnail shows it in the canvas. Queued jobs never appear here.

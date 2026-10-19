@@ -13,6 +13,8 @@ public enum EngineError: Error, Equatable, Sendable {
     case noModel(engineMessage: String?)
     /// 400: the engine rejected the request body.
     case badRequest(engineMessage: String?)
+    /// 400 whose message reports that a LoRA matches no modules of the model (`no modules matching`).
+    case loraRejected(engineMessage: String?)
     /// Any other engine-reported failure (an unknown `type`, or a streamed `error` event).
     case engineFailure(type: String?, engineMessage: String?)
     /// The socket dropped before the response finished.
@@ -31,6 +33,7 @@ public enum EngineError: Error, Equatable, Sendable {
         case .modelNotLoaded: "The model is not loaded. Load it and try again."
         case .noModel: "No model is loaded to generate with. Load a model first."
         case .badRequest: "The image engine rejected the request."
+        case .loraRejected: "The image engine could not use a LoRA with this model. Remove or replace it and try again."
         case .engineFailure: "The image engine failed to generate the image."
         case .connectionLost: "Lost the connection to the image engine."
         case .streamEndedWithoutComplete: "The image engine stopped before the image finished."
@@ -42,7 +45,7 @@ public enum EngineError: Error, Equatable, Sendable {
     public var engineMessage: String? {
         switch self {
         case .unauthorized(let m), .outOfMemory(let m), .modelNotLoaded(let m),
-             .noModel(let m), .badRequest(let m):
+             .noModel(let m), .badRequest(let m), .loraRejected(let m):
             m
         case .engineFailure(_, let m):
             m
@@ -58,7 +61,11 @@ public enum EngineError: Error, Equatable, Sendable {
         let parsed = ErrorEnvelope.parse(body)
         switch status {
         case 401: return .unauthorized(engineMessage: parsed.message)
-        case 400: return .badRequest(engineMessage: parsed.message)
+        case 400:
+            if let message = parsed.message, message.contains("no modules matching") {
+                return .loraRejected(engineMessage: message)
+            }
+            return .badRequest(engineMessage: parsed.message)
         default: return fromTyped(type: parsed.type, message: parsed.message)
         }
     }

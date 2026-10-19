@@ -8,6 +8,26 @@ public enum GenerationError: Error, Equatable {
     case invalidBatchCount(Int)
 }
 
+/// Why a LoRA stack cannot be frozen into a job.
+public enum LoRAStackError: Error, Equatable {
+    /// More LoRAs remain enabled and fitting than the engine accepts (`GenerationComposer.maxLoRAs`).
+    case tooMany(count: Int)
+}
+
+/// One row of the composer's LoRA stack, before it is frozen into a job.
+public struct LoRADraftRow: Sendable, Equatable {
+    public var entry: LoRAStackEntry
+    public var isEnabled: Bool
+    /// Whether the LoRA fits the selected model's family. Rows that do not fit stay in the stack but are skipped.
+    public var fits: Bool
+
+    public init(entry: LoRAStackEntry, isEnabled: Bool, fits: Bool) {
+        self.entry = entry
+        self.isEnabled = isEnabled
+        self.fits = fits
+    }
+}
+
 /// What the user has set in the composer, before validation.
 public struct GenerationDraft: Sendable, Equatable {
     public var model: InstalledModel
@@ -19,6 +39,8 @@ public struct GenerationDraft: Sendable, Equatable {
     public var guidance: Double?
     public var batchCount: Int
     public var seedPolicy: SeedPolicy
+    /// The frozen LoRA stack, from ``GenerationComposer/freezeLoRAs(_:)``. `nil` or empty means no LoRAs.
+    public var loras: [LoRAStackEntry]?
 
     public init(
         model: InstalledModel,
@@ -28,7 +50,8 @@ public struct GenerationDraft: Sendable, Equatable {
         steps: Int? = nil,
         guidance: Double? = nil,
         batchCount: Int = 1,
-        seedPolicy: SeedPolicy = .random
+        seedPolicy: SeedPolicy = .random,
+        loras: [LoRAStackEntry]? = nil
     ) {
         self.model = model
         self.prompt = prompt
@@ -38,17 +61,29 @@ public struct GenerationDraft: Sendable, Equatable {
         self.guidance = guidance
         self.batchCount = batchCount
         self.seedPolicy = seedPolicy
+        self.loras = loras
     }
 }
 
 /// Validates a ``GenerationDraft`` against its family's capabilities and enqueues it as a queued job.
 public struct GenerationComposer: Sendable {
+    /// The most LoRAs one image may use: the engine's own cap (`lora_paths`, max 8).
+    public static let maxLoRAs = 8
+
     public let registry: FamilyRegistry
     public let store: LibraryStore
 
     public init(registry: FamilyRegistry, store: LibraryStore) {
         self.registry = registry
         self.store = store
+    }
+
+    /// Freezes the composer's LoRA stack into the list a job carries. Disabled, non-fitting and weight-0 rows are
+    /// dropped and the order of the rest is kept. Throws when more than ``maxLoRAs`` rows remain.
+    public static func freezeLoRAs(_ rows: [LoRADraftRow]) throws -> [LoRAStackEntry] {
+        let kept = rows.filter { $0.isEnabled && $0.fits && $0.entry.weight != 0 }.map(\.entry)
+        guard kept.count <= maxLoRAs else { throw LoRAStackError.tooMany(count: kept.count) }
+        return kept
     }
 
     public func enqueue(_ draft: GenerationDraft) async throws -> Job {
@@ -78,7 +113,8 @@ public struct GenerationComposer: Sendable {
             width: size.width,
             height: size.height,
             steps: family.stepsAreFixed ? nil : draft.steps.map { min(max($0, family.steps.min), family.steps.max) },
-            guidance: family.guidance == nil ? nil : draft.guidance)
+            guidance: family.guidance == nil ? nil : draft.guidance,
+            loras: draft.loras?.isEmpty == false ? draft.loras : nil)
 
         let project = try await store.defaultProject()
         return try await store.enqueueJob(

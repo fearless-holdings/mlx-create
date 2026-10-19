@@ -11,14 +11,16 @@ public actor LibraryStore {
     private var beforePartialWriteHook: (@Sendable (URL) throws -> Void)?
     private var statusHook: (@Sendable (JobStatus) throws -> Void)?
 
-    /// Opens (creating if needed) the library at `libraryRoot`, runs migrations, sweeps `*.partial` files
-    /// and ensures the default project exists.
-    public init(libraryRoot: URL) throws {
-        paths = LibraryPaths(root: libraryRoot)
+    /// Opens (creating if needed) the library at `libraryRoot`, runs migrations, sweeps `*.partial` files and
+    /// unreferenced LoRA files, and ensures the default project exists.
+    public init(libraryRoot: URL, modelsRoot: URL) throws {
+        paths = LibraryPaths(root: libraryRoot, modelsRoot: modelsRoot)
         try FileManager.default.createDirectory(at: libraryRoot, withIntermediateDirectories: true)
         dbQueue = try DatabaseQueue(path: paths.database.path)
         try Self.migrator.migrate(dbQueue)
         try Self.sweepPartials(under: libraryRoot)
+        try Self.sweepPartials(under: paths.loraRoot)
+        Self.sweepUnreferencedLoRAs(paths: paths, dbQueue: dbQueue)
         try dbQueue.write { db in
             if try ProjectRow.filter(Column("is_default") == true).fetchCount(db) == 0 {
                 try ProjectRow(Project(name: "Default"), isDefault: true).insert(db)
@@ -28,17 +30,17 @@ public actor LibraryStore {
 
     /// Opens the library off the caller's actor (R15). Directory creation, migrations, the `.partial` sweep and the
     /// default project run on a detached task, so launch never blocks the main thread.
-    public static func open(libraryRoot: URL) async throws -> LibraryStore {
-        try await openOffActor(libraryRoot: libraryRoot) { _ in }
+    public static func open(libraryRoot: URL, modelsRoot: URL) async throws -> LibraryStore {
+        try await openOffActor(libraryRoot: libraryRoot, modelsRoot: modelsRoot) { _ in }
     }
 
     /// ``open(libraryRoot:)`` with a probe that reports whether the opening work ran on the main thread (R15 test seam).
     static func openOffActor(
-        libraryRoot: URL, observe: @escaping @Sendable (_ onMainThread: Bool) -> Void
+        libraryRoot: URL, modelsRoot: URL, observe: @escaping @Sendable (_ onMainThread: Bool) -> Void
     ) async throws -> LibraryStore {
         try await Task.detached(priority: .userInitiated) {
             observe(pthread_main_np() != 0)
-            return try LibraryStore(libraryRoot: libraryRoot)
+            return try LibraryStore(libraryRoot: libraryRoot, modelsRoot: modelsRoot)
         }.value
     }
 
@@ -89,6 +91,19 @@ public actor LibraryStore {
             }
         }
         migrator.registerMigration("v3-installed-model", migrate: Self.createInstalledModelTable)
+        migrator.registerMigration("v4-lora") { db in
+            try db.create(table: "lora") { t in
+                t.primaryKey("id", .text).notNull()
+                t.column("name", .text).notNull()
+                t.column("family", .text).notNull()
+                t.column("sha256", .text).notNull().unique()
+                t.column("relative_path", .text).notNull()
+                t.column("size_bytes", .integer).notNull()
+                t.column("trigger_words", .text).notNull()
+                t.column("notes", .text)
+                t.column("created_at", .datetime).notNull()
+            }
+        }
         return migrator
     }
 
@@ -97,6 +112,31 @@ public actor LibraryStore {
         let fm = FileManager.default
         guard let enumerator = fm.enumerator(at: root, includingPropertiesForKeys: nil) else { return }
         for case let url as URL in enumerator where url.pathExtension == "partial" {
+            try? fm.removeItem(at: url)
+        }
+    }
+
+    /// Deletes files under `Models/LoRAs` that no `lora` row names: a copy whose import did not commit, or one left by a
+    /// crash. Only regular files inside the LoRA folder are touched, and `.partial` files are left to ``sweepPartials(under:)``.
+    /// Runs once at open. Errors are ignored: a stray file costs disk space, never correctness.
+    static func sweepUnreferencedLoRAs(paths: LibraryPaths, dbQueue: DatabaseQueue) {
+        let root = paths.loraRoot
+        let fm = FileManager.default
+        // `enumerator(atPath:)` yields paths relative to the root, so the result does not depend on how /var and /private/var resolve.
+        guard let referenced = try? dbQueue.read({ (db: Database) throws -> Set<String> in
+            try Set(String.fetchAll(db, sql: "SELECT relative_path FROM lora"))
+        }),
+            let enumerator = fm.enumerator(atPath: root.path)
+        else { return }
+        var orphans: [URL] = []
+        for case let name as String in enumerator where !name.hasSuffix(".partial") {
+            let url = root.appending(path: name)
+            guard (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else { continue }
+            let relativePath = "LoRAs/" + name
+            guard LibraryPaths.isValidLoRARelativePath(relativePath), !referenced.contains(relativePath) else { continue }
+            orphans.append(url)
+        }
+        for url in orphans {
             try? fm.removeItem(at: url)
         }
     }
@@ -118,6 +158,13 @@ public actor LibraryStore {
     @discardableResult
     public func enqueueJob(projectID: UUID, request: JobRequest, batchCount: Int, seedPolicy: String, mode: String = Job.textToImageMode) throws -> Job {
         try dbQueue.write { db in
+            for entry in request.loras ?? [] {
+                guard let row = try LoRARecord.fetchOne(db, key: entry.id), row.sha256 == entry.sha256,
+                      row.relativePath == entry.relativePath,
+                      let file = paths.loraURL(relativePath: row.relativePath),
+                      FileManager.default.fileExists(atPath: file.path)
+                else { throw LibraryError.loraUnavailable(name: entry.name) }
+            }
             let next = try Int.fetchOne(db, sql: "SELECT COALESCE(MAX(position), 0) + 1 FROM job WHERE status = ?",
                                         arguments: [JobStatus.queued.rawValue]) ?? 1
             let job = Job(
@@ -346,7 +393,7 @@ private struct ProjectRow: Codable, FetchableRecord, PersistableRecord {
     }
 }
 
-private struct JobRow: Codable, FetchableRecord, PersistableRecord {
+struct JobRow: Codable, FetchableRecord, PersistableRecord {
     static let databaseTableName = "job"
     var id: String
     var projectID: String
@@ -392,7 +439,7 @@ private struct JobRow: Codable, FetchableRecord, PersistableRecord {
     }
 }
 
-private struct ImageRow: Codable, FetchableRecord, PersistableRecord {
+struct ImageRow: Codable, FetchableRecord, PersistableRecord {
     static let databaseTableName = "image"
     var id: String
     var projectID: String

@@ -1,0 +1,21 @@
+{
+  "source": "https://huggingface.co/linoyts/flux2-klein-lora pytorch_lora_weights.safetensors (header only, reduced to one tensor per module name plus the highest block index)",
+  "tensors": {
+    "transformer.transformer_blocks.0.attn.to_k.lora_A.weight": [32, 4096],
+    "transformer.transformer_blocks.0.attn.to_k.lora_B.weight": [4096, 32],
+    "transformer.transformer_blocks.0.attn.to_out.0.lora_A.weight": [32, 4096],
+    "transformer.transformer_blocks.0.attn.to_out.0.lora_B.weight": [4096, 32],
+    "transformer.transformer_blocks.0.attn.to_q.lora_A.weight": [32, 4096],
+    "transformer.transformer_blocks.0.attn.to_q.lora_B.weight": [4096, 32],
+    "transformer.transformer_blocks.0.attn.to_v.lora_A.weight": [32, 4096],
+    "transformer.transformer_blocks.0.attn.to_v.lora_B.weight": [4096, 32],
+    "transformer.transformer_blocks.7.attn.to_k.lora_A.weight": [32, 4096],
+    "transformer.transformer_blocks.7.attn.to_k.lora_B.weight": [4096, 32],
+    "transformer.transformer_blocks.7.attn.to_out.0.lora_A.weight": [32, 4096],
+    "transformer.transformer_blocks.7.attn.to_out.0.lora_B.weight": [4096, 32],
+    "transformer.transformer_blocks.7.attn.to_q.lora_A.weight": [32, 4096],
+    "transformer.transformer_blocks.7.attn.to_q.lora_B.weight": [4096, 32],
+    "transformer.transformer_blocks.7.attn.to_v.lora_A.weight": [32, 4096],
+    "transformer.transformer_blocks.7.attn.to_v.lora_B.weight": [4096, 32]
+  }
+}

@@ -151,6 +151,13 @@ struct JobCell: View {
             Label("Failed", systemImage: "exclamationmark.triangle")
                 .font(.caption)
                 .foregroundStyle(.red)
+            if let message = job.failure?.message {
+                Text(message)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(3)
+            }
         case .cancelled:
             Label("Cancelled", systemImage: "xmark.circle").font(.caption)
         case .done:
@@ -164,7 +171,9 @@ struct JobCell: View {
         case .running:
             if let step = job.step, let total = job.total { "step \(step) of \(total)" } else { "running" }
         case .paused: "paused"
-        case .failed: job.canRetry ? "failed, retry available" : "failed"
+        case .failed:
+            [job.canRetry ? "failed, retry available" : "failed", job.failure?.message]
+                .compactMap { $0 }.joined(separator: ", ")
         case .cancelled: "cancelled"
         case .done: "done"
         }

@@ -12,6 +12,7 @@ public actor JobExecutor {
     private static let crashPollInterval = Duration.milliseconds(100)
 
     private let store: LibraryStore
+    private let modelsRoot: URL
     private let client: EngineClient
     private let queue: JobQueue
     private let hub: ExecutorEventHub
@@ -32,14 +33,17 @@ public actor JobExecutor {
     /// `crashKind` returns the supervisor's latest crash. It is asked only when a generation loses its
     /// connection, and a crash then supplies the job's failure instead of the generic mapping (KTD6).
     /// `engineVersion` is the pinned engine's version, written into each saved image's settings.
+    /// `modelsRoot` is the Models root that each job's LoRA paths resolve against (KTD6).
     public init(
         store: LibraryStore,
+        modelsRoot: URL,
         client: EngineClient,
         queue: JobQueue,
         crashKind: @escaping @Sendable () async -> EngineCrash? = { nil },
         engineVersion: String? = nil
     ) {
         self.store = store
+        self.modelsRoot = modelsRoot
         self.client = client
         self.queue = queue
         self.hub = queue.hub
@@ -143,7 +147,7 @@ public actor JobExecutor {
                 if case EngineError.outOfMemory = error, OutOfMemoryFailure.refusalUnloadsResidentModels {
                     await unloadResidentModels()
                 }
-                try await setStatus(job.id, .failed, failure: await jobFailure(for: error))
+                try await setStatus(job.id, .failed, failure: await jobFailure(for: error, request: job.request))
                 return
             }
         }
@@ -154,6 +158,12 @@ public actor JobExecutor {
             throw ExecutorError.invalidSeedPolicy(job.seedPolicy)
         }
         let seed = policy.seed(savedCount: savedCount, using: &rng)
+        // KTD6: every LoRA frozen into the job must still be the file that was imported, or the job fails before the engine is asked.
+        let loras = job.request.loras ?? []
+        var loraFiles: [URL] = []
+        for entry in loras {
+            loraFiles.append(try await loraFile(for: entry, modelID: job.request.modelID))
+        }
         let request = ImageRequest(
             model: job.request.modelID,
             prompt: job.request.prompt,
@@ -162,7 +172,9 @@ public actor JobExecutor {
             height: job.request.height,
             steps: job.request.steps,
             guidance: job.request.guidance,
-            seed: seed
+            seed: seed,
+            loraPaths: loras.isEmpty ? nil : loraFiles.map(\.path),
+            loraScales: loras.isEmpty ? nil : loras.map(\.weight)
         )
         let client = client
         let hub = hub
@@ -202,7 +214,8 @@ public actor JobExecutor {
             width: 0,
             height: 0,
             steps: result.total,
-            engineVersion: engineVersion
+            engineVersion: engineVersion,
+            loras: loras.isEmpty ? nil : loras.map { ImageLoRA(name: $0.name, sha256: $0.sha256, weight: $0.weight) }
         )
         let image = try await store.saveImage(NewImage(
             projectID: job.projectID,
@@ -211,6 +224,22 @@ public actor JobExecutor {
             settings: settings
         ))
         hub.send(.imageSaved(jobID: job.id, imageID: image.id))
+    }
+
+    /// The file a frozen LoRA entry names, checked against the library row it came from (KTD6, R17). A missing file is
+    /// retryable. A file whose size no longer matches the imported size is not, because re-importing cannot restore it.
+    /// Only the recorded size is compared, so no file is hashed when a job starts.
+    private func loraFile(for entry: LoRAStackEntry, modelID: String) async throws -> URL {
+        guard let file = LibraryPaths.loraURL(relativePath: entry.relativePath, modelsRoot: modelsRoot),
+              let record = try await store.loraRecord(id: entry.id),
+              record.relativePath == entry.relativePath,
+              FileManager.default.fileExists(atPath: file.path)
+        else { throw ExecutorError.loraMissing(name: entry.name, modelID: modelID) }
+        let size = (try? FileManager.default.attributesOfItem(atPath: file.path)[.size] as? NSNumber)?.int64Value
+        guard record.sha256 == entry.sha256, size == record.sizeBytes else {
+            throw ExecutorError.loraChanged(name: entry.name, modelID: modelID)
+        }
+        return file
     }
 
     /// Makes the job's model resident before its stream starts, unless the job was cancelled first.
@@ -241,11 +270,11 @@ public actor JobExecutor {
 
     /// A dropped connection is explained by the supervisor's crash when there is one; every other error
     /// keeps its own mapping.
-    private func jobFailure(for error: Error) async -> JobFailure {
+    private func jobFailure(for error: Error, request: JobRequest) async -> JobFailure {
         if Self.isConnectionLoss(error), let crash = await awaitCrash() {
             return FailureMapping.failure(for: crash)
         }
-        return FailureMapping.failure(for: error)
+        return FailureMapping.failure(for: error, request: request)
     }
 
     /// The supervisor publishes its crash shortly after the connection drops, so this polls briefly for it.

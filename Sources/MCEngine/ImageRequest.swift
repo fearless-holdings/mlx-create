@@ -10,6 +10,10 @@ public struct ImageRequest: Sendable, Equatable {
     public var steps: Int?
     public var guidance: Double?
     public var seed: UInt32
+    /// Absolute `.safetensors` paths (`lora_paths`). Nil or empty omits the key. Must match `loraScales` in length.
+    public var loraPaths: [String]?
+    /// Scales for `loraPaths`, one per path (`lora_scales`). Nil or empty omits the key.
+    public var loraScales: [Double]?
 
     public init(
         model: String,
@@ -19,8 +23,14 @@ public struct ImageRequest: Sendable, Equatable {
         height: Int,
         steps: Int? = nil,
         guidance: Double? = nil,
-        seed: UInt32
+        seed: UInt32,
+        loraPaths: [String]? = nil,
+        loraScales: [Double]? = nil
     ) {
+        precondition(
+            (loraPaths ?? []).count == (loraScales ?? []).count,
+            "lora_paths and lora_scales must have equal length"
+        )
         self.model = model
         self.prompt = prompt
         self.negativePrompt = negativePrompt
@@ -29,9 +39,11 @@ public struct ImageRequest: Sendable, Equatable {
         self.steps = steps
         self.guidance = guidance
         self.seed = seed
+        self.loraPaths = loraPaths
+        self.loraScales = loraScales
     }
 
-    /// JSON body with `stream: true`. Optional fields are omitted when nil.
+    /// JSON body with `stream: true`. Optional fields are omitted when nil or empty.
     public func body() throws -> Data {
         try JSONEncoder().encode(Wire(request: self))
     }
@@ -44,6 +56,8 @@ public struct ImageRequest: Sendable, Equatable {
         let steps: Int?
         let guidanceScale: Double?
         let seed: UInt32
+        let loraPaths: [String]?
+        let loraScales: [Double]?
         let stream: Bool
 
         init(request: ImageRequest) {
@@ -54,6 +68,8 @@ public struct ImageRequest: Sendable, Equatable {
             steps = request.steps
             guidanceScale = request.guidance
             seed = request.seed
+            loraPaths = request.loraPaths?.isEmpty == false ? request.loraPaths : nil
+            loraScales = request.loraScales?.isEmpty == false ? request.loraScales : nil
             stream = true
         }
 
@@ -61,6 +77,8 @@ public struct ImageRequest: Sendable, Equatable {
             case model, prompt, size, steps, seed, stream
             case negativePrompt = "negative_prompt"
             case guidanceScale = "guidance_scale"
+            case loraPaths = "lora_paths"
+            case loraScales = "lora_scales"
         }
     }
 }

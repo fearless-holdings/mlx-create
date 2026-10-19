@@ -7,7 +7,7 @@ import Testing
 private func makeStore() throws -> LibraryStore {
     let root = FileManager.default.temporaryDirectory
         .appendingPathComponent("mc-composer-\(UUID().uuidString)", isDirectory: true)
-    return try LibraryStore(libraryRoot: root)
+    return try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
 }
 
 private let kreaID = "ddalcu/Krea-2-Turbo-MLX-Serve-mixed-4-8"

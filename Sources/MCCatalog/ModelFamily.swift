@@ -69,12 +69,16 @@ public struct ModelFamily: Sendable, Codable, Hashable, Identifiable {
     /// A checkpoint trait the installed pack must report before this record applies, e.g.
     /// `sample_sigmas` (KTD5). `nil` means the architecture alone is enough.
     public let requiresTrait: String?
+    /// Tensor-name, shape and block-count fingerprints for LoRA files (KTD4). A file matches the family
+    /// when ANY alternative matches. `nil` or empty means the family accepts no LoRAs.
+    public let loraFingerprints: [LoRAFingerprint]?
 
     public init(
         id: String, displayName: String, architectures: [String], sizeGrid: SizeGrid,
         sizePresets: [ImageSize], defaultSize: ImageSize, steps: StepsCapability,
         guidance: GuidanceCapability?, supportsNegativePrompt: Bool,
-        stepsAreFixed: Bool = false, requiresTrait: String? = nil
+        stepsAreFixed: Bool = false, requiresTrait: String? = nil,
+        loraFingerprints: [LoRAFingerprint]? = nil
     ) {
         self.id = id
         self.displayName = displayName
@@ -87,11 +91,15 @@ public struct ModelFamily: Sendable, Codable, Hashable, Identifiable {
         self.guidance = guidance
         self.supportsNegativePrompt = supportsNegativePrompt
         self.requiresTrait = requiresTrait
+        self.loraFingerprints = loraFingerprints
     }
+
+    /// `true` when at least one LoRA fingerprint exists. A family without one accepts no LoRAs.
+    public var acceptsLoRAs: Bool { !(loraFingerprints ?? []).isEmpty }
 
     private enum CodingKeys: String, CodingKey {
         case id, displayName, architectures, sizeGrid, sizePresets, defaultSize, steps
-        case stepsAreFixed, guidance, supportsNegativePrompt, requiresTrait
+        case stepsAreFixed, guidance, supportsNegativePrompt, requiresTrait, loraFingerprints
     }
 
     /// `stepsAreFixed` and `requiresTrait` are optional in the JSON; absent means `false` and `nil`,
@@ -109,6 +117,159 @@ public struct ModelFamily: Sendable, Codable, Hashable, Identifiable {
             guidance: try container.decodeIfPresent(GuidanceCapability.self, forKey: .guidance),
             supportsNegativePrompt: try container.decode(Bool.self, forKey: .supportsNegativePrompt),
             stepsAreFixed: try container.decodeIfPresent(Bool.self, forKey: .stepsAreFixed) ?? false,
-            requiresTrait: try container.decodeIfPresent(String.self, forKey: .requiresTrait))
+            requiresTrait: try container.decodeIfPresent(String.self, forKey: .requiresTrait),
+            loraFingerprints: try container.decodeIfPresent([LoRAFingerprint].self, forKey: .loraFingerprints))
+    }
+}
+
+/// One name test for a LoRA tensor key (KTD4). Names are compared as exact prefixes, suffixes or substrings.
+public struct TensorNamePattern: Sendable, Codable, Hashable {
+    public enum Kind: String, Sendable, Codable, Hashable {
+        case prefix, suffix, contains
+    }
+
+    public let kind: Kind
+    public let text: String
+
+    public init(kind: Kind, text: String) {
+        self.kind = kind
+        self.text = text
+    }
+
+    public func matches(_ name: String) -> Bool {
+        switch kind {
+        case .prefix: name.hasPrefix(text)
+        case .suffix: name.hasSuffix(text)
+        case .contains: name.contains(text)
+        }
+    }
+}
+
+/// A required tensor shape: some tensor whose name matches `pattern` must have `shape[dimension] == size`.
+public struct LoRAShapeHint: Sendable, Codable, Hashable {
+    public let pattern: TensorNamePattern
+    public let dimension: Int
+    public let size: Int
+
+    public init(pattern: TensorNamePattern, dimension: Int, size: Int) {
+        self.pattern = pattern
+        self.dimension = dimension
+        self.size = size
+    }
+}
+
+/// A block family and the number of blocks the full model has, e.g. `double_blocks` with `5`. A LoRA may cover
+/// only some of them (partial coverage is accepted), but every `family.N.` index found after the wrapper prefix
+/// is stripped must be below `blockCount`, so a file that reaches a block the model lacks matches nothing.
+public struct LoRABlockCount: Sendable, Codable, Hashable {
+    /// Block-name prefix without the trailing dot, e.g. `double_blocks` or `transformer_blocks`.
+    public let family: String
+    /// The block count of the full model, taken from real sample headers.
+    public let blockCount: Int
+
+    public init(family: String, blockCount: Int) {
+        self.family = family
+        self.blockCount = blockCount
+    }
+}
+
+/// The tensor keys, shapes and block counts one layout of a family's LoRAs must carry (KTD4).
+/// Every entry is required. Names are matched after the wrapper prefix is stripped.
+/// A fingerprint with no tensor patterns matches nothing, so an empty record never accepts a file.
+public struct LoRAFingerprint: Sendable, Codable, Hashable {
+    public let tensorPatterns: [TensorNamePattern]
+    public let shapeHints: [LoRAShapeHint]
+    public let blockCounts: [LoRABlockCount]
+
+    public init(
+        tensorPatterns: [TensorNamePattern], shapeHints: [LoRAShapeHint] = [],
+        blockCounts: [LoRABlockCount] = []
+    ) {
+        self.tensorPatterns = tensorPatterns
+        self.shapeHints = shapeHints
+        self.blockCounts = blockCounts
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case tensorPatterns, shapeHints, blockCounts
+    }
+
+    /// `shapeHints` and `blockCounts` are optional in the JSON; absent means none.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            tensorPatterns: try container.decode([TensorNamePattern].self, forKey: .tensorPatterns),
+            shapeHints: try container.decodeIfPresent([LoRAShapeHint].self, forKey: .shapeHints) ?? [],
+            blockCounts: try container.decodeIfPresent([LoRABlockCount].self, forKey: .blockCounts) ?? [])
+    }
+
+    /// `tensors` maps each tensor name in a LoRA file to its shape.
+    public func matches(tensors: [String: [Int]]) -> Bool {
+        guard !tensorPatterns.isEmpty else { return false }
+        let named = tensors.map { (name: loraNameWithoutWrapper($0.key), shape: $0.value) }
+        let everyPatternFound = tensorPatterns.allSatisfy { pattern in
+            named.contains { pattern.matches($0.name) }
+        }
+        guard everyPatternFound else { return false }
+        let everyHintMet = shapeHints.allSatisfy { hint in
+            named.contains { entry in
+                hint.pattern.matches(entry.name) && entry.shape.indices.contains(hint.dimension)
+                    && entry.shape[hint.dimension] == hint.size
+            }
+        }
+        guard everyHintMet else { return false }
+        let names = named.map { $0.name }
+        return blockCounts.allSatisfy { requirement in
+            guard let highest = highestBlockIndex(of: requirement.family, in: names) else { return false }
+            return highest < requirement.blockCount
+        }
+    }
+}
+
+/// LoRA trainers prepend one of these wrapper prefixes to tensor names (PEFT, ComfyUI, diffusers).
+private let loraWrapperPrefixes = ["base_model.model.", "diffusion_model.", "transformer."]
+
+/// Strips the first wrapper prefix found, so one layout matches whichever trainer wrote the file.
+private func loraNameWithoutWrapper(_ name: String) -> String {
+    guard let prefix = loraWrapperPrefixes.first(where: { name.hasPrefix($0) }) else { return name }
+    return String(name.dropFirst(prefix.count))
+}
+
+/// The highest `family.N.` block index in `names`, or `nil` if the family has no indexed tensor.
+private func highestBlockIndex(of family: String, in names: [String]) -> Int? {
+    let prefix = family + "."
+    let indices = names.compactMap { name -> Int? in
+        guard name.hasPrefix(prefix) else { return nil }
+        return Int(name.dropFirst(prefix.count).prefix { $0 != "." })
+    }
+    return indices.max()
+}
+
+/// The outcome of classifying one LoRA file against the families (KTD4).
+public enum LoRAFamilyMatch: Sendable, Equatable {
+    case family(String)
+    /// No fingerprinted family matches. Lists the families that accept LoRAs, by display name.
+    case unmatched(supportedFamilyNames: [String])
+    /// Several families match, so none is chosen. Ids are in registry order.
+    case ambiguous([String])
+}
+
+extension FamilyRegistry {
+    /// Picks the family a LoRA belongs to from its tensor names and shapes. Families without a
+    /// fingerprint never match and are not listed as supported.
+    /// A file that two families both accept is `.ambiguous`: the classifier never guesses between them.
+    public func classifyLoRA(tensors: [String: [Int]]) -> LoRAFamilyMatch {
+        let fingerprinted = families.filter(\.acceptsLoRAs)
+        let matched = fingerprinted.filter { family in
+            (family.loraFingerprints ?? []).contains { $0.matches(tensors: tensors) }
+        }
+        switch matched.count {
+        case 0:
+            return .unmatched(supportedFamilyNames: fingerprinted.map(\.displayName))
+        case 1:
+            return .family(matched[0].id)
+        default:
+            return .ambiguous(matched.map(\.id))
+        }
     }
 }

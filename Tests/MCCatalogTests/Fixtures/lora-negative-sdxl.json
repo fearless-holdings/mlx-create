@@ -1,0 +1,8 @@
+{
+  "source": "synthetic negative: SDXL-style kohya keys, no real sample (not any supported family's layout)",
+  "tensors": {
+    "lora_unet_down_blocks_0_attentions_0_proj_in.lora_down.weight": [32, 320],
+    "lora_unet_down_blocks_0_attentions_0_proj_in.lora_up.weight": [320, 32],
+    "lora_unet_mid_block_attentions_0_proj_out.lora_down.weight": [32, 1280]
+  }
+}

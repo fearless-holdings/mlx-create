@@ -30,7 +30,7 @@ import Testing
     }
 
     @Test func recordedInstallReadsBackWithItsManifestAndLicense() async throws {
-        let store = try LibraryStore(libraryRoot: Self.scratchRoot())
+        let store = try LibraryStore(libraryRoot: Self.scratchRoot(), modelsRoot: Self.scratchRoot())
         let model = Self.record("krea-2-turbo-mixed-4-8")
 
         try await store.recordInstalledModel(model)
@@ -41,7 +41,7 @@ import Testing
     }
 
     @Test func installedModelsListOldestInstallFirst() async throws {
-        let store = try LibraryStore(libraryRoot: Self.scratchRoot())
+        let store = try LibraryStore(libraryRoot: Self.scratchRoot(), modelsRoot: Self.scratchRoot())
         try await store.recordInstalledModel(Self.record("later", installedAt: Self.installedAt.addingTimeInterval(60)))
         try await store.recordInstalledModel(Self.record("earlier", installedAt: Self.installedAt))
 
@@ -49,7 +49,7 @@ import Testing
     }
 
     @Test func recordingAModelAgainReplacesItsRow() async throws {
-        let store = try LibraryStore(libraryRoot: Self.scratchRoot())
+        let store = try LibraryStore(libraryRoot: Self.scratchRoot(), modelsRoot: Self.scratchRoot())
         try await store.recordInstalledModel(Self.record("model-a"))
         let reinstalled = Self.record("model-a", installedAt: Self.installedAt.addingTimeInterval(600))
 
@@ -61,15 +61,15 @@ import Testing
     @Test func recordSurvivesReopeningTheLibrary() async throws {
         let root = Self.scratchRoot()
         let model = Self.record("model-a")
-        try await LibraryStore(libraryRoot: root).recordInstalledModel(model)
+        try await LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models")).recordInstalledModel(model)
 
-        #expect(try await LibraryStore(libraryRoot: root).installedModels() == [model])
+        #expect(try await LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models")).installedModels() == [model])
     }
 
     @Test func v3MigrationAppliesOverV2DataAndKeepsJobsAndImages() async throws {
         let root = Self.scratchRoot()
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        let queue = try DatabaseQueue(path: LibraryPaths(root: root).database.path)
+        let queue = try DatabaseQueue(path: LibraryPaths(root: root, modelsRoot: root.appending(path: "Models")).database.path)
         try LibraryStore.migrator.migrate(queue, upTo: "v2-job-failure")
         let projectID = UUID().uuidString
         let jobID = UUID().uuidString
@@ -95,7 +95,7 @@ import Testing
         }
         #expect(try await queue.read { db in try Self.tableCount(db) } == 0, "v3 is not applied yet")
 
-        let store = try LibraryStore(libraryRoot: root)
+        let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
 
         let counts = try await queue.read { db in
             (

@@ -22,11 +22,43 @@ import Testing
         )
     }
 
+    static let twoLoRAs = [
+        ImageLoRA(name: "detail, tweaker", sha256: "ab12cd34ef56" + String(repeating: "0", count: 52), weight: 0.75),
+        ImageLoRA(name: "style: noir", sha256: "9f8e7d6c5b4a" + String(repeating: "1", count: 52), weight: -1.5),
+    ]
+
     @Test func writeThenReadRestoresEveryField() throws {
         let png = try TestPNG.make(width: 64, height: 48)
         let settings = Self.fullSettings()
         let embedded = try MetadataCodec.embed(settings, into: png)
         #expect(try MetadataCodec.read(fromPNG: embedded) == settings)
+    }
+
+    @Test func writeThenReadRestoresLoRANameHashAndWeight() throws {
+        var settings = Self.fullSettings()
+        settings.loras = Self.twoLoRAs
+        let png = try TestPNG.make(width: 64, height: 48)
+        let embedded = try MetadataCodec.embed(settings, into: png)
+        let restored = try #require(try MetadataCodec.read(fromPNG: embedded))
+        #expect(restored == settings)
+        #expect(restored.loras?.map(\.name) == ["detail, tweaker", "style: noir"])
+        #expect(restored.loras?.map(\.sha256) == Self.twoLoRAs.map(\.sha256))
+        #expect(restored.loras?.map(\.weight) == [0.75, -1.5])
+    }
+
+    @Test func a1111LineWithLoRAsListsAutoV2Hashes() {
+        var settings = Self.fullSettings()
+        settings.loras = Self.twoLoRAs
+        #expect(
+            MetadataCodec.a1111Parameters(settings)
+                == "a cat\nNegative prompt: blurry\nSteps: 8, CFG scale: 3.5, Seed: 4000000000, Size: 1024x768, Model: ddalcu/Krea-2-Turbo, Lora hashes: \"detail_ tweaker: ab12cd34ef, style_ noir: 9f8e7d6c5b\""
+        )
+    }
+
+    @Test func emptyLoRAListLeavesA1111LineUnchanged() {
+        var settings = Self.fullSettings()
+        settings.loras = []
+        #expect(MetadataCodec.a1111Parameters(settings) == MetadataCodec.a1111Parameters(Self.fullSettings()))
     }
 
     @Test func a1111ParametersLineMatchesFormatByteForByte() throws {

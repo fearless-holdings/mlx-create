@@ -15,7 +15,29 @@
       "defaultSize": { "width": 1024, "height": 1024 },
       "steps": { "defaultSteps": 4, "min": 1, "max": 100 },
       "guidance": null,
-      "supportsNegativePrompt": false
+      "supportsNegativePrompt": false,
+      "loraFingerprints": [
+        {
+          "tensorPatterns": [
+            { "kind": "prefix", "text": "blocks." },
+            { "kind": "contains", "text": ".attn.wq" }
+          ],
+          "shapeHints": [
+            { "pattern": { "kind": "contains", "text": ".attn.wq" }, "dimension": 1, "size": 6144 }
+          ],
+          "blockCounts": [{ "family": "blocks", "blockCount": 28 }]
+        },
+        {
+          "tensorPatterns": [
+            { "kind": "prefix", "text": "transformer_blocks." },
+            { "kind": "contains", "text": ".attn.to_gate" }
+          ],
+          "shapeHints": [
+            { "pattern": { "kind": "contains", "text": ".attn.to_gate" }, "dimension": 1, "size": 6144 }
+          ],
+          "blockCounts": [{ "family": "transformer_blocks", "blockCount": 28 }]
+        }
+      ]
     },
     {
       "id": "flux2-klein",
@@ -32,7 +54,40 @@
       "defaultSize": { "width": 1024, "height": 1024 },
       "steps": { "defaultSteps": 4, "min": 1, "max": 100 },
       "guidance": null,
-      "supportsNegativePrompt": false
+      "supportsNegativePrompt": false,
+      "loraFingerprints": [
+        {
+          "tensorPatterns": [
+            { "kind": "prefix", "text": "double_blocks." },
+            { "kind": "contains", "text": ".img_attn.qkv" }
+          ],
+          "shapeHints": [
+            { "pattern": { "kind": "contains", "text": ".img_attn.qkv" }, "dimension": 1, "size": 3072 }
+          ],
+          "blockCounts": [{ "family": "double_blocks", "blockCount": 5 }]
+        },
+        {
+          "tensorPatterns": [
+            { "kind": "prefix", "text": "double_blocks." },
+            { "kind": "contains", "text": ".img_attn.qkv" }
+          ],
+          "shapeHints": [
+            { "pattern": { "kind": "contains", "text": ".img_attn.qkv" }, "dimension": 1, "size": 4096 }
+          ],
+          "blockCounts": [{ "family": "double_blocks", "blockCount": 8 }]
+        },
+        {
+          "tensorPatterns": [
+            { "kind": "prefix", "text": "transformer_blocks." },
+            { "kind": "contains", "text": ".attn.to_q" },
+            { "kind": "suffix", "text": ".lora_A.weight" }
+          ],
+          "shapeHints": [
+            { "pattern": { "kind": "contains", "text": ".attn.to_q" }, "dimension": 1, "size": 4096 }
+          ],
+          "blockCounts": [{ "family": "transformer_blocks", "blockCount": 8 }]
+        }
+      ]
     },
     {
       "id": "qwen-image-2.1-turbo",
@@ -53,7 +108,41 @@
       "steps": { "defaultSteps": 8, "min": 8, "max": 8 },
       "stepsAreFixed": true,
       "guidance": null,
-      "supportsNegativePrompt": false
+      "supportsNegativePrompt": false,
+      "loraFingerprints": [
+        {
+          "tensorPatterns": [
+            { "kind": "prefix", "text": "transformer_blocks." },
+            { "kind": "contains", "text": ".attn.to_q" },
+            { "kind": "suffix", "text": ".lora.down.weight" }
+          ],
+          "shapeHints": [
+            { "pattern": { "kind": "contains", "text": ".attn.to_q" }, "dimension": 1, "size": 4096 }
+          ],
+          "blockCounts": [{ "family": "transformer_blocks", "blockCount": 32 }]
+        },
+        {
+          "tensorPatterns": [
+            { "kind": "prefix", "text": "transformer_blocks." },
+            { "kind": "contains", "text": ".attn.to_q" },
+            { "kind": "suffix", "text": ".lora_down.weight" }
+          ],
+          "shapeHints": [
+            { "pattern": { "kind": "contains", "text": ".attn.to_q" }, "dimension": 1, "size": 4096 }
+          ],
+          "blockCounts": [{ "family": "transformer_blocks", "blockCount": 32 }]
+        },
+        {
+          "tensorPatterns": [
+            { "kind": "prefix", "text": "transformer_blocks." },
+            { "kind": "contains", "text": ".img_mlp.gate_up" }
+          ],
+          "shapeHints": [
+            { "pattern": { "kind": "contains", "text": ".img_mlp.gate_up" }, "dimension": 1, "size": 4096 }
+          ],
+          "blockCounts": [{ "family": "transformer_blocks", "blockCount": 32 }]
+        }
+      ]
     }
   ]
 }

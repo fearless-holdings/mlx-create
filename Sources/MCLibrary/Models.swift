@@ -7,6 +7,10 @@ public enum LibraryError: Error, Equatable {
     case notFound
     /// A move was requested for a job that is not queued.
     case notQueued
+    /// A LoRA a queued job uses is missing from the library, or its file is gone.
+    case loraUnavailable(name: String)
+    /// A name that is empty after trimming whitespace.
+    case invalidName
 }
 
 /// The settings for one saved image (HLD §8.9, D12). Stored in the `mlx-create` PNG chunk and in the `IMAGE.settings` column.
@@ -30,6 +34,8 @@ public struct ImageSettings: Codable, Equatable, Sendable {
     /// Steps the engine ran, from its last progress event (D24). Nil when the engine sent no progress event.
     public var steps: Int?
     public var engineVersion: String?
+    /// LoRAs the image was made with, copied from its job's stack (KTD3). Nil for images saved before LoRA support.
+    public var loras: [ImageLoRA]?
 
     public init(
         prompt: String,
@@ -44,7 +50,8 @@ public struct ImageSettings: Codable, Equatable, Sendable {
         width: Int,
         height: Int,
         steps: Int? = nil,
-        engineVersion: String? = nil
+        engineVersion: String? = nil,
+        loras: [ImageLoRA]? = nil
     ) {
         self.prompt = prompt
         self.negativePrompt = negativePrompt
@@ -59,6 +66,7 @@ public struct ImageSettings: Codable, Equatable, Sendable {
         self.height = height
         self.steps = steps
         self.engineVersion = engineVersion
+        self.loras = loras
     }
 }
 
@@ -89,6 +97,8 @@ public struct JobRequest: Codable, Equatable, Sendable {
     public var height: Int
     public var steps: Int?
     public var guidance: Double?
+    /// LoRA stack frozen at enqueue (KTD3). Nil for jobs made before LoRA support.
+    public var loras: [LoRAStackEntry]?
 
     public init(
         modelID: String,
@@ -98,7 +108,8 @@ public struct JobRequest: Codable, Equatable, Sendable {
         width: Int,
         height: Int,
         steps: Int? = nil,
-        guidance: Double? = nil
+        guidance: Double? = nil,
+        loras: [LoRAStackEntry]? = nil
     ) {
         self.modelID = modelID
         self.family = family
@@ -108,6 +119,39 @@ public struct JobRequest: Codable, Equatable, Sendable {
         self.height = height
         self.steps = steps
         self.guidance = guidance
+        self.loras = loras
+    }
+}
+
+/// One LoRA in a job's stack, frozen at enqueue (KTD3). `relativePath` is relative to the Models root (D17).
+public struct LoRAStackEntry: Codable, Equatable, Sendable {
+    /// The `lora` table id.
+    public var id: String
+    public var name: String
+    /// Lowercase hex SHA-256 (64 characters).
+    public var sha256: String
+    public var weight: Double
+    public var relativePath: String
+
+    public init(id: String, name: String, sha256: String, weight: Double, relativePath: String) {
+        self.id = id
+        self.name = name
+        self.sha256 = sha256
+        self.weight = weight
+        self.relativePath = relativePath
+    }
+}
+
+/// A LoRA recorded on a saved image's settings (KTD3). Copied from the job's stack.
+public struct ImageLoRA: Codable, Equatable, Sendable {
+    public var name: String
+    public var sha256: String
+    public var weight: Double
+
+    public init(name: String, sha256: String, weight: Double) {
+        self.name = name
+        self.sha256 = sha256
+        self.weight = weight
     }
 }
 

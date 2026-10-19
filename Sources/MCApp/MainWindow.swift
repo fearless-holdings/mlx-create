@@ -45,6 +45,9 @@ public struct MainWindow: View {
         .sheet(isPresented: $model.isBrowserPresented) {
             ModelBrowserView(browser: model.browser)
         }
+        .sheet(isPresented: $model.isLoRALibraryPresented) {
+            LoRALibraryView(model: model)
+        }
     }
 }
 
