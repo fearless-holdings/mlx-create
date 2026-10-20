@@ -449,6 +449,10 @@ private struct CivitaiThumbnail: View {
             Rectangle().fill(.quaternary)
             if let image {
                 Image(nsImage: image).resizable().scaledToFill()
+            } else if url == nil {
+                Image(systemName: "photo")
+                    .foregroundStyle(.tertiary)
+                    .help("Civitai lists no safe-for-work preview for this LoRA. Turn on Include NSFW to see its examples, blurred.")
             }
         }
         .frame(width: 64, height: 64)
