@@ -1,0 +1,14 @@
+data: {"id":"chatcmpl-enh-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-enh-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"A red fox "},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-enh-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"crouches in fresh snow, "},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-enh-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"breath visible in the cold air."},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-enh-1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+data: {"id":"chatcmpl-enh-1","object":"chat.completion.chunk","choices":[],"usage":{"prompt_tokens":41,"completion_tokens":16,"total_tokens":57}}
+
+data: [DONE]
+

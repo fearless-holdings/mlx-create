@@ -31,7 +31,7 @@ public struct ModelEntry: Decodable, Sendable, Equatable {
     }
 }
 
-/// Client for the private engine's generation and model routes (KTD1/2/3/6/9).
+/// Client for the private engine's generation, chat and model routes (KTD1/2/3/6/9).
 /// Reads the current endpoint on every request, so a supervisor restart on a new port or key is picked up.
 public actor EngineClient {
     /// Silence longer than this on a request or stream is treated as a dead engine.
@@ -62,6 +62,23 @@ public actor EngineClient {
             let task = Task {
                 do {
                     try await self.streamGeneration(request, into: continuation)
+                    continuation.finish()
+                } catch is CancellationError {
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    /// Streams a chat completion as text deltas (KTD3). Cancelling the consumer cancels the request, as `generateImage` does.
+    public nonisolated func streamChat(_ request: ChatRequest) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    try await self.streamChatCompletion(request, into: continuation)
                     continuation.finish()
                 } catch is CancellationError {
                     continuation.finish()
@@ -123,6 +140,37 @@ public actor EngineClient {
             throw Self.map(error)
         }
         throw EngineError.streamEndedWithoutComplete
+    }
+
+    private func streamChatCompletion(
+        _ request: ChatRequest,
+        into continuation: AsyncThrowingStream<String, Error>.Continuation
+    ) async throws {
+        let body = try request.body()
+        let (bytes, response) = try await perform("POST", "v1/chat/completions", body: body, accept: "text/event-stream")
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard status == 200 else {
+            throw EngineError.fromChatResponse(status: status, body: try await collect(bytes))
+        }
+        var finished = false
+        do {
+            for try await line in bytes.lines {
+                switch ChatStreamParser.parse(line: line) {
+                case .ignored:
+                    continue
+                case .delta(let text, let finishes):
+                    if let text { continuation.yield(text) }
+                    if finishes { finished = true }
+                case .done:
+                    return
+                case .failed(let error):
+                    throw error
+                }
+            }
+        } catch let error as URLError {
+            throw Self.map(error)
+        }
+        guard finished else { throw EngineError.streamEndedWithoutComplete }
     }
 
     private func send(_ method: String, _ path: String, body: Data? = nil) async throws -> Data {

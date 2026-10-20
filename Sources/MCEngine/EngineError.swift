@@ -9,6 +9,10 @@ public enum EngineError: Error, Equatable, Sendable {
     case outOfMemory(engineMessage: String?)
     /// 503 `model_not_loaded`: the requested model is registered but not resident.
     case modelNotLoaded(engineMessage: String?)
+    /// Chat call 503 `out_of_memory` (or its streamed equivalent): the prompt enhancer could not load or run.
+    case enhancerOutOfMemory(engineMessage: String?)
+    /// Chat call 503 `model_not_loaded`: the prompt enhancer model is not installed or not resident.
+    case enhancerModelNotLoaded(engineMessage: String?)
     /// 503 `no_model`: there is no default model and none was named.
     case noModel(engineMessage: String?)
     /// 400: the engine rejected the request body.
@@ -31,6 +35,8 @@ public enum EngineError: Error, Equatable, Sendable {
         case .unauthorized: "The image engine rejected its access key. Restart the engine and try again."
         case .outOfMemory: OutOfMemoryFailure.message
         case .modelNotLoaded: "The model is not loaded. Load it and try again."
+        case .enhancerOutOfMemory: "Not enough free memory to run the prompt enhancer. Close other apps or models and try again."
+        case .enhancerModelNotLoaded: "The prompt enhancer model is not installed or not loaded. Install it or load it, then try again."
         case .noModel: "No model is loaded to generate with. Load a model first."
         case .badRequest: "The image engine rejected the request."
         case .loraRejected: "The image engine could not use a LoRA with this model. Remove or replace it and try again."
@@ -45,7 +51,8 @@ public enum EngineError: Error, Equatable, Sendable {
     public var engineMessage: String? {
         switch self {
         case .unauthorized(let m), .outOfMemory(let m), .modelNotLoaded(let m),
-             .noModel(let m), .badRequest(let m), .loraRejected(let m):
+             .noModel(let m), .badRequest(let m), .loraRejected(let m),
+             .enhancerOutOfMemory(let m), .enhancerModelNotLoaded(let m):
             m
         case .engineFailure(_, let m):
             m
@@ -77,6 +84,25 @@ public enum EngineError: Error, Equatable, Sendable {
         case "model_not_loaded": .modelNotLoaded(engineMessage: message)
         case "no_model": .noModel(engineMessage: message)
         default: .engineFailure(type: type, engineMessage: message)
+        }
+    }
+
+    /// Maps a non-200 chat response. Out-of-memory and model-not-loaded get enhancer copy; the rest map as image routes do.
+    static func fromChatResponse(status: Int, body: Data) -> EngineError {
+        let parsed = ErrorEnvelope.parse(body)
+        return enhancerSpecific(type: parsed.type, message: parsed.message) ?? fromResponse(status: status, body: body)
+    }
+
+    /// Maps a streamed chat `error` object, whether on a `finish_reason:"error"` frame or a top-level error.
+    static func fromChatStreamError(type: String?, message: String?) -> EngineError {
+        enhancerSpecific(type: type, message: message) ?? fromTyped(type: type, message: message)
+    }
+
+    private static func enhancerSpecific(type: String?, message: String?) -> EngineError? {
+        switch type {
+        case "out_of_memory": .enhancerOutOfMemory(engineMessage: message)
+        case "model_not_loaded": .enhancerModelNotLoaded(engineMessage: message)
+        default: nil
         }
     }
 }

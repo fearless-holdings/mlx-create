@@ -55,8 +55,9 @@ public enum FailureMapping {
 
     private static func retryable(_ error: EngineError) -> Bool {
         switch error {
-        case .outOfMemory: OutOfMemoryFailure.retryable
-        case .modelNotLoaded, .noModel, .engineFailure, .connectionLost, .timedOut, .streamEndedWithoutComplete:
+        case .outOfMemory, .enhancerOutOfMemory: OutOfMemoryFailure.retryable
+        case .modelNotLoaded, .enhancerModelNotLoaded, .noModel, .engineFailure,
+             .connectionLost, .timedOut, .streamEndedWithoutComplete:
             true
         case .unauthorized, .badRequest, .loraRejected, .malformedResponse:
             false
@@ -67,6 +68,7 @@ public enum FailureMapping {
     private static func engineDetail(_ error: EngineError) -> String? {
         switch error {
         case .unauthorized(let message), .outOfMemory(let message), .modelNotLoaded(let message),
+             .enhancerOutOfMemory(let message), .enhancerModelNotLoaded(let message),
              .noModel(let message), .badRequest(let message), .loraRejected(let message):
             message
         case .engineFailure(_, let message):
