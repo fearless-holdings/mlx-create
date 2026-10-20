@@ -32,6 +32,8 @@ public final class AppModel {
     private static let lastUsedModelKey = "lastUsedModelID"
     /// The defaults key for a user pause (KTD14). Set by `pauseQueue`, cleared by `resumeQueue`.
     static let queuePausedDefaultsKey = "queuePaused"
+    /// The defaults key for the collection the app shows (D35). A stored id that no longer exists falls back to the default.
+    static let currentCollectionDefaultsKey = "currentCollectionID"
     /// The defaults key for the Civitai NSFW opt-in (plan U6, R7). Persisted across launches.
     static let civitaiIncludeNSFWKey = "civitaiIncludeNSFW"
     /// Gallery images per page. Pages load on demand, so every image in the library can be reached.
@@ -49,13 +51,20 @@ public final class AppModel {
     public private(set) var engineState: EngineState = .stopped
     public private(set) var models: [InstalledModel] = []
     private var modelsLoaded = false
-    public private(set) var projectName = "Untitled"
+    /// The collection the gallery, queue strip and new jobs use (D35). Set by `ensureCurrentCollection()` and `switchCollection(to:)`.
+    var currentCollection = ImageCollection(name: "Untitled", isDefault: true)
+    /// Whether `currentCollection` was read from the library. Until then its id is a placeholder that no read uses.
+    var collectionResolved = false
+    /// Every collection with its image and open-job counts, default first. Refreshed after each change.
+    public internal(set) var collections: [CollectionSummary] = []
+    /// The name sheet's state: nil while no sheet is up.
+    var collectionEditor: CollectionEditor?
     /// The queue strip in display order: the running job, the queue in order, then paused, failed and cancelled jobs.
     public private(set) var queueJobs: [JobItem] = []
     /// Finished images loaded so far, newest first. Later pages load through `loadMoreImages()`.
-    public private(set) var galleryImages: [LibraryImage] = []
+    public internal(set) var galleryImages: [LibraryImage] = []
     /// Whether the library holds images past those in `galleryImages`.
-    public private(set) var hasMoreImages = false
+    public internal(set) var hasMoreImages = false
     public private(set) var queueHeader: QueueHeader = .idle
     public private(set) var runningProgress: RunningProgress?
     private var warmingModelID: String?
@@ -102,16 +111,17 @@ public final class AppModel {
     let registry: FamilyRegistry
     private let states: AsyncStream<EngineState>
     private let supervisor: EngineSupervisor?
-    private let defaults: UserDefaults
+    let defaults: UserDefaults
     private let installTransport: (any ModelTransport)?
     private let catalogStore: CatalogStore?
     private let queue: JobQueue
     private let executor: JobExecutor
     private let composer: GenerationComposer
     private let libraryPaths: LibraryPaths
-    private var galleryLoaded = false
-    /// Bumped whenever a gallery page or a prepended image changes `galleryImages`. See `reloadGallery`.
-    private var galleryRevision = 0
+    var galleryLoaded = false
+    /// Bumped whenever what the gallery shows changes: a page, a prepended image, a move or a collection switch. It is
+    /// never reset, so a read that started earlier can never match a later value. See `reloadGallery`.
+    var galleryRevision = 0
     private var isLoadingMoreImages = false
     private var tasks: [Task<Void, Never>] = []
     private var started = false
@@ -347,6 +357,7 @@ public final class AppModel {
     public func start() async {
         guard !started else { return }
         started = true
+        await ensureCurrentCollection()
         // The user's pause outlives the app (KTD14): a flag left by Pause pauses the queue before anything drains.
         if defaults.bool(forKey: Self.queuePausedDefaultsKey) { await queue.pause() }
         do {
@@ -454,7 +465,7 @@ public final class AppModel {
         selectedModelID = ModelSelection.defaultModelID(in: models, registry: registry)
     }
 
-    private func fitComposerToSelectedFamily() {
+    func fitComposerToSelectedFamily() {
         guard let model = selectedModel, ModelSelection.isSelectable(model), let family = model.family else { return }
         let fitted = ModelSelection.fit(size: size, steps: steps, guidance: guidance, to: family)
         size = fitted.size
@@ -498,7 +509,7 @@ public final class AppModel {
             model: model, prompt: prompt, negativePrompt: negativePrompt, size: size,
             steps: steps, guidance: guidance, batchCount: batchCount, seedPolicy: seedPolicy, loras: loras)
         do {
-            let job = try await composer.enqueue(draft)
+            let job = try await composer.enqueue(draft, collectionID: currentCollection.id)
             selection = job.id
             lastError = nil
             await reload()
@@ -633,9 +644,9 @@ public final class AppModel {
                 await reload()
             }
         case .imageSaved(let jobID, let imageID):
-            if selection == jobID { selection = imageID }
-            await prependImage(id: imageID)
+            await prependImage(jobID: jobID, id: imageID)
             await reloadQueue()
+            await refreshCollections()
         case .jobChanged:
             await reload()
         }
@@ -649,61 +660,76 @@ public final class AppModel {
 
     /// Rebuilds the queue strip, the queue header and the gallery from the library.
     func reload() async {
+        await ensureCurrentCollection()
         await reloadQueue()
         await reloadGallery()
         await refreshLoRALibrary()
+        await refreshCollections()
     }
 
     /// Rebuilds the queue strip and header. Placeholders come first: the running job, the queue in order, then paused,
     /// failed and cancelled jobs. Done jobs appear as images in the gallery instead.
     private func reloadQueue() async {
-        do {
-            let project = try await store.defaultProject()
-            projectName = project.name
-            let snapshot = try await queue.snapshot()
-            let running = snapshot.running.flatMap { (job: Job) -> Job? in job.projectID == project.id ? job : nil }
-            let queued = snapshot.queued.filter { $0.projectID == project.id }
-            let paused = try await store.jobs(status: .paused).filter { $0.projectID == project.id }
-            let failed = try await store.jobs(status: .failed).filter { $0.projectID == project.id }
-            let cancelled = try await store.jobs(status: .cancelled).filter { $0.projectID == project.id }
+        // A page or a prepended image changes `galleryRevision` but not the queue, so the read repeats rather than
+        // being dropped. A switch changes the collection; the switch's own reload then follows.
+        while true {
+            let revision = galleryRevision
+            let collectionID = currentCollection.id
+            do {
+                let snapshot = try await queue.snapshot()
+                let running = snapshot.running.flatMap { (job: Job) -> Job? in job.collectionID == collectionID ? job : nil }
+                let queued = snapshot.queued.filter { $0.collectionID == collectionID }
+                let paused = try await store.jobs(status: .paused).filter { $0.collectionID == collectionID }
+                let failed = try await store.jobs(status: .failed).filter { $0.collectionID == collectionID }
+                let cancelled = try await store.jobs(status: .cancelled).filter { $0.collectionID == collectionID }
 
-            var items: [JobItem] = []
-            if let running {
-                items.append(try await placeholder(for: running))
+                var items: [JobItem] = []
+                if let running {
+                    items.append(try await placeholder(for: running))
+                }
+                for (index, job) in queued.enumerated() {
+                    items.append(try await placeholder(
+                        for: job, canMoveUp: index > 0, canMoveDown: index < queued.count - 1))
+                }
+                for job in paused + failed + cancelled {
+                    items.append(try await placeholder(for: job))
+                }
+                guard collectionID == currentCollection.id else { return }
+                guard revision == galleryRevision else { continue }
+                queueJobs = items
+                queueHeader = QueuePresentation.header(isRunning: running != nil, pauseRequested: snapshot.isPauseRequested)
+                if runningProgress?.jobID != running?.id {
+                    runningProgress = nil
+                }
+                return
+            } catch {
+                lastError = message(for: error)
+                return
             }
-            for (index, job) in queued.enumerated() {
-                items.append(try await placeholder(
-                    for: job, canMoveUp: index > 0, canMoveDown: index < queued.count - 1))
-            }
-            for job in paused + failed + cancelled {
-                items.append(try await placeholder(for: job))
-            }
-            queueJobs = items
-            queueHeader = QueuePresentation.header(isRunning: running != nil, pauseRequested: snapshot.isPauseRequested)
-            if runningProgress?.jobID != running?.id {
-                runningProgress = nil
-            }
-        } catch {
-            lastError = message(for: error)
         }
     }
 
     /// Fetches the first gallery page. When more pages are already loaded, it refetches all of them instead, so a
-    /// reload never collapses the gallery back to one page under the user's scroll position. A reload that a page
-    /// or a prepended image overtook drops its result, because that change already carries fresher data.
+    /// reload never collapses the gallery back to one page under the user's scroll position. A read that a page, a
+    /// prepended image or a move overtook is read again, so the result that lands is never older than those changes.
     private func reloadGallery() async {
-        let revision = galleryRevision
-        do {
-            let project = try await store.defaultProject()
-            let count = max(Self.galleryPageSize, galleryImages.count)
-            // One extra row shows whether another page follows, so an exact multiple of the page size is right.
-            let rows = try await store.recentImages(projectID: project.id, limit: count + 1, offset: 0)
-            galleryLoaded = true
-            guard revision == galleryRevision else { return }
-            galleryImages = Array(rows.prefix(count))
-            hasMoreImages = rows.count > count
-        } catch {
-            lastError = message(for: error)
+        while true {
+            let revision = galleryRevision
+            let collectionID = currentCollection.id
+            do {
+                let count = max(Self.galleryPageSize, galleryImages.count)
+                // One extra row shows whether another page follows, so an exact multiple of the page size is right.
+                let rows = try await store.recentImages(collectionID: collectionID, limit: count + 1, offset: 0)
+                guard collectionID == currentCollection.id else { return }
+                guard revision == galleryRevision else { continue }
+                galleryLoaded = true
+                galleryImages = Array(rows.prefix(count))
+                hasMoreImages = rows.count > count
+                return
+            } catch {
+                lastError = message(for: error)
+                return
+            }
         }
     }
 
@@ -712,11 +738,14 @@ public final class AppModel {
         guard hasMoreImages, !isLoadingMoreImages else { return }
         isLoadingMoreImages = true
         defer { isLoadingMoreImages = false }
+        let revision = galleryRevision
+        let collectionID = currentCollection.id
         do {
-            let project = try await store.defaultProject()
             // One extra row shows whether another page follows, so an exact multiple of the page size is right.
             let rows = try await store.recentImages(
-                projectID: project.id, limit: Self.galleryPageSize + 1, offset: galleryImages.count)
+                collectionID: collectionID, limit: Self.galleryPageSize + 1, offset: galleryImages.count)
+            // A switch, a move or a prepend that landed while this page was read makes its rows and offsets stale.
+            guard revision == galleryRevision, collectionID == currentCollection.id else { return }
             // A save that lands while this page is read shifts the offsets by one, so skip images already shown.
             let shown = Set(galleryImages.map(\.id))
             let fresh = rows.prefix(Self.galleryPageSize).filter { !shown.contains($0.id) }
@@ -730,15 +759,18 @@ public final class AppModel {
         }
     }
 
-    /// Puts a just-saved image at the front of the loaded gallery without reloading it. Before the first gallery
-    /// load there is nothing to prepend to, and that load reads the image anyway.
-    private func prependImage(id imageID: UUID) async {
-        guard galleryLoaded else { return }
+    /// Handles a save. The image joins the gallery, and the selection follows the job's placeholder, only when the image
+    /// is in the current collection (KTD8). A save into another collection changes neither. Any gallery read in flight
+    /// is made to read again, because it may not have seen this image yet.
+    private func prependImage(jobID: UUID, id imageID: UUID) async {
         do {
-            let image = try await store.image(id: imageID)
-            guard let image, !galleryImages.contains(where: { $0.id == imageID }) else { return }
-            galleryImages.insert(image, at: 0)
+            // The collection is read after the await, so the check and the change below run in one main-actor step.
+            guard let image = try await store.image(id: imageID), image.collectionID == currentCollection.id else { return }
+            if selection == jobID { selection = imageID }
             galleryRevision += 1
+            // Before the first gallery load there is nothing to prepend to, and that load reads the image anyway.
+            guard galleryLoaded, !galleryImages.contains(where: { $0.id == imageID }) else { return }
+            galleryImages.insert(image, at: 0)
         } catch {
             lastError = message(for: error)
         }
@@ -781,6 +813,16 @@ public final class AppModel {
             "\"\(name)\" is missing from the library or its file is gone. Remove it from the stack or re-import it."
         case LoRAStackError.tooMany:
             "A job can use up to \(GenerationComposer.maxLoRAs) LoRAs. Remove one to generate."
+        case LibraryError.invalidName: "Enter a name for the collection."
+        case LibraryError.duplicateCollectionName: "Another collection already has that name. Choose a different name."
+        case LibraryError.defaultCollectionCannotBeDeleted: "The default collection cannot be deleted."
+        case LibraryError.collectionHasImages(let count):
+            "This collection still holds \(count) image\(count == 1 ? "" : "s"). Move or delete them first."
+        case LibraryError.collectionHasJobs(let count):
+            "This collection still has \(count) queued, running or paused job\(count == 1 ? "" : "s"). Wait for them to finish or cancel them first."
+        case LibraryError.folderReconcileFailed(let path):
+            "The library could not move \(path) into the Collections folder. Check that the library folder is writable, then reopen the app."
+        case LibraryError.notFound: "That item is no longer in the library."
         default: error.localizedDescription
         }
     }

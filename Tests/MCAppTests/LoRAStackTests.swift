@@ -78,7 +78,7 @@ private func importLoRA(_ harness: AppHarness, _ layout: LoRALayout, name: Strin
 @MainActor
 private func saveLoRAImage(_ harness: AppHarness, prompt: String, loras: [ImageLoRA]) async throws -> LibraryImage {
     try await harness.store.saveImage(NewImage(
-        projectID: harness.projectID, jobID: nil, pngData: PNGFixture.make(width: 512, height: 512),
+        collectionID: harness.collectionID, jobID: nil, pngData: PNGFixture.make(width: 512, height: 512),
         settings: ImageSettings(
             prompt: prompt, negativePrompt: nil, modelID: kreaModel, family: "krea-2-turbo",
             requestedWidth: 512, requestedHeight: 512, requestedSteps: 4, guidance: nil, seed: 7,

@@ -17,11 +17,12 @@ public struct LibraryPaths: Sendable {
         root.appending(path: "library.sqlite")
     }
 
-    /// `Projects/<project-id>/<yyyy-mm>/<image-id>.png`, relative to the root.
-    public func imageRelativePath(projectID: UUID, imageID: UUID, date: Date) -> String {
+    /// `Collections/<collection-id>/<yyyy-mm>/<image-id>.png`, relative to the root. The folder is the collection the
+    /// image was first saved into; moving the image to another collection does not move the file (D35).
+    public func imageRelativePath(collectionID: UUID, imageID: UUID, date: Date) -> String {
         let parts = Calendar(identifier: .gregorian).dateComponents([.year, .month], from: date)
         let month = String(format: "%04d-%02d", parts.year ?? 0, parts.month ?? 0)
-        return "Projects/\(projectID.uuidString)/\(month)/\(imageID.uuidString).png"
+        return "Collections/\(collectionID.uuidString)/\(month)/\(imageID.uuidString).png"
     }
 
     /// `Thumbnails/<image-id>.heic`, relative to the root.

@@ -51,10 +51,11 @@ struct GenerationComposerTests {
         let registry = try FamilyRegistry.bundled()
         let store = try makeStore()
         let composer = GenerationComposer(registry: registry, store: store)
+        let collection = try await store.defaultCollection().id
 
         let job = try await composer.enqueue(draft(
             model: try kreaModel(registry), size: ImageSize(width: 1000, height: 500),
-            seedPolicy: .increment(base: 9)))
+            seedPolicy: .increment(base: 9)), collectionID: collection)
 
         #expect(job.status == .queued)
         #expect(job.batchCount == 2)
@@ -74,9 +75,10 @@ struct GenerationComposerTests {
         let registry = try FamilyRegistry.bundled()
         let store = try makeStore()
         let composer = GenerationComposer(registry: registry, store: store)
+        let collection = try await store.defaultCollection().id
 
         let job = try await composer.enqueue(draft(
-            model: try kreaModel(registry), negativePrompt: "blurry", guidance: 3.5))
+            model: try kreaModel(registry), negativePrompt: "blurry", guidance: 3.5), collectionID: collection)
 
         #expect(job.request.negativePrompt == nil)
         #expect(job.request.guidance == nil)
@@ -86,18 +88,19 @@ struct GenerationComposerTests {
         let registry = try FamilyRegistry.bundled()
         let store = try makeStore()
         let composer = GenerationComposer(registry: registry, store: store)
+        let collection = try await store.defaultCollection().id
         let model = try kreaModel(registry)
 
-        let unset = try await composer.enqueue(draft(model: model, steps: nil))
+        let unset = try await composer.enqueue(draft(model: model, steps: nil), collectionID: collection)
         #expect(unset.request.steps == nil)
 
-        let high = try await composer.enqueue(draft(model: model, steps: 500))
+        let high = try await composer.enqueue(draft(model: model, steps: 500), collectionID: collection)
         #expect(high.request.steps == 100)
 
-        let low = try await composer.enqueue(draft(model: model, steps: 0))
+        let low = try await composer.enqueue(draft(model: model, steps: 0), collectionID: collection)
         #expect(low.request.steps == 1)
 
-        let inRange = try await composer.enqueue(draft(model: model, steps: 8))
+        let inRange = try await composer.enqueue(draft(model: model, steps: 8), collectionID: collection)
         #expect(inRange.request.steps == 8)
     }
 
@@ -105,13 +108,14 @@ struct GenerationComposerTests {
         let registry = try FamilyRegistry.bundled()
         let store = try makeStore()
         let composer = GenerationComposer(registry: registry, store: store)
+        let collection = try await store.defaultCollection().id
         let model = try kreaModel(registry)
 
         await #expect(throws: GenerationError.emptyPrompt) {
-            try await composer.enqueue(draft(model: model, prompt: ""))
+            try await composer.enqueue(draft(model: model, prompt: ""), collectionID: collection)
         }
         await #expect(throws: GenerationError.emptyPrompt) {
-            try await composer.enqueue(draft(model: model, prompt: "  \n\t "))
+            try await composer.enqueue(draft(model: model, prompt: "  \n\t "), collectionID: collection)
         }
         #expect(try await store.jobs(status: .queued).isEmpty)
     }
@@ -120,12 +124,13 @@ struct GenerationComposerTests {
         let registry = try FamilyRegistry.bundled()
         let store = try makeStore()
         let composer = GenerationComposer(registry: registry, store: store)
+        let collection = try await store.defaultCollection().id
         let model = InstalledModel(
             id: "ddalcu/Qwen-Image-2.1-MLX-Serve-4bit", architecture: "qwen_image21", family: nil,
             availability: .unavailable(reason: "No verified record for this model."))
 
         await #expect(throws: GenerationError.modelUnavailable(reason: "No verified record for this model.")) {
-            try await composer.enqueue(draft(model: model))
+            try await composer.enqueue(draft(model: model), collectionID: collection)
         }
         #expect(try await store.jobs(status: .queued).isEmpty)
     }
@@ -134,13 +139,14 @@ struct GenerationComposerTests {
         let registry = try FamilyRegistry.bundled()
         let store = try makeStore()
         let composer = GenerationComposer(registry: registry, store: store)
+        let collection = try await store.defaultCollection().id
         let model = try kreaModel(registry)
 
         await #expect(throws: GenerationError.invalidBatchCount(0)) {
-            try await composer.enqueue(draft(model: model, batchCount: 0))
+            try await composer.enqueue(draft(model: model, batchCount: 0), collectionID: collection)
         }
         await #expect(throws: GenerationError.invalidBatchCount(-3)) {
-            try await composer.enqueue(draft(model: model, batchCount: -3))
+            try await composer.enqueue(draft(model: model, batchCount: -3), collectionID: collection)
         }
         #expect(try await store.jobs(status: .queued).isEmpty)
     }
@@ -169,11 +175,13 @@ struct GenerationComposerTests {
         let registry = try FamilyRegistry.bundled()
         let store = try makeStore()
         let composer = GenerationComposer(registry: registry, store: store)
+        let collection = try await store.defaultCollection().id
         let settings = ImageSettings(
             prompt: "moss on stones", modelID: kreaID, family: "krea-2-turbo",
             requestedWidth: 512, requestedHeight: 512, seed: 77, width: 512, height: 512, steps: 4)
 
-        let job = try await composer.enqueue(composer.draft(reusing: settings, model: try kreaModel(registry)))
+        let job = try await composer.enqueue(
+            composer.draft(reusing: settings, model: try kreaModel(registry)), collectionID: collection)
 
         #expect(job.batchCount == 1)
         #expect(SeedPolicy(encoded: job.seedPolicy) == .fixed(77))
@@ -183,8 +191,10 @@ struct GenerationComposerTests {
         let registry = try FamilyRegistry.bundled()
         let store = try makeStore()
         let composer = GenerationComposer(registry: registry, store: store)
+        let collection = try await store.defaultCollection().id
 
-        let job = try await composer.enqueue(draft(model: try turboModel(registry), steps: 20))
+        let job = try await composer.enqueue(
+            draft(model: try turboModel(registry), steps: 20), collectionID: collection)
 
         #expect(job.request.steps == nil)
     }

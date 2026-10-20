@@ -166,7 +166,7 @@ private func writeTurboIndex(under weightsRoot: URL) throws {
         await model.start()
         await model.refreshModels()
         let image = try await harness.store.saveImage(NewImage(
-            projectID: harness.projectID, jobID: nil,
+            collectionID: harness.collectionID, jobID: nil,
             pngData: PNGFixture.make(width: 1024, height: 1024),
             settings: ImageSettings(
                 prompt: "a heron", negativePrompt: nil, modelID: turboModelID, family: "qwen-image-2.1-turbo",
@@ -336,7 +336,7 @@ private func writeTurboIndex(under weightsRoot: URL) throws {
         let jobID = try #require(model.selection)
         try await eventually { imageCount(model) == 2 && jobItem(model, jobID)?.savedCount == 2 }
 
-        let stored = try await harness.store.recentImages(projectID: harness.projectID, limit: 10)
+        let stored = try await harness.store.recentImages(collectionID: harness.collectionID, limit: 10)
         #expect(model.galleryImages.map(\.id) == stored.map(\.id))
         #expect(jobItem(model, jobID)?.status == .running)
 

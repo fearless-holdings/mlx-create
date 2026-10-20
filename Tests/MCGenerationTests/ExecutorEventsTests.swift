@@ -68,7 +68,7 @@ private func collect(_ stream: AsyncStream<ExecutorEvent>, into log: EventLog) -
             if case .imageSaved(_, let imageID) = event { return imageID }
             return nil
         }
-        let rows = try await harness.store.recentImages(projectID: harness.projectID, limit: 2)
+        let rows = try await harness.store.recentImages(collectionID: harness.collectionID, limit: 2)
         #expect(Set(savedIDs) == Set(rows.map(\.id)))
         subscriptions.forEach { $0.cancel() }
     }

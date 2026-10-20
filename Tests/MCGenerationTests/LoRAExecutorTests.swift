@@ -18,7 +18,7 @@ struct LoRAExecutorTests {
 
         try await harness.executor.drain()
 
-        let image = try #require(try await harness.store.recentImages(projectID: harness.projectID, limit: 1).first)
+        let image = try #require(try await harness.store.recentImages(collectionID: harness.collectionID, limit: 1).first)
         #expect(image.settings.loras == [ImageLoRA(name: "Pixel art", sha256: lora.sha256, weight: 0.8)])
         #expect(try await harness.store.savedImageCount(jobID: job.id) == 1)
 

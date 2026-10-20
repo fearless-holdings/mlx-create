@@ -218,7 +218,7 @@ public actor JobExecutor {
             loras: loras.isEmpty ? nil : loras.map { ImageLoRA(name: $0.name, sha256: $0.sha256, weight: $0.weight) }
         )
         let image = try await store.saveImage(NewImage(
-            projectID: job.projectID,
+            collectionID: job.collectionID,
             jobID: job.id,
             pngData: result.png,
             settings: settings

@@ -71,7 +71,7 @@ struct Harness {
     let queue: JobQueue
     let executor: JobExecutor
     let endpoint: EngineEndpoint
-    let projectID: UUID
+    let collectionID: UUID
     let modelsRoot: URL
 
     static func make(
@@ -92,9 +92,9 @@ struct Harness {
         let queue = JobQueue(store: store)
         let executor = JobExecutor(
             store: store, modelsRoot: modelsRoot, client: client, queue: queue, engineVersion: engineVersion)
-        let project = try await store.defaultProject()
+        let collection = try await store.defaultCollection()
         return Harness(
-            store: store, queue: queue, executor: executor, endpoint: endpoint, projectID: project.id,
+            store: store, queue: queue, executor: executor, endpoint: endpoint, collectionID: collection.id,
             modelsRoot: modelsRoot)
     }
 
@@ -108,7 +108,7 @@ struct Harness {
         loras: [LoRAStackEntry] = []
     ) async throws -> Job {
         try await store.enqueueJob(
-            projectID: projectID,
+            collectionID: collectionID,
             request: JobRequest(
                 modelID: model, family: "krea-2-turbo", prompt: "a lighthouse at dusk",
                 width: width, height: height, steps: steps, loras: loras.isEmpty ? nil : loras
@@ -138,7 +138,7 @@ struct Harness {
     /// Inserts a queued job without the enqueue checks, so a test can hand the executor a request the library would refuse.
     func insertQueuedJobSkippingChecks(_ request: JobRequest) async throws -> Job {
         let job = Job(
-            id: UUID(), projectID: projectID, mode: Job.textToImageMode, request: request,
+            id: UUID(), collectionID: collectionID, mode: Job.textToImageMode, request: request,
             batchCount: 1, seedPolicy: SeedPolicy.random.encoded, status: .queued, position: 1)
         try await store.dbQueue.write { db in try JobRow(job).insert(db) }
         return job

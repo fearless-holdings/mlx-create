@@ -17,7 +17,7 @@ import Testing
     @Test func jobRequestSavedBeforeLoRASupportDecodesWithoutStack() async throws {
         let root = Self.scratchRoot()
         let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models", directoryHint: .isDirectory))
-        let project = try await store.defaultProject()
+        let collection = try await store.defaultCollection()
         let original = JobRequest(modelID: "krea-2-turbo", family: "krea-2", prompt: "a red fox", width: 512, height: 512, steps: 8)
 
         // The JSON shape written before this change: the encoded request with no `loras` key.
@@ -28,8 +28,8 @@ import Testing
 
         try await store.dbQueue.write { db in
             try db.execute(
-                sql: "INSERT INTO job (id, project_id, mode, request, batch_count, seed_policy, status, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                arguments: [UUID().uuidString, project.id.uuidString, Job.textToImageMode, legacy, 1, "fixed", JobStatus.queued.rawValue, 1])
+                sql: "INSERT INTO job (id, collection_id, mode, request, batch_count, seed_policy, status, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                arguments: [UUID().uuidString, collection.id.uuidString, Job.textToImageMode, legacy, 1, "fixed", JobStatus.queued.rawValue, 1])
         }
 
         let queued = try #require(try await store.jobs(status: .queued).first)
@@ -55,7 +55,7 @@ import Testing
         let root = Self.scratchRoot()
         let models = root.appending(path: "Models", directoryHint: .isDirectory)
         let store = try LibraryStore(libraryRoot: root, modelsRoot: models)
-        let project = try await store.defaultProject()
+        let collection = try await store.defaultCollection()
         let stack = [
             LoRAStackEntry(id: "lora-a", name: "Pixel art", sha256: Self.hash("a"), weight: 0.8,
                            relativePath: "LoRAs/krea-2/aaaaaaaaaa-pixel-art.safetensors"),
@@ -75,7 +75,7 @@ import Testing
             try await store.dbQueue.write { db in try record.insert(db) }
         }
 
-        let enqueued = try await store.enqueueJob(projectID: project.id, request: request, batchCount: 1, seedPolicy: "fixed")
+        let enqueued = try await store.enqueueJob(collectionID: collection.id, request: request, batchCount: 1, seedPolicy: "fixed")
 
         let queued = try #require(try await store.jobs(status: .queued).first)
         #expect(queued == enqueued)
