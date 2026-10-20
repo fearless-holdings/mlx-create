@@ -130,12 +130,12 @@ func civitaiModelJSON(
 
 func civitaiVersionJSON(
     id: Int, name: String, baseModel: String, publishedAt: String, trainedWords: [String] = [],
-    file: [String: Any]?
+    file: [String: Any]?, imageLevel: Int = 1
 ) -> [String: Any] {
     [
         "id": id, "modelId": id, "name": name, "baseModel": baseModel, "publishedAt": publishedAt,
         "trainedWords": trainedWords, "files": file.map { [$0] } ?? [],
-        "images": [["url": "https://image.civitai.com/x/preview.jpeg", "nsfwLevel": 1, "meta": ["prompt": "a fox in snow"]]],
+        "images": [["url": "https://image.civitai.com/x/preview.jpeg", "nsfwLevel": imageLevel, "meta": ["prompt": "a fox in snow"]]],
     ]
 }
 
@@ -184,6 +184,30 @@ actor GatedCivitaiAPI: CivitaiTransport {
             await withCheckedContinuation { waiters.append($0) }
         }
         return reply(request)
+    }
+}
+
+/// A counter a `@Sendable` reply closure can advance from any thread.
+final class LockedCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = 0
+
+    func next() -> Int {
+        lock.withLock {
+            value += 1
+            return value
+        }
+    }
+}
+
+/// A Civitai API whose requests never answer, so a test can cancel the task that is waiting on one.
+actor HangingCivitaiAPI: CivitaiTransport {
+    private(set) var requests: [URLRequest] = []
+
+    func perform(_ request: URLRequest) async throws -> CivitaiResponse {
+        requests.append(request)
+        try await Task.sleep(for: .seconds(60))
+        return CivitaiResponse(status: 200, body: Data())
     }
 }
 

@@ -247,7 +247,10 @@ final class CivitaiBrowseModel {
                 fresh = page.items.compactMap { item -> CivitaiFoundModel? in
                     guard listed.insert(item.id).inserted else { return nil }
                     let shown = CivitaiBrowseRules.chooseVersion(item.versions, labels: activePreferred)
-                    guard includeNSFW || shown?.images.contains(where: { $0.url != nil }) == true else { return nil }
+                    // Civitai's model-level flag is the primary signal; the image check covers a listing it reports as
+                    // safe-for-work that carries no preview at all.
+                    guard includeNSFW || (!item.isNSFW && shown?.images.contains(where: { $0.url != nil }) == true)
+                    else { return nil }
                     return makeFound(item, preferred: activePreferred)
                 }
                 cursor = page.nextCursor
@@ -263,6 +266,8 @@ final class CivitaiBrowseModel {
             self.cursor = page.nextCursor
             searchState = foundModels.isEmpty ? .empty : .results
         } catch is CancellationError {
+            // A first page that never landed must not count as searched, or returning to the tab keeps the spinner.
+            if generation == searchGeneration, requested == nil { searchedSelectionKey = nil }
             return
         } catch let error as CivitaiError {
             guard generation == searchGeneration else { return }
@@ -303,9 +308,17 @@ final class CivitaiBrowseModel {
             || (version?.baseModel.map { preferred.contains($0) } ?? false)
         return CivitaiFoundModel(
             id: model.id, name: model.name, creatorName: model.creatorName, downloadCount: model.downloadCount,
-            isNSFW: model.isNSFW, versionName: version?.name, sizeBytes: version?.safetensorsFile?.sizeBytes,
+            isNSFW: model.isNSFW || Self.previewIsNSFW(version), versionName: version?.name,
+            sizeBytes: version?.safetensorsFile?.sizeBytes,
             matchesSelectedModel: matchesLabel,
             spec: version.flatMap { Self.makeSpec(model: model, version: $0) })
+    }
+
+    /// The shown preview's own level counts too: Civitai flags many models safe-for-work whose first image is not.
+    /// A version with no image has nothing to blur.
+    private static func previewIsNSFW(_ version: CivitaiModelVersion?) -> Bool {
+        guard let image = version?.images.first(where: { $0.url != nil }) else { return false }
+        return CivitaiPreviewRule.isNSFW(level: image.nsfwLevel)
     }
 
     private static func makeSpec(model: CivitaiModel, version: CivitaiModelVersion) -> CivitaiDownloadSpec? {

@@ -486,7 +486,7 @@ private struct CivitaiSourceSection: View {
     @State private var previewRevealed = false
 
     private var blurred: Bool {
-        CivitaiPreviewRule.isNSFW(level: source.previewNSFWLevel) && !model.civitai.includeNSFW && !previewRevealed
+        CivitaiPreviewRule.isNSFW(level: source.previewNSFWLevel) && !previewRevealed
     }
 
     var body: some View {

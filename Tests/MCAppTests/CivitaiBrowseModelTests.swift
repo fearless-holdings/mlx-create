@@ -603,7 +603,8 @@ private struct FailingKeyStore: CivitaiKeyStore {
         await harness.model.civitai.search()
         let optedOut = try #require(await api.requests.last)
         #expect(queryValue(optedOut, "nsfw") == "false")
-
+        // Even if Civitai returns an NSFW-flagged model, it does not appear without the opt-in.
+        #expect(harness.model.civitai.rows.isEmpty)
         await harness.model.civitai.setIncludeNSFW(true)
         let optedIn = try #require(await api.requests.last)
         #expect(queryValue(optedIn, "nsfw") == "true")
@@ -636,5 +637,67 @@ private struct FailingKeyStore: CivitaiKeyStore {
         // With the opt-in, Civitai's NSFW-only LoRAs are listed.
         await harness.model.civitai.setIncludeNSFW(true)
         #expect(harness.model.civitai.rows.map(\.id) == [1, 2])
+    }
+
+    @Test func aPreviewThatIsNSFWIsBlurredAndBadgedEvenWhenCivitaiFlagsTheModelSafe() async throws {
+        var model = kleinListing(id: 9, nsfw: false)
+        model["modelVersions"] = (model["modelVersions"] as? [[String: Any]] ?? []).map { version in
+            var copy = version
+            copy["images"] = [["url": "https://image.civitai.com/x/p.jpeg", "nsfwLevel": 8]]
+            return copy
+        }
+        let safe = kleinListing(id: 10, nsfw: false)
+        let api = ScriptedCivitaiAPI(reply: searchReply([model, safe]))
+        let keychain = testKeychain()
+        defer { try? keychain.delete() }
+        let harness = try await browseHarness(api: api, keychain: keychain)
+        await harness.model.civitai.setIncludeNSFW(true)
+
+        let rows = harness.model.civitai.rows
+        let explicit = try #require(rows.first { $0.id == 9 })
+        let plain = try #require(rows.first { $0.id == 10 })
+        #expect(explicit.isNSFW && harness.model.civitai.isBlurred(explicit))
+        #expect(!plain.isNSFW && !harness.model.civitai.isBlurred(plain))
+    }
+
+    @Test func leavingTheTabBeforeTheFirstPageLandsLetsTheNextVisitSearchAgain() async throws {
+        let api = HangingCivitaiAPI()
+        let keychain = testKeychain()
+        defer { try? keychain.delete() }
+        let harness = try await browseHarness(api: api, keychain: keychain)
+
+        let visit = Task { await harness.model.civitai.showTab() }
+        try await eventually { await api.requests.count == 1 }
+        visit.cancel()
+        await visit.value
+
+        let before = await api.requests.count
+        let second = Task { await harness.model.civitai.showTab() }
+        try await eventually { await api.requests.count == before + 1 }
+        second.cancel()
+        await second.value
+    }
+
+    @Test func theNSFWOffFilterStopsAfterFivePagesThatItEmptied() async throws {
+        let counter = LockedCounter()
+        let api = ScriptedCivitaiAPI(reply: { request in
+            let n = counter.next()
+            var model = kleinListing(id: n)
+            model["modelVersions"] = (model["modelVersions"] as? [[String: Any]] ?? []).map { version in
+                var copy = version
+                copy["images"] = [[String: Any]]()
+                return copy
+            }
+            let body = (try? JSONSerialization.data(withJSONObject: civitaiPage([model], nextCursor: "c\(n)"))) ?? Data()
+            return CivitaiResponse(status: 200, body: body)
+        })
+        let keychain = testKeychain()
+        defer { try? keychain.delete() }
+        let harness = try await browseHarness(api: api, keychain: keychain)
+
+        await harness.model.civitai.search()
+
+        #expect(await api.requests.count == 5)
+        #expect(harness.model.civitai.rows.isEmpty)
     }
 }
