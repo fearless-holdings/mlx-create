@@ -1,0 +1,67 @@
+{
+  "id": 9100001,
+  "modelId": 9100000,
+  "name": "v2 style",
+  "baseModel": "Krea 2",
+  "createdAt": "2026-06-01T09:55:00.000Z",
+  "publishedAt": "2026-06-01T10:00:00.000Z",
+  "trainedWords": ["ohwx style", "soft light"],
+  "files": [
+    {
+      "id": 9200001,
+      "name": "README.txt",
+      "sizeKB": 1.5,
+      "type": "Config",
+      "metadata": { "format": "Other" },
+      "hashes": {},
+      "primary": false,
+      "downloadUrl": "https://civitai.com/api/download/models/9100001?fileId=9200001"
+    },
+    {
+      "id": 9200002,
+      "name": "style_v1.safetensors",
+      "sizeKB": 100000.0,
+      "type": "Model",
+      "metadata": { "format": "SafeTensor" },
+      "hashes": { "SHA256": "FEDCBA9876543210FEDCBA9876543210FEDCBA9876543210FEDCBA9876543210" },
+      "primary": false,
+      "downloadUrl": "https://civitai.com/api/download/models/9100001?fileId=9200002"
+    },
+    {
+      "id": 9200003,
+      "name": "style_v2.safetensors",
+      "sizeKB": 200000.0,
+      "type": "Model",
+      "metadata": { "format": "SafeTensor" },
+      "hashes": { "SHA256": "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF" },
+      "primary": true,
+      "downloadUrl": "https://civitai.com/api/download/models/9100001?fileId=9200003"
+    },
+    {
+      "id": 9200004,
+      "name": "style_v2.pt",
+      "sizeKB": 200000.0,
+      "type": "Model",
+      "metadata": { "format": "PickleTensor" },
+      "hashes": { "SHA256": "AAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBCCCCCCCCCCCCCCCCDDDDDDDDDDDDDDDD" },
+      "primary": false,
+      "downloadUrl": "https://civitai.com/api/download/models/9100001?fileId=9200004"
+    }
+  ],
+  "images": [
+    {
+      "url": "https://image.civitai.com/synthetic/one.jpeg",
+      "nsfwLevel": 1,
+      "width": 1024,
+      "height": 1024,
+      "meta": { "prompt": "portrait, soft light, ohwx style" }
+    },
+    {
+      "url": "https://image.civitai.com/synthetic/two.jpeg",
+      "nsfwLevel": 1,
+      "width": 768,
+      "height": 1024,
+      "meta": null
+    }
+  ]
+}

@@ -81,14 +81,40 @@ public struct SafetensorsHeader: Sendable, Equatable {
         guard fileSize >= 8 else {
             throw SafetensorsError.headerLengthOutOfRange(declared: 0, fileSize: fileSize)
         }
-        let prefix = try readBytes(handle, count: 8)
-        let declared = (0..<8).reduce(UInt64(0)) { $0 | UInt64(prefix[$1]) << UInt64(8 * $1) }
-        let afterPrefix = fileSize - 8
-        guard declared <= maxHeaderLength, declared <= afterPrefix else {
-            throw SafetensorsError.headerLengthOutOfRange(declared: declared, fileSize: fileSize)
-        }
+        let declared = declaredLength(try readBytes(handle, count: 8))
+        try checkDeclared(declared, totalFileSize: fileSize)
         let headerBytes = try readBytes(handle, count: Int(declared))
-        return try parse(header: Data(headerBytes), dataSize: afterPrefix - declared)
+        return try parse(header: Data(headerBytes), dataSize: fileSize - 8 - declared)
+    }
+
+    /// Reads and validates a header from its first bytes: the 8-byte length prefix followed by the header JSON, as a
+    /// range read returns them. `totalFileSize` is the whole file's size, which the data-region checks need (KTD3).
+    /// Bytes after the header are ignored. Applies the same validation as ``read(from:)``.
+    public static func read(prefixAndHeader: Data, totalFileSize: UInt64) throws -> SafetensorsHeader {
+        guard totalFileSize >= 8, prefixAndHeader.count >= 8 else {
+            throw SafetensorsError.headerLengthOutOfRange(declared: 0, fileSize: totalFileSize)
+        }
+        let declared = declaredLength(Array(prefixAndHeader.prefix(8)))
+        try checkDeclared(declared, totalFileSize: totalFileSize)
+        let end = 8 + Int(declared)
+        guard prefixAndHeader.count >= end else {
+            throw SafetensorsError.unreadable(reason: "expected \(declared) header bytes, got \(prefixAndHeader.count - 8)")
+        }
+        let start = prefixAndHeader.startIndex
+        let header = Data(prefixAndHeader[(start + 8)..<(start + end)])
+        return try parse(header: header, dataSize: totalFileSize - 8 - declared)
+    }
+
+    /// The little-endian header length in the 8-byte prefix.
+    private static func declaredLength(_ prefix: [UInt8]) -> UInt64 {
+        (0..<8).reduce(UInt64(0)) { $0 | UInt64(prefix[$1]) << UInt64(8 * $1) }
+    }
+
+    /// Refuses a declared header length that exceeds the header cap or the bytes after the prefix.
+    private static func checkDeclared(_ declared: UInt64, totalFileSize: UInt64) throws {
+        guard declared <= maxHeaderLength, declared <= totalFileSize - 8 else {
+            throw SafetensorsError.headerLengthOutOfRange(declared: declared, fileSize: totalFileSize)
+        }
     }
 
     private static func parse(header: Data, dataSize: UInt64) throws -> SafetensorsHeader {

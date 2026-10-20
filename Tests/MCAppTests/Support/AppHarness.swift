@@ -149,14 +149,20 @@ struct AppHarness {
         script: @escaping FakeEngine.Script = AppHarness.idleEngine,
         catalog: Catalog? = nil,
         transport: (any ModelTransport)? = nil,
-        catalogStore: CatalogStore? = nil
+        catalogStore: CatalogStore? = nil,
+        civitaiTransport: (any CivitaiTransport)? = nil,
+        civitaiFileTransport: (any CivitaiFileTransport)? = nil,
+        civitaiKeychain: (any CivitaiKeyStore)? = nil,
+        civitaiPreviewFetch: (@Sendable (URL) async -> Data?)? = nil
     ) async throws -> AppHarness {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("app-\(UUID().uuidString)")
         let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
         return try await assemble(
             root: root, store: store, models: models, loaded: loaded, registry: registry,
             initialState: initialState, defaults: defaults ?? UserDefaults(suiteName: UUID().uuidString)!,
-            supervisor: supervisor, script: script, catalog: catalog, transport: transport, catalogStore: catalogStore)
+            supervisor: supervisor, script: script, catalog: catalog, transport: transport, catalogStore: catalogStore,
+            civitaiTransport: civitaiTransport, civitaiFileTransport: civitaiFileTransport,
+            civitaiKeychain: civitaiKeychain, civitaiPreviewFetch: civitaiPreviewFetch)
     }
 
     /// Builds a new `AppModel` over this harness's library and defaults with a fresh engine, as a relaunch would.
@@ -168,7 +174,8 @@ struct AppHarness {
         try await Self.assemble(
             root: root, store: store, models: models, loaded: [], registry: nil,
             initialState: initialState, defaults: defaults, supervisor: nil, script: script, catalog: nil, transport: nil,
-            catalogStore: nil)
+            catalogStore: nil, civitaiTransport: nil, civitaiFileTransport: nil,
+            civitaiKeychain: CivitaiKeychain(service: "test-civitai-\(UUID().uuidString)"), civitaiPreviewFetch: nil)
     }
 
     private static func assemble(
@@ -183,7 +190,11 @@ struct AppHarness {
         script: @escaping FakeEngine.Script,
         catalog: Catalog?,
         transport: (any ModelTransport)?,
-        catalogStore: CatalogStore?
+        catalogStore: CatalogStore?,
+        civitaiTransport: (any CivitaiTransport)?,
+        civitaiFileTransport: (any CivitaiFileTransport)?,
+        civitaiKeychain: (any CivitaiKeyStore)?,
+        civitaiPreviewFetch: (@Sendable (URL) async -> Data?)?
     ) async throws -> AppHarness {
         let engine = FakeEngine(loaded: loaded, models: models, script: script)
         let endpoint = EngineStubProtocol.register(handler: { engine.handle($0) })
@@ -202,7 +213,10 @@ struct AppHarness {
             weightsPath: Self.weightsRoot(in: root).path,
             libraryPaths: LibraryPaths(root: root, modelsRoot: root.appending(path: "Models")),
             supervisor: supervisor,
-            defaults: defaults, catalog: catalog, transport: transport, catalogStore: catalogStore)
+            defaults: defaults, catalog: catalog, transport: transport, catalogStore: catalogStore,
+            civitaiTransport: civitaiTransport, civitaiFileTransport: civitaiFileTransport,
+            civitaiKeychain: civitaiKeychain ?? CivitaiKeychain(service: "test-civitai-\(UUID().uuidString)"),
+            civitaiPreviewFetch: civitaiPreviewFetch)
         let project = try await store.defaultProject()
         return AppHarness(
             model: model, store: store, endpoint: endpoint, states: continuation, projectID: project.id,

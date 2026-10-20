@@ -112,6 +112,28 @@ import Testing
         #expect(registry.normalize(ImageSize(width: 4096, height: 4096), for: turbo) == ImageSize(width: 2048, height: 2048))
     }
 
+    @Test func eachShippedCivitaiLabelResolvesToItsFamilyAndVariant() throws {
+        let registry = try FamilyRegistry.bundled()
+        let expected: [(label: String, family: String, variant: String?)] = [
+            ("Flux.2 Klein 4B", "flux2-klein", "4b"),
+            ("Flux.2 Klein 9B", "flux2-klein", "9b"),
+            ("Krea 2", "krea-2-turbo", nil),
+            ("Qwen 2.1", "qwen-image-2.1-turbo", nil),
+        ]
+        for (label, family, variant) in expected {
+            let resolved = try #require(registry.familyAndVariant(forCivitaiLabel: label))
+            #expect(resolved.family.id == family)
+            #expect(resolved.variant == variant)
+        }
+    }
+
+    @Test func unknownOrInexactCivitaiLabelResolvesToNothing() throws {
+        let registry = try FamilyRegistry.bundled()
+        #expect(registry.familyAndVariant(forCivitaiLabel: "Mage-Flow") == nil)
+        #expect(registry.familyAndVariant(forCivitaiLabel: "Flux.2 Klein") == nil)
+        #expect(registry.familyAndVariant(forCivitaiLabel: "krea 2") == nil)
+    }
+
     private func turboFamily() throws -> ModelFamily {
         try #require(try FamilyRegistry.bundled().family(forArchitecture: "qwen_image21", traits: ["sample_sigmas"]))
     }

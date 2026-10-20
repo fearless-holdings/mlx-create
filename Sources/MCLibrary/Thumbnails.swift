@@ -14,9 +14,15 @@ public enum Thumbnails {
         return (width, height)
     }
 
-    /// A HEIC thumbnail whose longer side is at most `maxPixelSize`.
+    /// A HEIC thumbnail whose longer side is at most `maxPixelSize`, from a PNG.
     public static func makeHEIC(fromPNG png: Data, maxPixelSize: Int) throws -> Data {
-        guard let source = CGImageSourceCreateWithData(png as CFData, nil) else {
+        try makeHEIC(fromImageData: png, maxPixelSize: maxPixelSize)
+    }
+
+    /// A HEIC thumbnail whose longer side is at most `maxPixelSize`, from any format ImageIO can read (PNG, JPEG, WebP…).
+    /// Throws ``LibraryError/unreadableImage`` when the bytes are not an image.
+    public static func makeHEIC(fromImageData data: Data, maxPixelSize: Int) throws -> Data {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
             throw LibraryError.unreadableImage
         }
         let options: [CFString: Any] = [

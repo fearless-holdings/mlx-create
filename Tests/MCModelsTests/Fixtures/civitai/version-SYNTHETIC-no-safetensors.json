@@ -1,0 +1,31 @@
+{
+  "id": 9100002,
+  "modelId": 9100000,
+  "name": "v1 pickle only",
+  "baseModel": "Krea 2",
+  "publishedAt": "2026-05-01T10:00:00.000Z",
+  "trainedWords": [],
+  "files": [
+    {
+      "id": 9200010,
+      "name": "style.pt",
+      "sizeKB": 4096.0,
+      "type": "Model",
+      "metadata": { "format": "PickleTensor" },
+      "hashes": { "SHA256": "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF" },
+      "primary": true,
+      "downloadUrl": "https://civitai.com/api/download/models/9100002?fileId=9200010"
+    },
+    {
+      "id": 9200011,
+      "name": "renamed.safetensors",
+      "sizeKB": 4096.0,
+      "type": "Model",
+      "metadata": { "format": "Other" },
+      "hashes": {},
+      "primary": false,
+      "downloadUrl": "https://civitai.com/api/download/models/9100002?fileId=9200011"
+    }
+  ],
+  "images": []
+}

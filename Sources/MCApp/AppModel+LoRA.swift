@@ -57,12 +57,15 @@ extension AppModel {
         let installed = installedLoRAFamilyIDs
         let stacked = Set(loraSlots.map(\.id))
         return loraRecords.map { record in
-            LoRALibraryItem(
+            let fit = loraFit(for: record, selected: selected, installed: installed)
+            let engineReason: String? = if case .engineCannotApply = fit { fit.reason } else { nil }
+            return LoRALibraryItem(
                 id: record.id, name: record.name, familyName: loraFamilyName(record.family), familyID: record.family,
                 sizeBytes: record.sizeBytes, triggerWords: record.triggerWords, notes: record.notes,
                 fileMissing: loraMissingFileIDs.contains(record.id),
-                fitsSelectedModel: loraFit(for: record, selected: selected, installed: installed) == .fits,
-                inStack: stacked.contains(record.id))
+                fitsSelectedModel: fit == .fits,
+                inStack: stacked.contains(record.id),
+                engineBlockedReason: engineReason)
         }
     }
 
@@ -84,6 +87,37 @@ extension AppModel {
     /// with more than four LoRAs in use (R13).
     public var loraMemoryHint: Bool {
         loraMemoryTier.maxResidentModels == 1 && loraStack.filter(\.isUsed).count > 4
+    }
+
+    // MARK: Civitai
+
+    /// The family and size the Civitai Browse tab judges results and files against: the selected model's (KTD6).
+    /// Nil when no model is selected or its family accepts no LoRAs, so the tab shows its prompt and sends nothing.
+    var civitaiSelection: CivitaiSelection? {
+        guard let model = selectedModel, ModelSelection.isSelectable(model), let family = model.family,
+              family.acceptsLoRAs
+        else { return nil }
+        return CivitaiSelection(
+            family: family, variant: CivitaiBrowseRules.variant(forArchitecture: model.architecture))
+    }
+
+    /// The Civitai source of each library LoRA, by LoRA id. A local import has none and has no entry.
+    func loadLoRASources() async -> [String: LoRASource] {
+        var sources: [String: LoRASource] = [:]
+        for record in loraRecords {
+            do {
+                sources[record.id] = try await store.loraSource(loraID: record.id)
+            } catch {
+                // Kept visible: a LoRA whose source cannot be read must not look like a local import.
+                lastError = "The Civitai source of \(record.name) could not be read: \(message(for: error))"
+            }
+        }
+        return sources
+    }
+
+    /// Where a stored preview file lives on disk, from its path relative to the library root.
+    func loraPreviewURL(relativePath: String) async -> URL {
+        await store.paths.url(relativePath: relativePath)
     }
 
     // MARK: Library

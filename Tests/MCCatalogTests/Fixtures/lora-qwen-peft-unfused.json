@@ -1,0 +1,33 @@
+{
+  "source": "https://civitai.com/models/2323765 version 3351819 (Radiance Chrome Voluptuous, QwenImage2.1 v1.0, header only, reduced to the first and last block). PEFT keys with no wrapper prefix, a `.default.` adapter infix and an unfused img_mlp.gate_layer/img_mlp.proj.",
+  "tensors": {
+    "transformer_blocks.0.attn.to_k.lora_A.default.weight": [32, 4096],
+    "transformer_blocks.0.attn.to_k.lora_B.default.weight": [4096, 32],
+    "transformer_blocks.0.attn.to_out.0.lora_A.default.weight": [32, 4096],
+    "transformer_blocks.0.attn.to_out.0.lora_B.default.weight": [4096, 32],
+    "transformer_blocks.0.attn.to_q.lora_A.default.weight": [32, 4096],
+    "transformer_blocks.0.attn.to_q.lora_B.default.weight": [4096, 32],
+    "transformer_blocks.0.attn.to_v.lora_A.default.weight": [32, 4096],
+    "transformer_blocks.0.attn.to_v.lora_B.default.weight": [4096, 32],
+    "transformer_blocks.0.img_mlp.gate_layer.lora_A.default.weight": [32, 4096],
+    "transformer_blocks.0.img_mlp.gate_layer.lora_B.default.weight": [12288, 32],
+    "transformer_blocks.0.img_mlp.out.lora_A.default.weight": [32, 12288],
+    "transformer_blocks.0.img_mlp.out.lora_B.default.weight": [4096, 32],
+    "transformer_blocks.0.img_mlp.proj.lora_A.default.weight": [32, 4096],
+    "transformer_blocks.0.img_mlp.proj.lora_B.default.weight": [12288, 32],
+    "transformer_blocks.31.attn.to_k.lora_A.default.weight": [32, 4096],
+    "transformer_blocks.31.attn.to_k.lora_B.default.weight": [4096, 32],
+    "transformer_blocks.31.attn.to_out.0.lora_A.default.weight": [32, 4096],
+    "transformer_blocks.31.attn.to_out.0.lora_B.default.weight": [4096, 32],
+    "transformer_blocks.31.attn.to_q.lora_A.default.weight": [32, 4096],
+    "transformer_blocks.31.attn.to_q.lora_B.default.weight": [4096, 32],
+    "transformer_blocks.31.attn.to_v.lora_A.default.weight": [32, 4096],
+    "transformer_blocks.31.attn.to_v.lora_B.default.weight": [4096, 32],
+    "transformer_blocks.31.img_mlp.gate_layer.lora_A.default.weight": [32, 4096],
+    "transformer_blocks.31.img_mlp.gate_layer.lora_B.default.weight": [12288, 32],
+    "transformer_blocks.31.img_mlp.out.lora_A.default.weight": [32, 12288],
+    "transformer_blocks.31.img_mlp.out.lora_B.default.weight": [4096, 32],
+    "transformer_blocks.31.img_mlp.proj.lora_A.default.weight": [32, 4096],
+    "transformer_blocks.31.img_mlp.proj.lora_B.default.weight": [12288, 32]
+  }
+}

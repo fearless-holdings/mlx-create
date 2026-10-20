@@ -49,6 +49,17 @@ public struct GuidanceCapability: Sendable, Codable, Hashable {
     }
 }
 
+/// One Civitai base-model label (HLD §8.4) and the size variant it names, when it names one.
+public struct CivitaiBaseModel: Sendable, Codable, Hashable {
+    public let label: String
+    public let variant: String?
+
+    public init(label: String, variant: String? = nil) {
+        self.label = label
+        self.variant = variant
+    }
+}
+
 /// One verified model architecture (KTD10, D21). The UI is driven from these records only (R7, R8).
 public struct ModelFamily: Sendable, Codable, Hashable, Identifiable {
     public let id: String
@@ -72,13 +83,20 @@ public struct ModelFamily: Sendable, Codable, Hashable, Identifiable {
     /// Tensor-name, shape and block-count fingerprints for LoRA files (KTD4). A file matches the family
     /// when ANY alternative matches. `nil` or empty means the family accepts no LoRAs.
     public let loraFingerprints: [LoRAFingerprint]?
+    /// `false` when the pinned engine cannot apply LoRAs to this family even though files classify as it. The stack
+    /// greys such a family's LoRAs and skips them. Absent in the JSON means `true`.
+    public let engineAppliesLoRAs: Bool
+    /// Civitai base-model labels this family answers to (KTD7). Empty means Browse never offers the family.
+    public let civitaiBaseModels: [CivitaiBaseModel]
 
     public init(
         id: String, displayName: String, architectures: [String], sizeGrid: SizeGrid,
         sizePresets: [ImageSize], defaultSize: ImageSize, steps: StepsCapability,
         guidance: GuidanceCapability?, supportsNegativePrompt: Bool,
         stepsAreFixed: Bool = false, requiresTrait: String? = nil,
-        loraFingerprints: [LoRAFingerprint]? = nil
+        loraFingerprints: [LoRAFingerprint]? = nil,
+        engineAppliesLoRAs: Bool = true,
+        civitaiBaseModels: [CivitaiBaseModel] = []
     ) {
         self.id = id
         self.displayName = displayName
@@ -92,6 +110,8 @@ public struct ModelFamily: Sendable, Codable, Hashable, Identifiable {
         self.supportsNegativePrompt = supportsNegativePrompt
         self.requiresTrait = requiresTrait
         self.loraFingerprints = loraFingerprints
+        self.engineAppliesLoRAs = engineAppliesLoRAs
+        self.civitaiBaseModels = civitaiBaseModels
     }
 
     /// `true` when at least one LoRA fingerprint exists. A family without one accepts no LoRAs.
@@ -99,11 +119,11 @@ public struct ModelFamily: Sendable, Codable, Hashable, Identifiable {
 
     private enum CodingKeys: String, CodingKey {
         case id, displayName, architectures, sizeGrid, sizePresets, defaultSize, steps
-        case stepsAreFixed, guidance, supportsNegativePrompt, requiresTrait, loraFingerprints
+        case stepsAreFixed, guidance, supportsNegativePrompt, requiresTrait, loraFingerprints, engineAppliesLoRAs, civitaiBaseModels
     }
 
-    /// `stepsAreFixed` and `requiresTrait` are optional in the JSON; absent means `false` and `nil`,
-    /// so records written before they existed decode unchanged.
+    /// `stepsAreFixed`, `requiresTrait` and `civitaiBaseModels` are optional in the JSON; absent means `false`,
+    /// `nil` and `[]`, so records written before they existed decode unchanged.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.init(
@@ -118,7 +138,9 @@ public struct ModelFamily: Sendable, Codable, Hashable, Identifiable {
             supportsNegativePrompt: try container.decode(Bool.self, forKey: .supportsNegativePrompt),
             stepsAreFixed: try container.decodeIfPresent(Bool.self, forKey: .stepsAreFixed) ?? false,
             requiresTrait: try container.decodeIfPresent(String.self, forKey: .requiresTrait),
-            loraFingerprints: try container.decodeIfPresent([LoRAFingerprint].self, forKey: .loraFingerprints))
+            loraFingerprints: try container.decodeIfPresent([LoRAFingerprint].self, forKey: .loraFingerprints),
+            engineAppliesLoRAs: try container.decodeIfPresent(Bool.self, forKey: .engineAppliesLoRAs) ?? true,
+            civitaiBaseModels: try container.decodeIfPresent([CivitaiBaseModel].self, forKey: .civitaiBaseModels) ?? [])
     }
 }
 
@@ -180,18 +202,21 @@ public struct LoRAFingerprint: Sendable, Codable, Hashable {
     public let tensorPatterns: [TensorNamePattern]
     public let shapeHints: [LoRAShapeHint]
     public let blockCounts: [LoRABlockCount]
+    /// The size variant (e.g. `4b`, `9b`) this layout belongs to, or `nil` when the layout names none (KTD6).
+    public let variant: String?
 
     public init(
         tensorPatterns: [TensorNamePattern], shapeHints: [LoRAShapeHint] = [],
-        blockCounts: [LoRABlockCount] = []
+        blockCounts: [LoRABlockCount] = [], variant: String? = nil
     ) {
         self.tensorPatterns = tensorPatterns
         self.shapeHints = shapeHints
         self.blockCounts = blockCounts
+        self.variant = variant
     }
 
     private enum CodingKeys: String, CodingKey {
-        case tensorPatterns, shapeHints, blockCounts
+        case tensorPatterns, shapeHints, blockCounts, variant
     }
 
     /// `shapeHints` and `blockCounts` are optional in the JSON; absent means none.
@@ -200,7 +225,8 @@ public struct LoRAFingerprint: Sendable, Codable, Hashable {
         self.init(
             tensorPatterns: try container.decode([TensorNamePattern].self, forKey: .tensorPatterns),
             shapeHints: try container.decodeIfPresent([LoRAShapeHint].self, forKey: .shapeHints) ?? [],
-            blockCounts: try container.decodeIfPresent([LoRABlockCount].self, forKey: .blockCounts) ?? [])
+            blockCounts: try container.decodeIfPresent([LoRABlockCount].self, forKey: .blockCounts) ?? [],
+            variant: try container.decodeIfPresent(String.self, forKey: .variant))
     }
 
     /// `tensors` maps each tensor name in a LoRA file to its shape.
@@ -247,7 +273,9 @@ private func highestBlockIndex(of family: String, in names: [String]) -> Int? {
 
 /// The outcome of classifying one LoRA file against the families (KTD4).
 public enum LoRAFamilyMatch: Sendable, Equatable {
-    case family(String)
+    /// Exactly one family matches. `variant` is the size variant of its matching layouts, or `nil` when they name
+    /// none or disagree.
+    case family(String, variant: String?)
     /// No fingerprinted family matches. Lists the families that accept LoRAs, by display name.
     case unmatched(supportedFamilyNames: [String])
     /// Several families match, so none is chosen. Ids are in registry order.
@@ -260,14 +288,17 @@ extension FamilyRegistry {
     /// A file that two families both accept is `.ambiguous`: the classifier never guesses between them.
     public func classifyLoRA(tensors: [String: [Int]]) -> LoRAFamilyMatch {
         let fingerprinted = families.filter(\.acceptsLoRAs)
-        let matched = fingerprinted.filter { family in
-            (family.loraFingerprints ?? []).contains { $0.matches(tensors: tensors) }
+        let matched = fingerprinted.compactMap { family -> (id: String, variant: String?)? in
+            let hits = (family.loraFingerprints ?? []).filter { $0.matches(tensors: tensors) }
+            guard let first = hits.first else { return nil }
+            let variants = Set(hits.map(\.variant))
+            return (id: family.id, variant: variants.count == 1 ? first.variant : nil)
         }
         switch matched.count {
         case 0:
             return .unmatched(supportedFamilyNames: fingerprinted.map(\.displayName))
         case 1:
-            return .family(matched[0].id)
+            return .family(matched[0].id, variant: matched[0].variant)
         default:
             return .ambiguous(matched.map(\.id))
         }

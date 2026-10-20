@@ -364,3 +364,26 @@ private func saveLoRAImage(_ harness: AppHarness, prompt: String, loras: [ImageL
         #expect(model.loraStack.map(\.name) == ["Second", "Third", "First"])
     }
 }
+
+/// The pinned engine cannot apply LoRAs to Qwen-Image yet (upstream mlx-serve PR 849), so Qwen LoRAs are greyed and skipped
+/// instead of reaching the engine's 400. Remove with the `engineAppliesLoRAs` flag when the pin moves past v26.10.2.
+@Suite struct LoRAEngineSupportFitTests {
+    @Test func aLoRAOfAFamilyTheEngineCannotApplyIsNotUsedButOtherFamiliesAreUnaffected() throws {
+        let registry = try FamilyRegistry.bundled()
+        let qwen = try #require(registry.families.first { $0.id == "qwen-image-2.1-turbo" })
+        let krea = try #require(registry.families.first { $0.id == "krea-2-turbo" })
+        let installed = Set([qwen.id, krea.id])
+
+        let blocked = LoRAStackRules.fit(
+            loraFamilyID: qwen.id, loraFamilyName: qwen.displayName, selected: qwen, installedFamilyIDs: installed)
+        #expect(blocked == .engineCannotApply(familyName: qwen.displayName))
+        #expect(blocked.reason?.contains(qwen.displayName) == true)
+
+        // A Krea LoRA on Qwen is still a plain mismatch, and a Krea LoRA on Krea still fits.
+        #expect(LoRAStackRules.fit(
+            loraFamilyID: krea.id, loraFamilyName: krea.displayName, selected: qwen, installedFamilyIDs: installed)
+            == .doesNotFit(selectedModelName: qwen.displayName))
+        #expect(LoRAStackRules.fit(
+            loraFamilyID: krea.id, loraFamilyName: krea.displayName, selected: krea, installedFamilyIDs: installed) == .fits)
+    }
+}

@@ -11,7 +11,7 @@ mlx-create is a commercial, native macOS app (macOS 26.2+, Apple Silicon, 16 GB 
 
 ## Non-negotiables
 
-1. **No content filtering anywhere:** no prompt filters, no output classifiers, no refusal paths (D3/G6). The only content-related UI is NSFW opt-in and blur in the model browser (D15).
+1. **No content filtering anywhere:** no prompt filters, no output classifiers, no refusal paths (D3/G6). The only content-related UI is NSFW opt-in and blur in the model browser and the LoRA library's Browse Civitai tab (D15, D34).
 2. **No inference in the app process.** All generation and LLM work goes through the engine child process.
 3. **The engine is stock upstream.** Never vendor, patch, or commit mlx-serve source. Engine changes go upstream as PRs (HLD §7.2). The app consumes them only through a tagged release pinned in `engine.lock`.
 4. **The engine is private:**
@@ -23,9 +23,9 @@ mlx-create is a commercial, native macOS app (macOS 26.2+, Apple Silicon, 16 GB 
    - Keep `Engine/.mlx-serve/models` as a symlink to `<Models>/Weights` (HLD §7.4).
 6. **Only `.safetensors` weights.** Reject `.ckpt`, `.pt` and `.bin`, because pickle formats can execute code.
 7. **Privacy:**
-   - Prompts, images, file names, Civitai item IDs or names, and API keys never leave the device.
+  - Prompts, images, file names, and Civitai item IDs or names never leave the device to our servers or analytics. Civitai necessarily sees which LoRAs a user looks up and downloads (HLD §12).
    - Analytics are opt-in and content-free (HLD §8.10).
-   - The Civitai key lives in Keychain only, and is never logged.
+  - The Civitai API key lives in Keychain only. It is sent only over https to `civitai.com`, never to any other host and never in a URL. A redirect to another host drops it. It is never logged.
 8. **Licenses:** show the model license and require acceptance at download (D20). Never redistribute weights.
 9. **Scope guards:**
    - v1 executor accepts only `t2i`, but the data model stays mode-agnostic (D7).
@@ -137,4 +137,5 @@ HLD Appendix A lists the files worth reusing. The rules:
 - `.env` holds `ANTHROPIC_API_KEY`. Never print, log or commit it.
 - When initialising git, add a `.gitignore` covering at least `.env`, build output, and any local engine or reference downloads, before the first commit.
 - Keep `docs/HLD.md` current. Write component LLDs alongside it as `docs/lld/<component>.md`.
+- `docs/solutions/` holds verified learnings from solved problems, grouped by category (for example `integration-issues/`). Search it before working on an external API or a recurring bug, and add one when a fix hides reasoning the code does not carry. Example: Civitai listing previews and NSFW signals.
 - **Update this file** when you establish a command, convention or gotcha that the next agent would otherwise rediscover. Keep entries short and factual.
