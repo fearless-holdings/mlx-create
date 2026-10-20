@@ -305,7 +305,8 @@ final class CivitaiBrowseModel {
                 allowDerivatives: model.license.allowDerivatives,
                 allowDifferentLicense: model.license.allowDifferentLicense),
             versionID: version.id, downloadURL: url, sha256: sha, sizeBytes: size,
-            trainedWords: version.trainedWords, previewURL: image?.url, previewNSFWLevel: image?.nsfwLevel,
+            trainedWords: version.trainedWords, previewURL: image?.url.map { CivitaiImage.thumbnailURL($0, width: 256) },
+            previewNSFWLevel: image?.nsfwLevel,
             examplePrompts: version.examplePrompts)
     }
 

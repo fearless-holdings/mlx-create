@@ -351,15 +351,8 @@ private struct CivitaiResultRowView: View {
 
     private var preview: some View {
         ZStack {
-            AsyncImage(url: row.previewURL) { phase in
-                switch phase {
-                case .success(let image):
-                    image.resizable().scaledToFill()
-                default:
-                    Rectangle().fill(.quaternary)
-                }
-            }
-            .blur(radius: blurred ? 18 : 0)
+            CivitaiThumbnail(url: row.previewURL)
+                .blur(radius: blurred ? 18 : 0)
             if blurred {
                 Button("Show") {
                     browse.reveal(row.id)
@@ -445,6 +438,30 @@ private struct CivitaiResultRowView: View {
             .foregroundStyle(.secondary)
     }
 }
+
+/// A browse thumbnail read through `CivitaiThumbnailCache`. A cached image shows on the first frame.
+private struct CivitaiThumbnail: View {
+    let url: URL?
+    @State private var image: NSImage?
+
+    var body: some View {
+        ZStack {
+            Rectangle().fill(.quaternary)
+            if let image {
+                Image(nsImage: image).resizable().scaledToFill()
+            }
+        }
+        .frame(width: 64, height: 64)
+        .clipped()
+        .task(id: url) {
+            guard let url else { image = nil; return }
+            let small = CivitaiImage.thumbnailURL(url, width: CivitaiThumbnailCache.pixelWidth)
+            image = CivitaiThumbnailCache.shared.cached(small)
+            if image == nil { image = await CivitaiThumbnailCache.shared.load(url) }
+        }
+    }
+}
+
 
 /// The license terms and the acceptance that starts a download (D20). Nothing downloads until Accept; Cancel
 /// leaves the row as it was.

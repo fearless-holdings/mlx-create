@@ -220,6 +220,21 @@ public struct CivitaiImage: Decodable, Sendable, Equatable {
     }
 }
 
+extension CivitaiImage {
+    /// The CDN serves `original=true` for listing images, which can be several megabytes, and a video as `.mp4`. Its
+    /// transform segment (the path component before the file name) takes `width` and `anim=false`, which returns a small
+    /// still JPEG for both. A URL without a transform segment, or on another host, is returned unchanged.
+    public static func thumbnailURL(_ url: URL, width: Int) -> URL {
+        guard url.host?.lowercased() == "image.civitai.com" else { return url }
+        var parts = url.pathComponents
+        guard parts.count >= 3, parts[parts.count - 2].contains("=") else { return url }
+        parts[parts.count - 2] = "anim=false,width=\(width)"
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        components?.path = "/" + parts.dropFirst().joined(separator: "/")
+        return components?.url ?? url
+    }
+}
+
 /// Civitai timestamps are ISO 8601, with fractional seconds on the API's own values (`2026-03-23T17:12:14.712Z`).
 enum CivitaiDate {
     // ISO8601DateFormatter is not Sendable, but these are configured once and only read afterwards.

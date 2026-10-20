@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import MCCatalog
 import MCLibrary
@@ -228,6 +229,31 @@ enum CivitaiPreviewFetch {
         } catch {
             return nil
         }
+    }
+}
+
+/// Memory cache of decoded browse thumbnails, so scrolling and re-filtering do not refetch them. Memory only: nothing
+/// about what the user browsed is written to disk. Failures are not cached, so a later visit retries.
+final class CivitaiThumbnailCache: @unchecked Sendable {
+    static let shared = CivitaiThumbnailCache()
+    /// Rows show 64 pt, so 128 px covers a 2x display.
+    static let pixelWidth = 128
+    private let images = NSCache<NSURL, NSImage>()
+
+    init() {
+        images.totalCostLimit = 64 << 20
+    }
+
+    func cached(_ url: URL) -> NSImage? {
+        images.object(forKey: url as NSURL)
+    }
+
+    func load(_ url: URL) async -> NSImage? {
+        let small = CivitaiImage.thumbnailURL(url, width: Self.pixelWidth)
+        if let hit = cached(small) { return hit }
+        guard let data = await CivitaiPreviewFetch.fetch(small), let image = NSImage(data: data) else { return nil }
+        images.setObject(image, forKey: small as NSURL, cost: data.count)
+        return image
     }
 }
 
