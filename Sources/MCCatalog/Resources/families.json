@@ -149,6 +149,16 @@
             { "pattern": { "kind": "contains", "text": ".img_mlp.gate_up" }, "dimension": 1, "size": 4096 }
           ],
           "blockCounts": [{ "family": "transformer_blocks", "blockCount": 32 }]
+        },
+        {
+          "tensorPatterns": [
+            { "kind": "prefix", "text": "transformer_blocks." },
+            { "kind": "contains", "text": ".img_mlp.gate_layer" }
+          ],
+          "shapeHints": [
+            { "pattern": { "kind": "contains", "text": ".img_mlp.gate_layer" }, "dimension": 1, "size": 4096 }
+          ],
+          "blockCounts": [{ "family": "transformer_blocks", "blockCount": 32 }]
         }
       ],
       "civitaiBaseModels": [{ "label": "Qwen 2.1" }]

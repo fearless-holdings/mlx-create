@@ -13,6 +13,7 @@ import Testing
             ("lora-klein-9b-bfl", "flux2-klein", "9b"),
             ("lora-klein-4b-bfl", "flux2-klein", "4b"),
             ("lora-qwen-attention", "qwen-image-2.1-turbo", nil),
+            ("lora-qwen-peft-unfused", "qwen-image-2.1-turbo", nil),
             ("lora-qwen-ai-toolkit", "qwen-image-2.1-turbo", nil),
             ("lora-krea-comfyui", "krea-2-turbo", nil),
             ("lora-krea-realism", "krea-2-turbo", nil),
@@ -32,6 +33,9 @@ import Testing
 
         let qwenAIToolkit = keepingBlocks(try loadFixture("lora-qwen-ai-toolkit"), family: "transformer_blocks", below: 8)
         #expect(registry.classifyLoRA(tensors: qwenAIToolkit) == .family("qwen-image-2.1-turbo", variant: nil))
+
+        let qwenPEFT = keepingBlocks(try loadFixture("lora-qwen-peft-unfused"), family: "transformer_blocks", below: 8)
+        #expect(registry.classifyLoRA(tensors: qwenPEFT) == .family("qwen-image-2.1-turbo", variant: nil))
 
         let krea = keepingBlocks(try loadFixture("lora-krea-comfyui"), family: "blocks", below: 20)
         #expect(registry.classifyLoRA(tensors: krea) == .family("krea-2-turbo", variant: nil))
