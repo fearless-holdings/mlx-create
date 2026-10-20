@@ -4,9 +4,11 @@
 Launches mlx-serve exactly as the app does (EngineLaunch: 127.0.0.1, per-launch key via env, --api-key-strict,
 private HOME, models symlinked under HOME/.mlx-serve/models) with --max-resident-models 1, loads one candidate,
 sends the recorded enhancer requests (requests.json, dumped from PromptEnhancer.request) and writes raw
-outputs and timings to a results file. Scoring is a separate, blind step (score.py); this script never judges.
+outputs and timings to a results file. Scoring is a separate, blind step (a reader given only input, key terms and
+output, see docs/lld/enhancer.md); this script never judges.
 
-    run_gate.py --engine DIR/mlx-serve --weights /tmp/.../weights --model-id ORG/NAME --out results.json [--limit N]
+    run_gate.py --engine DIR/mlx-serve --weights /tmp/.../weights --model-id ORG/NAME --out results.json
+                [--requests requests.json] [--limit N] [--workdir DIR]
 """
 import argparse, json, os, secrets, socket, subprocess, sys, time, urllib.request, urllib.error, shutil
 
@@ -26,6 +28,7 @@ def call(port, key, method, path, body=None, timeout=600):
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.status, r.read().decode()
+
 
 
 def stream_chat(port, key, model, request, timeout=180):
@@ -76,6 +79,7 @@ def main():
     ap.add_argument("--weights", required=True, help="dir holding ORG/NAME model folders")
     ap.add_argument("--model-id", required=True)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--requests", default=os.path.join(HERE, "requests.json"), help="recorded enhancer requests to send")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--workdir", default="/tmp/mc-enhancer-gate/run")
     a = ap.parse_args()
@@ -116,7 +120,7 @@ def main():
         status, body = call(port, key, "POST", "v1/load-model", {"model": a.model_id})
         result["cold_load_seconds"] = round(time.monotonic() - t0, 2)
         result["load_response"] = body[:2000]
-        reqs = json.load(open(os.path.join(HERE, "requests.json")))["requests"]
+        reqs = json.load(open(a.requests))["requests"]
         if a.limit:
             reqs = reqs[: a.limit]
         rows = []
