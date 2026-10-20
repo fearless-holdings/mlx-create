@@ -137,4 +137,5 @@ HLD Appendix A lists the files worth reusing. The rules:
 - `.env` holds `ANTHROPIC_API_KEY`. Never print, log or commit it.
 - When initialising git, add a `.gitignore` covering at least `.env`, build output, and any local engine or reference downloads, before the first commit.
 - Keep `docs/HLD.md` current. Write component LLDs alongside it as `docs/lld/<component>.md`.
+- `docs/solutions/` holds verified learnings from solved problems, grouped by category (for example `integration-issues/`). Search it before working on an external API or a recurring bug, and add one when a fix hides reasoning the code does not carry. Example: Civitai listing previews and NSFW signals.
 - **Update this file** when you establish a command, convention or gotcha that the next agent would otherwise rediscover. Keep entries short and factual.
