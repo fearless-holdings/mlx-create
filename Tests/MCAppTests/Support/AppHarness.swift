@@ -18,17 +18,25 @@ let unknownModel = "someone/Unsupported-Model"
 /// Behavior of the stub engine for one test: which models it reports and what each generation returns.
 final class FakeEngine: @unchecked Sendable {
     typealias Script = @Sendable (Int, EngineStubProtocol.Recorded) -> EngineStubProtocol.Reply
+    /// Answers the Nth chat completion (1-based) for one test.
+    typealias ChatScript = @Sendable (Int, EngineStubProtocol.Recorded) -> EngineStubProtocol.Reply
 
     private let lock = NSLock()
     private var loaded: Set<String>
     private var generations = 0
     private var models: [(id: String, architecture: String)]
     private let script: Script
+    private let chat: ChatScript
+    private var chats = 0
 
-    init(loaded: Set<String>, models: [(id: String, architecture: String)], script: @escaping Script) {
+    init(
+        loaded: Set<String>, models: [(id: String, architecture: String)], script: @escaping Script,
+        chat: @escaping ChatScript = { _, _ in .init(status: 404, body: Data(), tail: nil) }
+    ) {
         self.loaded = loaded
         self.models = models
         self.script = script
+        self.chat = chat
     }
 
     /// What the engine reports from now on: a new model folder shows up after the rescan that follows an install.
@@ -56,6 +64,12 @@ final class FakeEngine: @unchecked Sendable {
                 return generations
             }
             return script(number, request)
+        case "v1/chat/completions":
+            let number = lock.withLock { () -> Int in
+                chats += 1
+                return chats
+            }
+            return chat(number, request)
         default:
             return .init(status: 404, body: Data(), tail: nil)
         }
@@ -153,16 +167,20 @@ struct AppHarness {
         civitaiTransport: (any CivitaiTransport)? = nil,
         civitaiFileTransport: (any CivitaiFileTransport)? = nil,
         civitaiKeychain: (any CivitaiKeyStore)? = nil,
-        civitaiPreviewFetch: (@Sendable (URL) async -> Data?)? = nil
+        civitaiPreviewFetch: (@Sendable (URL) async -> Data?)? = nil,
+        root: URL? = nil,
+        chat: @escaping FakeEngine.ChatScript = { _, _ in .init(status: 404, body: Data(), tail: nil) },
+        memoryTier: MemoryTier = .current
     ) async throws -> AppHarness {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("app-\(UUID().uuidString)")
-        let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
+        let libraryRoot = root ?? FileManager.default.temporaryDirectory.appendingPathComponent("app-\(UUID().uuidString)")
+        let store = try LibraryStore(libraryRoot: libraryRoot, modelsRoot: libraryRoot.appending(path: "Models"))
         return try await assemble(
-            root: root, store: store, models: models, loaded: loaded, registry: registry,
+            root: libraryRoot, store: store, models: models, loaded: loaded, registry: registry,
             initialState: initialState, defaults: defaults ?? UserDefaults(suiteName: UUID().uuidString)!,
             supervisor: supervisor, script: script, catalog: catalog, transport: transport, catalogStore: catalogStore,
             civitaiTransport: civitaiTransport, civitaiFileTransport: civitaiFileTransport,
-            civitaiKeychain: civitaiKeychain, civitaiPreviewFetch: civitaiPreviewFetch)
+            civitaiKeychain: civitaiKeychain, civitaiPreviewFetch: civitaiPreviewFetch, chat: chat,
+            memoryTier: memoryTier)
     }
 
     /// Builds a new `AppModel` over this harness's library and defaults with a fresh engine, as a relaunch would.
@@ -194,9 +212,11 @@ struct AppHarness {
         civitaiTransport: (any CivitaiTransport)?,
         civitaiFileTransport: (any CivitaiFileTransport)?,
         civitaiKeychain: (any CivitaiKeyStore)?,
-        civitaiPreviewFetch: (@Sendable (URL) async -> Data?)?
+        civitaiPreviewFetch: (@Sendable (URL) async -> Data?)?,
+        chat: @escaping FakeEngine.ChatScript = { _, _ in .init(status: 404, body: Data(), tail: nil) },
+        memoryTier: MemoryTier = .current
     ) async throws -> AppHarness {
-        let engine = FakeEngine(loaded: loaded, models: models, script: script)
+        let engine = FakeEngine(loaded: loaded, models: models, script: script, chat: chat)
         let endpoint = EngineStubProtocol.register(handler: { engine.handle($0) })
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [EngineStubProtocol.self]
@@ -216,7 +236,7 @@ struct AppHarness {
             defaults: defaults, catalog: catalog, transport: transport, catalogStore: catalogStore,
             civitaiTransport: civitaiTransport, civitaiFileTransport: civitaiFileTransport,
             civitaiKeychain: civitaiKeychain ?? CivitaiKeychain(service: "test-civitai-\(UUID().uuidString)"),
-            civitaiPreviewFetch: civitaiPreviewFetch)
+            civitaiPreviewFetch: civitaiPreviewFetch, memoryTier: memoryTier)
         let collection = try await store.defaultCollection()
         return AppHarness(
             model: model, store: store, endpoint: endpoint, states: continuation, collectionID: collection.id,

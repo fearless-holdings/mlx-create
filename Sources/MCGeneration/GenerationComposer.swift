@@ -42,6 +42,8 @@ public struct GenerationDraft: Sendable, Equatable {
     public var seedPolicy: SeedPolicy
     /// The frozen LoRA stack, from ``GenerationComposer/freezeLoRAs(_:)``. `nil` or empty means no LoRAs.
     public var loras: [LoRAStackEntry]?
+    /// The prompt an accepted enhancement replaced (KTD7). Carried into the saved image's metadata.
+    public var originalPrompt: String?
 
     public init(
         model: InstalledModel,
@@ -52,7 +54,8 @@ public struct GenerationDraft: Sendable, Equatable {
         guidance: Double? = nil,
         batchCount: Int = 1,
         seedPolicy: SeedPolicy = .random,
-        loras: [LoRAStackEntry]? = nil
+        loras: [LoRAStackEntry]? = nil,
+        originalPrompt: String? = nil
     ) {
         self.model = model
         self.prompt = prompt
@@ -63,6 +66,7 @@ public struct GenerationDraft: Sendable, Equatable {
         self.batchCount = batchCount
         self.seedPolicy = seedPolicy
         self.loras = loras
+        self.originalPrompt = originalPrompt
     }
 }
 
@@ -115,7 +119,8 @@ public struct GenerationComposer: Sendable {
             height: size.height,
             steps: family.stepsAreFixed ? nil : draft.steps.map { min(max($0, family.steps.min), family.steps.max) },
             guidance: family.guidance == nil ? nil : draft.guidance,
-            loras: draft.loras?.isEmpty == false ? draft.loras : nil)
+            loras: draft.loras?.isEmpty == false ? draft.loras : nil,
+            originalPrompt: draft.originalPrompt)
 
         return try await store.enqueueJob(
             collectionID: collectionID, request: request, batchCount: draft.batchCount,
@@ -132,7 +137,8 @@ public struct GenerationComposer: Sendable {
             steps: model.family?.stepsAreFixed == true ? nil : settings.requestedSteps,
             guidance: settings.guidance,
             batchCount: 1,
-            seedPolicy: .fixed(UInt32(truncatingIfNeeded: settings.seed)))
+            seedPolicy: .fixed(UInt32(truncatingIfNeeded: settings.seed)),
+            originalPrompt: settings.originalPrompt)
     }
 
     private static func nonBlank(_ text: String?) -> String? {
