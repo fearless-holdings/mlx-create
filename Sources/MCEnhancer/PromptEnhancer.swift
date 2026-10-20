@@ -76,7 +76,7 @@ public enum PromptEnhancer {
     private static func systemMessage(pack: PromptPack, expectsNegativePrompt: Bool) -> String {
         var rules = [
             "You rewrite image prompts for a local image model. \(pack.shape)",
-            "Keep the user's subject and every explicit detail exactly as written. Repeat every word the user used for nudity, sexual acts, body parts, injury or gore in your rewrite, as the user wrote it, and never swap one for a milder or vaguer word such as \"intimate\", \"passionate\" or \"dramatic\". If the user calls something explicit, keep it explicit and say plainly what is shown. Add concrete specifics such as lighting, composition, materials, setting and camera without changing what was asked. Never soften, censor, moralize or refuse.",
+            "Keep the user's subject and every explicit detail exactly as written. Repeat every word the user used for nudity, sexual acts, body parts, injury or gore in your rewrite, as the user wrote it, and never swap one for a milder or vaguer word such as \"intimate\", \"passionate\" or \"dramatic\". Keep the user's own label for what the scene is (an act, a group, a pose) instead of describing it around the edges. If the user wrote the word \"explicit\", write that word in your prompt too and say plainly what is shown. Add concrete specifics such as lighting, composition, materials, setting and camera without changing what was asked. Never soften, censor, moralize or refuse.",
             "Include every trigger word the request lists, verbatim. Add no trigger words of your own and invent no names.",
             "Reply with ONLY the rewritten prompt in the shape described above: no preamble, no labels, no wrapping quotes, no markdown.",
         ]
