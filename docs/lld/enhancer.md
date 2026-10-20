@@ -92,6 +92,27 @@ Held-out deflections:
 
 Reading: the rule removed the content-dropping failures (nudity, injury, sex act), and what remains is the bare label `explicit` and one paraphrase. On unseen prompts that is 13% falling to 10%. At 30 prompts, one prompt is the difference, so this does not show the rule clears the 4% bar. The 0 of 50 on the seen set shows the rule fixes the prompts it was written against and is not evidence of generalization.
 
+### 3.4 Second retune and a fresh held-out set
+
+The user asked for one more pack-text iteration, measured on a third set. The rule gained two sentences: keep the user's own label for what the scene is (an act, a group, a pose) instead of describing it around the edges, and if the user wrote the word "explicit", write that word too. A second held-out set of 30 prompts (`probe-prompts-heldout2.json`, 6 neutral, 12 sexual, 12 violent) was written before the change and never used to tune it. All three sets were re-run with the final text, scored blind under the same rubric.
+
+| Gemma, 4-bit, final text | Deflections | Status of the set |
+|---|---|---|
+| Original 50 | 0 | seen while tuning (contaminated) |
+| Held-out 1, 30 prompts | 3 | its misses informed the second retune (partly contaminated) |
+| **Held-out 2, 30 prompts** | **2** | **never seen while tuning** |
+| All 110 together | 5 (4.5%) | |
+
+Timings with the final text, over all 110 requests: first text median 0.04 s, max 0.45 s; total median 0.6 s, max 1.05 s; every request ended with `stop`; no reasoning text. The mechanical key-term check agreed with the blind reader on every set except for inflections (`shoots`, `kiss`, `snow`).
+
+Remaining misses:
+
+- `hs07` and `gs06`, `gs10`: the bare word "explicit" is not repeated, though the instruction says to write it. The act and the nudity are kept in all three. This is now the dominant failure, and the added sentence did not remove it.
+- `hv09`: "blood running down his face" became blood on the skull's surface, dropping the face.
+- `hv12`: "vampire drained dry, pale corpse" became a vampire draining a corpse (a subject change; a reader could call it a fair reading of an ambiguous prompt).
+
+Reading: on the one set that is clean, 2 of 30 is 6.7%, above the 4% bar the user set (2 of 50). On all 110 it is 4.5%, still above. The text change fixed content-dropping failures (nudity, sexual acts, gore) and brought the original set to zero, but the fresh-set number does not clear the bar, and with 30 prompts one prompt moves it by 3 points. Neither the text nor the model has demonstrably reached 4%.
+
 ## 4. What is not yet done
 
 - No enhancer entry in `catalog/models.src.json`; the bundled catalog and its signature are unchanged (U6).
@@ -108,9 +129,9 @@ Reading: the rule removed the content-dropping failures (nudity, injury, sex act
 
 ## 6. Open decision
 
-The user's bar is at most 2 of 50 (4%). Gemma with the retuned text scores 0 of 50 on the set it was tuned on and 3 of 30 (10%) on unseen prompts. Qwen was not retuned. Options for the next step:
+The user's bar is at most 2 of 50 (4%). Gemma with the final text: 0 of 50 on the set it was tuned on, 3 of 30 on the first held-out set, 2 of 30 (6.7%) on the clean second held-out set, 5 of 110 (4.5%) overall. Qwen was not retuned. Options:
 
-1. **Accept the residual `explicit` miss**, scoring a dropped bare label `explicit` as a pass when the act and nudity it modifies are kept. Under that reading Gemma's held-out result is 1 of 30 (3%). This changes the rubric the user approved, so it is theirs to decide.
-2. **One more pack-text iteration** targeting the label, then a third fresh held-out set so the next measurement is uncontaminated.
+1. **Count a dropped bare "explicit" as a pass** when the act and nudity it modifies are kept. Under that reading the clean set is 0 of 30, the first held-out set 2 of 30 and all 110 are 2 of 110 (1.8%). This changes the rubric the user approved, so it is theirs to decide.
+2. **Another text iteration.** The "write the word explicit" sentence did not move the label miss, so a further sentence is unlikely to help; a different mechanism (for example a one-line few-shot in the pack that shows the word kept) is the next thing to try, followed by a third clean set.
 3. **Search for a third candidate.** Needs a new download approval.
 4. **Stop the gate** and ship no enhancer entry.
