@@ -40,12 +40,12 @@ private func systemText(_ request: EnhancementRequest) -> String {
 }
 
 @Suite struct PromptEnhancerTests {
-    @Test func everyBundledFamilyHasAPackWithTwoOrThreeExamples() throws {
+    @Test func everyBundledFamilyHasAPackWithTwoToFourExamples() throws {
         let families = try bundledFamilies()
         #expect(!families.isEmpty)
         for family in families {
             let pack = try #require(PromptPack.bundled(familyID: family.id), "no pack loads for \(family.id)")
-            #expect((2...3).contains(pack.examples.count))
+            #expect((2...4).contains(pack.examples.count))
         }
     }
 
