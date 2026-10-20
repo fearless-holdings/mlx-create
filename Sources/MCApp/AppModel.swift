@@ -47,6 +47,12 @@ public final class AppModel {
     private(set) var browser: ModelBrowserModel!
     /// Whether the browser sheet is presented.
     var isBrowserPresented = false
+    /// Whether the inline enhancer install sheet is presented (U8, R16).
+    var isEnhancerInstallPresented = false
+    /// Why the last Enhance press did not start, shown under the button (U8).
+    var enhanceRefusal: String?
+    /// The one-time note that this Enhance reloads the image model (R14). The next press clears it.
+    var enhanceReloadNote: String?
 
     public private(set) var engineState: EngineState = .stopped
     public private(set) var models: [InstalledModel] = []
@@ -126,6 +132,8 @@ public final class AppModel {
     private let states: AsyncStream<EngineState>
     private let supervisor: EngineSupervisor?
     let defaults: UserDefaults
+    /// The license prompt the model browser and the generation panel share (U8).
+    let license = LicensePrompt()
     private let installTransport: (any ModelTransport)?
     private let catalogStore: CatalogStore?
     private let queue: JobQueue
@@ -199,7 +207,7 @@ public final class AppModel {
         browser = ModelBrowserModel(
             catalog: catalog, installs: installs,
             weightsRoot: URL(fileURLWithPath: weightsPath, isDirectory: true),
-            workingSetGB: ModelBrowserModel.systemUsableWorkingSetGB(), engineModelIDs: [])
+            workingSetGB: ModelBrowserModel.systemUsableWorkingSetGB(), engineModelIDs: [], license: license)
         civitai.connect(
             selection: { [weak self] in self?.civitaiSelection },
             libraryChanged: { [weak self] in

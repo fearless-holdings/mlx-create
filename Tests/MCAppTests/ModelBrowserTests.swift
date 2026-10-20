@@ -185,7 +185,7 @@ struct BrowserRig {
         let browser = ModelBrowserModel(
             catalog: catalog, installs: installs,
             weightsRoot: root.appending(path: "Models/Weights", directoryHint: .isDirectory),
-            workingSetGB: workingSetGB, engineModelIDs: engineIDs)
+            workingSetGB: workingSetGB, engineModelIDs: engineIDs, license: LicensePrompt())
         return BrowserRig(root: root, transport: transport, browser: browser)
     }
 }
@@ -278,20 +278,20 @@ func browserRow(_ rows: [ModelBrowserRow], _ id: String) -> ModelBrowserRow? {
         let rig = try await BrowserRig.make()
 
         rig.browser.beginInstall(BrowserFixture.alpha.id)
-        #expect(rig.browser.pendingLicense?.model.id == BrowserFixture.alpha.id)
-        #expect(rig.browser.canConfirmLicense == false)
+        #expect(rig.browser.license.pending?.model.id == BrowserFixture.alpha.id)
+        #expect(rig.browser.license.canConfirm == false)
         rig.browser.confirmLicense()
-        #expect(rig.browser.pendingLicense != nil, "confirm does nothing before the checkbox is set")
+        #expect(rig.browser.license.pending != nil, "confirm does nothing before the checkbox is set")
         #expect(rig.transport.requests.isEmpty)
 
-        rig.browser.licenseAccepted = true
-        #expect(rig.browser.canConfirmLicense)
+        rig.browser.license.accepted = true
+        #expect(rig.browser.license.canConfirm)
         rig.browser.confirmLicense()
         rig.browser.confirmLicense()
         await rig.browser.installTask?.value
 
         #expect(rig.transport.requests.map(\.modelID) == [BrowserFixture.alpha.id])
-        #expect(rig.browser.pendingLicense == nil)
+        #expect(rig.browser.license.pending == nil)
     }
 
     @Test func licenseSheetRendersTheCatalogSummaryLinkAndCommercialFlag() async throws {
@@ -299,7 +299,7 @@ func browserRow(_ rows: [ModelBrowserRow], _ id: String) -> ModelBrowserRow? {
 
         rig.browser.beginInstall(BrowserFixture.beta.id)
 
-        let content = try #require(rig.browser.pendingLicense?.content)
+        let content = try #require(rig.browser.license.pending?.content)
         #expect(content.licenseName == BrowserFixture.beta.license.name)
         #expect(content.summary == BrowserFixture.beta.license.summary)
         #expect(content.url == URL(string: BrowserFixture.beta.license.url))
@@ -312,7 +312,7 @@ func browserRow(_ rows: [ModelBrowserRow], _ id: String) -> ModelBrowserRow? {
         let rig = try await BrowserRig.make(outcomes: [.fails(failure), .completes])
 
         rig.browser.beginInstall(BrowserFixture.beta.id)
-        rig.browser.licenseAccepted = true
+        rig.browser.license.accepted = true
         rig.browser.confirmLicense()
         await rig.browser.installTask?.value
 
@@ -326,7 +326,7 @@ func browserRow(_ rows: [ModelBrowserRow], _ id: String) -> ModelBrowserRow? {
         #expect(failed.action == .retry)
 
         rig.browser.continueInstall(BrowserFixture.beta.id)
-        #expect(rig.browser.pendingLicense == nil, "the license accepted this session carries over to Retry")
+        #expect(rig.browser.license.pending == nil, "the license accepted this session carries over to Retry")
         await rig.browser.installTask?.value
 
         #expect(rig.transport.requests.count == 2)
@@ -340,7 +340,7 @@ func browserRow(_ rows: [ModelBrowserRow], _ id: String) -> ModelBrowserRow? {
         defer { observer.cancel() }
 
         rig.browser.beginInstall(BrowserFixture.alpha.id)
-        rig.browser.licenseAccepted = true
+        rig.browser.license.accepted = true
         rig.browser.confirmLicense()
         try await eventually {
             if case .installing(let progress) = browserRow(rig.browser.rows, BrowserFixture.alpha.id)?.state {
@@ -365,7 +365,7 @@ func browserRow(_ rows: [ModelBrowserRow], _ id: String) -> ModelBrowserRow? {
         #expect(!reason.contains("\n"))
 
         rig.browser.beginInstall(BrowserFixture.beta.id)
-        #expect(rig.browser.pendingLicense == nil, "no second install can be requested while one runs")
+        #expect(rig.browser.license.pending == nil, "no second install can be requested while one runs")
 
         rig.browser.cancelInstall()
         await rig.browser.installTask?.value
@@ -425,7 +425,7 @@ func browserRow(_ rows: [ModelBrowserRow], _ id: String) -> ModelBrowserRow? {
         #expect(harness.model.models.isEmpty)
 
         harness.model.browser.beginInstall(BrowserFixture.beta.id)
-        harness.model.browser.licenseAccepted = true
+        harness.model.license.accepted = true
         harness.model.browser.confirmLicense()
         await harness.model.browser.installTask?.value
 
@@ -443,7 +443,7 @@ func browserRow(_ rows: [ModelBrowserRow], _ id: String) -> ModelBrowserRow? {
         let reopenedSheet = Task { await rig.browser.observe() }
         defer { reopenedSheet.cancel() }
         rig.browser.beginInstall(BrowserFixture.alpha.id)
-        rig.browser.licenseAccepted = true
+        rig.browser.license.accepted = true
         rig.browser.confirmLicense()
         try await eventually { rig.browser.active?.event.bytesDone == 1024 }
 
@@ -469,7 +469,7 @@ func browserRow(_ rows: [ModelBrowserRow], _ id: String) -> ModelBrowserRow? {
         #expect(missing.canAct)
 
         rig.browser.beginInstall(BrowserFixture.alpha.id)
-        rig.browser.licenseAccepted = true
+        rig.browser.license.accepted = true
         rig.browser.confirmLicense()
         await rig.browser.installTask?.value
 
@@ -482,7 +482,7 @@ func browserRow(_ rows: [ModelBrowserRow], _ id: String) -> ModelBrowserRow? {
         let rig = try await BrowserRig.make(outcomes: [.fails(failure), .completes])
 
         rig.browser.beginInstall(BrowserFixture.beta.id)
-        rig.browser.licenseAccepted = true
+        rig.browser.license.accepted = true
         rig.browser.confirmLicense()
         await rig.browser.installTask?.value
 
@@ -522,7 +522,7 @@ func browserRow(_ rows: [ModelBrowserRow], _ id: String) -> ModelBrowserRow? {
         #expect(rig.browser.enhancerStatus == EnhancerStatus(isInstalled: false, engineModelID: nil))
 
         rig.browser.beginInstall(BrowserFixture.enhancer.id)
-        rig.browser.licenseAccepted = true
+        rig.browser.license.accepted = true
         rig.browser.confirmLicense()
         await rig.browser.installTask?.value
 

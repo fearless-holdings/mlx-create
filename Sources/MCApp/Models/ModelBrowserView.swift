@@ -25,8 +25,20 @@ struct ModelBrowserView: View {
                     systemImage: "shippingbox",
                     description: Text("The model catalog could not be loaded, and no model folders were found."))
             } else {
-                List(browser.rows) { row in
-                    InstallRow(row: row, browser: browser)
+                List {
+                    ForEach(browser.rows.filter { $0.model?.kind != .enhancer }) { row in
+                        InstallRow(row: row, browser: browser)
+                    }
+                    if !browser.rows(of: .enhancer).isEmpty {
+                        Section {
+                            ForEach(browser.rows(of: .enhancer)) { row in
+                                InstallRow(row: row, browser: browser)
+                            }
+                        } header: {
+                            Text(EnhancerOffer.isOffered(browser.enhancerStatus)
+                                ? "Optional extra: prompt enhancer" : "Prompt enhancer")
+                        }
+                    }
                 }
             }
         }
@@ -36,15 +48,15 @@ struct ModelBrowserView: View {
             await browser.observe()
         }
         .sheet(isPresented: licensePresented) {
-            if let pending = browser.pendingLicense {
-                LicenseSheet(browser: browser, pending: pending)
+            if let pending = browser.license.pending {
+                LicenseSheet(browser: browser, license: browser.license, pending: pending)
             }
         }
     }
 
     private var licensePresented: Binding<Bool> {
         Binding(
-            get: { browser.pendingLicense != nil },
+            get: { browser.license.pending != nil },
             set: { presented in
                 if !presented { browser.dismissLicense() }
             })

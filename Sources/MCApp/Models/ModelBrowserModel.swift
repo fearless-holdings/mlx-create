@@ -74,6 +74,29 @@ struct PendingLicense: Equatable {
     let content: Content
 }
 
+/// The license prompt the model browser and the generation panel share (U8). `AppModel` owns the one instance, so an
+/// install started from either view presents the same sheet.
+@MainActor
+@Observable
+final class LicensePrompt {
+    private(set) var pending: PendingLicense?
+    /// The checkbox on the license sheet.
+    var accepted = false
+
+    /// Whether Install can be confirmed: a license is pending and its checkbox is set.
+    var canConfirm: Bool { pending != nil && accepted }
+
+    func present(_ license: PendingLicense) {
+        pending = license
+        accepted = false
+    }
+
+    func dismiss() {
+        pending = nil
+        accepted = false
+    }
+}
+
 /// Whether the catalog's enhancer is installed, and the engine id its chat calls go to (U3, R11).
 struct EnhancerStatus: Equatable, Sendable {
     /// The install record and its folder both exist.
@@ -105,9 +128,8 @@ final class ModelBrowserModel {
         let retryable: Bool
     }
     private(set) var failures: [String: Failure] = [:]
-    private(set) var pendingLicense: PendingLicense?
-    /// The checkbox on the license sheet.
-    var licenseAccepted = false
+    /// The license prompt the browser and the generation panel share (U8). `AppModel` owns it.
+    let license: LicensePrompt
     private(set) var installTask: Task<Void, Never>?
     /// When each license version was accepted this session, so Retry and Resume do not ask again.
     private var acceptances: [String: Date] = [:]
@@ -117,13 +139,15 @@ final class ModelBrowserModel {
         installs: InstallCoordinator?,
         weightsRoot: URL,
         workingSetGB: Double?,
-        engineModelIDs: Set<String>
+        engineModelIDs: Set<String>,
+        license: LicensePrompt
     ) {
         self.catalog = catalog
         self.installs = installs
         self.weightsRoot = weightsRoot
         self.workingSetGB = workingSetGB
         self.engineModelIDs = engineModelIDs
+        self.license = license
     }
 
     /// Usable GB from the Metal recommended working set, or nil when no Metal device is available (KTD19).
@@ -173,10 +197,6 @@ final class ModelBrowserModel {
     /// The catalog rows of one kind, in browser order.
     func rows(of kind: CatalogModelKind) -> [ModelBrowserRow] {
         rows.filter { $0.model?.kind == kind }
-    }
-
-    var canConfirmLicense: Bool {
-        pendingLicense != nil && licenseAccepted
     }
 
     /// The catalog's enhancer, or nil when the catalog lists none. Installed means the record and its folder exist (R11).
@@ -233,8 +253,7 @@ final class ModelBrowserModel {
     /// Install on a row: opens the license sheet. The install starts only when the license is accepted.
     func beginInstall(_ modelID: String) {
         guard let model = startableModel(modelID), row(for: model).action == .install else { return }
-        pendingLicense = PendingLicense(model: model, content: .init(model.license))
-        licenseAccepted = false
+        license.present(PendingLicense(model: model, content: .init(model.license)))
     }
 
     /// Resume or Retry on a row. Skips the sheet when the license version was accepted this session.
@@ -243,24 +262,21 @@ final class ModelBrowserModel {
         if let acceptedAt = acceptances[Self.licenseKey(model)] {
             start(model, acceptedAt: acceptedAt)
         } else {
-            pendingLicense = PendingLicense(model: model, content: .init(model.license))
-            licenseAccepted = false
+            license.present(PendingLicense(model: model, content: .init(model.license)))
         }
     }
 
     /// Confirm on the license sheet. Does nothing until the checkbox is set; then starts the install once.
     func confirmLicense() {
-        guard let pending = pendingLicense, licenseAccepted else { return }
-        pendingLicense = nil
-        licenseAccepted = false
+        guard license.canConfirm, let pending = license.pending else { return }
+        license.dismiss()
         let now = Date()
         acceptances[Self.licenseKey(pending.model)] = now
         start(pending.model, acceptedAt: now)
     }
 
     func dismissLicense() {
-        pendingLicense = nil
-        licenseAccepted = false
+        license.dismiss()
     }
 
     /// Cancel on the active row. Partials stay on disk, and the row reads as interrupted.

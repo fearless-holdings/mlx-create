@@ -63,7 +63,7 @@ private func enhancerHarness(
     // The install's rescan waits on the engine gate, which only opens once the app has started.
     await harness.model.start()
     harness.model.browser.beginInstall(BrowserFixture.enhancer.id)
-    harness.model.browser.licenseAccepted = true
+    harness.model.license.accepted = true
     harness.model.browser.confirmLicense()
     await harness.model.browser.installTask?.value
     await harness.model.refreshModels()
