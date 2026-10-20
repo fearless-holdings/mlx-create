@@ -6,6 +6,7 @@ import Testing
 
 let kreaModel = "ddalcu/Krea-2-Turbo-MLX-Serve-mixed-4-8"
 let otherModel = "ddalcu/FLUX.2-klein-MLX-Serve-4bit"
+let enhancerModel = "test/enhancer-4bit"
 
 /// Behavior of the stub engine for one test: which models are resident and what each generation returns.
 final class FakeEngine: @unchecked Sendable {
@@ -14,17 +15,20 @@ final class FakeEngine: @unchecked Sendable {
     private var generations = 0
     private let known: [String]
     private let holdLoads: Bool
+    private let refusedLoads: Set<String>
     private let script: @Sendable (Int, EngineStubProtocol.Recorded) -> EngineStubProtocol.Reply
 
     init(
         loaded: Set<String>,
         known: [String],
         holdLoads: Bool,
+        refusedLoads: Set<String>,
         script: @escaping @Sendable (Int, EngineStubProtocol.Recorded) -> EngineStubProtocol.Reply
     ) {
         self.loaded = loaded
         self.known = known
         self.holdLoads = holdLoads
+        self.refusedLoads = refusedLoads
         self.script = script
     }
 
@@ -34,6 +38,7 @@ final class FakeEngine: @unchecked Sendable {
             return .json(modelsJSON())
         case "v1/load-model":
             let id = Self.modelID(request.body)
+            if refusedLoads.contains(id) { return .init(status: 503, body: PNGFixture.oomBody(), tail: nil) }
             lock.withLock { _ = loaded.insert(id) }
             // A held load keeps its reply open until the test finishes it or the client cancels the request.
             return holdLoads ? .init(status: 200, body: Data("{}".utf8), tail: Data()) : .json("{}")
@@ -78,20 +83,24 @@ struct Harness {
         loaded: Set<String> = [],
         known: [String] = [kreaModel, otherModel],
         holdLoads: Bool = false,
+        refusedLoads: Set<String> = [],
         engineVersion: String? = nil,
+        memoryTier: MemoryTier = MemoryTier(physicalMemoryBytes: 16 << 30),
         script: @escaping @Sendable (Int, EngineStubProtocol.Recorded) -> EngineStubProtocol.Reply
     ) async throws -> Harness {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("gen-\(UUID().uuidString)")
         let modelsRoot = root.appending(path: "Models", directoryHint: .isDirectory)
         let store = try LibraryStore(libraryRoot: root, modelsRoot: modelsRoot)
-        let engine = FakeEngine(loaded: loaded, known: known, holdLoads: holdLoads, script: script)
+        let engine = FakeEngine(
+            loaded: loaded, known: known, holdLoads: holdLoads, refusedLoads: refusedLoads, script: script)
         let endpoint = EngineStubProtocol.register(handler: { engine.handle($0) })
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [EngineStubProtocol.self]
         let client = EngineClient(endpoint: { endpoint }, configuration: configuration)
         let queue = JobQueue(store: store)
         let executor = JobExecutor(
-            store: store, modelsRoot: modelsRoot, client: client, queue: queue, engineVersion: engineVersion)
+            store: store, modelsRoot: modelsRoot, client: client, queue: queue, engineVersion: engineVersion,
+            memoryTier: memoryTier)
         let collection = try await store.defaultCollection()
         return Harness(
             store: store, queue: queue, executor: executor, endpoint: endpoint, collectionID: collection.id,
@@ -147,6 +156,19 @@ struct Harness {
     /// Requests the engine received, in order, filtered to one route.
     func requests(to path: String) -> [EngineStubProtocol.Recorded] {
         EngineStubProtocol.requests(endpoint).filter { $0.path == path }
+    }
+
+    /// Every engine call in the order it was sent: `load <id>`, `unload <id>` or `generate <seed>`. Model listings are omitted.
+    func engineCalls() -> [String] {
+        EngineStubProtocol.requests(endpoint).compactMap { request in
+            let object = try? JSONSerialization.jsonObject(with: Data(request.body.utf8)) as? [String: Any]
+            switch request.path {
+            case "v1/load-model": return "load \(object?["model"] as? String ?? "")"
+            case "v1/unload-model": return "unload \(object?["model"] as? String ?? "")"
+            case "v1/images/generations": return "generate \(object?["seed"] as? Int ?? -1)"
+            default: return nil
+            }
+        }
     }
 
     /// The `seed` each generation request carried, in order. A request without a seed fails the test.

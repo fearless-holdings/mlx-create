@@ -11,15 +11,23 @@ public actor JobExecutor {
     private static let crashPollAttempts = 10
     private static let crashPollInterval = Duration.milliseconds(100)
 
-    private let store: LibraryStore
+    let store: LibraryStore
     private let modelsRoot: URL
-    private let client: EngineClient
+    let client: EngineClient
     private let queue: JobQueue
     private let hub: ExecutorEventHub
     private let crashKind: @Sendable () async -> EngineCrash?
     private let engineVersion: String?
     private var rng = SystemRandomNumberGenerator()
-    private var currentJobID: UUID?
+    var currentJobID: UUID?
+    /// Held by an Enhance lease (KTD5). While it is set, `drain` claims no job and model switches wait for its release.
+    var enhancerLeaseHeld = false
+    /// Tasks parked until the executor's state changes (see `EnhancerLease.swift`).
+    var stateWaiters: [UUID: CheckedContinuation<Void, Error>] = [:]
+    /// Model switches requested during a lease. The release does not re-warm the image model while any is waiting.
+    var selectionsWaiting = 0
+    /// Decides whether a lease swaps the image model out (tier 1, below 24 GiB) or keeps it resident.
+    let memoryTier: MemoryTier
     private var active: Task<(png: Data, total: Int?), Error>?
     private var cancelRequested: Set<UUID> = []
     private var drainTask: Task<Void, Never>?
@@ -34,13 +42,15 @@ public actor JobExecutor {
     /// connection, and a crash then supplies the job's failure instead of the generic mapping (KTD6).
     /// `engineVersion` is the pinned engine's version, written into each saved image's settings.
     /// `modelsRoot` is the Models root that each job's LoRA paths resolve against (KTD6).
+    /// `memoryTier` decides how an Enhance lease shares engine residency with the image model (KTD5).
     public init(
         store: LibraryStore,
         modelsRoot: URL,
         client: EngineClient,
         queue: JobQueue,
         crashKind: @escaping @Sendable () async -> EngineCrash? = { nil },
-        engineVersion: String? = nil
+        engineVersion: String? = nil,
+        memoryTier: MemoryTier = .current
     ) {
         self.store = store
         self.modelsRoot = modelsRoot
@@ -49,6 +59,7 @@ public actor JobExecutor {
         self.hub = queue.hub
         self.crashKind = crashKind
         self.engineVersion = engineVersion
+        self.memoryTier = memoryTier
     }
 
     /// Starts draining the queue in the background. Calling it while a drain is running does nothing, so
@@ -67,8 +78,11 @@ public actor JobExecutor {
 
     /// Runs queued jobs in order until the queue is empty or a pause is requested. Tests call this directly;
     /// the app uses `start()`.
+    /// While an Enhance lease is held, `drain` waits for its release before it claims the next job.
     public func drain() async throws {
-        while await !queue.isPauseRequested, let job = try await store.nextQueuedJob() {
+        while true {
+            try await waitWhileLeaseHeld()
+            guard await !queue.isPauseRequested, let job = try await store.nextQueuedJob() else { return }
             do {
                 try await run(job)
             } catch {
@@ -95,6 +109,17 @@ public actor JobExecutor {
     /// Makes `modelID` the resident model: unloads any other resident model, then loads it. Does nothing
     /// when it is already resident.
     public func selectModel(_ modelID: String) async throws {
+        if enhancerLeaseHeld {
+            // Applied after the lease releases, so it never interleaves with the enhancer's load or unload (KTD5).
+            selectionsWaiting += 1
+            defer { selectionsWaiting -= 1 }
+            try await waitWhileLeaseHeld()
+        }
+        try await switchModel(modelID)
+    }
+
+    /// The switch itself, without the lease wait. The running job uses it, since an Enhance lease waits for that job to end.
+    func switchModel(_ modelID: String) async throws {
         let client = client
         try await serialized {
             let resident = try await client.models().filter(\.loaded).map(\.id)
@@ -107,6 +132,8 @@ public actor JobExecutor {
     }
 
     private func run(_ job: Job) async throws {
+        // A lease that began after `drain` read the queue leaves this job queued; `drain` waits for the release and claims it then.
+        guard !enhancerLeaseHeld else { return }
         // KTD17: a mode this executor cannot generate fails here, before the job is claimed, so `drain` never sees it again.
         guard job.mode == Job.textToImageMode else {
             try await transition(
@@ -119,6 +146,7 @@ public actor JobExecutor {
         defer {
             currentJobID = nil
             cancelRequested.remove(job.id)
+            notifyStateChanged()
         }
         // A job cancelled after `drain` picked it from the queue is no longer queued, so it is skipped.
         guard try await transition(job.id, from: [.queued], to: .running) else { return }
@@ -135,6 +163,12 @@ public actor JobExecutor {
             }
             if await queue.isPauseRequested {
                 try await setStatus(job.id, .paused)
+                return
+            }
+            if enhancerLeaseHeld {
+                // An Enhance lease waits for the current image, not the whole batch. The job returns to its place in the
+                // queue with its remaining images, so `drain` resumes it first once the lease releases.
+                try await transition(job.id, from: [.running], to: .queued)
                 return
             }
             do {
@@ -242,10 +276,11 @@ public actor JobExecutor {
         return file
     }
 
-    /// Makes the job's model resident before its stream starts, unless the job was cancelled first.
+    /// Makes the job's model resident before its stream starts, unless the job was cancelled first. It uses `switchModel`,
+    /// not `selectModel`: an Enhance lease waits for this job to end, so the job must not wait on the lease.
     private func makeResident(_ modelID: String, for jobID: UUID) async throws {
         if cancelRequested.contains(jobID) { throw CancellationError() }
-        try await selectModel(modelID)
+        try await switchModel(modelID)
     }
 
     /// Writes a job's status and announces the change. The executor's own terminal and pause writes go through here.
@@ -302,7 +337,7 @@ public actor JobExecutor {
 
     /// Runs a model switch after every switch started before it has finished, so unloads and loads never
     /// interleave. Cancelling the caller cancels its own switch.
-    private func serialized(_ operation: @escaping @Sendable () async throws -> Void) async throws {
+    func serialized(_ operation: @escaping @Sendable () async throws -> Void) async throws {
         let previous = selectionTail
         let task = Task {
             _ = try? await previous?.value
@@ -319,7 +354,7 @@ public actor JobExecutor {
 
     /// Frees memory after an out-of-memory refusal. Failures here are ignored: the job fails with the
     /// memory message either way, and the next attempt loads the model again.
-    private func unloadResidentModels() async {
+    func unloadResidentModels() async {
         let client = client
         _ = try? await serialized {
             let resident = (try? await client.models().filter(\.loaded).map(\.id)) ?? []
