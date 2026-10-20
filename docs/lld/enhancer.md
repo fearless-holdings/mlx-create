@@ -113,6 +113,24 @@ Remaining misses:
 
 Reading: on the one set that is clean, 2 of 30 is 6.7%, above the 4% bar the user set (2 of 50). On all 110 it is 4.5%, still above. The text change fixed content-dropping failures (nudity, sexual acts, gore) and brought the original set to zero, but the fresh-set number does not clear the bar, and with 30 prompts one prompt moves it by 3 points. Neither the text nor the model has demonstrably reached 4%.
 
+### 3.5 Pack example and a third clean set
+
+Rule text alone did not make the model repeat the word "explicit", so the next mechanism was a worked example: each pack gained a fourth example, `an adult couple naked on a sofa, explicit, late evening`, whose rewrite keeps "naked" and "explicit". It is the same scenario in all three packs, in each pack's own style. A third held-out set of 30 prompts (`probe-prompts-heldout3.json`, 6 neutral, 12 sexual of which 8 carry the word "explicit", 12 violent) was written before the change and never used to tune it. All four sets were re-run and scored blind twice. The first scorer used the earlier rubric. The second was given the same rubric plus a checklist (list the input's explicit elements, check each, and count a missing bare "explicit" as lost), because the first scorer passed `ks01` while failing the identical drop on `hs07` and `gs10`.
+
+| Gemma, final packs | Scorer 1 | Scorer 2 (checklist) | Status of the set |
+|---|---|---|---|
+| Original 50 | 0 | 0 | seen while tuning |
+| Held-out 1, 30 | 1 | 2 | its misses informed earlier retunes |
+| Held-out 2, 30 | 1 | 1 | its misses informed this retune |
+| **Held-out 3, 30** | **1** | **2** | **clean, never seen while tuning** |
+| All 140 | 3 (2.1%) | 5 (3.6%) | |
+
+Where the scorers differ: `hs12` ("threesome" written as "three adults lie naked") and `ks01` (bare "explicit" dropped). Misses under the stricter reading: `hs07`, `hs12`, `gs10`, `ks01` and `kv10` ("a blade poised to cut off an ear" for "cutting off an ear"; both scorers flagged it). `hs07`, `gs10` and `ks01` are the dropped bare "explicit" again, one per held-out set; in the clean set it happened in 1 of the 8 prompts that carry the word.
+
+Timings over all 140 requests: first text median 0.04 s, max 0.27 s; total median 0.6 s, max 0.96 s; every request ended with `stop`; no reasoning text. The example did not leak into other prompts (the one flagged match in the mechanical check, `hs02` and `ks02`, repeats the user's own words).
+
+Reading: the clean set scores 1 of 30 (3.3%) or 2 of 30 (6.7%) depending on the scorer. The bar is 2 of 50 (4%), so the first reading is under it and the second is over it, and one prompt in 30 is 3 points. Pooling does not settle it: 3 of 140 (2.1%) or 5 of 140 (3.6%), but the pool includes the 50 prompts the rules were written against. The sample cannot tell 3% from 6%.
+
 ## 4. What is not yet done
 
 - No enhancer entry in `catalog/models.src.json`; the bundled catalog and its signature are unchanged (U6).
@@ -129,9 +147,10 @@ Reading: on the one set that is clean, 2 of 30 is 6.7%, above the 4% bar the use
 
 ## 6. Open decision
 
-The user's bar is at most 2 of 50 (4%). Gemma with the final text: 0 of 50 on the set it was tuned on, 3 of 30 on the first held-out set, 2 of 30 (6.7%) on the clean second held-out set, 5 of 110 (4.5%) overall. Qwen was not retuned. Options:
+The user's bar is at most 2 of 50 (4%). With the final packs, Gemma scores 0 of 50 on the tuning set and 1 to 2 of 30 on the clean set (3.3% to 6.7% by scorer), 3 to 5 of 140 pooled. Qwen was not retuned. Options:
 
-1. **Count a dropped bare "explicit" as a pass** when the act and nudity it modifies are kept. Under that reading the clean set is 0 of 30, the first held-out set 2 of 30 and all 110 are 2 of 110 (1.8%). This changes the rubric the user approved, so it is theirs to decide.
-2. **Another text iteration.** The "write the word explicit" sentence did not move the label miss, so a further sentence is unlikely to help; a different mechanism (for example a one-line few-shot in the pack that shows the word kept) is the next thing to try, followed by a third clean set.
-3. **Search for a third candidate.** Needs a new download approval.
-4. **Stop the gate** and ship no enhancer entry.
+1. **Accept Gemma on this evidence.** The rewriter keeps nudity, sex acts and gore in all but a few percent of prompts, never refuses, and Revert and Regenerate cover the rest. It needs the user to accept that the clean set sits on either side of the bar depending on the scorer. Then: catalog entry, re-sign, `ram_gb` 3.94, U9.
+2. **A fourth clean set of 50**, scored by both scorers, to separate 3% from 6%. It costs about 10 minutes and no download. If it lands over 4%, we are back here with a firmer number.
+3. **Count a dropped bare "explicit" as a pass** when the act and nudity it modifies are kept. Under that reading the clean set is 0 to 1 of 30. It changes the rubric the user approved.
+4. **Search for a third candidate.** Needs a new download approval.
+5. **Stop the gate** and ship no enhancer entry.

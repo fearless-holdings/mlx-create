@@ -259,7 +259,7 @@ sequenceDiagram
 - **Approach:**
   - Add the `MCEnhancer` target and its test target to `Package.swift` beside `MCGeneration`, and add it to `MCApp`'s dependencies.
   - Move the word-bounded match and append rules out of `LoRAStackRules` into a public type in `MCEnhancer`, and make `LoRAStackRules` call it, so `MCApp` and `MCEnhancer` share one matcher without a dependency cycle.
-  - Write one pack per current family, following the structure of upstream's rewriter: a shape instruction, 2–3 examples, and a reply-with-only-the-prompt rule.
+  - Write one pack per current family, following the structure of upstream's rewriter: a shape instruction, 2–4 examples (three neutral ones plus one that keeps an explicit label, added by the U6 retune, `docs/lld/enhancer.md` 3.5), and a reply-with-only-the-prompt rule.
   - Build the user message from the prompt plus trigger words and up to 3 example prompts per active LoRA, under a total size cap. Example prompts are context only and are never inserted verbatim.
   - After streaming, clean the text: strip fences, wrapping quotes and any reasoning block, then re-insert missing trigger words using the shared word-bounded, case-insensitive match.
   - Rewrite the negative prompt only when the family record says it supports one.
