@@ -303,6 +303,9 @@ public final class AppModel {
         models.first { $0.id == selectedModelID }
     }
 
+    /// The catalog's enhancer: whether it is installed and the engine id its chat calls use (U3, R11).
+    var enhancer: EnhancerStatus? { browser.enhancerStatus }
+
     public var controls: SettingsControls? {
         ModelSelection.controls(for: selectedModel)
     }
@@ -448,7 +451,9 @@ public final class AppModel {
         do {
             let installed = InstalledModels(registry: registry, weightsRoot: URL(fileURLWithPath: weightsPath, isDirectory: true))
             models = try await installed.refresh(using: client)
-            browser.setEngineModelIDs(Set(models.map(\.id)))
+            // The picker keeps image models only, so the browser gets every engine id: an enhancer is not an image model (U3).
+            browser.setEngineModelIDs(Set(try await client.models().map(\.id)))
+            await browser.refresh()
             modelsLoaded = true
             chooseSelection()
         } catch is CancellationError {

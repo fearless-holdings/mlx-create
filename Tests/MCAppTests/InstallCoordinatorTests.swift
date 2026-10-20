@@ -122,7 +122,8 @@ enum CoordinatorFixture {
     static let issuedAt = Date(timeIntervalSince1970: 1_790_000_000)
 
     static func catalog(
-        licenseVersion: String = "1 (June 22, 2026)", sequence: Int = 7, family: String = "krea-2-turbo"
+        licenseVersion: String = "1 (June 22, 2026)", sequence: Int = 7, family: String = "krea-2-turbo",
+        kind: CatalogModelKind = .image
     ) -> Catalog {
         let model = CatalogModel(
             id: modelID, family: family, name: "Krea 2 Turbo", quantization: "mixed 4/8-bit",
@@ -134,7 +135,7 @@ enum CoordinatorFixture {
             files: [
                 CatalogFile(path: "config.json", size: 1024, sha256: hash),
                 CatalogFile(path: "model.safetensors", size: 2048, sha256: hash),
-            ])
+            ], kind: kind)
         return Catalog(schemaVersion: 1, sequence: sequence, issuedAt: issuedAt, models: [model])
     }
 
@@ -330,5 +331,24 @@ enum CoordinatorFixture {
         let row = try #require(try await store.installedModel(id: CoordinatorFixture.modelID))
         #expect(row.family == "krea-2-turbo")
         #expect(row.catalogSequence == 7)
+    }
+
+    /// An enhancer installs through the same coordinator. The coordinator has no family registry, so nothing checks
+    /// the family string, and the record keeps it as provenance.
+    @Test func enhancerInstallsThroughTheCoordinatorWithoutAFamilyRecord() async throws {
+        let root = CoordinatorFixture.scratchRoot()
+        let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
+        let transport = CompletingTransport(modelsRoot: root.appending(path: "Models"))
+        let coordinator = InstallCoordinator(
+            catalog: CoordinatorFixture.catalog(family: "prompt-enhancer", kind: .enhancer), store: store,
+            transport: transport, rescan: {})
+
+        let outcome = try await coordinator.install(
+            modelID: CoordinatorFixture.modelID, acceptance: CoordinatorFixture.acceptance())
+
+        #expect(outcome == InstallOutcome(modelID: CoordinatorFixture.modelID, result: .installed, rescanFailure: nil))
+        #expect(transport.requests.map(\.modelID) == [CoordinatorFixture.modelID])
+        #expect(try await store.installedModel(id: CoordinatorFixture.modelID)?.family == "prompt-enhancer")
+        #expect(try await coordinator.status(of: CoordinatorFixture.modelID) == .installed)
     }
 }

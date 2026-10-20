@@ -25,10 +25,17 @@ public struct Catalog: Sendable, Codable, Equatable {
     }
 }
 
+/// What a catalog model is for (KTD4). Image models feed the picker. An enhancer is the local chat model the Enhance
+/// flow calls. Absent in a catalog means image, so every existing signed catalog reads and verifies unchanged.
+public enum CatalogModelKind: String, Sendable, Codable, Equatable {
+    case image
+    case enhancer
+}
+
 /// One installable model. `revision` is the pinned 40-hex Hugging Face commit (D27).
 public struct CatalogModel: Sendable, Codable, Equatable, Identifiable {
     public let id: String
-    /// Matches a `FamilyRegistry` record id.
+    /// Matches a `FamilyRegistry` record id. An enhancer names no record; the value is kept as install provenance only.
     public let family: String
     public let name: String
     public let quantization: String
@@ -41,10 +48,12 @@ public struct CatalogModel: Sendable, Codable, Equatable, Identifiable {
     public let ramGB: Double
     public let license: CatalogLicense
     public let files: [CatalogFile]
+    public let kind: CatalogModelKind
 
     public init(
         id: String, family: String, name: String, quantization: String, repo: String, revision: String,
-        downloadBytes: Int64, ramGB: Double, license: CatalogLicense, files: [CatalogFile]
+        downloadBytes: Int64, ramGB: Double, license: CatalogLicense, files: [CatalogFile],
+        kind: CatalogModelKind = .image
     ) {
         self.id = id
         self.family = family
@@ -56,12 +65,46 @@ public struct CatalogModel: Sendable, Codable, Equatable, Identifiable {
         self.ramGB = ramGB
         self.license = license
         self.files = files
+        self.kind = kind
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, family, name, quantization, repo, revision, license, files
+        case id, family, name, quantization, repo, revision, license, files, kind
         case downloadBytes = "download_bytes"
         case ramGB = "ram_gb"
+    }
+
+    /// `kind` is optional on the wire: an absent value is an image model.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        family = try c.decode(String.self, forKey: .family)
+        name = try c.decode(String.self, forKey: .name)
+        quantization = try c.decode(String.self, forKey: .quantization)
+        repo = try c.decode(String.self, forKey: .repo)
+        revision = try c.decode(String.self, forKey: .revision)
+        downloadBytes = try c.decode(Int64.self, forKey: .downloadBytes)
+        ramGB = try c.decode(Double.self, forKey: .ramGB)
+        license = try c.decode(CatalogLicense.self, forKey: .license)
+        files = try c.decode([CatalogFile].self, forKey: .files)
+        kind = try c.decodeIfPresent(CatalogModelKind.self, forKey: .kind) ?? .image
+    }
+
+    /// Writes the keys in the order the synthesised encoder used. `kind` is written only for an enhancer, so re-encoding
+    /// an image model produces the same bytes, and the signature over them still matches.
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(family, forKey: .family)
+        try c.encode(name, forKey: .name)
+        try c.encode(quantization, forKey: .quantization)
+        try c.encode(repo, forKey: .repo)
+        try c.encode(revision, forKey: .revision)
+        try c.encode(downloadBytes, forKey: .downloadBytes)
+        try c.encode(ramGB, forKey: .ramGB)
+        try c.encode(license, forKey: .license)
+        try c.encode(files, forKey: .files)
+        if kind != .image { try c.encode(kind, forKey: .kind) }
     }
 }
 

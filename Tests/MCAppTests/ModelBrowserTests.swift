@@ -1,5 +1,7 @@
 import Foundation
 import MCCatalog
+import MCEngine
+import MCGeneration
 import MCLibrary
 import MCModels
 import Testing
@@ -128,6 +130,18 @@ enum BrowserFixture {
 
     static let catalog = Catalog(schemaVersion: 1, sequence: 3, issuedAt: acceptedAt, models: [alpha, beta])
 
+    /// A chat model with no family record: its family string names nothing in the registry, on purpose.
+    static let enhancer = CatalogModel(
+        id: "enhancer-4bit", family: "prompt-enhancer", name: "Enhancer", quantization: "4-bit", repo: "org/enhancer",
+        revision: String(repeating: "c", count: 40), downloadBytes: 3072, ramGB: 3,
+        license: CatalogLicense(
+            id: "license-enhancer", name: "Enhancer License", url: "https://example.com/enhancer", commercialUse: true,
+            version: "1", summary: "Commercial use is allowed."),
+        files: files, kind: .enhancer)
+
+    static let catalogWithEnhancer = Catalog(
+        schemaVersion: 1, sequence: 4, issuedAt: acceptedAt, models: [alpha, beta, enhancer])
+
     static func alphaRecord() -> InstalledModelRecord {
         InstalledModelRecord(
             modelID: alpha.id, family: alpha.family, repo: alpha.repo, revision: alpha.revision, catalogSequence: 3,
@@ -135,6 +149,11 @@ enum BrowserFixture {
             licenseID: alpha.license.id, licenseVersion: alpha.license.version, acceptedAt: acceptedAt,
             installedAt: acceptedAt)
     }
+}
+
+/// The body of `GET /v1/models`, decoded the way the engine client decodes it.
+private struct EngineListing: Decodable {
+    let data: [ModelEntry]
 }
 
 /// A browser model over a real library and a scripted installer. Nothing reaches the network or the engine.
@@ -151,20 +170,20 @@ struct BrowserRig {
         staged: [StagedInstall] = [],
         engineIDs: Set<String> = [],
         installedAlpha: Bool = false,
-        workingSetGB: Double? = BrowserFixture.workingSetGB
+        workingSetGB: Double? = BrowserFixture.workingSetGB,
+        catalog: Catalog = BrowserFixture.catalog
     ) async throws -> BrowserRig {
         let root = FileManager.default.temporaryDirectory.appending(path: "browser-\(UUID().uuidString)")
         let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
         let transport = ScriptedTransport(
             modelsRoot: root.appending(path: "Models", directoryHint: .isDirectory), outcomes: outcomes, staged: staged)
-        let installs = InstallCoordinator(
-            catalog: BrowserFixture.catalog, store: store, transport: transport, rescan: {})
+        let installs = InstallCoordinator(catalog: catalog, store: store, transport: transport, rescan: {})
         if installedAlpha {
             transport.publishFolder(InstallCoordinator.plan(for: BrowserFixture.alpha))
             try await store.recordInstalledModel(BrowserFixture.alphaRecord())
         }
         let browser = ModelBrowserModel(
-            catalog: BrowserFixture.catalog, installs: installs,
+            catalog: catalog, installs: installs,
             weightsRoot: root.appending(path: "Models/Weights", directoryHint: .isDirectory),
             workingSetGB: workingSetGB, engineModelIDs: engineIDs)
         return BrowserRig(root: root, transport: transport, browser: browser)
@@ -479,5 +498,66 @@ func browserRow(_ rows: [ModelBrowserRow], _ id: String) -> ModelBrowserRow? {
         rig.browser.continueInstall(BrowserFixture.beta.id)
         await rig.browser.installTask?.value
         #expect(rig.transport.requests.count == 1, "nothing is requested again")
+    }
+
+    /// The enhancer is its own group after the image models. Its family names no record, and it still offers Install.
+    @Test func enhancerRowsSitInTheirOwnGroupAndOfferInstallWithoutAFamilyRecord() async throws {
+        let rig = try await BrowserRig.make(catalog: BrowserFixture.catalogWithEnhancer)
+
+        await rig.browser.refresh()
+
+        #expect(rig.browser.rows.map(\.id) == [BrowserFixture.alpha.id, BrowserFixture.beta.id, BrowserFixture.enhancer.id])
+        #expect(rig.browser.rows(of: .image).map(\.id) == [BrowserFixture.alpha.id, BrowserFixture.beta.id])
+        #expect(rig.browser.rows(of: .enhancer).map(\.id) == [BrowserFixture.enhancer.id])
+        let enhancer = try #require(browserRow(rig.browser.rows, BrowserFixture.enhancer.id))
+        #expect(enhancer.state == .available)
+        #expect(enhancer.action == .install)
+        #expect(enhancer.canAct)
+    }
+
+    /// The enhancer installs through the same installer as any model. Once its record and folder exist the app reports
+    /// it installed, and its engine id appears only when the engine lists it.
+    @Test func installingTheEnhancerRecordsItAndTheAppReportsItInstalled() async throws {
+        let rig = try await BrowserRig.make(catalog: BrowserFixture.catalogWithEnhancer)
+        #expect(rig.browser.enhancerStatus == EnhancerStatus(isInstalled: false, engineModelID: nil))
+
+        rig.browser.beginInstall(BrowserFixture.enhancer.id)
+        rig.browser.licenseAccepted = true
+        rig.browser.confirmLicense()
+        await rig.browser.installTask?.value
+
+        #expect(rig.transport.requests.map(\.modelID) == [BrowserFixture.enhancer.id])
+        #expect(rig.browser.statuses[BrowserFixture.enhancer.id] == .installed)
+        #expect(rig.browser.enhancerStatus == EnhancerStatus(isInstalled: true, engineModelID: nil))
+
+        rig.browser.setEngineModelIDs([BrowserFixture.enhancer.repo])
+        #expect(rig.browser.enhancerStatus == EnhancerStatus(
+            isInstalled: true, engineModelID: BrowserFixture.enhancer.repo))
+    }
+
+    /// The engine lists the enhancer but no install record exists: the app does not report it installed.
+    @Test func engineListingWithoutAnInstallRecordIsNotInstalled() async throws {
+        let rig = try await BrowserRig.make(
+            engineIDs: [BrowserFixture.enhancer.repo], catalog: BrowserFixture.catalogWithEnhancer)
+
+        await rig.browser.refresh()
+
+        #expect(rig.browser.enhancerStatus == EnhancerStatus(isInstalled: false, engineModelID: nil))
+    }
+
+    /// The picker reads the engine listing and keeps image models only, so an enhancer the engine lists never appears.
+    @Test func installedEnhancerNeverAppearsInTheImagePicker() throws {
+        let listing = Data("""
+        {"object":"list","data":[
+          {"id":"org/alpha","loaded":false,"state":"ready","capabilities":["image"],"meta":{"architecture":"krea2_turbo"}},
+          {"id":"\(BrowserFixture.enhancer.repo)","loaded":false,"state":"ready","capabilities":["chat"],"meta":{"architecture":"gemma4"}}
+        ]}
+        """.utf8)
+        let entries = try JSONDecoder().decode(EngineListing.self, from: listing).data
+
+        let registry = try FamilyRegistry.bundled()
+        let picker = InstalledModel.make(from: entries, registry: registry)
+
+        #expect(picker.map(\.id) == ["org/alpha"])
     }
 }

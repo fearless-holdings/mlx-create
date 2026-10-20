@@ -74,6 +74,14 @@ struct PendingLicense: Equatable {
     let content: Content
 }
 
+/// Whether the catalog's enhancer is installed, and the engine id its chat calls go to (U3, R11).
+struct EnhancerStatus: Equatable, Sendable {
+    /// The install record and its folder both exist.
+    let isInstalled: Bool
+    /// Nil unless the model is installed and the engine lists it.
+    let engineModelID: String?
+}
+
 /// Drives the model browser: combines the catalog, the installer's snapshot, the library records, and the folders in
 /// `Weights/` into rows, and runs the license gate in front of each install (plan U6, KTD7).
 @MainActor
@@ -151,7 +159,8 @@ final class ModelBrowserModel {
     var rows: [ModelBrowserRow] {
         let models = catalog?.models ?? []
         let catalogRepos = Set(models.map(\.repo))
-        let catalogRows = models.map(row(for:))
+        // Image models, then enhancers in their own group, then folders no catalog entry lists (U3).
+        let catalogRows = (models.filter { $0.kind == .image } + models.filter { $0.kind == .enhancer }).map(row(for:))
         let folderRows = localFolders.filter { !catalogRepos.contains($0) }.map { folder in
             ModelBrowserRow(
                 id: folder, title: folder, model: nil,
@@ -161,8 +170,23 @@ final class ModelBrowserModel {
         return catalogRows + folderRows
     }
 
+    /// The catalog rows of one kind, in browser order.
+    func rows(of kind: CatalogModelKind) -> [ModelBrowserRow] {
+        rows.filter { $0.model?.kind == kind }
+    }
+
     var canConfirmLicense: Bool {
         pendingLicense != nil && licenseAccepted
+    }
+
+    /// The catalog's enhancer, or nil when the catalog lists none. Installed means the record and its folder exist (R11).
+    /// `engineModelID` is the catalog repo, the id the engine lists the model under; it is set only when the engine lists it.
+    var enhancerStatus: EnhancerStatus? {
+        guard let model = catalog?.models.first(where: { $0.kind == .enhancer }) else { return nil }
+        let installed = statuses[model.id] == .installed
+        return EnhancerStatus(
+            isInstalled: installed,
+            engineModelID: installed && engineModelIDs.contains(model.repo) ? model.repo : nil)
     }
 
     /// Reads the installer's current snapshot, the install status of every catalog model, and the folders in `Weights/`.

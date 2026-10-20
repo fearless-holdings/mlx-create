@@ -249,6 +249,62 @@ import Testing
         expectInvalid(bytes)
     }
 
+    /// Existing catalogs carry no kind: every model decodes as an image model, and re-encoding writes no kind key, so
+    /// the bytes an image catalog was signed with still match.
+    @Test func catalogWithoutKindDecodesAsImageAndReencodesWithoutTheKey() throws {
+        let catalog = try Catalog.decodeValidated(CatalogFixture.catalogJSON())
+        #expect(catalog.models.map(\.kind) == [.image])
+        let encoded = try JSONEncoder().encode(catalog.models[0])
+        let object = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        #expect(object["kind"] == nil)
+    }
+
+    /// Validation never reads the family registry, so a family that names no record validates for every kind.
+    @Test(arguments: [CatalogModelKind.image, .enhancer])
+    func unknownFamilyValidatesForEveryKind(kind: CatalogModelKind) throws {
+        let bytes = try CatalogFixture.catalogJSON(edit: CatalogFixture.editModel { model in
+            model["family"] = "no-such-family"
+            model["kind"] = kind.rawValue
+        })
+        let catalog = try Catalog.decodeValidated(bytes)
+        #expect(catalog.models[0].kind == kind)
+        #expect(catalog.models[0].family == "no-such-family")
+    }
+
+    /// An enhancer gets the same weight-file policy as an image model: pickle and GGUF files are refused.
+    @Test(arguments: ["model.gguf", "pytorch_model.bin"])
+    func enhancerWithDisallowedWeightFileRejectsWholeCatalog(path: String) throws {
+        let bytes = try CatalogFixture.catalogJSON(edit: CatalogFixture.editModel { model in
+            model["kind"] = "enhancer"
+            var files = model["files"] as? [[String: Any]] ?? []
+            files[1]["path"] = path
+            model["files"] = files
+        })
+        expectInvalid(bytes)
+    }
+
+    @Test func enhancerDownloadBytesMustEqualSumOfFileSizes() throws {
+        let bytes = try CatalogFixture.catalogJSON(edit: CatalogFixture.editModel { model in
+            model["kind"] = "enhancer"
+            model["download_bytes"] = 999
+        })
+        expectInvalid(bytes)
+    }
+
+    /// A kind this app does not know is refused as malformed, never read as an image model.
+    @Test func unknownKindRejectsWholeCatalogAsMalformed() throws {
+        let bytes = try CatalogFixture.catalogJSON(edit: CatalogFixture.editModel { $0["kind"] = "llm" })
+        do {
+            _ = try Catalog.decodeValidated(bytes)
+            Issue.record("unknown kind was accepted")
+        } catch let error as CatalogError {
+            guard case .malformed = error else {
+                Issue.record("expected malformed, got \(error)")
+                return
+            }
+        }
+    }
+
     /// Asserts that the whole catalog is rejected with `CatalogError.invalid`.
     private func expectInvalid(_ bytes: Data, sourceLocation: SourceLocation = #_sourceLocation) {
         do {
