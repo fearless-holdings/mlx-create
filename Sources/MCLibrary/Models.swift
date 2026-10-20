@@ -123,7 +123,7 @@ public struct CollectionSummary: Equatable, Sendable, Identifiable {
             return "This collection still holds \(imageCount) image\(imageCount == 1 ? "" : "s"). Move or delete them first."
         }
         if openJobCount > 0 {
-            return "This collection still has \(openJobCount) queued or running job\(openJobCount == 1 ? "" : "s")."
+            return "This collection still has \(openJobCount) queued, running or paused job\(openJobCount == 1 ? "" : "s")."
         }
         return nil
     }

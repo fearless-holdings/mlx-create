@@ -156,6 +156,27 @@ import Testing
         #expect(try await store.collection(id: queue.id) != nil)
     }
 
+    // MARK: Queue order (R12)
+
+    @Test func movingAQueuedJobSwapsWithItsNeighbourInTheSameCollectionAndLeavesOthersPut() async throws {
+        let store = try Self.open(try Self.root())
+        let home = try await store.defaultCollection()
+        let other = try await store.createCollection(name: "Other")
+        func enqueue(_ collectionID: UUID) async throws -> UUID {
+            try await store.enqueueJob(
+                collectionID: collectionID, request: LibraryStoreTests.request(), batchCount: 1, seedPolicy: "random").id
+        }
+        let a1 = try await enqueue(home.id)
+        let b1 = try await enqueue(other.id)
+        let a2 = try await enqueue(home.id)
+
+        try await store.moveQueuedJob(a2, by: -1)
+        #expect(try await store.jobs(status: .queued).map(\.id) == [a2, b1, a1])
+
+        try await store.moveQueuedJob(a2, by: -1)
+        #expect(try await store.jobs(status: .queued).map(\.id) == [a2, b1, a1])
+    }
+
     // MARK: Move (U2, R4, R5, KTD3)
 
     @Test func moveUpdatesCountsAndPagesAndTheFileSurvivesDeletingTheEmptiedSource() async throws {

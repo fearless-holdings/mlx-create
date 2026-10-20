@@ -69,6 +69,7 @@ extension AppModel {
         currentCollection = collection
         defaults.set(collection.id.uuidString, forKey: Self.currentCollectionDefaultsKey)
         galleryImages = []
+        queueJobs = []
         hasMoreImages = false
         galleryLoaded = false
         selection = nil

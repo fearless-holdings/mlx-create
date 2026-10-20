@@ -60,7 +60,7 @@ public final class AppModel {
     /// The name sheet's state: nil while no sheet is up.
     var collectionEditor: CollectionEditor?
     /// The queue strip in display order: the running job, the queue in order, then paused, failed and cancelled jobs.
-    public private(set) var queueJobs: [JobItem] = []
+    public internal(set) var queueJobs: [JobItem] = []
     /// Finished images loaded so far, newest first. Later pages load through `loadMoreImages()`.
     public internal(set) var galleryImages: [LibraryImage] = []
     /// Whether the library holds images past those in `galleryImages`.
@@ -68,6 +68,7 @@ public final class AppModel {
     public private(set) var queueHeader: QueueHeader = .idle
     public private(set) var runningProgress: RunningProgress?
     private var warmingModelID: String?
+    private var lastProgressJobID: UUID?
 
     public var selectedModelID: String? {
         didSet {
@@ -493,6 +494,11 @@ public final class AppModel {
 
     /// Validates the composer, queues one job and selects its placeholder so the canvas shows its progress.
     public func generate() async {
+        await ensureCurrentCollection()
+        guard collectionResolved else {
+            lastError = "The library is not ready yet. Try again in a moment."
+            return
+        }
         guard canGenerate, let model = selectedModel else { return }
         guard let seedPolicy = currentSeedPolicy() else {
             lastError = "Seed must be a whole number from 0 to 4294967295."
@@ -638,9 +644,12 @@ public final class AppModel {
     private func handle(_ event: ExecutorEvent) async {
         switch event {
         case .progress(let jobID, let step, let total):
+            let isFirstProgress = lastProgressJobID != jobID
+            lastProgressJobID = jobID
             runningProgress = RunningProgress(jobID: jobID, step: step, total: total)
             updateStep(jobID: jobID, step: step, total: total)
-            if !queueJobs.contains(where: { $0.id == jobID && $0.status == .running }) {
+            // A job of another collection never appears in the strip, so only its first step reloads (it may have just started).
+            if isFirstProgress, !queueJobs.contains(where: { $0.id == jobID && $0.status == .running }) {
                 await reload()
             }
         case .imageSaved(let jobID, let imageID):
@@ -697,7 +706,7 @@ public final class AppModel {
                 guard collectionID == currentCollection.id else { return }
                 guard revision == galleryRevision else { continue }
                 queueJobs = items
-                queueHeader = QueuePresentation.header(isRunning: running != nil, pauseRequested: snapshot.isPauseRequested)
+                queueHeader = QueuePresentation.header(isRunning: snapshot.running != nil, pauseRequested: snapshot.isPauseRequested)
                 if runningProgress?.jobID != running?.id {
                     runningProgress = nil
                 }

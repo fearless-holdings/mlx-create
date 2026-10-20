@@ -147,7 +147,9 @@ public actor LibraryStore {
         let legacy = libraryRoot.appending(path: "Projects", directoryHint: .isDirectory)
         guard fm.fileExists(atPath: legacy.path) else { return }
         let target = libraryRoot.appending(path: "Collections", directoryHint: .isDirectory)
-        guard let enumerator = fm.enumerator(atPath: legacy.path) else { return }
+        guard let enumerator = fm.enumerator(atPath: legacy.path) else {
+            throw LibraryError.folderReconcileFailed(path: legacy.path)
+        }
         var files: [String] = []
         for case let relative as String in enumerator {
             var isDirectory: ObjCBool = false
@@ -378,22 +380,27 @@ public actor LibraryStore {
         }
     }
 
-    /// Moves a queued job by `offset` places within the queue (negative is earlier). Clamped to the queue ends.
+    /// Moves a queued job by `offset` places among the queued jobs of its own collection (negative is earlier), clamped
+    /// to that collection's queue ends. Jobs of other collections keep their positions, so a move the user sees as one
+    /// step never reorders jobs the queue strip hides.
     public func moveQueuedJob(_ jobID: UUID, by offset: Int) throws {
         try dbQueue.write { db in
             let queued = try JobRow
                 .filter(Column("status") == JobStatus.queued.rawValue)
                 .order(Column("position"))
                 .fetchAll(db)
-            guard let index = queued.firstIndex(where: { $0.id == jobID.uuidString }) else {
+            guard let moving = queued.first(where: { $0.id == jobID.uuidString }) else {
                 throw LibraryError.notQueued
             }
-            var ids = queued.map(\.id)
+            let siblings = queued.filter { $0.collectionID == moving.collectionID }
+            let slots = siblings.map(\.position)
+            var ids = siblings.map(\.id)
+            let index = ids.firstIndex(of: moving.id)!
             let target = min(max(index + offset, 0), ids.count - 1)
             let moved = ids.remove(at: index)
             ids.insert(moved, at: target)
-            for (position, id) in ids.enumerated() {
-                try db.execute(sql: "UPDATE job SET position = ? WHERE id = ?", arguments: [position + 1, id])
+            for (slot, id) in zip(slots, ids) {
+                try db.execute(sql: "UPDATE job SET position = ? WHERE id = ?", arguments: [slot, id])
             }
         }
     }
