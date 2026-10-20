@@ -1,0 +1,17 @@
+{
+  "shape": "FLUX.2 klein responds best to a natural-language descriptive paragraph: say what is in the scene, where it is, and how it is lit and framed, in full sentences rather than a tag list. Write two to four sentences, under about 90 words.",
+  "examples": [
+    {
+      "rough": "a cat on a windowsill",
+      "enhanced": "A grey tabby cat sits on a wide wooden windowsill, its tail curled around its paws. Late afternoon sunlight falls through the glass and warms its fur, while the blurred garden behind it glows green. The photograph is shot at eye level with a soft, shallow focus."
+    },
+    {
+      "rough": "chef plating a dessert in a dark kitchen",
+      "enhanced": "A chef in a black apron leans over a steel counter, placing raspberries onto a white plate with tweezers. A single overhead spotlight picks out the dessert and leaves the dim kitchen behind it in shadow. Shot from slightly above, with a shallow depth of field."
+    },
+    {
+      "rough": "poster for a jazz night that says JAZZ NIGHT FRIDAY",
+      "enhanced": "A vintage-style concert poster with the bold headline \"JAZZ NIGHT FRIDAY\" set in cream serif capitals across the top. Below it, a silhouetted saxophonist stands under a blue spotlight against a deep burgundy background. Flat screen-print colours with a slight paper texture."
+    }
+  ]
+}

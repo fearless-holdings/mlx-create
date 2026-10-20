@@ -161,7 +161,7 @@ struct LoRAStackSlot: Equatable, Sendable {
     var wideRange: Bool
 }
 
-/// Pure rules for the LoRA stack: weight ranges, fit, and trigger-word text (R10-R12).
+/// Pure rules for the LoRA stack: weight ranges and fit (R10-R12). Trigger-word matching lives in `TriggerWordMatcher`.
 enum LoRAStackRules {
     static let narrowRange: ClosedRange<Double> = -2...2
     static let wideRange: ClosedRange<Double> = -20...20
@@ -194,33 +194,5 @@ enum LoRAStackRules {
             return .needsModelInstalled(familyName: loraFamilyName)
         }
         return .doesNotFit(selectedModelName: selected.displayName)
-    }
-
-    /// Whether `word` occurs in `text` ignoring case, bounded on both sides by a non-letter, non-digit or an edge,
-    /// so `sks` does not match inside `tasks`.
-    static func containsWord(_ word: String, in text: String) -> Bool {
-        guard !word.isEmpty else { return false }
-        var searchRange = text.startIndex..<text.endIndex
-        while let found = text.range(of: word, options: .caseInsensitive, range: searchRange) {
-            let startsWord = found.lowerBound == text.startIndex
-                || !isWordCharacter(text[text.index(before: found.lowerBound)])
-            let endsWord = found.upperBound == text.endIndex || !isWordCharacter(text[found.upperBound])
-            if startsWord && endsWord { return true }
-            searchRange = found.upperBound..<text.endIndex
-        }
-        return false
-    }
-
-    /// Appends `word` after a comma and space. Trailing commas and spaces already in `prompt` are not repeated.
-    static func appending(_ word: String, to prompt: String) -> String {
-        var base = prompt
-        while let last = base.last, last == "," || last.isWhitespace {
-            base.removeLast()
-        }
-        return base.isEmpty ? word : base + ", " + word
-    }
-
-    private static func isWordCharacter(_ character: Character) -> Bool {
-        character.isLetter || character.isNumber
     }
 }

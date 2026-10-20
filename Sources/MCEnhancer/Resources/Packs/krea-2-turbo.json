@@ -1,0 +1,17 @@
+{
+  "shape": "Krea 2 Turbo responds best to concise visual descriptors: the subject first, then photographic specifics such as lens or film look, the direction and quality of the light, the colour palette and the framing. Write one comma-separated line of descriptors, under about 60 words.",
+  "examples": [
+    {
+      "rough": "a woman reading in a cafe",
+      "enhanced": "a woman reading a paperback in a sunlit corner cafe, soft window light from the left, warm amber tones, shallow depth of field, 85mm portrait lens, candid, natural skin texture"
+    },
+    {
+      "rough": "old fishing boat at dawn",
+      "enhanced": "weathered wooden fishing boat tied to a stone pier at dawn, low sun glowing through morning mist, cool blue shadows with a warm rim light, wide angle, film grain, calm still water"
+    },
+    {
+      "rough": "neon sign that says OPEN in a rainy street",
+      "enhanced": "a glowing neon sign reading \"OPEN\" above a rain-slick city street at night, magenta and cyan reflections in the puddles, shallow focus, 35mm street photograph, moody contrast"
+    }
+  ]
+}

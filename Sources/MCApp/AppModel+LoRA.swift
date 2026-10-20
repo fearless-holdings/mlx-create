@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import MCCatalog
+import MCEnhancer
 import MCGeneration
 import MCLibrary
 
@@ -42,7 +43,7 @@ extension AppModel {
                 : loraFit(for: record, selected: selected, installed: installed)
             let words = record.triggerWords
             let missingHint = slot.isEnabled && !words.isEmpty
-                && !words.contains { LoRAStackRules.containsWord($0, in: prompt) }
+                && !words.contains { TriggerWordMatcher.contains($0, in: prompt) }
             return LoRAStackRow(
                 id: slot.id, name: record.name, sha256: record.sha256, familyID: record.family,
                 familyName: loraFamilyName(record.family), weight: slot.weight, isEnabled: slot.isEnabled,
@@ -288,8 +289,8 @@ extension AppModel {
         guard let record = loraRecords.first(where: { $0.id == loraID }), record.triggerWords.contains(trimmed) else {
             return
         }
-        guard !LoRAStackRules.containsWord(trimmed, in: prompt) else { return }
-        prompt = LoRAStackRules.appending(trimmed, to: prompt)
+        guard !TriggerWordMatcher.contains(trimmed, in: prompt) else { return }
+        prompt = TriggerWordMatcher.appending(trimmed, to: prompt)
     }
 
     // MARK: Generate and reuse

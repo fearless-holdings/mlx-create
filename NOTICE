@@ -42,6 +42,12 @@ Files in this repository adapted from mlx-serve:
     Sources/MCEngine/PidFile.swift
         Process-exit waiting (waitForExit), from
         app/Sources/MLXServe/Services/ServerManager.swift.
+    Sources/MCEnhancer/PromptEnhancer.swift, Sources/MCEnhancer/PromptPack.swift,
+    Sources/MCEnhancer/Resources/Packs/
+        Prompt-pack structure (a shape instruction per family, example pairs, and a reply-with-only-the-prompt
+        rule), following app/Sources/MLXServe/Services/PromptRewriter.swift at v26.10.2. The pack text is written
+        for this application and no upstream text is copied. That file carries no license header; the upstream
+        repository is MIT licensed (LICENSE at v26.10.2, Copyright (c) 2026 David Dalcu), covered by the terms above.
 
 The engine binary this application runs is the pinned upstream mlx-serve
 release, not a fork. Its license texts and third-party notices ship in the
