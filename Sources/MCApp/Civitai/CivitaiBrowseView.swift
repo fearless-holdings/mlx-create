@@ -452,7 +452,7 @@ private struct CivitaiThumbnail: View {
             } else if url == nil {
                 Image(systemName: "photo")
                     .foregroundStyle(.tertiary)
-                    .help("Civitai lists no safe-for-work preview for this LoRA. Turn on Include NSFW to see its examples, blurred.")
+                    .help("Civitai has no preview image for this LoRA.")
             }
         }
         .frame(width: 64, height: 64)

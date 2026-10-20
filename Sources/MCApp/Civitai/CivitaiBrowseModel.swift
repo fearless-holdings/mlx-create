@@ -230,17 +230,29 @@ final class CivitaiBrowseModel {
         await fetchPage(generation: generation, cursor: cursor)
     }
 
-    private func fetchPage(generation: Int, cursor: String?) async {
+    private func fetchPage(generation: Int, cursor requested: String?) async {
         do {
-            let page = try await client.search(
-                query: query, sort: sort, baseModelLabels: activeFilter, includeNSFW: includeNSFW, cursor: cursor)
-            guard generation == searchGeneration else { return }
-            // A model already listed is never listed again, so overlapping loads cannot duplicate a row.
+            var cursor = requested
+            var page: CivitaiSearchPage
+            var fresh: [CivitaiFoundModel]
+            var skippedPages = 0
+            // A model already listed is never listed again, so overlapping loads cannot duplicate a row. With NSFW
+            // off, Civitai returns no images for a LoRA whose examples are all NSFW, so a result without a preview is
+            // an NSFW LoRA and is left out. A page that is left empty by this pulls the next one, within a bound.
             var listed = Set(foundModels.map(\.id))
-            let fresh = page.items.compactMap { item -> CivitaiFoundModel? in
-                guard listed.insert(item.id).inserted else { return nil }
-                return makeFound(item, preferred: activePreferred)
-            }
+            repeat {
+                page = try await client.search(
+                    query: query, sort: sort, baseModelLabels: activeFilter, includeNSFW: includeNSFW, cursor: cursor)
+                guard generation == searchGeneration else { return }
+                fresh = page.items.compactMap { item -> CivitaiFoundModel? in
+                    guard listed.insert(item.id).inserted else { return nil }
+                    let shown = CivitaiBrowseRules.chooseVersion(item.versions, labels: activePreferred)
+                    guard includeNSFW || shown?.images.contains(where: { $0.url != nil }) == true else { return nil }
+                    return makeFound(item, preferred: activePreferred)
+                }
+                cursor = page.nextCursor
+                skippedPages += 1
+            } while fresh.isEmpty && cursor != nil && skippedPages < Self.maxEmptyPageSkips
             // Stable: the selected model's label first, then Civitai's own order.
             foundModels = (foundModels + fresh).enumerated().sorted { lhs, rhs in
                 if lhs.element.matchesSelectedModel != rhs.element.matchesSelectedModel {
@@ -260,6 +272,9 @@ final class CivitaiBrowseModel {
             searchState = .failed(message: error.localizedDescription)
         }
     }
+
+    /// How many consecutive pages the NSFW-off filter may empty before the list stops asking.
+    private static let maxEmptyPageSkips = 5
 
     /// The family and size the search uses: the chip's family when it differs from the selected one, else the selection.
     private func activeSelection(_ selection: CivitaiSelection) -> CivitaiSelection {

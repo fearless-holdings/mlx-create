@@ -614,4 +614,27 @@ private struct FailingKeyStore: CivitaiKeyStore {
         harness.model.civitai.reveal(row.id)
         #expect(!harness.model.civitai.isBlurred(row))
     }
+
+    @Test func withNSFWOffAResultWithoutImagesIsLeftOutAndAnEmptiedPagePullsTheNext() async throws {
+        func imageless(_ id: Int) -> [String: Any] {
+            var model = kleinListing(id: id)
+            model["modelVersions"] = (model["modelVersions"] as? [[String: Any]] ?? []).map { version in
+                var copy = version
+                copy["images"] = [[String: Any]]()
+                return copy
+            }
+            return model
+        }
+        let api = ScriptedCivitaiAPI(reply: twoPages([imageless(1), imageless(2)], [imageless(3), kleinListing(id: 4)]))
+        let keychain = testKeychain()
+        defer { try? keychain.delete() }
+        let harness = try await browseHarness(api: api, keychain: keychain)
+
+        await harness.model.civitai.search()
+        #expect(harness.model.civitai.rows.map(\.id) == [4])
+
+        // With the opt-in, Civitai's NSFW-only LoRAs are listed.
+        await harness.model.civitai.setIncludeNSFW(true)
+        #expect(harness.model.civitai.rows.map(\.id) == [1, 2])
+    }
 }
