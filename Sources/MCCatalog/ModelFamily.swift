@@ -83,6 +83,9 @@ public struct ModelFamily: Sendable, Codable, Hashable, Identifiable {
     /// Tensor-name, shape and block-count fingerprints for LoRA files (KTD4). A file matches the family
     /// when ANY alternative matches. `nil` or empty means the family accepts no LoRAs.
     public let loraFingerprints: [LoRAFingerprint]?
+    /// `false` when the pinned engine cannot apply LoRAs to this family even though files classify as it. The stack
+    /// greys such a family's LoRAs and skips them. Absent in the JSON means `true`.
+    public let engineAppliesLoRAs: Bool
     /// Civitai base-model labels this family answers to (KTD7). Empty means Browse never offers the family.
     public let civitaiBaseModels: [CivitaiBaseModel]
 
@@ -92,6 +95,7 @@ public struct ModelFamily: Sendable, Codable, Hashable, Identifiable {
         guidance: GuidanceCapability?, supportsNegativePrompt: Bool,
         stepsAreFixed: Bool = false, requiresTrait: String? = nil,
         loraFingerprints: [LoRAFingerprint]? = nil,
+        engineAppliesLoRAs: Bool = true,
         civitaiBaseModels: [CivitaiBaseModel] = []
     ) {
         self.id = id
@@ -106,6 +110,7 @@ public struct ModelFamily: Sendable, Codable, Hashable, Identifiable {
         self.supportsNegativePrompt = supportsNegativePrompt
         self.requiresTrait = requiresTrait
         self.loraFingerprints = loraFingerprints
+        self.engineAppliesLoRAs = engineAppliesLoRAs
         self.civitaiBaseModels = civitaiBaseModels
     }
 
@@ -114,7 +119,7 @@ public struct ModelFamily: Sendable, Codable, Hashable, Identifiable {
 
     private enum CodingKeys: String, CodingKey {
         case id, displayName, architectures, sizeGrid, sizePresets, defaultSize, steps
-        case stepsAreFixed, guidance, supportsNegativePrompt, requiresTrait, loraFingerprints, civitaiBaseModels
+        case stepsAreFixed, guidance, supportsNegativePrompt, requiresTrait, loraFingerprints, engineAppliesLoRAs, civitaiBaseModels
     }
 
     /// `stepsAreFixed`, `requiresTrait` and `civitaiBaseModels` are optional in the JSON; absent means `false`,
@@ -134,6 +139,7 @@ public struct ModelFamily: Sendable, Codable, Hashable, Identifiable {
             stepsAreFixed: try container.decodeIfPresent(Bool.self, forKey: .stepsAreFixed) ?? false,
             requiresTrait: try container.decodeIfPresent(String.self, forKey: .requiresTrait),
             loraFingerprints: try container.decodeIfPresent([LoRAFingerprint].self, forKey: .loraFingerprints),
+            engineAppliesLoRAs: try container.decodeIfPresent(Bool.self, forKey: .engineAppliesLoRAs) ?? true,
             civitaiBaseModels: try container.decodeIfPresent([CivitaiBaseModel].self, forKey: .civitaiBaseModels) ?? [])
     }
 }

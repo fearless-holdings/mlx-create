@@ -290,6 +290,7 @@ private struct LoRALibraryRow: View {
     private var addBlockReason: String? {
         if item.inStack { return "Already in the stack" }
         if !model.loraAddEnabled { return "The selected model takes no LoRAs" }
+        if let reason = item.engineBlockedReason { return reason.prefix(1).uppercased() + reason.dropFirst() }
         if !item.fitsSelectedModel { return "Doesn't fit \(model.selectedModel.map { ModelChip.title(for: $0) } ?? "the selected model")" }
         return nil
     }
