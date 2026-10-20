@@ -1,3 +1,4 @@
+import Foundation
 import MCCatalog
 import MCLibrary
 
@@ -86,7 +87,7 @@ public struct GenerationComposer: Sendable {
         return kept
     }
 
-    public func enqueue(_ draft: GenerationDraft) async throws -> Job {
+    public func enqueue(_ draft: GenerationDraft, collectionID: UUID) async throws -> Job {
         guard !draft.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw GenerationError.emptyPrompt
         }
@@ -116,9 +117,8 @@ public struct GenerationComposer: Sendable {
             guidance: family.guidance == nil ? nil : draft.guidance,
             loras: draft.loras?.isEmpty == false ? draft.loras : nil)
 
-        let project = try await store.defaultProject()
         return try await store.enqueueJob(
-            projectID: project.id, request: request, batchCount: draft.batchCount,
+            collectionID: collectionID, request: request, batchCount: draft.batchCount,
             seedPolicy: draft.seedPolicy.encoded)
     }
 

@@ -71,27 +71,27 @@ import Testing
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let queue = try DatabaseQueue(path: LibraryPaths(root: root, modelsRoot: root.appending(path: "Models")).database.path)
         try LibraryStore.migrator.migrate(queue, upTo: "v2-job-failure")
-        let projectID = UUID().uuidString
+        let collectionID = UUID().uuidString
         let jobID = UUID().uuidString
         let imageID = UUID().uuidString
         let now = Date(timeIntervalSince1970: 1_790_000_000)
         try await queue.write { db in
             try db.execute(
                 sql: "INSERT INTO project (id, name, is_default, created_at) VALUES (?, 'Default', 1, ?)",
-                arguments: [projectID, now])
+                arguments: [collectionID, now])
             try db.execute(
                 sql: """
                     INSERT INTO job (id, project_id, mode, request, batch_count, seed_policy, status, position)
                     VALUES (?, ?, 't2i', '{}', 1, 'random', 'queued', 1)
                     """,
-                arguments: [jobID, projectID])
+                arguments: [jobID, collectionID])
             try db.execute(
                 sql: """
                     INSERT INTO image (id, project_id, job_id, media_type, file_path, thumb_path, width, height,
                                        seed, settings, prompt, created_at)
                     VALUES (?, ?, ?, 'image', 'Projects/a.png', 'Thumbnails/a.heic', 512, 512, 7, '{}', 'p', ?)
                     """,
-                arguments: [imageID, projectID, jobID, now])
+                arguments: [imageID, collectionID, jobID, now])
         }
         #expect(try await queue.read { db in try Self.tableCount(db) } == 0, "v3 is not applied yet")
 

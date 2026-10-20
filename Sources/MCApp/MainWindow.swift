@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The three-panel main window: toolbar with the project name and model chip, engine banner,
+/// The three-panel main window: toolbar with the collection switcher and model chip, engine banner,
 /// generation panel (left), canvas over the queue strip (middle), and the gallery (right).
 public struct MainWindow: View {
     @Bindable var model: AppModel
@@ -36,9 +36,7 @@ public struct MainWindow: View {
         .frame(minWidth: 1100, minHeight: 640)
         .toolbar {
             ToolbarItem(placement: .navigation) {
-                Text(model.projectName)
-                    .font(.headline)
-                    .accessibilityLabel("Project: \(model.projectName)")
+                CollectionMenu(model: model)
             }
         }
         .background(ShortcutButtons(model: model))
@@ -47,6 +45,9 @@ public struct MainWindow: View {
         }
         .sheet(isPresented: $model.isLoRALibraryPresented) {
             LoRALibraryView(model: model)
+        }
+        .sheet(item: $model.collectionEditor) { editor in
+            CollectionNameSheet(model: model, editor: editor)
         }
     }
 }

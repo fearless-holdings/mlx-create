@@ -7,9 +7,9 @@ import Testing
     @Test func enqueueWithoutAModeStoresTextToImage() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("mode-\(UUID().uuidString)")
         let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
-        let project = try await store.defaultProject()
+        let collection = try await store.defaultCollection()
         let job = try await store.enqueueJob(
-            projectID: project.id,
+            collectionID: collection.id,
             request: JobRequest(modelID: "m", family: "f", prompt: "p", width: 512, height: 512),
             batchCount: 1,
             seedPolicy: "random"

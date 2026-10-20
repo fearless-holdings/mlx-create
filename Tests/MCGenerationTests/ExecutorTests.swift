@@ -209,7 +209,7 @@ private final class Flag: @unchecked Sendable {
         }
         let job = try await harness.enqueue(batch: 1, width: 512, height: 512, steps: 4)
         try await harness.executor.drain()
-        let image = try #require(try await harness.store.recentImages(projectID: harness.projectID, limit: 1).first)
+        let image = try #require(try await harness.store.recentImages(collectionID: harness.collectionID, limit: 1).first)
         #expect(image.width == 640)
         #expect(image.height == 384)
         #expect(image.settings.steps == 6)
@@ -224,7 +224,7 @@ private final class Flag: @unchecked Sendable {
         _ = try await harness.enqueue(batch: 2, seedPolicy: policy)
         try await harness.executor.drain()
         let requested = try harness.generationSeeds()
-        let saved = try await harness.store.recentImages(projectID: harness.projectID, limit: 10)
+        let saved = try await harness.store.recentImages(collectionID: harness.collectionID, limit: 10)
             .map { UInt32(truncatingIfNeeded: $0.settings.seed) }
         #expect(requested.count == 2)
         #expect(saved.sorted() == requested.sorted())
@@ -298,7 +298,7 @@ private final class Flag: @unchecked Sendable {
         }
         _ = try await harness.enqueue(batch: 1)
         try await harness.executor.drain()
-        let image = try #require(try await harness.store.recentImages(projectID: harness.projectID, limit: 1).first)
+        let image = try #require(try await harness.store.recentImages(collectionID: harness.collectionID, limit: 1).first)
         #expect(image.settings.engineVersion == "v1.2.3")
         let onDisk = try Data(contentsOf: await harness.store.paths.url(relativePath: image.filePath))
         let embedded = try #require(try MetadataCodec.read(fromPNG: onDisk))

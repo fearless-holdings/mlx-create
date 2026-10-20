@@ -57,10 +57,11 @@ struct LoRAComposerEnqueueTests {
         let size = ImageSize(width: 512, height: 512)
 
         let withLoRA = try await composer.enqueue(
-            GenerationDraft(model: model, prompt: "a fox", size: size, loras: [lora]))
+            GenerationDraft(model: model, prompt: "a fox", size: size, loras: [lora]), collectionID: harness.collectionID)
         #expect(withLoRA.request.loras == [lora])
 
-        let without = try await composer.enqueue(GenerationDraft(model: model, prompt: "a fox", size: size, loras: []))
+        let without = try await composer.enqueue(
+            GenerationDraft(model: model, prompt: "a fox", size: size, loras: []), collectionID: harness.collectionID)
         #expect(without.request.loras == nil)
     }
 }

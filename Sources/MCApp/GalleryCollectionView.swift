@@ -113,6 +113,7 @@ struct GalleryCollection: NSViewRepresentable {
                     as? GalleryCollectionItem
             else { return nil }
             item.configure(ImageCell(
+                model: model,
                 image: image,
                 thumbnailURL: model.thumbnailURL(for: image),
                 isSelected: appliedSelection == id,

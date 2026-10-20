@@ -88,11 +88,11 @@ import Testing
 
     /// Enqueues a job whose stack names `record`.
     static func enqueue(_ fixture: Fixture, using record: LoRARecord) async throws -> Job {
-        let project = try await fixture.store.defaultProject()
+        let collection = try await fixture.store.defaultCollection()
         let request = JobRequest(
             modelID: "alpha-model", family: "alpha", prompt: "fox", width: 512, height: 512,
             loras: [LoRAStackEntry(id: record.id, name: record.name, sha256: record.sha256, weight: 1, relativePath: record.relativePath)])
-        return try await fixture.store.enqueueJob(projectID: project.id, request: request, batchCount: 1, seedPolicy: "fixed")
+        return try await fixture.store.enqueueJob(collectionID: collection.id, request: request, batchCount: 1, seedPolicy: "fixed")
     }
 
     // MARK: Import
@@ -207,11 +207,11 @@ import Testing
         let fixture = try Self.makeFixture()
         let record = try await Self.importedAlpha(fixture, fill: 12)
         let other = try await Self.importedAlpha(fixture, fill: 13, name: "Other")
-        let project = try await fixture.store.defaultProject()
+        let collection = try await fixture.store.defaultCollection()
         try await fixture.store.dbQueue.write { db in
             try db.execute(
-                sql: "INSERT INTO job (id, project_id, mode, request, batch_count, seed_policy, status, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                arguments: [UUID().uuidString, project.id.uuidString, Job.textToImageMode, "{not json", 1, "fixed", JobStatus.queued.rawValue, 1])
+                sql: "INSERT INTO job (id, collection_id, mode, request, batch_count, seed_policy, status, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                arguments: [UUID().uuidString, collection.id.uuidString, Job.textToImageMode, "{not json", 1, "fixed", JobStatus.queued.rawValue, 1])
         }
 
         #expect(try await fixture.store.loraBlockingJobs(id: record.id) == 1)
@@ -274,12 +274,12 @@ import Testing
     @Test func deleteReportsHowManySavedImagesStillNameTheLoRA() async throws {
         let fixture = try Self.makeFixture()
         let record = try await Self.importedAlpha(fixture, fill: 9)
-        let project = try await fixture.store.defaultProject()
+        let collection = try await fixture.store.defaultCollection()
         let settings = ImageSettings(
             prompt: "fox", modelID: "alpha-model", requestedWidth: 64, requestedHeight: 64, seed: 1, width: 64, height: 64,
             loras: [ImageLoRA(name: record.name, sha256: record.sha256, weight: 1)])
         try await fixture.store.saveImage(NewImage(
-            projectID: project.id, jobID: nil, pngData: try TestPNG.make(width: 64, height: 64), settings: settings))
+            collectionID: collection.id, jobID: nil, pngData: try TestPNG.make(width: 64, height: 64), settings: settings))
         #expect(try await fixture.store.loraUsageCount(id: record.id) == 1)
 
         #expect(try await fixture.store.deleteLoRA(id: record.id) == 1)
@@ -316,13 +316,13 @@ import Testing
 
     @Test func enqueueWithAMissingLoRAThrowsAndInsertsNothing() async throws {
         let fixture = try Self.makeFixture()
-        let project = try await fixture.store.defaultProject()
+        let collection = try await fixture.store.defaultCollection()
         let ghost = LoRAStackEntry(id: "ghost", name: "Ghost", sha256: String(repeating: "c", count: 64), weight: 1,
                                    relativePath: "LoRAs/alpha/cccccccccc-ghost.safetensors")
         let request = JobRequest(modelID: "alpha-model", family: "alpha", prompt: "fox", width: 512, height: 512, loras: [ghost])
 
         let error = await Self.caughtError {
-            _ = try await fixture.store.enqueueJob(projectID: project.id, request: request, batchCount: 1, seedPolicy: "fixed")
+            _ = try await fixture.store.enqueueJob(collectionID: collection.id, request: request, batchCount: 1, seedPolicy: "fixed")
         }
 
         #expect(error as? LibraryError == .loraUnavailable(name: "Ghost"))
@@ -422,7 +422,7 @@ import Testing
             id: "escape", name: "Escape", family: "alpha", sha256: String(repeating: "e", count: 64),
             relativePath: "../../x.safetensors", sizeBytes: 1, triggerWords: [], notes: nil, createdAt: Date())
         try await fixture.store.dbQueue.write { db in try escaping.insert(db) }
-        let project = try await fixture.store.defaultProject()
+        let collection = try await fixture.store.defaultCollection()
         let mismatched = LoRAStackEntry(
             id: record.id, name: record.name, sha256: record.sha256, weight: 1,
             relativePath: "LoRAs/alpha/elsewhere.safetensors")
@@ -433,7 +433,7 @@ import Testing
             let request = JobRequest(
                 modelID: "alpha-model", family: "alpha", prompt: "fox", width: 512, height: 512, loras: [entry])
             let error = await Self.caughtError {
-                _ = try await fixture.store.enqueueJob(projectID: project.id, request: request, batchCount: 1, seedPolicy: "fixed")
+                _ = try await fixture.store.enqueueJob(collectionID: collection.id, request: request, batchCount: 1, seedPolicy: "fixed")
             }
             #expect(error as? LibraryError == .loraUnavailable(name: entry.name))
         }

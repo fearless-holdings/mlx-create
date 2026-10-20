@@ -36,23 +36,23 @@ import Synchronization
         return names
     }
 
-    @Test func firstLaunchCreatesOneDefaultProjectAndSecondLaunchKeepsIt() async throws {
+    @Test func firstLaunchCreatesOneDefaultCollectionAndSecondLaunchKeepsIt() async throws {
         let root = try Self.tempRoot()
         let first = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
-        let projectID = try await first.defaultProject().id
+        let collectionID = try await first.defaultCollection().id
         let second = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
-        #expect(try await second.defaultProject().id == projectID)
+        #expect(try await second.defaultCollection().id == collectionID)
     }
 
     @Test func saveImageWritesPNGThumbnailAndRow() async throws {
         let root = try Self.tempRoot()
         let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
-        let project = try await store.defaultProject()
-        let job = try await store.enqueueJob(projectID: project.id, request: Self.request(), batchCount: 1, seedPolicy: "{}")
+        let collection = try await store.defaultCollection()
+        let job = try await store.enqueueJob(collectionID: collection.id, request: Self.request(), batchCount: 1, seedPolicy: "{}")
 
         let png = try TestPNG.make(width: 64, height: 48)
         let record = try await store.saveImage(NewImage(
-            projectID: project.id, jobID: job.id, pngData: png, settings: Self.settings()
+            collectionID: collection.id, jobID: job.id, pngData: png, settings: Self.settings()
         ))
 
         #expect(record.width == 64)
@@ -63,7 +63,7 @@ import Synchronization
         #expect(FileManager.default.fileExists(atPath: pngURL.path))
         #expect(FileManager.default.fileExists(atPath: thumbURL.path))
 
-        let recent = try await store.recentImages(projectID: project.id, limit: 10)
+        let recent = try await store.recentImages(collectionID: collection.id, limit: 10)
         #expect(recent.map(\.id) == [record.id])
         #expect(try await store.imageSettings(id: record.id)?.prompt == "a cat")
         #expect(try await store.savedImageCount(jobID: job.id) == 1)
@@ -72,24 +72,24 @@ import Synchronization
     @Test func failureBeforeRowInsertLeavesNoFilesOrRow() async throws {
         let root = try Self.tempRoot()
         let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
-        let project = try await store.defaultProject()
+        let collection = try await store.defaultCollection()
         await store.setBeforeRowInsertHook { throw InjectedFailure() }
 
         await #expect(throws: InjectedFailure.self) {
             _ = try await store.saveImage(NewImage(
-                projectID: project.id, jobID: nil, pngData: try TestPNG.make(width: 32, height: 32),
+                collectionID: collection.id, jobID: nil, pngData: try TestPNG.make(width: 32, height: 32),
                 settings: Self.settings()
             ))
         }
-        #expect(Self.files(under: root.appending(path: "Projects")).isEmpty)
+        #expect(Self.files(under: root.appending(path: "Collections")).isEmpty)
         #expect(Self.files(under: root.appending(path: "Thumbnails")).isEmpty)
-        #expect(try await store.recentImages(projectID: project.id, limit: 10).isEmpty)
+        #expect(try await store.recentImages(collectionID: collection.id, limit: 10).isEmpty)
     }
 
     @Test func leftoverPartialFilesAreSweptAtLaunch() throws {
         let root = try Self.tempRoot()
         _ = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
-        let dir = root.appending(path: "Projects/abc/2026-10", directoryHint: .isDirectory)
+        let dir = root.appending(path: "Collections/abc/2026-10", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let partial = dir.appending(path: "junk.png.partial")
         try Data("x".utf8).write(to: partial)
@@ -100,7 +100,7 @@ import Synchronization
 
     @Test func asyncOpenCreatesTheSchemaAndSweepsPartialsOffTheMainThread() async throws {
         let root = try Self.tempRoot()
-        let dir = root.appending(path: "Projects/abc/2026-10", directoryHint: .isDirectory)
+        let dir = root.appending(path: "Collections/abc/2026-10", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let partial = dir.appending(path: "junk.png.partial")
         try Data("x".utf8).write(to: partial)
@@ -112,24 +112,24 @@ import Synchronization
 
         #expect(FileManager.default.fileExists(atPath: LibraryPaths(root: root, modelsRoot: root.appending(path: "Models")).database.path))
         #expect(!FileManager.default.fileExists(atPath: partial.path))
-        #expect(try await store.defaultProject().name == "Default")
+        #expect(try await store.defaultCollection().name == "Default")
         #expect(openedOnMain.withLock { $0 } == false)
     }
 
-    @Test func asyncOpenReusesAnExistingDefaultProject() async throws {
+    @Test func asyncOpenReusesAnExistingDefaultCollection() async throws {
         let root = try Self.tempRoot()
         let first = try await LibraryStore.open(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
-        let projectID = try await first.defaultProject().id
+        let collectionID = try await first.defaultCollection().id
         let second = try await LibraryStore.open(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
-        #expect(try await second.defaultProject().id == projectID)
+        #expect(try await second.defaultCollection().id == collectionID)
     }
 
     @Test func embeddedMetadataRecordsTheRealPixelSizeNotTheRequest() async throws {
         let store = try LibraryStore(libraryRoot: try Self.tempRoot(), modelsRoot: try Self.tempRoot())
-        let project = try await store.defaultProject()
-        let job = try await store.enqueueJob(projectID: project.id, request: Self.request(), batchCount: 1, seedPolicy: "random")
+        let collection = try await store.defaultCollection()
+        let job = try await store.enqueueJob(collectionID: collection.id, request: Self.request(), batchCount: 1, seedPolicy: "random")
         let saved = try await store.saveImage(
-            NewImage(projectID: project.id, jobID: job.id, pngData: try TestPNG.make(width: 40, height: 24), settings: Self.settings()))
+            NewImage(collectionID: collection.id, jobID: job.id, pngData: try TestPNG.make(width: 40, height: 24), settings: Self.settings()))
 
         #expect(saved.settings.width == 40 && saved.settings.height == 24)
         let onDisk = try Data(contentsOf: await store.paths.url(relativePath: saved.filePath))
@@ -140,8 +140,8 @@ import Synchronization
     @Test func failureSurvivesReopenAndRetryClearsIt() async throws {
         let root = try Self.tempRoot()
         let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
-        let project = try await store.defaultProject()
-        let job = try await store.enqueueJob(projectID: project.id, request: Self.request(), batchCount: 2, seedPolicy: "random")
+        let collection = try await store.defaultCollection()
+        let job = try await store.enqueueJob(collectionID: collection.id, request: Self.request(), batchCount: 2, seedPolicy: "random")
         let failure = JobFailure(message: "Not enough memory", detail: "engine said x", retryable: true)
         try await store.setJobStatus(job.id, .failed, failure: failure)
 
@@ -155,10 +155,10 @@ import Synchronization
     @Test func queueOrdersJobsAndRejectsMovingNonQueued() async throws {
         let root = try Self.tempRoot()
         let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
-        let project = try await store.defaultProject()
-        let a = try await store.enqueueJob(projectID: project.id, request: Self.request(), batchCount: 1, seedPolicy: "a")
-        let b = try await store.enqueueJob(projectID: project.id, request: Self.request(), batchCount: 1, seedPolicy: "b")
-        let c = try await store.enqueueJob(projectID: project.id, request: Self.request(), batchCount: 1, seedPolicy: "c")
+        let collection = try await store.defaultCollection()
+        let a = try await store.enqueueJob(collectionID: collection.id, request: Self.request(), batchCount: 1, seedPolicy: "a")
+        let b = try await store.enqueueJob(collectionID: collection.id, request: Self.request(), batchCount: 1, seedPolicy: "b")
+        let c = try await store.enqueueJob(collectionID: collection.id, request: Self.request(), batchCount: 1, seedPolicy: "c")
 
         #expect(try await store.nextQueuedJob()?.id == a.id)
         try await store.moveQueuedJob(c.id, by: -1)
@@ -179,7 +179,7 @@ import Synchronization
     @Test func failedPNGWriteLeavesNoPartialFile() async throws {
         let root = try Self.tempRoot()
         let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
-        let project = try await store.defaultProject()
+        let collection = try await store.defaultCollection()
         // The hook writes the partial file and then fails, as a write cut short by a full disk would.
         await store.setBeforePartialWriteHook { url in
             try Data("torn".utf8).write(to: url)
@@ -188,20 +188,20 @@ import Synchronization
 
         await #expect(throws: InjectedFailure.self) {
             _ = try await store.saveImage(NewImage(
-                projectID: project.id, jobID: nil, pngData: try TestPNG.make(width: 32, height: 32),
+                collectionID: collection.id, jobID: nil, pngData: try TestPNG.make(width: 32, height: 32),
                 settings: Self.settings()
             ))
         }
-        #expect(Self.files(under: root.appending(path: "Projects")).isEmpty)
+        #expect(Self.files(under: root.appending(path: "Collections")).isEmpty)
     }
 
     @Test func transitionChangesOnlyAJobStillInAnAllowedStatus() async throws {
         let root = try Self.tempRoot()
         let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
-        let project = try await store.defaultProject()
-        let cancelled = try await store.enqueueJob(projectID: project.id, request: Self.request(), batchCount: 1, seedPolicy: "random")
+        let collection = try await store.defaultCollection()
+        let cancelled = try await store.enqueueJob(collectionID: collection.id, request: Self.request(), batchCount: 1, seedPolicy: "random")
         try await store.setJobStatus(cancelled.id, .cancelled)
-        let finished = try await store.enqueueJob(projectID: project.id, request: Self.request(), batchCount: 1, seedPolicy: "random")
+        let finished = try await store.enqueueJob(collectionID: collection.id, request: Self.request(), batchCount: 1, seedPolicy: "random")
         try await store.setJobStatus(finished.id, .done)
 
         // A cancelled job cannot be started, and a finished job cannot be cancelled.

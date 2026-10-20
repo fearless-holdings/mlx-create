@@ -11,6 +11,16 @@ public enum LibraryError: Error, Equatable {
     case loraUnavailable(name: String)
     /// A name that is empty after trimming whitespace.
     case invalidName
+    /// A collection already has this name, ignoring case (R14).
+    case duplicateCollectionName
+    /// The default collection cannot be deleted (R7).
+    case defaultCollectionCannotBeDeleted
+    /// A collection that still holds images cannot be deleted (R6).
+    case collectionHasImages(count: Int)
+    /// A collection with queued, running or paused jobs cannot be deleted (R8).
+    case collectionHasJobs(count: Int)
+    /// Moving a file from the legacy `Projects/` folder into `Collections/` failed at open (D35). `path` is the source file.
+    case folderReconcileFailed(path: String)
 }
 
 /// The settings for one saved image (HLD §8.9, D12). Stored in the `mlx-create` PNG chunk and in the `IMAGE.settings` column.
@@ -70,20 +80,89 @@ public struct ImageSettings: Codable, Equatable, Sendable {
     }
 }
 
-/// A project: the home of images and default settings (D10).
-public struct Project: Equatable, Sendable, Identifiable {
+/// A collection: the home of images, with optional composer defaults (D10, D35). Named `ImageCollection` in code so it
+/// does not shadow Swift's `Collection` protocol; the UI says "Collection".
+public struct ImageCollection: Equatable, Sendable, Identifiable {
     public var id: UUID
     public var name: String
     public var coverImageID: UUID?
-    public var defaultModelID: String?
+    public var defaults: CollectionDefaults?
     public var createdAt: Date
+    public var isDefault: Bool
 
-    public init(id: UUID = UUID(), name: String, coverImageID: UUID? = nil, defaultModelID: String? = nil, createdAt: Date = Date()) {
+    public init(
+        id: UUID = UUID(), name: String, coverImageID: UUID? = nil, defaults: CollectionDefaults? = nil,
+        createdAt: Date = Date(), isDefault: Bool = false
+    ) {
         self.id = id
         self.name = name
         self.coverImageID = coverImageID
-        self.defaultModelID = defaultModelID
+        self.defaults = defaults
         self.createdAt = createdAt
+        self.isDefault = isDefault
+    }
+}
+
+/// A collection with the number of images it holds, so the switcher can tell whether delete is available without a second query.
+public struct CollectionSummary: Equatable, Sendable, Identifiable {
+    public var collection: ImageCollection
+    public var imageCount: Int
+    public var openJobCount: Int
+    public var id: UUID { collection.id }
+
+    public init(collection: ImageCollection, imageCount: Int, openJobCount: Int) {
+        self.collection = collection
+        self.imageCount = imageCount
+        self.openJobCount = openJobCount
+    }
+
+    /// Why this collection cannot be deleted, or nil when it can (R6-R8).
+    public var deleteBlockedReason: String? {
+        if collection.isDefault { return "The default collection cannot be deleted." }
+        if imageCount > 0 {
+            return "This collection still holds \(imageCount) image\(imageCount == 1 ? "" : "s"). Move or delete them first."
+        }
+        if openJobCount > 0 {
+            return "This collection still has \(openJobCount) queued, running or paused job\(openJobCount == 1 ? "" : "s")."
+        }
+        return nil
+    }
+}
+
+/// The composer settings a collection applies when the user switches to it (R9, D35). Saved explicitly, never auto-synced.
+/// LoRAs are held as `ImageLoRA` so they restore by SHA-256 the same way reusing an image's settings does.
+public struct CollectionDefaults: Codable, Equatable, Sendable {
+    public var modelID: String?
+    public var width: Int?
+    public var height: Int?
+    public var steps: Int?
+    public var guidance: Double?
+    public var negativePrompt: String?
+    public var loras: [ImageLoRA]
+
+    public init(
+        modelID: String? = nil, width: Int? = nil, height: Int? = nil, steps: Int? = nil, guidance: Double? = nil,
+        negativePrompt: String? = nil, loras: [ImageLoRA] = []
+    ) {
+        self.modelID = modelID
+        self.width = width
+        self.height = height
+        self.steps = steps
+        self.guidance = guidance
+        self.negativePrompt = negativePrompt
+        self.loras = loras
+    }
+
+    /// Every field is optional in stored JSON: the v6 migration writes `{"modelID":...}` alone, so a missing key keeps its default.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        modelID = try c.decodeIfPresent(String.self, forKey: .modelID)
+        width = try c.decodeIfPresent(Int.self, forKey: .width)
+        height = try c.decodeIfPresent(Int.self, forKey: .height)
+        steps = try c.decodeIfPresent(Int.self, forKey: .steps)
+        guidance = try c.decodeIfPresent(Double.self, forKey: .guidance)
+        negativePrompt = try c.decodeIfPresent(String.self, forKey: .negativePrompt)
+        loras = try c.decodeIfPresent([ImageLoRA].self, forKey: .loras) ?? []
     }
 }
 
@@ -181,7 +260,7 @@ public struct Job: Equatable, Sendable, Identifiable {
     /// The only mode the v1 executor generates (D7).
     public static let textToImageMode = "t2i"
     public var id: UUID
-    public var projectID: UUID
+    public var collectionID: UUID
     public var mode: String
     public var request: JobRequest
     public var batchCount: Int
@@ -194,7 +273,7 @@ public struct Job: Equatable, Sendable, Identifiable {
 
     public init(
         id: UUID,
-        projectID: UUID,
+        collectionID: UUID,
         mode: String,
         request: JobRequest,
         batchCount: Int,
@@ -204,7 +283,7 @@ public struct Job: Equatable, Sendable, Identifiable {
         failure: JobFailure? = nil
     ) {
         self.id = id
-        self.projectID = projectID
+        self.collectionID = collectionID
         self.mode = mode
         self.request = request
         self.batchCount = batchCount
@@ -218,7 +297,7 @@ public struct Job: Equatable, Sendable, Identifiable {
 /// One saved image (HLD §9 `IMAGE`). `mediaType` is kept for later phases (D7); v1 writes `"image"`.
 public struct LibraryImage: Equatable, Sendable, Identifiable {
     public var id: UUID
-    public var projectID: UUID
+    public var collectionID: UUID
     public var jobID: UUID?
     public var mediaType: String
     /// Path relative to the library root.
@@ -238,7 +317,7 @@ public struct LibraryImage: Equatable, Sendable, Identifiable {
 
     public init(
         id: UUID,
-        projectID: UUID,
+        collectionID: UUID,
         jobID: UUID?,
         mediaType: String,
         filePath: String,
@@ -249,7 +328,7 @@ public struct LibraryImage: Equatable, Sendable, Identifiable {
         createdAt: Date
     ) {
         self.id = id
-        self.projectID = projectID
+        self.collectionID = collectionID
         self.jobID = jobID
         self.mediaType = mediaType
         self.filePath = filePath
@@ -263,13 +342,13 @@ public struct LibraryImage: Equatable, Sendable, Identifiable {
 
 /// An engine PNG ready to be saved. `pngData` is the engine's output without our metadata; ``LibraryStore/saveImage(_:)`` adds it.
 public struct NewImage: Sendable {
-    public var projectID: UUID
+    public var collectionID: UUID
     public var jobID: UUID?
     public var pngData: Data
     public var settings: ImageSettings
 
-    public init(projectID: UUID, jobID: UUID?, pngData: Data, settings: ImageSettings) {
-        self.projectID = projectID
+    public init(collectionID: UUID, jobID: UUID?, pngData: Data, settings: ImageSettings) {
+        self.collectionID = collectionID
         self.jobID = jobID
         self.pngData = pngData
         self.settings = settings

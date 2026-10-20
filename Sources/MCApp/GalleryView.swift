@@ -21,8 +21,10 @@ struct GalleryView: View {
 }
 
 /// A gallery thumbnail. Clicking it selects the image, which the canvas then shows. While the pointer is over it, a
-/// corner menu offers to reuse the prompt or all settings; the same actions are exposed to accessibility.
+/// corner menu offers to reuse the prompt or all settings, or move the image to another collection. The same actions
+/// are exposed to accessibility.
 struct ImageCell: View {
+    let model: AppModel
     let image: LibraryImage
     let thumbnailURL: URL
     let isSelected: Bool
@@ -31,6 +33,11 @@ struct ImageCell: View {
     let onReuseSettings: () -> Void
 
     @State private var isHovering = false
+
+    /// The collections an image can move to: every collection except the one on screen.
+    private var moveTargets: [CollectionSummary] {
+        model.collections.filter { $0.id != model.currentCollection.id }
+    }
 
     var body: some View {
         Button(action: onSelect) {
@@ -62,6 +69,14 @@ struct ImageCell: View {
                 Menu {
                     Button("Reuse prompt", action: onReusePrompt)
                     Button("Reuse all settings", action: onReuseSettings)
+                    Menu("Move to Collection") {
+                        ForEach(moveTargets) { target in
+                            Button(target.collection.name) {
+                                Task { await model.moveImage(image, to: target.id) }
+                            }
+                        }
+                    }
+                    .disabled(moveTargets.isEmpty)
                 } label: {
                     Image(systemName: "arrow.counterclockwise")
                         .font(.system(size: 12, weight: .semibold))
@@ -83,5 +98,12 @@ struct ImageCell: View {
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityAction(named: "Reuse prompt", onReusePrompt)
         .accessibilityAction(named: "Reuse all settings", onReuseSettings)
+        .accessibilityActions {
+            ForEach(moveTargets) { target in
+                Button("Move to \(target.collection.name)") {
+                    Task { await model.moveImage(image, to: target.id) }
+                }
+            }
+        }
     }
 }

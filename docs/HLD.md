@@ -19,7 +19,7 @@ This document records the agreed product decisions, the system architecture, the
 
 ### Goals
 
-- **G1:** Native macOS 26.2+ app with a three-panel generation workspace (prompt and settings, canvas with queue strip, gallery of finished images), Projects, and a per-project gallery.
+- **G1:** Native macOS 26.2+ app with a three-panel generation workspace (prompt and settings, canvas with queue strip, gallery of finished images), Collections, and a per-collection gallery.
 - **G2:** Text-to-image generation in v1, with every mlx-serve control that makes sense for the selected model family (steps, CFG, negative prompt, size, seed, LoRA stack).
 - **G3:** A prompt **Enhance** button backed by a local, uncensored LLM that knows how each model family wants to be prompted and what the active LoRAs need.
 - **G4:** Preselected models with recommendations tuned to the user's Mac, calibrated on the device itself.
@@ -32,7 +32,7 @@ This document records the agreed product decisions, the system architecture, the
 - SDXL / SD1.5 / Pony / Illustrious / Flux.1 / Chroma / Wan engines. Only families mlx-serve runs are supported (D5).
 - ControlNet and structural conditioning.
 - Sampler and scheduler pickers. Each family uses curated defaults (D14).
-- Tags, ratings, favorites and smart collections. Projects are the only organising unit (D10).
+- Tags, ratings, favorites and smart collections. Collections are the only organising unit (D10, D35).
 - Mac App Store distribution, cloud generation, and model training.
 
 ## 3. Decision log
@@ -50,7 +50,7 @@ Settled during the design interview. Later documents cite these IDs.
 | D7 | **Design for all modes, deliver in phases**; v1 is **text→image only** | Data model, queue and engine API are mode-agnostic from day one |
 | D8 | **LoRAs only in v1**; fine-tune import and conversion come later | Avoids building a converter for v1 |
 | D9 | Enhancer: **one curated abliterated LLM per RAM tier**, app-managed | Predictable quality, no refusals |
-| D10 | **Projects**: each image has exactly one home project. Nothing else organises images | Simple mental model. A project carries default model, settings, LoRAs and prompt history |
+| D10 | **Collections** (named Projects until D35): each image has exactly one home collection. Nothing else organises images | Simple mental model. A collection carries default model, settings and LoRAs (prompt history stays deferred) |
 | D11 | Enhancer knowledge = **versioned prompt packs + LoRA-aware context** | Packs update without an app release. Trigger words and example prompts are woven in |
 | D12 | PNG metadata: **A1111 `parameters` + mlx-create JSON** | Civitai and other tools interoperate. Dropping an image restores its settings |
 | D13 | v1 power tools: **batch count + seed controls, persistent queue, live step previews** | X/Y plot, wildcards and styles are out of v1 |
@@ -75,6 +75,7 @@ Settled during the design interview. Later documents cite these IDs.
 | D32 | **The engine always runs Qwen-Image's staged plan, so the catalog `ram_gb` for Qwen packs is the staged preflight need.** The app launches the engine with the fixed variable `MLX_SERVE_QWEN_IMAGE_LOW_MEMORY=1` (an upstream knob; the engine stays stock). Turbo's `ram_gb` is 14.3: the staged peak (11.81 GiB, which includes the edit-tower transient) plus the engine's load headroom, `min(peak/8, 6 GiB) + 1 GiB`. Turbo 4-bit therefore does not run on a 16 GB Mac (usable working set ≈11.9 GB): the browser shows `exceeds` there, and §8.5 lists it from the 24 GB tier. The cost is that the text encoder reloads for each request on large Macs | Without the variable the engine stages only when the working set is below ≈18.4 GiB, so the need would be ≈18.8 GB on larger Macs and one catalog scalar could not describe both. Pinning the staged plan keeps the fit band truthful on every tier |
 | D33 | **Three-panel main window** supersedes the layout half of D18 (the canvas-first stack with a shared filmstrip and a ⚙ settings popover). Left: generation, with a multi-line prompt, Enhance beside it (not yet built), inline settings, and the batch and Generate controls at the bottom. Middle: the canvas, with the queue strip under it (jobs only). Right: the gallery of finished images, paged, always visible. | Requested by the user. A multi-line prompt and inline settings need room that a popover and a shared strip cannot give, and mixing queue placeholders into the gallery forces every render to filter one array. The LoRA stack is an inline section, not yet built. A separate full-window Gallery mode and the ⌘1/⌘2 switch are an open question (§10). Plan: `docs/plans/2026-10-19-1105-feat-three-panel-main-layout-plan.md` |
 | D34 | **LoRAs live in their own `lora` table (migration `v4-lora`), with files at `Models/LoRAs/<family>/<sha10>-<slug>.safetensors` and no JSON sidecar.** Fit is per family, decided by tensor-key and shape fingerprints (§8.6); a family without a fingerprint offers no LoRA control. Civitai LoRA browse and download is in scope, through a Browse Civitai tab in the LoRA library sheet (§10), with source metadata in `lora_source` (migration `v5-lora-source`). CivArchive, fetch by link or hash, and update checks stay deferred. | `installed_model` is checkpoint-shaped (repo, revision, catalog sequence, license) and does not fit LoRAs. The database is the record, and paths stay relative to the Models root so the relocatable root (D17) keeps working. Amends §9 |
+| D35 | **Projects are renamed Collections, and made real.** Migration `v6-collection` renames table `project` to `collection`, `project_id` to `collection_id` on `job` and `image`, adds a nullable `defaults` JSON column and drops `default_model_id`. The on-disk folder `Projects/` becomes `Collections/`, reconciled per file at open. A collection can be created, renamed, switched and deleted; an image can be moved to another collection. A move changes only `collection_id`, never the file. **Delete is allowed only for a non-default collection with no images and no queued, running or paused jobs.** Defaults (model, size, steps, guidance, negative prompt, LoRA stack) are saved explicitly from the composer and applied on switch. Prompt history, a cover picker and an All-collections gallery stay deferred | "Project" read as a document or a job, and this unit is a gallery of images. Refusing to delete a non-empty collection avoids a cascade delete of images and needs no move-on-delete flow. Amends D10, §8.9, §9 and the on-disk layout |
 
 **Amendment (2026-10-19, D34):** Civitai LoRA browsing and download move from "separate work" into scope. The browser is a tab in the LoRA library sheet, not a Models-window tab. A finished download goes to the library only and is not attached to the generation stack. Design and open items: `docs/lld/loras.md`, section "Civitai browse and download".
 
@@ -125,7 +126,7 @@ All generation happens on the Mac. Outbound traffic is limited to model and meta
 
 ## 6. Architecture overview
 
-The app is a client of a private, localhost-only engine process. All inference stays in the engine. The app owns product state: projects, the queue, metadata, downloads, catalog, enhancer orchestration, and licensing.
+The app is a client of a private, localhost-only engine process. All inference stays in the engine. The app owns product state: collections, the queue, metadata, downloads, catalog, enhancer orchestration, and licensing.
 
 ```mermaid
 flowchart TB
@@ -454,9 +455,9 @@ The initial packs are seeded from mlx-serve's `PromptRewriter.swift` (MIT) and i
 
 ### 8.9 LibraryStore and MetadataCodec
 
-- **Projects (D10):** a project has a name, a cover, defaults (model, settings, LoRA stack) and its prompt history. Every image has exactly one home project. "Move to project…" reassigns it. The project switcher lives in the toolbar.
+- **Collections (D10, D35):** a collection has a name, defaults (model, settings, LoRA stack) and, once built, a cover and its prompt history. Every image has exactly one home collection. "Move to Collection" reassigns it without moving the file. The collection switcher lives in the toolbar. A collection can be deleted only when it holds no images and no queued, running or paused jobs, and the default collection cannot be deleted.
 - **Gallery mode:**
-  - Grid of the current project or all projects, sorted by date.
+  - Grid of the current collection (an All-collections view is deferred), sorted by date.
   - FTS5 prompt search. No tags or ratings (D10).
   - Context actions: reuse settings, reuse seed, move, export (with or without metadata), reveal, delete.
 - **MetadataCodec (D12):**
@@ -479,26 +480,25 @@ The initial packs are seeded from mlx-serve's `PromptRewriter.swift` (MIT) and i
 
 ```mermaid
 erDiagram
-  PROJECT ||--o{ IMAGE : "home of"
-  PROJECT ||--o{ PROMPT_HISTORY : has
-  PROJECT ||--o{ JOB : "queued in"
+  COLLECTION ||--o{ IMAGE : "home of"
+  COLLECTION ||--o{ PROMPT_HISTORY : has
+  COLLECTION ||--o{ JOB : "queued in"
   JOB ||--o{ IMAGE : produces
   INSTALLED_MODEL ||--o{ IMAGE : "checkpoint used"
   IMAGE }o--o{ LORA : "LoRAs used (by sha256)"
   INSTALLED_MODEL ||--o{ CALIBRATION : measured
 
-  PROJECT {
+  COLLECTION {
     uuid id
     string name
     uuid cover_image_id
-    string default_model_id
-    json default_settings
-    json default_loras
+    json defaults "CollectionDefaults (D35)"
+    bool is_default
     datetime created_at
   }
   JOB {
     uuid id
-    uuid project_id
+    uuid collection_id
     string mode "t2i|i2i|edit|inpaint|upscale|t2v|i2v"
     json request
     int batch_count
@@ -508,7 +508,7 @@ erDiagram
   }
   IMAGE {
     uuid id
-    uuid project_id
+    uuid collection_id
     uuid job_id
     string media_type "image|video"
     string file_path
@@ -571,7 +571,7 @@ erDiagram
 ~/Library/Application Support/mlx-create/
 ├── Library/                       # relocatable (Settings → Library location)
 │   ├── library.sqlite
-│   ├── Projects/<project-id>/<yyyy-mm>/<image-id>.png|.mp4
+│   ├── Collections/<folder-id>/<yyyy-mm>/<image-id>.png|.mp4   # folder = collection the image was first saved into (D35)
 │   └── Thumbnails/<image-id>.heic
 ├── Models/                        # relocatable (external drive supported)
 │   ├── Weights/<org>/<repo>/      # checkpoints + enhancer LLMs (--model-dir)
@@ -591,7 +591,7 @@ Nothing is written to `~/.mlx-serve`, and other tools' model folders are not sca
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────────────┐
-│ [Project: Portraits ▾]                                            [Qwen-Image 4bit ●] │
+│ [Collection: Portraits ▾]                                         [Qwen-Image 4bit ●] │
 ├──────────────────────────┬───────────────────────────────────┬────────────────────────┤
 │ Prompt                   │                                   │ Gallery                │
 │ a woman reading in a     │      current / selected result    │ newest first, paged    │
@@ -614,7 +614,7 @@ Nothing is written to `~/.mlx-serve`, and other tools' model folders are not sca
   - Generation panel (left): a multi-line prompt editor that takes the height above the settings, with the **Enhance** button beside it (not yet built, §8.8). The settings are inline, with no popover, and follow family capabilities (§8.3): seed and policy, size, steps, CFG scale and negative prompt, each shown only where the family allows it. The **LoRA stack** is an inline section of compact one-line rows that expand for weight and trigger-word chips, with a LoRA library sheet beside the model chip to manage and pick LoRAs (built, §8.3, D34). The batch stepper (×N), Generate (⌘↩) and the error line are pinned at the bottom. When no model can run, the settings area says "Choose an available model to see its settings."
   - Canvas (middle, top): the selected result or the live step preview, with zoom and pan; drop a PNG = restore. Shows the existing empty states (no models, only unavailable models, empty hint).
   - Queue strip (middle, under the canvas): the queue header (Running, Pausing, Paused, Queue empty, with Pause and Resume) and one cell per job, with live progress. Jobs only. Hidden while the canvas shows the empty hint.
-  - Gallery panel (right): all of the project's finished images, newest first, as a scrolling grid that loads in pages. Clicking a thumbnail shows it in the canvas. Queued jobs never appear here.
+  - Gallery panel (right): all of the collection's finished images, newest first, as a scrolling grid that loads in pages. Clicking a thumbnail shows it in the canvas. Queued jobs never appear here.
   - Model chip with a fit badge (comfortable/tight) and a seconds-per-image estimate.
   - The dividers between the panels are draggable, and each panel keeps a minimum width.
 - **Gallery mode (open question):** a separate full-window grid with search; double-click opens an image in the canvas. Whether it still ships in a later phase, or the right panel grows to host search, is undecided (D33).
@@ -625,7 +625,7 @@ Nothing is written to `~/.mlx-serve`, and other tools' model folders are not sca
   3. Starter downloads.
   4. Calibration render.
   5. Analytics opt-in.
-  6. First project.
+  6. First collection.
 - **Keyboard first:** ⌘↩ generate, ⌘E enhance (not yet built), ⌘. cancel, ⌘1/⌘2 Canvas/Gallery (open question, see Gallery mode above), ⌘R reuse settings of the selected image.
 
 ## 11. Memory and performance strategy
@@ -653,9 +653,9 @@ Nothing is written to `~/.mlx-serve`, and other tools' model folders are not sca
 
 | Phase | Scope | Backend work |
 |---|---|---|
-| **v1.0** | Text→image on FLUX.2-klein 4B/9B, Qwen-Image 2.1 (+Turbo), Krea-2 Turbo, Mage-Flow. Civitai LoRA browse and download (D34); CivArchive LoRAs deferred. Enhancer with packs + LoRA context. Projects + gallery + prompt search. Persistent queue, batch and seed policies. Step progress (live previews when F1 lands). A1111 metadata and drop-to-restore. Catalog + calibration. Sparkle, opt-in analytics, Entitlements seam | F1 upstream PR |
+| **v1.0** | Text→image on FLUX.2-klein 4B/9B, Qwen-Image 2.1 (+Turbo), Krea-2 Turbo, Mage-Flow. Civitai LoRA browse and download (D34); CivArchive LoRAs deferred. Enhancer with packs + LoRA context. Collections (D35) + gallery + prompt search. Persistent queue, batch and seed policies. Step progress (live previews when F1 lands). A1111 metadata and drop-to-restore. Catalog + calibration. Sparkle, opt-in analytics, Entitlements seam | F1 upstream PR |
 | **v1.x** | Img2img variation (`strength`), instruction edit (`mode:edit`, `ref_images`, Qwen / Mage-Flow Edit), transparent PNG | None, already in the engine. F3 optional |
-| **v2.0** | Text/image→video (LTX, MiniMax-H3) with AVFoundation mux, video in projects and gallery, video prompt packs | None, already in the engine |
+| **v2.0** | Text/image→video (LTX, MiniMax-H3) with AVFoundation mux, video in collections and gallery, video prompt packs | None, already in the engine |
 | **v2.x** | Inpaint/outpaint (mask canvas), upscale + hires-fix, community fine-tune import | F4, F5. Upscaler approach decided in the LLD |
 
 ## 14. Risks

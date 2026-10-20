@@ -122,7 +122,7 @@ struct AppHarness {
     let store: LibraryStore
     let endpoint: EngineEndpoint
     let states: AsyncStream<EngineState>.Continuation
-    let projectID: UUID
+    let collectionID: UUID
     /// The library root and defaults the app reads at launch. A relaunch builds a new model over the same two.
     let root: URL
     let defaults: UserDefaults
@@ -217,16 +217,16 @@ struct AppHarness {
             civitaiTransport: civitaiTransport, civitaiFileTransport: civitaiFileTransport,
             civitaiKeychain: civitaiKeychain ?? CivitaiKeychain(service: "test-civitai-\(UUID().uuidString)"),
             civitaiPreviewFetch: civitaiPreviewFetch)
-        let project = try await store.defaultProject()
+        let collection = try await store.defaultCollection()
         return AppHarness(
-            model: model, store: store, endpoint: endpoint, states: continuation, projectID: project.id,
+            model: model, store: store, endpoint: endpoint, states: continuation, collectionID: collection.id,
             root: root, defaults: defaults, engine: engine)
     }
 
     /// Queues a job directly in the library, bypassing the composer.
     func enqueue(model: String = kreaModel, batch: Int, prompt: String = "a lighthouse at dusk") async throws -> Job {
         try await store.enqueueJob(
-            projectID: projectID,
+            collectionID: collectionID,
             request: JobRequest(
                 modelID: model, family: "krea-2-turbo", prompt: prompt,
                 width: 512, height: 512, steps: 4),
@@ -237,7 +237,7 @@ struct AppHarness {
     /// A saved image with settings, for ⌘R and gallery checks.
     func saveImage(prompt: String, model: String = kreaModel, width: Int = 768, height: Int = 768) async throws -> LibraryImage {
         try await store.saveImage(NewImage(
-            projectID: projectID, jobID: nil,
+            collectionID: collectionID, jobID: nil,
             pngData: PNGFixture.make(width: width, height: height),
             settings: ImageSettings(
                 prompt: prompt, negativePrompt: nil, modelID: model, family: "krea-2-turbo",

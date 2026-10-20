@@ -15,7 +15,7 @@ import Testing
                 tail: nil)
         }
         let job = try await harness.store.enqueueJob(
-            projectID: harness.projectID,
+            collectionID: harness.collectionID,
             request: JobRequest(
                 modelID: kreaModel, family: "krea-2-turbo", prompt: "a lighthouse", width: 512,
                 height: 512, steps: 4
@@ -41,7 +41,7 @@ import Testing
         _ = try await harness.enqueue(batch: 1, steps: 4)
         try await harness.executor.drain()
         let image = try #require(
-            try await harness.store.recentImages(projectID: harness.projectID, limit: 1).first)
+            try await harness.store.recentImages(collectionID: harness.collectionID, limit: 1).first)
         #expect(image.settings.steps == nil)
         let png = try Data(contentsOf: await harness.store.paths.url(relativePath: image.filePath))
         let parameters = try #require(try PNGChunks.parse(png).first { $0.type == "tEXt" })

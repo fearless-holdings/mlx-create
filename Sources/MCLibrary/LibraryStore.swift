@@ -12,25 +12,26 @@ public actor LibraryStore {
     private var statusHook: (@Sendable (JobStatus) throws -> Void)?
 
     /// Opens (creating if needed) the library at `libraryRoot`, runs migrations, sweeps `*.partial` files and
-    /// unreferenced LoRA files, and ensures the default project exists.
+    /// unreferenced LoRA files, and ensures the default collection exists.
     public init(libraryRoot: URL, modelsRoot: URL) throws {
         paths = LibraryPaths(root: libraryRoot, modelsRoot: modelsRoot)
         try FileManager.default.createDirectory(at: libraryRoot, withIntermediateDirectories: true)
         dbQueue = try DatabaseQueue(path: paths.database.path)
         try Self.migrator.migrate(dbQueue)
+        try Self.reconcileLegacyProjectsFolder(libraryRoot: libraryRoot)
         try Self.sweepPartials(under: libraryRoot)
         try Self.sweepPartials(under: paths.loraRoot)
         try Self.sweepPartials(under: paths.civitaiStagingDirectory)
         Self.sweepUnreferencedLoRAs(paths: paths, dbQueue: dbQueue)
         try dbQueue.write { db in
-            if try ProjectRow.filter(Column("is_default") == true).fetchCount(db) == 0 {
-                try ProjectRow(Project(name: "Default"), isDefault: true).insert(db)
+            if try CollectionRow.filter(Column("is_default") == true).fetchCount(db) == 0 {
+                try CollectionRow(ImageCollection(name: "Default", isDefault: true)).insert(db)
             }
         }
     }
 
     /// Opens the library off the caller's actor (R15). Directory creation, migrations, the `.partial` sweep and the
-    /// default project run on a detached task, so launch never blocks the main thread.
+    /// default collection run on a detached task, so launch never blocks the main thread.
     public static func open(libraryRoot: URL, modelsRoot: URL) async throws -> LibraryStore {
         try await openOffActor(libraryRoot: libraryRoot, modelsRoot: modelsRoot) { _ in }
     }
@@ -111,7 +112,67 @@ public actor LibraryStore {
             }
             try Self.createLoRASourceTable(db)
         }
+        migrator.registerMigration("v6-collection") { db in
+            // GRDB runs migrations with `legacy_alter_table` on, which leaves `job` and `image` pointing at the old `project`
+            // table. Turn it off so the rename rewrites those REFERENCES, and restore it after.
+            let legacyAlter = try Int.fetchOne(db, sql: "PRAGMA legacy_alter_table") ?? 0
+            try db.execute(sql: "PRAGMA legacy_alter_table = OFF")
+            try db.execute(sql: "ALTER TABLE project RENAME TO collection")
+            try db.execute(sql: "PRAGMA legacy_alter_table = \(legacyAlter)")
+            try db.execute(sql: "ALTER TABLE job RENAME COLUMN project_id TO collection_id")
+            try db.execute(sql: "ALTER TABLE image RENAME COLUMN project_id TO collection_id")
+            try db.drop(index: "image_project_recent")
+            try db.create(index: "image_collection_recent", on: "image", columns: ["collection_id", "created_at"])
+            try db.execute(sql: "ALTER TABLE collection ADD COLUMN defaults TEXT")
+            // `default_model_id` was never written by the app; carry a value over rather than drop it silently.
+            try db.execute(sql: """
+                UPDATE collection SET defaults = json_object('modelID', default_model_id)
+                WHERE default_model_id IS NOT NULL
+                """)
+            try db.execute(sql: "ALTER TABLE collection DROP COLUMN default_model_id")
+            // 'Projects/' is nine characters, so the remainder starts at the tenth.
+            try db.execute(sql: """
+                UPDATE image SET file_path = 'Collections/' || substr(file_path, 10)
+                WHERE file_path LIKE 'Projects/%'
+                """)
+        }
         return migrator
+    }
+
+    /// Moves every file under `<library>/Projects/` to the same relative path under `<library>/Collections/` (D35). Where the
+    /// target already exists the `Projects/` copy is deleted, since the database names the `Collections/` copy. A crash between
+    /// the migration and this step leaves a state the next open finishes. A failed move stops the open: no image is stranded unreported.
+    static func reconcileLegacyProjectsFolder(libraryRoot: URL) throws {
+        let fm = FileManager.default
+        let legacy = libraryRoot.appending(path: "Projects", directoryHint: .isDirectory)
+        guard fm.fileExists(atPath: legacy.path) else { return }
+        let target = libraryRoot.appending(path: "Collections", directoryHint: .isDirectory)
+        guard let enumerator = fm.enumerator(atPath: legacy.path) else {
+            throw LibraryError.folderReconcileFailed(path: legacy.path)
+        }
+        var files: [String] = []
+        for case let relative as String in enumerator {
+            var isDirectory: ObjCBool = false
+            if fm.fileExists(atPath: legacy.appending(path: relative).path, isDirectory: &isDirectory), !isDirectory.boolValue {
+                files.append(relative)
+            }
+        }
+        for relative in files {
+            let source = legacy.appending(path: relative)
+            let destination = target.appending(path: relative)
+            do {
+                if fm.fileExists(atPath: destination.path) {
+                    try fm.removeItem(at: source)
+                } else {
+                    try fm.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+                    try fm.moveItem(at: source, to: destination)
+                }
+            } catch {
+                throw LibraryError.folderReconcileFailed(path: source.path)
+            }
+        }
+        // Only empty folders are left. A leftover file means a failed step above, which already threw.
+        try? fm.removeItem(at: legacy)
     }
 
     /// Removes leftover `*.partial` files from interrupted saves (KTD7).
@@ -148,22 +209,116 @@ public actor LibraryStore {
         }
     }
 
-    // MARK: Projects
+    // MARK: Collections (D35)
 
-    public func defaultProject() throws -> Project {
+    public func defaultCollection() throws -> ImageCollection {
         try dbQueue.read { db in
-            guard let row = try ProjectRow.filter(Column("is_default") == true).fetchOne(db) else {
+            guard let row = try CollectionRow.filter(Column("is_default") == true).fetchOne(db) else {
                 throw LibraryError.notFound
             }
-            return row.project
+            return row.collection
         }
+    }
+
+    public func collection(id: UUID) throws -> ImageCollection? {
+        try dbQueue.read { db in try CollectionRow.fetchOne(db, key: id.uuidString)?.collection }
+    }
+
+    /// Every collection with its image and open-job counts: the default first, then oldest first.
+    public func collections() throws -> [CollectionSummary] {
+        try dbQueue.read { db in
+            let rows = try CollectionRow.order(Column("is_default").desc, Column("created_at"), Column("name")).fetchAll(db)
+            return try rows.map { row in
+                CollectionSummary(
+                    collection: row.collection,
+                    imageCount: try Self.imageCount(db, collectionID: row.id),
+                    openJobCount: try Self.openJobCount(db, collectionID: row.id))
+            }
+        }
+    }
+
+    @discardableResult
+    public func createCollection(name: String) throws -> ImageCollection {
+        try dbQueue.write { db in
+            let trimmed = try Self.validatedCollectionName(db, name: name, excluding: nil)
+            let collection = ImageCollection(name: trimmed)
+            try CollectionRow(collection).insert(db)
+            return collection
+        }
+    }
+
+    public func renameCollection(id: UUID, to name: String) throws {
+        try dbQueue.write { db in
+            guard var row = try CollectionRow.fetchOne(db, key: id.uuidString) else { throw LibraryError.notFound }
+            row.name = try Self.validatedCollectionName(db, name: name, excluding: id.uuidString)
+            try row.update(db)
+        }
+    }
+
+    /// Deletes an empty, non-default collection with no queued, running or paused jobs. The checks run in the same write as
+    /// the delete, so an image saved after the UI looked cannot be lost (R6-R8, KTD4). Only rows go: no file is touched, because
+    /// the collection's folder can hold files of images that were moved to another collection.
+    public func deleteCollection(id: UUID) throws {
+        try dbQueue.write { db in
+            guard let row = try CollectionRow.fetchOne(db, key: id.uuidString) else { throw LibraryError.notFound }
+            if row.isDefault { throw LibraryError.defaultCollectionCannotBeDeleted }
+            let images = try Self.imageCount(db, collectionID: row.id)
+            if images > 0 { throw LibraryError.collectionHasImages(count: images) }
+            let jobs = try Self.openJobCount(db, collectionID: row.id)
+            if jobs > 0 { throw LibraryError.collectionHasJobs(count: jobs) }
+            // Finished, failed and cancelled job rows go with the collection through the foreign key.
+            _ = try row.delete(db)
+        }
+    }
+
+    /// Reassigns an image's home collection. Only `collection_id` changes: the file and thumbnail stay where they are (KTD3).
+    public func moveImage(id: UUID, toCollection collectionID: UUID) throws {
+        try dbQueue.write { db in
+            guard var row = try ImageRow.fetchOne(db, key: id.uuidString) else { throw LibraryError.notFound }
+            guard try CollectionRow.fetchOne(db, key: collectionID.uuidString) != nil else { throw LibraryError.notFound }
+            guard row.collectionID != collectionID.uuidString else { return }
+            row.collectionID = collectionID.uuidString
+            try row.update(db)
+        }
+    }
+
+    /// Stores the composer defaults a collection applies on switch. Nil clears them.
+    public func setCollectionDefaults(id: UUID, _ defaults: CollectionDefaults?) throws {
+        try dbQueue.write { db in
+            guard var row = try CollectionRow.fetchOne(db, key: id.uuidString) else { throw LibraryError.notFound }
+            row.defaults = try defaults.map { try JSONCoding.encode($0) }
+            try row.update(db)
+        }
+    }
+
+    private static func imageCount(_ db: Database, collectionID: String) throws -> Int {
+        try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM image WHERE collection_id = ?", arguments: [collectionID]) ?? 0
+    }
+
+    private static func openJobCount(_ db: Database, collectionID: String) throws -> Int {
+        try Int.fetchOne(
+            db, sql: "SELECT COUNT(*) FROM job WHERE collection_id = ? AND status IN (?, ?, ?)",
+            arguments: [collectionID, JobStatus.queued.rawValue, JobStatus.running.rawValue, JobStatus.paused.rawValue]) ?? 0
+    }
+
+    /// The trimmed name, or a thrown error when it is empty or another collection already has it, ignoring case (R14).
+    /// Runs inside the caller's write, so two creates cannot both pass the check.
+    private static func validatedCollectionName(_ db: Database, name: String, excluding id: String?) throws -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw LibraryError.invalidName }
+        let others = try Row.fetchAll(db, sql: "SELECT id, name FROM collection")
+        let clash = others.contains { row in
+            (row["id"] as String) != id && (row["name"] as String).caseInsensitiveCompare(trimmed) == .orderedSame
+        }
+        if clash { throw LibraryError.duplicateCollectionName }
+        return trimmed
     }
 
     // MARK: Jobs (KTD4)
 
     /// Adds a job at the end of the queue and returns it with its assigned position.
     @discardableResult
-    public func enqueueJob(projectID: UUID, request: JobRequest, batchCount: Int, seedPolicy: String, mode: String = Job.textToImageMode) throws -> Job {
+    public func enqueueJob(collectionID: UUID, request: JobRequest, batchCount: Int, seedPolicy: String, mode: String = Job.textToImageMode) throws -> Job {
         try dbQueue.write { db in
             for entry in request.loras ?? [] {
                 guard let row = try LoRARecord.fetchOne(db, key: entry.id), row.sha256 == entry.sha256,
@@ -175,7 +330,7 @@ public actor LibraryStore {
             let next = try Int.fetchOne(db, sql: "SELECT COALESCE(MAX(position), 0) + 1 FROM job WHERE status = ?",
                                         arguments: [JobStatus.queued.rawValue]) ?? 1
             let job = Job(
-                id: UUID(), projectID: projectID, mode: mode, request: request,
+                id: UUID(), collectionID: collectionID, mode: mode, request: request,
                 batchCount: batchCount, seedPolicy: seedPolicy, status: .queued, position: next
             )
             try JobRow(job).insert(db)
@@ -225,22 +380,27 @@ public actor LibraryStore {
         }
     }
 
-    /// Moves a queued job by `offset` places within the queue (negative is earlier). Clamped to the queue ends.
+    /// Moves a queued job by `offset` places among the queued jobs of its own collection (negative is earlier), clamped
+    /// to that collection's queue ends. Jobs of other collections keep their positions, so a move the user sees as one
+    /// step never reorders jobs the queue strip hides.
     public func moveQueuedJob(_ jobID: UUID, by offset: Int) throws {
         try dbQueue.write { db in
             let queued = try JobRow
                 .filter(Column("status") == JobStatus.queued.rawValue)
                 .order(Column("position"))
                 .fetchAll(db)
-            guard let index = queued.firstIndex(where: { $0.id == jobID.uuidString }) else {
+            guard let moving = queued.first(where: { $0.id == jobID.uuidString }) else {
                 throw LibraryError.notQueued
             }
-            var ids = queued.map(\.id)
+            let siblings = queued.filter { $0.collectionID == moving.collectionID }
+            let slots = siblings.map(\.position)
+            var ids = siblings.map(\.id)
+            let index = ids.firstIndex(of: moving.id)!
             let target = min(max(index + offset, 0), ids.count - 1)
             let moved = ids.remove(at: index)
             ids.insert(moved, at: target)
-            for (position, id) in ids.enumerated() {
-                try db.execute(sql: "UPDATE job SET position = ? WHERE id = ?", arguments: [position + 1, id])
+            for (slot, id) in zip(slots, ids) {
+                try db.execute(sql: "UPDATE job SET position = ? WHERE id = ?", arguments: [slot, id])
             }
         }
     }
@@ -276,7 +436,7 @@ public actor LibraryStore {
     public func saveImage(_ new: NewImage) throws -> LibraryImage {
         let now = Date()
         let imageID = UUID()
-        let filePath = paths.imageRelativePath(projectID: new.projectID, imageID: imageID, date: now)
+        let filePath = paths.imageRelativePath(collectionID: new.collectionID, imageID: imageID, date: now)
         let thumbPath = paths.thumbnailRelativePath(imageID: imageID)
         let finalURL = paths.url(relativePath: filePath)
         let partialURL = finalURL.deletingPathExtension().appendingPathExtension("partial")
@@ -309,7 +469,7 @@ public actor LibraryStore {
 
             let image = LibraryImage(
                 id: imageID,
-                projectID: new.projectID,
+                collectionID: new.collectionID,
                 jobID: new.jobID,
                 mediaType: "image",
                 filePath: filePath,
@@ -327,11 +487,11 @@ public actor LibraryStore {
         }
     }
 
-    /// The project's most recent images, newest first, skipping the first `offset`. Callers page with growing offsets.
-    public func recentImages(projectID: UUID, limit: Int, offset: Int = 0) throws -> [LibraryImage] {
+    /// The collection's most recent images, newest first, skipping the first `offset`. Callers page with growing offsets.
+    public func recentImages(collectionID: UUID, limit: Int, offset: Int = 0) throws -> [LibraryImage] {
         try dbQueue.read { db in
             try ImageRow
-                .filter(Column("project_id") == projectID.uuidString)
+                .filter(Column("collection_id") == collectionID.uuidString)
                 .order(Column("created_at").desc, Column("id").desc)
                 .limit(limit, offset: offset)
                 .fetchAll(db)
@@ -363,38 +523,38 @@ enum JSONCoding {
     }
 }
 
-private struct ProjectRow: Codable, FetchableRecord, PersistableRecord {
-    static let databaseTableName = "project"
+private struct CollectionRow: Codable, FetchableRecord, PersistableRecord {
+    static let databaseTableName = "collection"
     var id: String
     var name: String
     var coverImageID: String?
-    var defaultModelID: String?
+    var defaults: String?
     var isDefault: Bool
     var createdAt: Date
 
-    init(_ project: Project, isDefault: Bool) {
-        id = project.id.uuidString
-        name = project.name
-        coverImageID = project.coverImageID?.uuidString
-        defaultModelID = project.defaultModelID
-        self.isDefault = isDefault
-        createdAt = project.createdAt
+    init(_ collection: ImageCollection) {
+        id = collection.id.uuidString
+        name = collection.name
+        coverImageID = collection.coverImageID?.uuidString
+        defaults = collection.defaults.flatMap { try? JSONCoding.encode($0) }
+        isDefault = collection.isDefault
+        createdAt = collection.createdAt
     }
 
-    var project: Project {
-        Project(
+    var collection: ImageCollection {
+        ImageCollection(
             id: UUID(uuidString: id) ?? UUID(),
             name: name,
             coverImageID: coverImageID.flatMap(UUID.init(uuidString:)),
-            defaultModelID: defaultModelID,
-            createdAt: createdAt
+            defaults: defaults.flatMap { JSONCoding.decode(CollectionDefaults.self, from: $0) },
+            createdAt: createdAt,
+            isDefault: isDefault
         )
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name
+        case id, name, defaults
         case coverImageID = "cover_image_id"
-        case defaultModelID = "default_model_id"
         case isDefault = "is_default"
         case createdAt = "created_at"
     }
@@ -403,7 +563,7 @@ private struct ProjectRow: Codable, FetchableRecord, PersistableRecord {
 struct JobRow: Codable, FetchableRecord, PersistableRecord {
     static let databaseTableName = "job"
     var id: String
-    var projectID: String
+    var collectionID: String
     var mode: String
     var request: String
     var batchCount: Int
@@ -414,7 +574,7 @@ struct JobRow: Codable, FetchableRecord, PersistableRecord {
 
     init(_ job: Job) throws {
         id = job.id.uuidString
-        projectID = job.projectID.uuidString
+        collectionID = job.collectionID.uuidString
         mode = job.mode
         request = try JSONCoding.encode(job.request)
         batchCount = job.batchCount
@@ -427,7 +587,7 @@ struct JobRow: Codable, FetchableRecord, PersistableRecord {
     var job: Job {
         Job(
             id: UUID(uuidString: id) ?? UUID(),
-            projectID: UUID(uuidString: projectID) ?? UUID(),
+            collectionID: UUID(uuidString: collectionID) ?? UUID(),
             mode: mode,
             request: JSONCoding.decode(JobRequest.self, from: request) ?? JobRequest.unreadable,
             batchCount: batchCount,
@@ -440,7 +600,7 @@ struct JobRow: Codable, FetchableRecord, PersistableRecord {
 
     enum CodingKeys: String, CodingKey {
         case id, mode, request, status, position, failure
-        case projectID = "project_id"
+        case collectionID = "collection_id"
         case batchCount = "batch_count"
         case seedPolicy = "seed_policy"
     }
@@ -449,7 +609,7 @@ struct JobRow: Codable, FetchableRecord, PersistableRecord {
 struct ImageRow: Codable, FetchableRecord, PersistableRecord {
     static let databaseTableName = "image"
     var id: String
-    var projectID: String
+    var collectionID: String
     var jobID: String?
     var mediaType: String
     var filePath: String
@@ -463,7 +623,7 @@ struct ImageRow: Codable, FetchableRecord, PersistableRecord {
 
     init(_ image: LibraryImage) throws {
         id = image.id.uuidString
-        projectID = image.projectID.uuidString
+        collectionID = image.collectionID.uuidString
         jobID = image.jobID?.uuidString
         mediaType = image.mediaType
         filePath = image.filePath
@@ -479,7 +639,7 @@ struct ImageRow: Codable, FetchableRecord, PersistableRecord {
     var image: LibraryImage {
         LibraryImage(
             id: UUID(uuidString: id) ?? UUID(),
-            projectID: UUID(uuidString: projectID) ?? UUID(),
+            collectionID: UUID(uuidString: collectionID) ?? UUID(),
             jobID: jobID.flatMap(UUID.init(uuidString:)),
             mediaType: mediaType,
             filePath: filePath,
@@ -493,7 +653,7 @@ struct ImageRow: Codable, FetchableRecord, PersistableRecord {
 
     enum CodingKeys: String, CodingKey {
         case id, width, height, seed, settings, prompt
-        case projectID = "project_id"
+        case collectionID = "collection_id"
         case jobID = "job_id"
         case mediaType = "media_type"
         case filePath = "file_path"
