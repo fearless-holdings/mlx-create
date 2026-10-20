@@ -83,7 +83,7 @@ HLD Appendix A lists the files worth reusing. The rules:
 - Copy from the **pinned tag**.
 - Keep each file's MIT attribution, and add a header with the upstream path and commit.
 - Strip UI and global state as you port.
-- Upstream code embeds prompt-rewriter text adapted from QwenLM (Apache-2.0). Carry that attribution into `NOTICE`.
+- Upstream's prompt-rewriter (`PromptRewriter.swift`) carries no QwenLM text and no license header, so enhancer packs are written for this app. Credit mlx-serve by name in `NOTICE`.
 
 ## Engineering conventions
 

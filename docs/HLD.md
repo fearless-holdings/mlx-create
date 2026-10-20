@@ -49,7 +49,7 @@ Settled during the design interview. Later documents cite these IDs.
 | D6 | **Pinned upstream mlx-serve release binary**, re-signed and bundled. No fork is carried; a GitHub fork exists only to stage upstream PRs | No Zig toolchain or rebase cost. Engine needs are upstreamed (§7.2); bundling a fork is the escape hatch if upstream rejects something v1 can't ship without |
 | D7 | **Design for all modes, deliver in phases**; v1 is **text→image only** | Data model, queue and engine API are mode-agnostic from day one |
 | D8 | **LoRAs only in v1**; fine-tune import and conversion come later | Avoids building a converter for v1 |
-| D9 | Enhancer: **one curated abliterated LLM per RAM tier**, app-managed | Predictable quality, no refusals |
+| D9 | Enhancer: **one curated abliterated LLM per RAM tier**, app-managed (amended by D36: one provisional model for every tier until the offline evaluation runs) | Predictable quality, no refusals |
 | D10 | **Collections** (named Projects until D35): each image has exactly one home collection. Nothing else organises images | Simple mental model. A collection carries default model, settings and LoRAs (prompt history stays deferred) |
 | D11 | Enhancer knowledge = **versioned prompt packs + LoRA-aware context** | Packs update without an app release. Trigger words and example prompts are woven in |
 | D12 | PNG metadata: **A1111 `parameters` + mlx-create JSON** | Civitai and other tools interoperate. Dropping an image restores its settings |
@@ -76,6 +76,7 @@ Settled during the design interview. Later documents cite these IDs.
 | D33 | **Three-panel main window** supersedes the layout half of D18 (the canvas-first stack with a shared filmstrip and a ⚙ settings popover). Left: generation, with a multi-line prompt, Enhance beside it (not yet built), inline settings, and the batch and Generate controls at the bottom. Middle: the canvas, with the queue strip under it (jobs only). Right: the gallery of finished images, paged, always visible. | Requested by the user. A multi-line prompt and inline settings need room that a popover and a shared strip cannot give, and mixing queue placeholders into the gallery forces every render to filter one array. The LoRA stack is an inline section, not yet built. A separate full-window Gallery mode and the ⌘1/⌘2 switch are an open question (§10). Plan: `docs/plans/2026-10-19-1105-feat-three-panel-main-layout-plan.md` |
 | D34 | **LoRAs live in their own `lora` table (migration `v4-lora`), with files at `Models/LoRAs/<family>/<sha10>-<slug>.safetensors` and no JSON sidecar.** Fit is per family, decided by tensor-key and shape fingerprints (§8.6); a family without a fingerprint offers no LoRA control. Civitai LoRA browse and download is in scope, through a Browse Civitai tab in the LoRA library sheet (§10), with source metadata in `lora_source` (migration `v5-lora-source`). CivArchive, fetch by link or hash, and update checks stay deferred. | `installed_model` is checkpoint-shaped (repo, revision, catalog sequence, license) and does not fit LoRAs. The database is the record, and paths stay relative to the Models root so the relocatable root (D17) keeps working. Amends §9 |
 | D35 | **Projects are renamed Collections, and made real.** Migration `v6-collection` renames table `project` to `collection`, `project_id` to `collection_id` on `job` and `image`, adds a nullable `defaults` JSON column and drops `default_model_id`. The on-disk folder `Projects/` becomes `Collections/`, reconciled per file at open. A collection can be created, renamed, switched and deleted; an image can be moved to another collection. A move changes only `collection_id`, never the file. **Delete is allowed only for a non-default collection with no images and no queued, running or paused jobs.** Defaults (model, size, steps, guidance, negative prompt, LoRA stack) are saved explicitly from the composer and applied on switch. Prompt history, a cover picker and an All-collections gallery stay deferred | "Project" read as a document or a job, and this unit is a gallery of images. Refusing to delete a non-empty collection avoids a cascade delete of images and needs no move-on-delete flow. Amends D10, §8.9, §9 and the on-disk layout |
+| D36 | **One provisional enhancer LLM serves every memory tier until the offline evaluation runs.** This narrows D9's one-model-per-tier rule; open question 3 still selects the per-tier models. Prompt packs ship bundled in the app; signed remote pack updates (D11) are deferred. The enhancer call is plain-text streamed chat with no JSON schema, so engine speculative decoding stays on. Enhance runs after the running generation and ahead of queued jobs. The model must be an MLX-native `.safetensors` model run by the engine, uncensored, and pass a refusal probe (at most 2 of 50 refused) and the timing bar (first text about 3 s, finish about 10 s on a 16 GB-class configuration, measured with 16 GB residency reproduced) before it ships. Plan: `docs/plans/2026-10-20-1608-feat-prompt-enhancer-plan.md`. | Keeps the first enhancer shippable while the evaluation is pending, under the timing bar the user set |
 
 **Amendment (2026-10-19, D34):** Civitai LoRA browsing and download move from "separate work" into scope. The browser is a tab in the LoRA library sheet, not a Models-window tab. A finished download goes to the library only and is not attached to the generation stack. Design and open items: `docs/lld/loras.md`, section "Civitai browse and download".
 
@@ -220,7 +221,7 @@ Each module is testable without the UI.
 | Image generation | `POST /v1/images/generations`, `stream:true` → SSE `progress` + final base64 PNG | `docs/api.md:62`, `src/gen.zig:2355` |
 | Image request fields | `prompt`, `negative_prompt`, `size`, `seed`, `steps` (≤100), `guidance_scale` (family-gated), `lora_paths[]`/`lora_scales[]`, `transparent` (Qwen), `mode`/`image`/`strength`/`ref_images` (phase 2) | `src/gen.zig:593-636, 2356-2420`; `ImageGenService.swift:196-243` |
 | Video generation (phase 3) | `POST /v1/video/generations`, rgb8 frames + PCM, `preview` JPEGs on progress | `docs/api.md:66` |
-| LLM for enhancer | `/v1/chat/completions` with JSON-schema constrained decoding | `README.md:121` |
+| LLM for enhancer | `/v1/chat/completions`, streamed plain-text chat with no `response_format`, so speculative decoding stays on (D36) | `README.md:121` |
 | Model lifecycle | `POST /v1/load-model`, `/v1/unload-model`, `/v1/models/rescan`, `--model-dir` (repeatable), `--max-resident-mem auto`, `--max-resident-models`, LRU eviction, memory preflight | `docs/api.md:68-69`, `docs/cli.md:93-98` |
 | Health | `GET /health` → `status:"ok"` | `ServerManager.swift:552-564` |
 | Cancellation | Client disconnect cancels the denoise loop | `src/gen.zig:2718`, `src/flux.zig:2277` |
@@ -276,7 +277,7 @@ mlx-serve --serve --host 127.0.0.1 --port <free ephemeral> \
 
 ### 8.1 EngineClient
 
-A typed async client: `generateImage(_:) -> AsyncThrowingStream<GenEvent>`, `chat(_:schema:)`, `load/unload/rescan`. It speaks SSE (reusing `MediaSSE` from `Services/MediaGenProgress.swift:66`) and cancels by cancelling the Swift task, which closes the connection; the engine treats that as cancellation. It always sends an explicit `seed`, because the engine default is a constant 42.
+A typed async client: `generateImage(_:) -> AsyncThrowingStream<GenEvent>`, `chat(_:)`, `load/unload/rescan`. It speaks SSE (reusing `MediaSSE` from `Services/MediaGenProgress.swift:66`) and cancels by cancelling the Swift task, which closes the connection; the engine treats that as cancellation. It always sends an explicit `seed`, because the engine default is a constant 42.
 
 ### 8.2 Generation pipeline and queue
 
@@ -427,7 +428,7 @@ sequenceDiagram
   P->>K: system prompt, rules, few-shot examples
   P->>M: trigger words + top example prompts for active LoRAs
   P->>E: ensure enhancer LLM loaded (tier policy)
-  P->>E: /v1/chat/completions, stream, json_schema {prompt, negative_prompt?, notes}
+  P->>E: /v1/chat/completions, stream, plain text (no json_schema; D36)
   E-->>P: streamed tokens
   P-->>U: inline diff in the prompt editor (accept / revert / regenerate)
   P->>E: unload LLM on 16 GB tier, re-warm image model
@@ -439,11 +440,11 @@ sequenceDiagram
 - Few-shot examples.
 - Edit-instruction and video variants for later phases.
 
-The initial packs are seeded from mlx-serve's `PromptRewriter.swift` (MIT) and its Qwen dense-text rules, which are adapted from QwenLM's prompt utilities (Apache-2.0, attribution in NOTICE).
+The initial packs follow the structure of mlx-serve's `PromptRewriter.swift` (MIT): a system prompt plus examples per family. Upstream's file carries no QwenLM text and no license header, so the packs are written for this app, and mlx-serve is credited by name in `NOTICE`.
 
 **LoRA-aware context:**
 
-- Trigger words are required in the output, and the JSON-schema validation re-inserts any that are missing.
+- Trigger words are required in the output. The app cleans the reply and re-inserts any that are missing (D36).
 - Up to 3 creator example prompts per active LoRA are supplied as style references.
 - Total context is capped by the tier budget.
 
@@ -451,7 +452,7 @@ The initial packs are seeded from mlx-serve's `PromptRewriter.swift` (MIT) and i
 
 - Thinking is disabled. The enhancer is never blocking: the user can keep editing, and the result is offered as a diff.
 - **Memory policy:** on the 16 GB tier the enhancer and image model are not co-resident. Enhance unloads the LLM afterwards and re-warms the diffusion model in the background, and the UI shows a one-time note about the reload. On 24 GB+ both stay resident under the engine's memory budget.
-- **Model choice:** abliterated instruct models from families the engine runs natively (Gemma / Qwen classes). The specific picks per tier are selected by an offline evaluation: blind A/B of generations with and without enhancement, plus a refusal probe. They ship via the catalog.
+- **Model choice:** abliterated instruct models from families the engine runs natively (Gemma / Qwen classes). The specific picks per tier are selected by an offline evaluation: blind A/B of generations with and without enhancement, plus a refusal probe. They ship via the catalog. Until that evaluation runs, D36 sets one provisional model for every tier.
 
 ### 8.9 LibraryStore and MetadataCodec
 
