@@ -1,5 +1,5 @@
-import SwiftUI
 import MCGeneration
+import SwiftUI
 
 /// Toolbar model chip. Opening it rescans the engine's models (U8 step 5), then lists available models
 /// as selectable rows and unavailable ones as disabled rows below a separator, each with its reason (R9).

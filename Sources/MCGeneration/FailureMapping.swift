@@ -33,7 +33,8 @@ public enum FailureMapping {
                     detail: nil, retryable: true)
             case .loraChanged(let name, let modelID):
                 return JobFailure(
-                    message: "LoRA \"\(name)\" changed after it was imported, so \(modelID) can't use it. Remove it or replace it, then queue the job again.",
+                    message:
+                        "LoRA \"\(name)\" changed after it was imported, so \(modelID) can't use it. Remove it or replace it, then queue the job again.",
                     detail: nil, retryable: false)
             }
         }
@@ -57,7 +58,7 @@ public enum FailureMapping {
         switch error {
         case .outOfMemory, .enhancerOutOfMemory: OutOfMemoryFailure.retryable
         case .modelNotLoaded, .enhancerModelNotLoaded, .noModel, .engineFailure,
-             .connectionLost, .timedOut, .streamEndedWithoutComplete:
+            .connectionLost, .timedOut, .streamEndedWithoutComplete:
             true
         case .unauthorized, .badRequest, .loraRejected, .malformedResponse, .chatOutputTruncated:
             false
@@ -68,8 +69,8 @@ public enum FailureMapping {
     private static func engineDetail(_ error: EngineError) -> String? {
         switch error {
         case .unauthorized(let message), .outOfMemory(let message), .modelNotLoaded(let message),
-             .enhancerOutOfMemory(let message), .enhancerModelNotLoaded(let message),
-             .noModel(let message), .badRequest(let message), .loraRejected(let message):
+            .enhancerOutOfMemory(let message), .enhancerModelNotLoaded(let message),
+            .noModel(let message), .badRequest(let message), .loraRejected(let message):
             message
         case .engineFailure(_, let message):
             message

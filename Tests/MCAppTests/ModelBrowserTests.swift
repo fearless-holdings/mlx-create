@@ -63,13 +63,16 @@ final class ScriptedTransport: ModelTransport, @unchecked Sendable {
         case .holds:
             keepPartial(plan)
             let (events, continuation) = AsyncStream.makeStream(of: InstallEvent.self)
-            continuation.yield(InstallEvent(
-                phase: .downloading, bytesDone: 1024, bytesTotal: plan.totalBytes, currentFile: plan.files[0].path))
+            continuation.yield(
+                InstallEvent(
+                    phase: .downloading, bytesDone: 1024, bytesTotal: plan.totalBytes, currentFile: plan.files[0].path))
             // As the downloader does when cancelled before publishing: the install ends cancelled, partials kept.
-            return InstallRun(events: events, cancel: {
-                continuation.yield(InstallEvent(phase: .cancelled, bytesDone: 1024, bytesTotal: plan.totalBytes))
-                continuation.finish()
-            })
+            return InstallRun(
+                events: events,
+                cancel: {
+                    continuation.yield(InstallEvent(phase: .cancelled, bytesDone: 1024, bytesTotal: plan.totalBytes))
+                    continuation.finish()
+                })
         }
     }
 
@@ -555,8 +558,10 @@ func browserRow(_ rows: [ModelBrowserRow], _ id: String) -> ModelBrowserRow? {
         #expect(rig.browser.enhancerStatus == EnhancerStatus(isInstalled: true, engineModelID: nil))
 
         rig.browser.setEngineModelIDs([BrowserFixture.enhancer.repo])
-        #expect(rig.browser.enhancerStatus == EnhancerStatus(
-            isInstalled: true, engineModelID: BrowserFixture.enhancer.repo))
+        #expect(
+            rig.browser.enhancerStatus
+                == EnhancerStatus(
+                    isInstalled: true, engineModelID: BrowserFixture.enhancer.repo))
     }
 
     /// The engine lists the enhancer but no install record exists: the app does not report it installed.
@@ -571,12 +576,13 @@ func browserRow(_ rows: [ModelBrowserRow], _ id: String) -> ModelBrowserRow? {
 
     /// The picker reads the engine listing and keeps image models only, so an enhancer the engine lists never appears.
     @Test func installedEnhancerNeverAppearsInTheImagePicker() throws {
-        let listing = Data("""
-        {"object":"list","data":[
-          {"id":"org/alpha","loaded":false,"state":"ready","capabilities":["image"],"meta":{"architecture":"krea2_turbo"}},
-          {"id":"\(BrowserFixture.enhancer.repo)","loaded":false,"state":"ready","capabilities":["chat"],"meta":{"architecture":"gemma4"}}
-        ]}
-        """.utf8)
+        let listing = Data(
+            """
+            {"object":"list","data":[
+              {"id":"org/alpha","loaded":false,"state":"ready","capabilities":["image"],"meta":{"architecture":"krea2_turbo"}},
+              {"id":"\(BrowserFixture.enhancer.repo)","loaded":false,"state":"ready","capabilities":["chat"],"meta":{"architecture":"gemma4"}}
+            ]}
+            """.utf8)
         let entries = try JSONDecoder().decode(EngineListing.self, from: listing).data
 
         let registry = try FamilyRegistry.bundled()

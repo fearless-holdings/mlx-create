@@ -2,6 +2,7 @@ import Foundation
 import MCCatalog
 import MCLibrary
 import Testing
+
 @testable import MCGeneration
 
 private func makeStore() throws -> LibraryStore {
@@ -53,9 +54,10 @@ struct GenerationComposerTests {
         let composer = GenerationComposer(registry: registry, store: store)
         let collection = try await store.defaultCollection().id
 
-        let job = try await composer.enqueue(draft(
-            model: try kreaModel(registry), size: ImageSize(width: 1000, height: 500),
-            seedPolicy: .increment(base: 9)), collectionID: collection)
+        let job = try await composer.enqueue(
+            draft(
+                model: try kreaModel(registry), size: ImageSize(width: 1000, height: 500),
+                seedPolicy: .increment(base: 9)), collectionID: collection)
 
         #expect(job.status == .queued)
         #expect(job.batchCount == 2)
@@ -77,8 +79,9 @@ struct GenerationComposerTests {
         let composer = GenerationComposer(registry: registry, store: store)
         let collection = try await store.defaultCollection().id
 
-        let job = try await composer.enqueue(draft(
-            model: try kreaModel(registry), negativePrompt: "blurry", guidance: 3.5), collectionID: collection)
+        let job = try await composer.enqueue(
+            draft(
+                model: try kreaModel(registry), negativePrompt: "blurry", guidance: 3.5), collectionID: collection)
 
         #expect(job.request.negativePrompt == nil)
         #expect(job.request.guidance == nil)

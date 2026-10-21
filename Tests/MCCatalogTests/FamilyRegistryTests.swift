@@ -1,4 +1,5 @@
 import Testing
+
 @testable import MCCatalog
 
 @Suite struct FamilyRegistryTests {
@@ -90,15 +91,16 @@ import Testing
     @Test func turboPresetsAreTheSevenVerifiedSizesOnItsGrid() throws {
         let turbo = try turboFamily()
         #expect(turbo.sizeGrid == SizeGrid(multiple: 16, min: 256, max: 2048))
-        #expect(turbo.sizePresets == [
-            ImageSize(width: 1024, height: 1024),
-            ImageSize(width: 768, height: 768),
-            ImageSize(width: 512, height: 512),
-            ImageSize(width: 832, height: 1248),
-            ImageSize(width: 1248, height: 832),
-            ImageSize(width: 1344, height: 768),
-            ImageSize(width: 768, height: 1344),
-        ])
+        #expect(
+            turbo.sizePresets == [
+                ImageSize(width: 1024, height: 1024),
+                ImageSize(width: 768, height: 768),
+                ImageSize(width: 512, height: 512),
+                ImageSize(width: 832, height: 1248),
+                ImageSize(width: 1248, height: 832),
+                ImageSize(width: 1344, height: 768),
+                ImageSize(width: 768, height: 1344),
+            ])
         for preset in turbo.sizePresets {
             #expect(preset.width % 16 == 0 && preset.height % 16 == 0)
             #expect((256...2048).contains(preset.width) && (256...2048).contains(preset.height))

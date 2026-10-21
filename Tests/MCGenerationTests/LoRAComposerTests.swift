@@ -2,6 +2,7 @@ import Foundation
 import MCCatalog
 import MCLibrary
 import Testing
+
 @testable import MCGeneration
 
 private func stackEntry(_ name: String, weight: Double = 0.8) -> LoRAStackEntry {

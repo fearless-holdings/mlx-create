@@ -14,15 +14,19 @@ import Testing
                 id: id, name: name, baseModel: base, publishedAt: date,
                 file: civitaiFileJSON(url: "https://civitai.com/api/download/models/\(id)", sha256: "00", size: 1))
         }
-        let mixed = civitaiModelJSON(id: 1, name: "Mixed", baseModels: ["Flux.2 Klein 4B", "Flux.2 Klein 9B"], versions: [
-            version(11, "nine-newest", "Flux.2 Klein 9B", "2026-03-01T00:00:00.000Z"),
-            version(12, "four-older", "Flux.2 Klein 4B", "2026-02-01T00:00:00.000Z"),
-            version(13, "nine-oldest", "Flux.2 Klein 9B", "2026-01-01T00:00:00.000Z"),
-        ])
-        let nineOnly = civitaiModelJSON(id: 2, name: "Nine Only", baseModels: ["Flux.2 Klein 9B"], versions: [
-            version(21, "nine-new", "Flux.2 Klein 9B", "2026-03-01T00:00:00.000Z"),
-            version(22, "nine-old", "Flux.2 Klein 9B", "2026-01-01T00:00:00.000Z"),
-        ])
+        let mixed = civitaiModelJSON(
+            id: 1, name: "Mixed", baseModels: ["Flux.2 Klein 4B", "Flux.2 Klein 9B"],
+            versions: [
+                version(11, "nine-newest", "Flux.2 Klein 9B", "2026-03-01T00:00:00.000Z"),
+                version(12, "four-older", "Flux.2 Klein 4B", "2026-02-01T00:00:00.000Z"),
+                version(13, "nine-oldest", "Flux.2 Klein 9B", "2026-01-01T00:00:00.000Z"),
+            ])
+        let nineOnly = civitaiModelJSON(
+            id: 2, name: "Nine Only", baseModels: ["Flux.2 Klein 9B"],
+            versions: [
+                version(21, "nine-new", "Flux.2 Klein 9B", "2026-03-01T00:00:00.000Z"),
+                version(22, "nine-old", "Flux.2 Klein 9B", "2026-01-01T00:00:00.000Z"),
+            ])
         let api = ScriptedCivitaiAPI(reply: searchReply([mixed, nineOnly]))
         let keychain = testKeychain()
         defer { try? keychain.delete() }
@@ -186,10 +190,11 @@ import Testing
     @Test func aCancelledQueuedDownloadNeverStarts() async throws {
         let payload = try safetensorsFile(klein4BTensors(), tag: "fox")
         let second = try safetensorsFile(klein4BTensors(), tag: "second")
-        let api = ScriptedCivitaiAPI(reply: searchReply([
-            foxListing(id: 42, versionID: 420, payload: payload),
-            foxListing(id: 43, versionID: 430, payload: second, name: "Second Fox"),
-        ]))
+        let api = ScriptedCivitaiAPI(
+            reply: searchReply([
+                foxListing(id: 42, versionID: 420, payload: payload),
+                foxListing(id: 43, versionID: 430, payload: second, name: "Second Fox"),
+            ]))
         let files = ScriptedCivitaiFileHost(payload: payload)
         let keychain = testKeychain()
         defer { try? keychain.delete() }

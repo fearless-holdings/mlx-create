@@ -70,8 +70,10 @@ public struct InstalledModels: Sendable {
         var traits: [String: Set<String>] = [:]
         for entry in entries where entry.isImage {
             guard let architecture = entry.architecture,
-                  let trait = registry.requiredTrait(forArchitecture: architecture) else { continue }
-            let index = weightsRoot
+                let trait = registry.requiredTrait(forArchitecture: architecture)
+            else { continue }
+            let index =
+                weightsRoot
                 .appending(path: entry.id, directoryHint: .isDirectory)
                 .appending(path: "model_index.json")
             if Self.hasNonEmptyArray(at: index, key: trait) {
@@ -84,8 +86,9 @@ public struct InstalledModels: Sendable {
     /// True when the JSON object at `url` has `key` mapped to a non-empty array.
     private static func hasNonEmptyArray(at url: URL, key: String) -> Bool {
         guard let data = try? Data(contentsOf: url),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let value = object[key] as? [Any] else { return false }
+            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let value = object[key] as? [Any]
+        else { return false }
         return !value.isEmpty
     }
 }

@@ -51,10 +51,12 @@ public enum MetadataCodec {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.withoutEscapingSlashes]
         let json = String(decoding: try encoder.encode(Payload(settings: settings)), as: UTF8.self)
-        return try PNGChunks.insertBeforeIDAT(png, [
-            .text(keyword: parametersKeyword, value: a1111Parameters(settings)),
-            .internationalText(keyword: payloadKeyword, value: json),
-        ])
+        return try PNGChunks.insertBeforeIDAT(
+            png,
+            [
+                .text(keyword: parametersKeyword, value: a1111Parameters(settings)),
+                .internationalText(keyword: payloadKeyword, value: json),
+            ])
     }
 
     /// Returns the settings stored in the `mlx-create` chunk, or nil if the PNG has none.
@@ -113,11 +115,13 @@ public enum MetadataCodec {
     static func internationalTextValue(of chunk: PNGChunk) throws -> Data {
         let bytes = [UInt8](chunk.data)
         guard let separator = bytes.firstIndex(of: 0), bytes.count > separator + 2,
-              bytes[separator + 1] == 0 else {
+            bytes[separator + 1] == 0
+        else {
             throw MetadataError.malformedPayload
         }
         guard let languageEnd = bytes[(separator + 3)...].firstIndex(of: 0),
-              let translatedEnd = bytes[(languageEnd + 1)...].firstIndex(of: 0) else {
+            let translatedEnd = bytes[(languageEnd + 1)...].firstIndex(of: 0)
+        else {
             throw MetadataError.malformedPayload
         }
         return Data(bytes[(translatedEnd + 1)...])

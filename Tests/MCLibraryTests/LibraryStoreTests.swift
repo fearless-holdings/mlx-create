@@ -1,7 +1,8 @@
 import Foundation
 import ImageIO
-import Testing
 import Synchronization
+import Testing
+
 @testable import MCLibrary
 
 @Suite struct LibraryStoreTests {
@@ -51,9 +52,10 @@ import Synchronization
         let job = try await store.enqueueJob(collectionID: collection.id, request: Self.request(), batchCount: 1, seedPolicy: "{}")
 
         let png = try TestPNG.make(width: 64, height: 48)
-        let record = try await store.saveImage(NewImage(
-            collectionID: collection.id, jobID: job.id, pngData: png, settings: Self.settings()
-        ))
+        let record = try await store.saveImage(
+            NewImage(
+                collectionID: collection.id, jobID: job.id, pngData: png, settings: Self.settings()
+            ))
 
         #expect(record.width == 64)
         #expect(record.height == 48)
@@ -76,10 +78,11 @@ import Synchronization
         await store.setBeforeRowInsertHook { throw InjectedFailure() }
 
         await #expect(throws: InjectedFailure.self) {
-            _ = try await store.saveImage(NewImage(
-                collectionID: collection.id, jobID: nil, pngData: try TestPNG.make(width: 32, height: 32),
-                settings: Self.settings()
-            ))
+            _ = try await store.saveImage(
+                NewImage(
+                    collectionID: collection.id, jobID: nil, pngData: try TestPNG.make(width: 32, height: 32),
+                    settings: Self.settings()
+                ))
         }
         #expect(Self.files(under: root.appending(path: "Collections")).isEmpty)
         #expect(Self.files(under: root.appending(path: "Thumbnails")).isEmpty)
@@ -129,7 +132,8 @@ import Synchronization
         let collection = try await store.defaultCollection()
         let job = try await store.enqueueJob(collectionID: collection.id, request: Self.request(), batchCount: 1, seedPolicy: "random")
         let saved = try await store.saveImage(
-            NewImage(collectionID: collection.id, jobID: job.id, pngData: try TestPNG.make(width: 40, height: 24), settings: Self.settings()))
+            NewImage(
+                collectionID: collection.id, jobID: job.id, pngData: try TestPNG.make(width: 40, height: 24), settings: Self.settings()))
 
         #expect(saved.settings.width == 40 && saved.settings.height == 24)
         let onDisk = try Data(contentsOf: await store.paths.url(relativePath: saved.filePath))
@@ -187,10 +191,11 @@ import Synchronization
         }
 
         await #expect(throws: InjectedFailure.self) {
-            _ = try await store.saveImage(NewImage(
-                collectionID: collection.id, jobID: nil, pngData: try TestPNG.make(width: 32, height: 32),
-                settings: Self.settings()
-            ))
+            _ = try await store.saveImage(
+                NewImage(
+                    collectionID: collection.id, jobID: nil, pngData: try TestPNG.make(width: 32, height: 32),
+                    settings: Self.settings()
+                ))
         }
         #expect(Self.files(under: root.appending(path: "Collections")).isEmpty)
     }
@@ -199,7 +204,8 @@ import Synchronization
         let root = try Self.tempRoot()
         let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
         let collection = try await store.defaultCollection()
-        let cancelled = try await store.enqueueJob(collectionID: collection.id, request: Self.request(), batchCount: 1, seedPolicy: "random")
+        let cancelled = try await store.enqueueJob(
+            collectionID: collection.id, request: Self.request(), batchCount: 1, seedPolicy: "random")
         try await store.setJobStatus(cancelled.id, .cancelled)
         let finished = try await store.enqueueJob(collectionID: collection.id, request: Self.request(), batchCount: 1, seedPolicy: "random")
         try await store.setJobStatus(finished.id, .done)

@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import MCEngine
 
 /// Answers requests for a registered host. Each test uses its own host, so suites can run in parallel.
@@ -81,15 +82,15 @@ struct StubbedEngine {
     let endpoint: EngineEndpoint
     let client: EngineClient
 
- init() {
- let host = "\(UUID().uuidString.lowercased()).stub.test"
- let endpoint = EngineEndpoint(baseURL: URL(string: "http://\(host)")!, apiKey: "test-key")
- let configuration = URLSessionConfiguration.ephemeral
- configuration.protocolClasses = [StubURLProtocol.self]
- self.host = host
- self.endpoint = endpoint
- self.client = EngineClient(endpoint: { endpoint }, configuration: configuration)
- }
+    init() {
+        let host = "\(UUID().uuidString.lowercased()).stub.test"
+        let endpoint = EngineEndpoint(baseURL: URL(string: "http://\(host)")!, apiKey: "test-key")
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubURLProtocol.self]
+        self.host = host
+        self.endpoint = endpoint
+        self.client = EngineClient(endpoint: { endpoint }, configuration: configuration)
+    }
 
     func respond(_ reply: StubURLProtocol.Reply) {
         StubURLProtocol.register(host: host, reply)
@@ -149,11 +150,11 @@ struct EngineClientStreamTests {
     func streamedErrorEvent() async throws {
         let engine = StubbedEngine()
         let body = """
-        data: {"type":"progress","stage":"denoise","step":1,"total":4}
+            data: {"type":"progress","stage":"denoise","step":1,"total":4}
 
-        data: {"type":"error","error":{"type":"out_of_memory","message":"low memory"}}
+            data: {"type":"error","error":{"type":"out_of_memory","message":"low memory"}}
 
-        """
+            """
         engine.respond(.init(contentType: "text/event-stream", body: Data(body.utf8)))
 
         let outcome = await runGeneration(engine.client, krea2Request)

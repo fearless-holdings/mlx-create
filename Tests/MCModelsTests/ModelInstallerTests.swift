@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import MCModels
 
 private let installerPythonAvailable = FileManager.default.isExecutableFile(atPath: "/usr/bin/python3")
@@ -231,7 +232,10 @@ func makeInstaller(
         let error = await caught { try await task.value }
 
         #expect(error as? ModelInstallError != nil)
-        if case .recordFailed? = error as? ModelInstallError {} else { Issue.record("expected recordFailed, got \(String(describing: error))") }
+        if case .recordFailed? = error as? ModelInstallError {
+        } else {
+            Issue.record("expected recordFailed, got \(String(describing: error))")
+        }
         #expect(FileManager.default.fileExists(atPath: transport.destination(for: plan).path), "files stay on disk")
         #expect(!log.order.contains("rescan"), "no rescan without a record")
     }

@@ -86,14 +86,18 @@ import Testing
     @Test func showIncompatibleDropsTheLabelFilterAndPutsTheSelectedLabelFirst() async throws {
         let krea = civitaiModelJSON(
             id: 1, name: "Krea Style", baseModels: ["Krea 2"],
-            versions: [civitaiVersionJSON(
-                id: 10, name: "k", baseModel: "Krea 2", publishedAt: "2026-02-01T00:00:00.000Z",
-                file: civitaiFileJSON(url: "https://civitai.com/api/download/models/10", sha256: "00", size: 1))])
+            versions: [
+                civitaiVersionJSON(
+                    id: 10, name: "k", baseModel: "Krea 2", publishedAt: "2026-02-01T00:00:00.000Z",
+                    file: civitaiFileJSON(url: "https://civitai.com/api/download/models/10", sha256: "00", size: 1))
+            ])
         let klein = civitaiModelJSON(
             id: 2, name: "Klein Fox", baseModels: ["Flux.2 Klein 4B"],
-            versions: [civitaiVersionJSON(
-                id: 20, name: "f", baseModel: "Flux.2 Klein 4B", publishedAt: "2026-02-01T00:00:00.000Z",
-                file: civitaiFileJSON(url: "https://civitai.com/api/download/models/20", sha256: "00", size: 1))])
+            versions: [
+                civitaiVersionJSON(
+                    id: 20, name: "f", baseModel: "Flux.2 Klein 4B", publishedAt: "2026-02-01T00:00:00.000Z",
+                    file: civitaiFileJSON(url: "https://civitai.com/api/download/models/20", sha256: "00", size: 1))
+            ])
         let api = ScriptedCivitaiAPI(reply: searchReply([krea, klein]))
         let keychain = testKeychain()
         defer { try? keychain.delete() }
@@ -143,8 +147,9 @@ import Testing
     }
 
     @Test func overlappingLoadMoreCallsRequestAndAppendOnePageOnce() async throws {
-        let api = GatedCivitaiAPI(reply: twoPages(
-            [kleinListing(id: 1), kleinListing(id: 2)], [kleinListing(id: 3), kleinListing(id: 4)]))
+        let api = GatedCivitaiAPI(
+            reply: twoPages(
+                [kleinListing(id: 1), kleinListing(id: 2)], [kleinListing(id: 3), kleinListing(id: 4)]))
         let keychain = testKeychain()
         defer { try? keychain.delete() }
         let harness = try await browseHarness(api: api, keychain: keychain)
@@ -219,11 +224,12 @@ import Testing
 
     @Test func aFileHashThatIsNotSixtyFourHexDigitsStartsNoDownload() async throws {
         let payload = try safetensorsFile(klein4BTensors(), tag: "fox")
-        let api = ScriptedCivitaiAPI(reply: searchReply([
-            listingWithHash(id: 42, sha256: String(repeating: "a", count: 63), size: payload.count),
-            listingWithHash(id: 43, sha256: String(repeating: "g", count: 64), size: payload.count),
-            listingWithHash(id: 44, sha256: String(repeating: "b", count: 64), size: payload.count),
-        ]))
+        let api = ScriptedCivitaiAPI(
+            reply: searchReply([
+                listingWithHash(id: 42, sha256: String(repeating: "a", count: 63), size: payload.count),
+                listingWithHash(id: 43, sha256: String(repeating: "g", count: 64), size: payload.count),
+                listingWithHash(id: 44, sha256: String(repeating: "b", count: 64), size: payload.count),
+            ]))
         let files = ScriptedCivitaiFileHost(payload: payload)
         let keychain = testKeychain()
         defer { try? keychain.delete() }

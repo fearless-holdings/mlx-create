@@ -1,6 +1,7 @@
 import Darwin
 import Foundation
 import Testing
+
 @testable import MCEngine
 
 /// Supervisor lifecycle against stand-in engines, so the default `swift test` run covers process handling without
@@ -9,34 +10,34 @@ import Testing
 struct EngineSupervisorFakeEngineTests {
     /// Serves `/health` and writes the key it was launched with to `$HOME/received-key`, as the engine would receive it.
     static let healthyEngine = """
-    #!/usr/bin/python3
-    import http.server, json, os, sys
+        #!/usr/bin/python3
+        import http.server, json, os, sys
 
-    port = int(sys.argv[sys.argv.index("--port") + 1])
-    with open(os.path.join(os.environ["HOME"], "received-key"), "w") as f:
-        f.write(os.environ.get("MLXC_ENGINE_KEY", ""))
+        port = int(sys.argv[sys.argv.index("--port") + 1])
+        with open(os.path.join(os.environ["HOME"], "received-key"), "w") as f:
+            f.write(os.environ.get("MLXC_ENGINE_KEY", ""))
 
-    class Health(http.server.BaseHTTPRequestHandler):
-        def do_GET(self):
-            body = json.dumps({"status": "ok"}).encode()
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+        class Health(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                body = json.dumps({"status": "ok"}).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
 
-        def log_message(self, *args):
-            pass
+            def log_message(self, *args):
+                pass
 
-    http.server.ThreadingHTTPServer(("127.0.0.1", port), Health).serve_forever()
-    """
+        http.server.ThreadingHTTPServer(("127.0.0.1", port), Health).serve_forever()
+        """
 
     /// Never becomes healthy. Logs its pid to `$HOME/spawned.log` each time it starts, then sleeps until stopped.
     static let hangingEngine = """
-    #!/bin/sh
-    echo $$ >> "$HOME/spawned.log"
-    exec /bin/sleep 600
-    """
+        #!/bin/sh
+        echo $$ >> "$HOME/spawned.log"
+        exec /bin/sleep 600
+        """
 
     private static func spawnedPIDs(_ paths: EnginePaths) -> [Int32] {
         let log = paths.home.appending(path: "spawned.log")
@@ -225,57 +226,57 @@ struct EngineSupervisorFakeEngineTests {
     /// Answers `/health` with `ok` on `port` and appends each request's header names to `log`. A stand-in for another
     /// process that owns the chosen port. Writes `marker` once it is listening.
     static let foreignListener = """
-    #!/usr/bin/python3
-    import http.server, json, sys
+        #!/usr/bin/python3
+        import http.server, json, sys
 
-    port, log, marker = int(sys.argv[1]), sys.argv[2], sys.argv[3]
+        port, log, marker = int(sys.argv[1]), sys.argv[2], sys.argv[3]
 
-    class Health(http.server.BaseHTTPRequestHandler):
-        def do_GET(self):
-            with open(log, "a") as f:
-                f.write(" ".join(self.headers.keys()) + "\\n")
-            body = json.dumps({"status": "ok"}).encode()
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+        class Health(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                with open(log, "a") as f:
+                    f.write(" ".join(self.headers.keys()) + "\\n")
+                body = json.dumps({"status": "ok"}).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
 
-        def log_message(self, *args):
-            pass
+            def log_message(self, *args):
+                pass
 
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", port), Health)
-    open(marker, "w").close()
-    server.serve_forever()
-    """
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", port), Health)
+        open(marker, "w").close()
+        server.serve_forever()
+        """
 
     /// Ports listed in `$HOME/never-bind` (one per line) are never bound: the child sleeps, and a foreign listener
     /// answers for it. Other ports behave like `healthyEngine`.
     static let silentThenHealthyEngine = """
-    #!/usr/bin/python3
-    import http.server, json, os, sys, time
+        #!/usr/bin/python3
+        import http.server, json, os, sys, time
 
-    port = int(sys.argv[sys.argv.index("--port") + 1])
-    never_bind = os.path.join(os.environ["HOME"], "never-bind")
-    if os.path.exists(never_bind) and str(port) in open(never_bind).read().split():
-        time.sleep(600)
-    with open(os.path.join(os.environ["HOME"], "received-key"), "w") as f:
-        f.write(os.environ.get("MLXC_ENGINE_KEY", ""))
+        port = int(sys.argv[sys.argv.index("--port") + 1])
+        never_bind = os.path.join(os.environ["HOME"], "never-bind")
+        if os.path.exists(never_bind) and str(port) in open(never_bind).read().split():
+            time.sleep(600)
+        with open(os.path.join(os.environ["HOME"], "received-key"), "w") as f:
+            f.write(os.environ.get("MLXC_ENGINE_KEY", ""))
 
-    class Health(http.server.BaseHTTPRequestHandler):
-        def do_GET(self):
-            body = json.dumps({"status": "ok"}).encode()
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+        class Health(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                body = json.dumps({"status": "ok"}).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
 
-        def log_message(self, *args):
-            pass
+            def log_message(self, *args):
+                pass
 
-    http.server.ThreadingHTTPServer(("127.0.0.1", port), Health).serve_forever()
-    """
+        http.server.ThreadingHTTPServer(("127.0.0.1", port), Health).serve_forever()
+        """
 
     @Test(.enabled(if: FileManager.default.isExecutableFile(atPath: "/usr/bin/python3")))
     func foreignListenerOnTheChosenPortIsNeverReady() async throws {

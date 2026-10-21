@@ -77,12 +77,13 @@ func importLoRA(_ harness: AppHarness, _ layout: LoRALayout, name: String) async
 /// Saves an image whose settings name the given LoRAs, as a finished job would.
 @MainActor
 private func saveLoRAImage(_ harness: AppHarness, prompt: String, loras: [ImageLoRA]) async throws -> LibraryImage {
-    try await harness.store.saveImage(NewImage(
-        collectionID: harness.collectionID, jobID: nil, pngData: PNGFixture.make(width: 512, height: 512),
-        settings: ImageSettings(
-            prompt: prompt, negativePrompt: nil, modelID: kreaModel, family: "krea-2-turbo",
-            requestedWidth: 512, requestedHeight: 512, requestedSteps: 4, guidance: nil, seed: 7,
-            width: 512, height: 512, steps: 4, loras: loras)))
+    try await harness.store.saveImage(
+        NewImage(
+            collectionID: harness.collectionID, jobID: nil, pngData: PNGFixture.make(width: 512, height: 512),
+            settings: ImageSettings(
+                prompt: prompt, negativePrompt: nil, modelID: kreaModel, family: "krea-2-turbo",
+                requestedWidth: 512, requestedHeight: 512, requestedSteps: 4, guidance: nil, seed: 7,
+                width: 512, height: 512, steps: 4, loras: loras)))
 }
 
 @MainActor
@@ -99,7 +100,8 @@ private func saveLoRAImage(_ harness: AppHarness, prompt: String, loras: [ImageL
         #expect(model.loraStack.map(\.fit) == [.fits, .fits])
 
         model.selectedModelID = kreaModel
-        #expect(model.loraStack.map(\.fit) == [.doesNotFit(selectedModelName: "Krea 2 Turbo"), .doesNotFit(selectedModelName: "Krea 2 Turbo")])
+        #expect(
+            model.loraStack.map(\.fit) == [.doesNotFit(selectedModelName: "Krea 2 Turbo"), .doesNotFit(selectedModelName: "Krea 2 Turbo")])
         #expect(model.loraStack.allSatisfy { !$0.isUsed })
         model.prompt = "a fox"
         await model.generate()

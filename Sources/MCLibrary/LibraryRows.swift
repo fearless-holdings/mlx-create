@@ -156,11 +156,12 @@ struct ImageRow: Codable, FetchableRecord, PersistableRecord {
     }
 }
 
-private extension JobRequest {
+extension JobRequest {
     /// Stand-in for a row whose JSON cannot be decoded; it never reaches a generation.
-    static let unreadable = JobRequest(modelID: "", family: "", prompt: "", width: 0, height: 0)
+    fileprivate static let unreadable = JobRequest(modelID: "", family: "", prompt: "", width: 0, height: 0)
 }
 
-private extension ImageSettings {
-    static let unreadable = ImageSettings(prompt: "", modelID: "", requestedWidth: 0, requestedHeight: 0, seed: 0, width: 0, height: 0, steps: nil)
+extension ImageSettings {
+    fileprivate static let unreadable = ImageSettings(
+        prompt: "", modelID: "", requestedWidth: 0, requestedHeight: 0, seed: 0, width: 0, height: 0, steps: nil)
 }

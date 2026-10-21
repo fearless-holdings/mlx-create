@@ -442,12 +442,14 @@ private struct LoRADetailView: View {
             return "It leaves the panel stack. No images used it."
         }
         let noun = deleteImpact == 1 ? "image" : "images"
-        return "\(deleteImpact) \(noun) used it. They keep their settings, and this LoRA is left out when you reuse them. It also leaves the panel stack."
+        return
+            "\(deleteImpact) \(noun) used it. They keep their settings, and this LoRA is left out when you reuse them. It also leaves the panel stack."
     }
 
     private func save() {
         let newName = name.trimmingCharacters(in: .whitespaces)
-        let words = triggers
+        let words =
+            triggers
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }

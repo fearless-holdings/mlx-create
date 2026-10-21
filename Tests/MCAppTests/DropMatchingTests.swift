@@ -76,8 +76,9 @@ import Testing
     @Test func sameLastComponentFromTwoOrgsIsAmbiguousWithSortedIds() throws {
         let krea = try kreaFamily()
         let models = [installed("b/shared-model", family: krea), installed("a/Shared-Model", family: krea)]
-        #expect(DropMatching.matchModel(named: "c/Shared-Model", in: models)
-            == .ambiguous(ids: ["a/Shared-Model", "b/shared-model"]))
+        #expect(
+            DropMatching.matchModel(named: "c/Shared-Model", in: models)
+                == .ambiguous(ids: ["a/Shared-Model", "b/shared-model"]))
     }
 
     @Test func nilEmptyAndWhitespaceNamesMatchNothing() throws {

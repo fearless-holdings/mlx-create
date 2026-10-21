@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import MCEngine
 
 /// Real or upstream-matcher-derived log tails live in Fixtures/Supervisor.

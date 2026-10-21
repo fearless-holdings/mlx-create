@@ -3,6 +3,7 @@ import Foundation
 import GRDB
 import ImageIO
 import Testing
+
 @testable import MCLibrary
 
 /// The `lora_source` table, the HEIC preview, the v5 migration and the Civitai staging sweep (plan U3, KTD4, KTD5, KTD11).
@@ -16,7 +17,8 @@ import Testing
         try LibraryStore.migrator.migrate(queue, upTo: "v4-lora")
         try await queue.write { db in
             try db.execute(
-                sql: "INSERT INTO lora (id, name, family, sha256, relative_path, size_bytes, trigger_words, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                sql:
+                    "INSERT INTO lora (id, name, family, sha256, relative_path, size_bytes, trigger_words, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 arguments: [
                     "old", "Old", "alpha", String(repeating: "a", count: 64), "LoRAs/alpha/aaaaaaaaaa-old.safetensors",
                     7, "[\"sks\"]", nil, Date(timeIntervalSince1970: 1_700_000_000),
@@ -38,9 +40,10 @@ import Testing
         let fixture = try LoRALibraryTests.makeFixture()
         let file = try LoRALibraryTests.staged(fixture, fill: 40)
         let jpeg = try TestImage.encode(width: 640, height: 480, type: "public.jpeg")
-        let added = try LoRALibraryTests.addedRecord(try await fixture.store.commitStagedLoRA(
-            staged: file.url, sha256: file.sha256, sizeBytes: file.size, family: "alpha", variant: nil, name: "Pixel",
-            triggerWords: [], source: LoRALibraryTests.sampleSource(), previewImage: jpeg))
+        let added = try LoRALibraryTests.addedRecord(
+            try await fixture.store.commitStagedLoRA(
+                staged: file.url, sha256: file.sha256, sizeBytes: file.size, family: "alpha", variant: nil, name: "Pixel",
+                triggerWords: [], source: LoRALibraryTests.sampleSource(), previewImage: jpeg))
         let preview = await fixture.store.paths.url(relativePath: "Thumbnails/LoRA/\(added.id).heic")
         #expect(FileManager.default.fileExists(atPath: preview.path))
 
@@ -57,9 +60,10 @@ import Testing
         let file = try LoRALibraryTests.staged(fixture, fill: 41)
         let jpeg = try TestImage.encode(width: 1024, height: 768, type: "public.jpeg")
 
-        let added = try LoRALibraryTests.addedRecord(try await fixture.store.commitStagedLoRA(
-            staged: file.url, sha256: file.sha256, sizeBytes: file.size, family: "alpha", variant: nil, name: "Pixel",
-            triggerWords: [], source: LoRALibraryTests.sampleSource(), previewImage: jpeg))
+        let added = try LoRALibraryTests.addedRecord(
+            try await fixture.store.commitStagedLoRA(
+                staged: file.url, sha256: file.sha256, sizeBytes: file.size, family: "alpha", variant: nil, name: "Pixel",
+                triggerWords: [], source: LoRALibraryTests.sampleSource(), previewImage: jpeg))
 
         let stored = try #require(try await fixture.store.loraSource(loraID: added.id))
         let relative = try #require(stored.previewRelativePath)
@@ -77,9 +81,10 @@ import Testing
         let fixture = try LoRALibraryTests.makeFixture()
         let file = try LoRALibraryTests.staged(fixture, fill: 43)
 
-        let added = try LoRALibraryTests.addedRecord(try await fixture.store.commitStagedLoRA(
-            staged: file.url, sha256: file.sha256, sizeBytes: file.size, family: "alpha", variant: nil, name: "Pixel",
-            triggerWords: [], source: LoRALibraryTests.sampleSource(), previewImage: Data("not an image".utf8)))
+        let added = try LoRALibraryTests.addedRecord(
+            try await fixture.store.commitStagedLoRA(
+                staged: file.url, sha256: file.sha256, sizeBytes: file.size, family: "alpha", variant: nil, name: "Pixel",
+                triggerWords: [], source: LoRALibraryTests.sampleSource(), previewImage: Data("not an image".utf8)))
 
         #expect(fixture.store.loraFileExists(added))
         let stored = try #require(try await fixture.store.loraSource(loraID: added.id))

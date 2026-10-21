@@ -39,8 +39,9 @@ final class FileDownloader: Sendable {
         var restarts = 0
         var singleOnly = false
         while true {
-            let attempt = FileAttempt(file: file, url: url, partial: partial, session: session,
-                                      configuration: configuration, progress: progress, singleOnly: singleOnly)
+            let attempt = FileAttempt(
+                file: file, url: url, partial: partial, session: session,
+                configuration: configuration, progress: progress, singleOnly: singleOnly)
             do {
                 try await attempt.run()
                 return
@@ -80,8 +81,10 @@ final class FileAttempt: @unchecked Sendable {
     private var stalled = false
     private var lastFlush = Date.distantPast
 
-    init(file: InstallPlan.File, url: URL, partial: URL, session: URLSession,
-         configuration: ModelDownloader.Configuration, progress: InstallProgress, singleOnly: Bool) {
+    init(
+        file: InstallPlan.File, url: URL, partial: URL, session: URLSession,
+        configuration: ModelDownloader.Configuration, progress: InstallProgress, singleOnly: Bool
+    ) {
         self.file = file
         self.url = url
         self.partial = partial
@@ -122,9 +125,13 @@ final class FileAttempt: @unchecked Sendable {
             lock.withLock { sidecar = resumed }
         } else {
             Self.discard(partial)
-            let planned = singleOnly ? [] : Chunking.plan(
-                fileSize: file.size, connections: configuration.connections, minChunkBytes: configuration.minChunkBytes)
-            let entries = planned.isEmpty
+            let planned =
+                singleOnly
+                ? []
+                : Chunking.plan(
+                    fileSize: file.size, connections: configuration.connections, minChunkBytes: configuration.minChunkBytes)
+            let entries =
+                planned.isEmpty
                 ? [ResumeSidecar.Entry(start: 0, end: file.size - 1)]
                 : planned.map { ResumeSidecar.Entry(start: $0.start, end: $0.end) }
             lock.withLock { sidecar = ResumeSidecar(fileSize: file.size, etag: nil, chunks: entries) }
@@ -356,12 +363,14 @@ final class FileAttempt: @unchecked Sendable {
     /// `Content-Range: bytes 0-99/12345` gives start 0, end 99 and total 12345.
     static func contentRange(_ response: HTTPURLResponse) -> (start: Int64, end: Int64, total: Int64)? {
         guard let header = response.value(forHTTPHeaderField: "Content-Range"),
-              header.hasPrefix("bytes "),
-              let slash = header.lastIndex(of: "/") else { return nil }
+            header.hasPrefix("bytes "),
+            let slash = header.lastIndex(of: "/")
+        else { return nil }
         let span = header[header.index(header.startIndex, offsetBy: 6)..<slash]
         let bounds = span.split(separator: "-")
         guard bounds.count == 2, let start = Int64(bounds[0]), let end = Int64(bounds[1]),
-              let total = Int64(header[header.index(after: slash)...].trimmingCharacters(in: .whitespaces)) else { return nil }
+            let total = Int64(header[header.index(after: slash)...].trimmingCharacters(in: .whitespaces))
+        else { return nil }
         return (start, end, total)
     }
 }
@@ -387,9 +396,11 @@ private final class TransferSink: NSObject, URLSessionDataDelegate, @unchecked S
         self.ranged = ranged
     }
 
-    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask,
-                    didReceive response: URLResponse,
-                    completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+    func urlSession(
+        _ session: URLSession, dataTask: URLSessionDataTask,
+        didReceive response: URLResponse,
+        completionHandler: @escaping (URLSession.ResponseDisposition) -> Void
+    ) {
         guard let http = response as? HTTPURLResponse else {
             failure = InstallError.network(path: "", reason: "the response was not HTTP")
             completionHandler(.cancel)

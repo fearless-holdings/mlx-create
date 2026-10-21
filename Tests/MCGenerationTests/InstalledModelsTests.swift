@@ -2,50 +2,51 @@ import Foundation
 import MCCatalog
 import MCEngine
 import Testing
+
 @testable import MCGeneration
 
 private let kreaEntryJSON = """
-{
-  "id": "ddalcu/Krea-2-Turbo-MLX-Serve-mixed-4-8",
-  "object": "model",
-  "loaded": true,
-  "state": "ready",
-  "capabilities": ["image"],
-  "meta": { "architecture": "krea2_turbo", "engine": "mlx" }
-}
-"""
+    {
+      "id": "ddalcu/Krea-2-Turbo-MLX-Serve-mixed-4-8",
+      "object": "model",
+      "loaded": true,
+      "state": "ready",
+      "capabilities": ["image"],
+      "meta": { "architecture": "krea2_turbo", "engine": "mlx" }
+    }
+    """
 
 private let kleinEntryJSON = """
-{
-  "id": "ddalcu/FLUX.2-klein-4B-MLX-Serve",
-  "object": "model",
-  "loaded": false,
-  "state": "unloaded",
-  "capabilities": ["image"],
-  "meta": { "architecture": "flux2-klein-4b", "engine": "mlx" }
-}
-"""
+    {
+      "id": "ddalcu/FLUX.2-klein-4B-MLX-Serve",
+      "object": "model",
+      "loaded": false,
+      "state": "unloaded",
+      "capabilities": ["image"],
+      "meta": { "architecture": "flux2-klein-4b", "engine": "mlx" }
+    }
+    """
 
 private let qwenEntryJSON = """
-{
-  "id": "ddalcu/Qwen-Image-2.1-MLX-Serve-4bit",
-  "object": "model",
-  "loaded": false,
-  "state": "unloaded",
-  "capabilities": ["image"],
-  "meta": { "architecture": "qwen_image21", "engine": "mlx" }
-}
-"""
+    {
+      "id": "ddalcu/Qwen-Image-2.1-MLX-Serve-4bit",
+      "object": "model",
+      "loaded": false,
+      "state": "unloaded",
+      "capabilities": ["image"],
+      "meta": { "architecture": "qwen_image21", "engine": "mlx" }
+    }
+    """
 
 private let chatEntryJSON = """
-{
-  "id": "mlx-community/some-llm",
-  "object": "model",
-  "loaded": false,
-  "capabilities": ["chat"],
-  "meta": { "architecture": "qwen3", "engine": "mlx" }
-}
-"""
+    {
+      "id": "mlx-community/some-llm",
+      "object": "model",
+      "loaded": false,
+      "capabilities": ["chat"],
+      "meta": { "architecture": "qwen3", "engine": "mlx" }
+    }
+    """
 
 private func decodeEntry(_ json: String) throws -> ModelEntry {
     try JSONDecoder().decode(ModelEntry.self, from: Data(json.utf8))
@@ -182,10 +183,11 @@ struct InstalledModelsRefreshTests {
             entries: [kreaEntryJSON, qwenEntryJSON],
             weightsRoot: URL(fileURLWithPath: "/nonexistent-mlx-create-weights", isDirectory: true))
 
-        #expect(models.map(\.id) == [
-            "ddalcu/Krea-2-Turbo-MLX-Serve-mixed-4-8",
-            "ddalcu/Qwen-Image-2.1-MLX-Serve-4bit",
-        ])
+        #expect(
+            models.map(\.id) == [
+                "ddalcu/Krea-2-Turbo-MLX-Serve-mixed-4-8",
+                "ddalcu/Qwen-Image-2.1-MLX-Serve-4bit",
+            ])
         #expect(models[0].availability == .available)
         #expect(ModelsStubURLProtocol.paths() == ["/v1/models/rescan", "/v1/models"])
     }
@@ -238,10 +240,11 @@ struct InstalledModelsRefreshTests {
             entries: [kreaEntryJSON, kleinEntryJSON],
             weightsRoot: URL(fileURLWithPath: "/nonexistent-mlx-create-weights", isDirectory: true))
 
-        #expect(models.map(\.id) == [
-            "ddalcu/Krea-2-Turbo-MLX-Serve-mixed-4-8",
-            "ddalcu/FLUX.2-klein-4B-MLX-Serve",
-        ])
+        #expect(
+            models.map(\.id) == [
+                "ddalcu/Krea-2-Turbo-MLX-Serve-mixed-4-8",
+                "ddalcu/FLUX.2-klein-4B-MLX-Serve",
+            ])
         #expect(models[0].availability == .available)
         #expect(models[1].availability == .available)
     }

@@ -13,7 +13,7 @@ import Foundation
 struct ResumeSidecar: Codable, Equatable {
     struct Entry: Codable, Equatable {
         var start: Int64
-        var end: Int64 // inclusive
+        var end: Int64  // inclusive
         var done: Int64 = 0
         var length: Int64 { end - start + 1 }
         var isComplete: Bool { done >= length }
@@ -45,8 +45,9 @@ struct ResumeSidecar: Codable, Equatable {
     /// Loads the sidecar only if it is valid for `size` and the partial holds at least the bytes it banks.
     static func load(forPartial partial: URL, size: Int64) -> ResumeSidecar? {
         guard let data = try? Data(contentsOf: sidecarURL(forPartial: partial)),
-              let state = try? JSONDecoder().decode(ResumeSidecar.self, from: data),
-              state.isValid(forSize: size) else { return nil }
+            let state = try? JSONDecoder().decode(ResumeSidecar.self, from: data),
+            state.isValid(forSize: size)
+        else { return nil }
         // Chunks are written positionally, so the partial is at least as long as the total it banks.
         let onDisk = (try? FileManager.default.attributesOfItem(atPath: partial.path))?[.size] as? Int64
         guard let onDisk, onDisk >= state.completedBytes else { return nil }

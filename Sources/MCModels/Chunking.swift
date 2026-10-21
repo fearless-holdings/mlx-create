@@ -7,7 +7,7 @@ import Foundation
 enum Chunking {
     struct Chunk: Equatable {
         var start: Int64
-        var end: Int64 // inclusive
+        var end: Int64  // inclusive
         var length: Int64 { end - start + 1 }
     }
 

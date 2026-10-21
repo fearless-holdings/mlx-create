@@ -61,8 +61,9 @@ extension AppModel {
                     items.append(try await placeholder(for: running))
                 }
                 for (index, job) in queued.enumerated() {
-                    items.append(try await placeholder(
-                        for: job, canMoveUp: index > 0, canMoveDown: index < queued.count - 1))
+                    items.append(
+                        try await placeholder(
+                            for: job, canMoveUp: index > 0, canMoveDown: index < queued.count - 1))
                 }
                 for job in paused + failed + cancelled {
                     items.append(try await placeholder(for: job))

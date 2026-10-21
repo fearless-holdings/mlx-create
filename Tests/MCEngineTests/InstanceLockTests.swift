@@ -1,6 +1,7 @@
 import Darwin
 import Foundation
 import Testing
+
 @testable import MCEngine
 
 /// Single-instance lock (D28): exclusivity, release on holder death, and close-on-exec so an engine child cannot
@@ -9,14 +10,14 @@ import Testing
 struct InstanceLockTests {
     /// Takes the lock on `argv[1]`, touches the marker `argv[2]`, then holds the lock until killed.
     static let lockHolder = """
-    #!/usr/bin/python3
-    import fcntl, sys, time
+        #!/usr/bin/python3
+        import fcntl, sys, time
 
-    handle = open(sys.argv[1], "a+")
-    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    open(sys.argv[2], "w").close()
-    time.sleep(600)
-    """
+        handle = open(sys.argv[1], "a+")
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        open(sys.argv[2], "w").close()
+        time.sleep(600)
+        """
 
     private static func makeLockURL() throws -> URL {
         let root = FileManager.default.temporaryDirectory.appending(path: "mlxc-lock-\(UUID().uuidString)")

@@ -217,14 +217,14 @@ public actor EngineClient {
         try JSONEncoder().encode(["model": model])
     }
 
- /// Transport failures become typed errors. A cancelled request becomes `CancellationError`.
- /// Errors that are not URL transport errors pass through unchanged.
- static func map(_ error: Error) -> Error {
- guard let urlError = error as? URLError else { return error }
- switch urlError.code {
- case .cancelled: return CancellationError()
- case .timedOut: return EngineError.timedOut
- default: return EngineError.connectionLost
- }
- }
+    /// Transport failures become typed errors. A cancelled request becomes `CancellationError`.
+    /// Errors that are not URL transport errors pass through unchanged.
+    static func map(_ error: Error) -> Error {
+        guard let urlError = error as? URLError else { return error }
+        switch urlError.code {
+        case .cancelled: return CancellationError()
+        case .timedOut: return EngineError.timedOut
+        default: return EngineError.connectionLost
+        }
+    }
 }

@@ -1,6 +1,7 @@
 import CryptoKit
 import Foundation
 import Testing
+
 @testable import MCModels
 
 private let pythonAvailable = FileManager.default.isExecutableFile(atPath: "/usr/bin/python3")
@@ -113,17 +114,20 @@ final class Scenario {
         try other.write(to: sources[path]!)
     }
 
-    func downloader(connections: Int = 4, stallTimeout: Duration = .seconds(1), maxStalls: Int = 3,
-                    available: Int64 = .max / 4) -> ModelDownloader {
-        ModelDownloader(configuration: .init(
-            modelsRoot: models.url,
-            userAgent: "mlx-create/test",
-            endpoint: URL(string: "http://127.0.0.1:\(server.port)")!,
-            connections: connections,
-            minChunkBytes: 256 << 10,
-            stallTimeout: stallTimeout,
-            maxStalls: maxStalls,
-            availableBytes: { _ in available }))
+    func downloader(
+        connections: Int = 4, stallTimeout: Duration = .seconds(1), maxStalls: Int = 3,
+        available: Int64 = .max / 4
+    ) -> ModelDownloader {
+        ModelDownloader(
+            configuration: .init(
+                modelsRoot: models.url,
+                userAgent: "mlx-create/test",
+                endpoint: URL(string: "http://127.0.0.1:\(server.port)")!,
+                connections: connections,
+                minChunkBytes: 256 << 10,
+                stallTimeout: stallTimeout,
+                maxStalls: maxStalls,
+                availableBytes: { _ in available }))
     }
 
     var staging: URL { InstallStaging.stagingURL(plan, modelsRoot: models.url) }
@@ -229,8 +233,9 @@ struct InstallEndToEndTests {
         let stats = try await server.stats()
         let served = stats.bytesServed[s.key(Self.big)] ?? 0
         #expect(served < 4 << 20, "resume re-requests only the unfinished bytes")
-        #expect(stats.requests.contains { $0.range != nil && $0.range != "bytes=0-" && $0.status == 206 },
-                "resume uses plain Range requests")
+        #expect(
+            stats.requests.contains { $0.range != nil && $0.range != "bytes=0-" && $0.status == 206 },
+            "resume uses plain Range requests")
     }
 
     @Test func redirectIsResolvedAgainOnEveryResume() async throws {
@@ -247,8 +252,9 @@ struct InstallEndToEndTests {
 
         #expect(events.last?.phase == .installed)
         let stats = try await server.stats()
-        #expect(stats.requests.contains { $0.key == s.key(Self.big) && $0.status == 302 },
-                "the resolve URL is requested again")
+        #expect(
+            stats.requests.contains { $0.key == s.key(Self.big) && $0.status == 302 },
+            "the resolve URL is requested again")
         #expect(!stats.requests.contains { $0.status == 403 }, "the expired CDN URL is never reused")
     }
 
@@ -370,8 +376,9 @@ struct InstallEndToEndTests {
         for bad in ["../escape.json", "/abs/escape.json"] {
             let server = try RangeServer()
             let s = try Scenario(server: server, files: [(Self.small, 10 << 10, 12)])
-            let plan = InstallPlan(modelID: "test/model", repo: "org/model", revision: Scenario.revision,
-                                   files: [.init(path: bad, size: 10 << 10, sha256: s.plan.files[0].sha256)])
+            let plan = InstallPlan(
+                modelID: "test/model", repo: "org/model", revision: Scenario.revision,
+                files: [.init(path: bad, size: 10 << 10, sha256: s.plan.files[0].sha256)])
             try await s.publish()
             try await server.control(["reset_stats": true])
 

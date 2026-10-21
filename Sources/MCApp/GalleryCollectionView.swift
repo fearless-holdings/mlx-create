@@ -112,7 +112,7 @@ struct GalleryCollection: NSViewRepresentable {
 
         private func makeItem(_ collectionView: NSCollectionView, indexPath: IndexPath, id: UUID) -> NSCollectionViewItem? {
             guard let image = imagesByID[id],
-                  let item = collectionView.makeItem(withIdentifier: GalleryCollectionItem.identifier, for: indexPath)
+                let item = collectionView.makeItem(withIdentifier: GalleryCollectionItem.identifier, for: indexPath)
                     as? GalleryCollectionItem
             else { return nil }
             item.configure(
@@ -157,9 +157,9 @@ struct GalleryCollection: NSViewRepresentable {
             guard let scrollView, let collectionView, let layout = collectionView.collectionViewLayout else { return nil }
             let clip = scrollView.contentView
             guard clip.bounds.minY > 0,
-                  let first = collectionView.indexPathsForVisibleItems().min(),
-                  let id = dataSource.itemIdentifier(for: first),
-                  let attributes = layout.layoutAttributesForItem(at: first)
+                let first = collectionView.indexPathsForVisibleItems().min(),
+                let id = dataSource.itemIdentifier(for: first),
+                let attributes = layout.layoutAttributesForItem(at: first)
             else { return nil }
             return (id, attributes.frame.minY - clip.bounds.minY)
         }
@@ -169,7 +169,7 @@ struct GalleryCollection: NSViewRepresentable {
             dataSource: NSCollectionViewDiffableDataSource<Section, UUID>
         ) {
             guard let anchor, let scrollView, let collectionView, let layout = collectionView.collectionViewLayout,
-                  let indexPath = dataSource.indexPath(for: anchor.id)
+                let indexPath = dataSource.indexPath(for: anchor.id)
             else { return }
             collectionView.layoutSubtreeIfNeeded()
             guard let attributes = layout.layoutAttributesForItem(at: indexPath) else { return }
@@ -281,7 +281,8 @@ final class GalleryItemView: NSView {
     override func hitTest(_ point: NSPoint) -> NSView? {
         let hit = super.hitTest(point)
         guard hit != nil, let event = NSApp.currentEvent else { return hit }
-        let isContextClick = event.type == .rightMouseDown
+        let isContextClick =
+            event.type == .rightMouseDown
             || (event.type == .leftMouseDown && event.modifierFlags.contains(.control))
         return isContextClick ? self : hit
     }

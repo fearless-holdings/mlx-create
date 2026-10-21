@@ -54,8 +54,8 @@ public enum EngineError: Error, Equatable, Sendable {
     public var engineMessage: String? {
         switch self {
         case .unauthorized(let m), .outOfMemory(let m), .modelNotLoaded(let m),
-             .noModel(let m), .badRequest(let m), .loraRejected(let m),
-             .enhancerOutOfMemory(let m), .enhancerModelNotLoaded(let m):
+            .noModel(let m), .badRequest(let m), .loraRejected(let m),
+            .enhancerOutOfMemory(let m), .enhancerModelNotLoaded(let m):
             m
         case .engineFailure(_, let m):
             m

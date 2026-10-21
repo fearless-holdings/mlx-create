@@ -38,11 +38,13 @@ extension AppModel {
         return loraSlots.compactMap { slot -> LoRAStackRow? in
             guard let record = loraRecords.first(where: { $0.id == slot.id }) else { return nil }
             // A missing file outranks the fit: no model switch makes it usable (R17).
-            let fit: LoRAFit = loraMissingFileIDs.contains(record.id)
+            let fit: LoRAFit =
+                loraMissingFileIDs.contains(record.id)
                 ? .fileMissing
                 : loraFit(for: record, selected: selected, installed: installed)
             let words = record.triggerWords
-            let missingHint = slot.isEnabled && !words.isEmpty
+            let missingHint =
+                slot.isEnabled && !words.isEmpty
                 && !words.contains { TriggerWordMatcher.contains($0, in: prompt) }
             return LoRAStackRow(
                 id: slot.id, name: record.name, sha256: record.sha256, familyID: record.family,
@@ -94,7 +96,7 @@ extension AppModel {
     /// Nil when no model is selected or its family accepts no LoRAs, so the tab shows its prompt and sends nothing.
     var civitaiSelection: CivitaiSelection? {
         guard let model = selectedModel, ModelSelection.isSelectable(model), let family = model.family,
-              family.acceptsLoRAs
+            family.acceptsLoRAs
         else { return nil }
         return CivitaiSelection(
             family: family, variant: CivitaiBrowseRules.variant(forArchitecture: model.architecture))
@@ -194,7 +196,8 @@ extension AppModel {
 
     /// Replaces trigger words and notes. Blank trigger words are dropped and blank notes clear the notes.
     public func updateLoRA(id: String, triggerWords: [String], notes: String?) async {
-        let words = triggerWords
+        let words =
+            triggerWords
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         let trimmedNotes = notes?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -351,8 +354,9 @@ extension AppModel {
             }
             guard !slots.contains(where: { $0.id == record.id }) else { continue }
             let wide = abs(entry.weight) > LoRAStackRules.narrowRange.upperBound
-            slots.append(LoRAStackSlot(
-                id: record.id, weight: LoRAStackRules.clamped(entry.weight, wide: wide), isEnabled: true, wideRange: wide))
+            slots.append(
+                LoRAStackSlot(
+                    id: record.id, weight: LoRAStackRules.clamped(entry.weight, wide: wide), isEnabled: true, wideRange: wide))
         }
         loraSlots = slots
         loraNotice = missing.isEmpty ? nil : "Not installed: \(missing.joined(separator: ", ")) — left out."

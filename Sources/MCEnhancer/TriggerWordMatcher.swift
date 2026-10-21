@@ -9,7 +9,8 @@ public enum TriggerWordMatcher {
         guard !word.isEmpty else { return false }
         var searchRange = text.startIndex..<text.endIndex
         while let found = text.range(of: word, options: .caseInsensitive, range: searchRange) {
-            let startsWord = found.lowerBound == text.startIndex
+            let startsWord =
+                found.lowerBound == text.startIndex
                 || !isWordCharacter(text[text.index(before: found.lowerBound)])
             let endsWord = found.upperBound == text.endIndex || !isWordCharacter(text[found.upperBound])
             if startsWord && endsWord { return true }

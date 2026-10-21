@@ -23,7 +23,8 @@ public enum EnhancementCleaner {
     public static func clean(_ reply: String, triggerWords: [String], expectsNegativePrompt: Bool) -> EnhancedPrompt? {
         guard let unreasoned = strippingReasoning(reply) else { return nil }
         let unfenced = strippingFence(unreasoned)
-        let parts: (prompt: String, negative: String?) = expectsNegativePrompt
+        let parts: (prompt: String, negative: String?) =
+            expectsNegativePrompt
             ? splittingNegative(unfenced)
             : (unfenced, nil)
         let prompt = strippingWrappingQuotes(parts.prompt.trimmedWhitespace)

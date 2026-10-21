@@ -62,8 +62,11 @@ actor ScriptedCatalogTransport: CatalogTransport {
         let remote = try CatalogFixture.catalogJSON(sequence: sequence)
         return [
             "catalog.json": [.response(CatalogHTTPResponse(status: 200, body: remote, etag: etag))],
-            "catalog.json.sig": [.response(CatalogHTTPResponse(
-                status: 200, body: try CatalogFixture.signature(of: remote), etag: nil))],
+            "catalog.json.sig": [
+                .response(
+                    CatalogHTTPResponse(
+                        status: 200, body: try CatalogFixture.signature(of: remote), etag: nil))
+            ],
         ]
     }
 
@@ -122,7 +125,7 @@ actor ScriptedCatalogTransport: CatalogTransport {
         let cached = try writeCache(dir, sequence: 2, signature: Data("garbage".utf8))
         try writeRefreshState(dir, etag: "\"stale\"", checkedAt: staleCheck())
         let transport = ScriptedCatalogTransport(scripts: [
-            "catalog.json": [.response(CatalogHTTPResponse(status: 304, body: Data(), etag: nil))],
+            "catalog.json": [.response(CatalogHTTPResponse(status: 304, body: Data(), etag: nil))]
         ])
 
         let outcome = try await store(cache: dir, transport: transport).refresh()
@@ -143,7 +146,7 @@ actor ScriptedCatalogTransport: CatalogTransport {
         try CatalogFixture.signature(of: bytes).write(to: dir.appending(path: "catalog.json.sig"))
         try writeRefreshState(dir, etag: "\"kept\"", checkedAt: staleCheck())
         let transport = ScriptedCatalogTransport(scripts: [
-            "catalog.json": [.response(CatalogHTTPResponse(status: 304, body: Data(), etag: nil))],
+            "catalog.json": [.response(CatalogHTTPResponse(status: 304, body: Data(), etag: nil))]
         ])
 
         let outcome = try await store(cache: dir, transport: transport).refresh()

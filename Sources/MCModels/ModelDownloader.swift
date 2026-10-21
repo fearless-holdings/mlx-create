@@ -1,6 +1,6 @@
-import MCLibrary
 import Darwin
 import Foundation
+import MCLibrary
 
 /// Downloads an `InstallPlan` into `Models/.partial/<id>/`, verifies it, and publishes it to `Models/Weights/<org>/<name>/`
 /// (plan KTD5, KTD6, KTD8, KTD20). Public surface is final for the installer lane.
