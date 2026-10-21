@@ -117,6 +117,7 @@ struct GenerationPanel: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 0)
+                PromptHistoryButton(model: model)
                 Button("Enhance") {
                     Task { await model.pressEnhance() }
                 }
