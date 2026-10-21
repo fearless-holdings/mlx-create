@@ -53,7 +53,9 @@ final class ClosureObservingServer: @unchecked Sendable {
 
     func stop() {
         listener.cancel()
-        lock.withLock { connections.forEach { $0.cancel() } }
+        lock.withLock {
+            for connection in connections { connection.cancel() }
+        }
     }
 
     private func accept(_ connection: NWConnection) {

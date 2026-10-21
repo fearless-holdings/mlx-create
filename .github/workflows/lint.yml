@@ -1,0 +1,14 @@
+name: Lint
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  swift-format:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: swift format lint
+        run: git ls-files '*.swift' | xargs swift format lint --strict --configuration .swift-format

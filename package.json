@@ -4,7 +4,8 @@
     "prepare": "husky"
   },
   "lint-staged": {
-    "*": "node scripts/check-file-size.mjs"
+    "*": "node scripts/check-file-size.mjs",
+    "*.swift": "swift format lint --strict --configuration .swift-format"
   },
   "devDependencies": {
     "husky": "9.1.7",

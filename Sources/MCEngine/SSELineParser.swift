@@ -26,7 +26,7 @@ enum SSELineParser {
             }
             return .event(.progress(step: step, total: frame.total ?? 0, stage: frame.stage ?? ""))
         case "complete":
-            guard let encoded = frame.data?.first?.b64_json,
+            guard let encoded = frame.data?.first?.b64JSON,
                 let png = Data(base64Encoded: encoded)
             else {
                 return .failed(.malformedResponse(detail: "complete event missing image data"))
@@ -45,7 +45,10 @@ enum SSELineParser {
 
     /// Only the fields this client reads. Anything else, including `preview`, is dropped by decoding.
     private struct Frame: Decodable {
-        struct Image: Decodable { let b64_json: String? }
+        struct Image: Decodable {
+            let b64JSON: String?
+            enum CodingKeys: String, CodingKey { case b64JSON = "b64_json" }
+        }
         struct Failure: Decodable {
             let type: String?
             let message: String?

@@ -446,7 +446,7 @@ public final class AppModel {
     public func shutdown() async {
         let pending = tasks
         tasks = []
-        pending.forEach { $0.cancel() }
+        for task in pending { task.cancel() }
         guard let supervisor else { return }
         let (finished, signal) = AsyncStream<Void>.makeStream()
         Task {

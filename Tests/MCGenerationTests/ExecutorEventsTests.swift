@@ -70,7 +70,7 @@ private func collect(_ stream: AsyncStream<ExecutorEvent>, into log: EventLog) -
         }
         let rows = try await harness.store.recentImages(collectionID: harness.collectionID, limit: 2)
         #expect(Set(savedIDs) == Set(rows.map(\.id)))
-        subscriptions.forEach { $0.cancel() }
+        for subscription in subscriptions { subscription.cancel() }
     }
 
     @Test func queueOperationsAnnounceTheJobTheyChanged() async throws {

@@ -175,7 +175,7 @@ actor GatedCivitaiAPI: CivitaiTransport {
         holding = false
         let pending = waiters
         waiters = []
-        pending.forEach { $0.resume() }
+        for waiter in pending { waiter.resume() }
     }
 
     func perform(_ request: URLRequest) async throws -> CivitaiResponse {
