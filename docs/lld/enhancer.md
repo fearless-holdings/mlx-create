@@ -156,3 +156,23 @@ Still to do: the real-engine smoke of the full Enhance flow (U9).
 ## 6. Decision history
 
 After the second retune the gate was open (§3.4, §3.5). Options were: accept, run a fourth clean set of 50, change the rubric, search a third candidate, or stop. The fourth clean set was run (§3.6) and cleared the bar, so no rubric change and no third candidate were needed.
+
+## 7. Enhance flow (as built)
+
+Verified against `Sources/MCGeneration/EnhancerLease.swift`, `Sources/MCEngine/EngineClient.swift`, `Sources/MCEngine/ChatStream.swift`, `Sources/MCEngine/MemoryTier.swift` and `Sources/MCApp/AppModel+Enhance.swift`.
+
+- **Lease.** `JobExecutor.withEnhancerLease` sets its flag first, so the queue claims no new job and model switches wait. It waits for the running image to finish, and queued jobs keep their order. `body` runs the chat call. Release runs even when `body` throws or the caller is cancelled.
+- **Residency.** `MemoryTier.maxResidentModels` is 1 below 24 GiB, 2 below 48 GiB, and 3 otherwise. Below 24 GiB the lease unloads each resident model except the enhancer, then loads the enhancer. Release unloads the enhancer and re-warms the image model only when the queue is empty and no model switch is waiting. At 24 GiB and above, the enhancer loads only if it is not already resident, no model is unloaded, and release leaves the enhancer resident.
+- **Engine calls.** `EngineClient` calls `POST v1/load-model` and `POST v1/unload-model` with the model id, and `GET v1/models` for loaded state. The chat call is `POST v1/chat/completions` through `ChatRequest`, which sends `stream: true`, `enable_thinking: false`, `temperature` 0.7, `top_p` 0.9 and `max_tokens` 400 by default.
+- **Load refused for memory.** When the enhancer load throws `EngineError.outOfMemory`, the lease clears `enhancerLoaded`, unloads the resident models (`OutOfMemoryFailure.refusalUnloadsResidentModels` is `true`), and throws `EngineError.enhancerOutOfMemory`. A chat call that the engine refuses with `out_of_memory` maps to the same error (`EngineError.swift`).
+- **UI.** `enhanceWillReloadImageModel` is true below 24 GiB and drives the one-time note that the image model will reload.
+- **Packs.** `MCEnhancer` loads `Resources/Packs/<familyID>.json` (a `.copy` resource in `Package.swift`) for each family that ships one. The final pack text is the one measured in §3.6.
+
+## 8. Removal conditions for the provisional pick
+
+Gemma 4 E4B heretic 4-bit (`gemma-4-e4b-heretic-4bit`) stays provisional. Revisit or remove it if any of these holds:
+
+- A re-run of the §2 method on a fresh set of 50 prompts, under the pinned engine and the shipped packs, gives more than 2 refusals or deflections (the R12 bar).
+- The pack text or the engine pin changes. §3.6 applies only to the final packs and `v26.10.2`.
+- A measurement on a 16 GB Mac misses the R13 bar: first text in about 3 s and a finished result in about 10 s, cold. §3 measured on 48 GB only.
+- The model license changes from the catalog's `apache-2.0`, or the model is withdrawn.
