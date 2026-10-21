@@ -43,9 +43,9 @@ The model and LoRA stack an image was made with are already recorded on each ima
 
 **Selection**
 
-- R1. In the gallery, ⌘-click toggles an image in the selection and ⇧-click selects the range from the last-clicked image. A plain click selects only that image and shows it in the canvas, as today.
-- R2. The selection is separate from the image shown in the canvas. Actions act on the selection; a right-click on an unselected image acts on that image alone.
-- R3. Changing the search, a filter, or the collection removes images that are no longer visible from the selection, so an action never touches an image the user cannot see.
+- R1. In the gallery, ⌘-click toggles an image in the selection and ⇧-click selects the range from the last-clicked image. A plain click selects only that image and shows it in the canvas, as today. ⌘-click and ⇧-click change only the selection and the range anchor, never the canvas.
+- R2. The selection is separate from the image shown in the canvas. Actions act on the selection. A right-click on an unselected image replaces the selection with that image and makes it the anchor; a right-click on a selected image leaves the selection unchanged and acts on all of it.
+- R3. Changing the search, a filter, or the collection removes images that are no longer visible from the selection, so an action never touches an image the user cannot see. If the image shown in the canvas is no longer visible, the canvas moves to the nearest visible image (older neighbour first), or to the empty state when none is visible, so the canvas and ⌘R never act on a hidden image.
 
 **Actions on the selection**
 
@@ -63,9 +63,10 @@ The model and LoRA stack an image was made with are already recorded on each ima
 - R12. The LoRA filter lists the LoRAs used by images in the current collection, including LoRAs since removed from the library. Choosing several shows only images made with all of them.
 - R13. Search, the model filter and the LoRA filter combine with AND. The gallery stays newest first and keeps paging, and one action clears them all.
 - R14. Search and filters reset when the user switches collection.
-- R15. When nothing matches, the gallery says so and offers the clear action instead of showing an empty grid.
+- R15. When nothing matches, the gallery says so and offers the clear action instead of showing an empty grid. Whenever a search or filter is active, the filters control shows how many criteria are set and a Clear button is visible in the gallery header.
 - R16. Images saved before LoRA support have no LoRA record. They show when no LoRA filter is set and match no LoRA filter.
 - R17. Delete skips images whose job is queued, running or paused, and the result says how many were skipped and why. (session-settled: user-directed — chosen over letting the job regenerate and over shrinking the job: the executor finishes a job by counting its saved images, so deleting one would trigger an extra generation.)
+- R18. A status line under the grid shows "N selected", or "N of M selected" when the selection is smaller than the M images matching the current search and filters (for example after ⌘A on loaded pages only). It also holds the last Delete result (deleted, skipped because their job is unfinished, failed) until the next action. While a delete of more than about 50 images runs, it shows progress and Delete, Export, Move and the filter controls are disabled; the grid stays visible and scrollable.
 
 ### Key Flows
 
@@ -113,7 +114,7 @@ The model and LoRA stack an image was made with are already recorded on each ima
 
 **Deferred to Planning**
 
-- The filters control's form (popover, menu or inline chips) and the exact keyboard map beyond the Delete key and ⌘A, Escape.
+- The filters control's form (popover, menu or inline chips) and the keyboard map beyond the Delete key and ⌘A. Escape is not handled.
 
 ### Sources / Research
 
@@ -129,11 +130,11 @@ The model and LoRA stack an image was made with are already recorded on each ima
 
 ### Key Technical Decisions
 
-- KTD1. **Filters read two indexed sources, not the settings JSON.** Migration `v7-gallery-filters` adds `image.model_id` and table `image_lora(image_id, sha256, name)`, both backfilled from `settings` with `json_extract` / `json_each`, and indexes `(collection_id, model_id, created_at)` and `image_lora(sha256)`. `saveImage` writes both. Old rows with no `loras` get no join rows (R16). Governs R11, R12, R16.
-- KTD2. **Prompt search is an external-content FTS5 table over `image.prompt`, kept in sync by triggers**, backfilled in `v7`. Matching is on the prompt column only (R10). U1 probes FTS5 first; if the bundled SQLite lacks it, stop and report before building on it.
+- KTD1. **Filters read two indexed sources, not the settings JSON.** Migration `v7-gallery-filters` adds `image.model_id` and table `image_lora(image_id, sha256, name)`, backfilled from `settings`, and indexes `(collection_id, model_id, created_at)` and `image_lora(sha256)`. Every backfill JSON read is guarded with `json_valid(settings)`: a row where it is 0 gets NULL `model_id` and no `image_lora` rows, because SQLite raises on malformed JSON and one bad row must not fail the migration (the store already decodes such rows as `ImageSettings.unreadable`). `saveImage` writes both. Old rows with no `loras` get no join rows (R16). Governs R11, R12, R16.
+- KTD2. **Prompt search is an external-content FTS5 table over `image.prompt`, kept in sync by triggers**, backfilled in `v7`. Matching is on the prompt column only (R10). The query is built by splitting the user's text into tokens, quoting each so FTS operators cannot error, and prefix-matching the last token, so "cat" finds "catalog" and results narrow as the user types. U1 probes FTS5 first; if the bundled SQLite lacks it, stop and report before building on it.
 - KTD3. **One `GalleryQuery` value (collection, search text, model ids, LoRA hashes) feeds every gallery read**: first page, next page, reload, and the check on a newly saved image. Offset paging stays; the query adds SQL predicates, so offsets stay correct. Delete, move and any filter change bump `galleryRevision`.
 - KTD4. **Selection model.** `AppModel.gallerySelection: Set<UUID>` plus an anchor id for ⇧-range; the existing `selection` keeps driving the canvas and queue jobs. A plain click sets both. After every `galleryImages` replacement, the set is intersected with loaded ids (R3). `canReuse` means exactly one image selected; ⌘. never reads the set.
-- KTD5. **Delete = per-image unit**: skip if its job is unfinished (R17); trash PNG, trash thumbnail, delete the row in one write; if the row write fails, put the files back from their Trash URLs. A missing file counts as already gone. A volume without Trash leaves the image and reports it. After the loop, the canvas moves to the nearest surviving neighbour (older first) before the removal is applied (R5).
+- KTD5. **Delete = per-image unit**: skip if its job is unfinished (R17); trash PNG, trash thumbnail, delete the row in one write; if the row write fails, put the files back from their Trash URLs. A missing file counts as already gone. A volume without Trash leaves the image and reports it. After the loop, the canvas moves to the nearest surviving neighbour (older first) before the removal is applied (R5). The same neighbour rule serves search, filter and collection changes (R3).
 - KTD6. **Export is a byte copy** (`FileManager.copyItem`), never an ImageIO re-encode, so the `parameters` and `mlx-create` chunks survive (R7). Name clashes get a numeric suffix. It does not copy `LibraryStore`'s delete-source-on-clash logic.
 - KTD7. **Side effects sit behind injected closures on `AppModel`** (trash, reveal, save/folder panel), the same seam style as `LibraryStore.beforeRowInsertHook`. Production wires `FileManager.trashItem`, `NSWorkspace.activateFileViewerSelecting` and AppKit panels.
 - KTD8. **A newly saved image is prepended only if it matches the active `GalleryQuery`**, checked through the same SQL predicate. Governs R13.
@@ -180,7 +181,7 @@ The model and LoRA stack an image was made with are already recorded on each ima
 - **Requirements:** R10-R13, R16; KTD1-3.
 - **Files:** `Sources/MCLibrary/LibraryStore.swift`, `Models.swift`, new `Tests/MCLibraryTests/GalleryFilterTests.swift`.
 - **Approach:** add `GalleryQuery`; `recentImages(query:limit:offset:)`; `galleryFacets(collectionID:)` returning models (with family name) and LoRAs (library name, else newest image's name); `image(id:matches:)`; `saveImage` fills `model_id` and `image_lora`. Never edit earlier migrations.
-- **Test scenarios:** migrate from v6 with legacy rows (some with LoRAs, some without, one unreadable settings) and assert backfill; AE2 (X+Y picked returns only A); AE3; several models return the union; search matches prompt case-insensitively and escapes `%`/`_`; filters and search combine; newest-first paging with limit+1 under a filter.
+- **Test scenarios:** migrate from v6 with legacy rows (some with LoRAs, some without, one with malformed settings JSON that must not abort the migration) and assert backfill; AE2 (X+Y picked returns only A); AE3; several models return the union; search is case-insensitive, prefix-matches the last word, and text containing FTS operator characters (quotes, `-`, `*`, `AND`) does not error; filters and search combine; newest-first paging with limit+1 under a filter.
 - **Verification:** `swift test --filter MCLibraryTests`.
 
 ### U3. Store delete, move-many, export
@@ -194,19 +195,19 @@ The model and LoRA stack an image was made with are already recorded on each ima
 
 ### U4. AppModel selection, query state and actions
 
-- **Goal:** App-level behavior for R1-R15.
-- **Requirements:** R1-R3, R5, R8, R9, R13-R15, R17; KTD3, KTD4, KTD7, KTD8.
+- **Goal:** App-level behavior for R1-R18.
+- **Requirements:** R1-R3, R5, R8, R9, R13-R15, R17, R18; KTD3, KTD4, KTD7, KTD8.
 - **Files:** `AppModel.swift`, `AppModel+Collections.swift`, new `AppModel+GalleryActions.swift`, `Tests/MCAppTests/GalleryActionsTests.swift`.
 - **Approach:** `gallerySelection`, anchor, `galleryQuery`, facets; toggle/range select; `deleteSelected`, `revealSelected`, `exportSelected`, `moveSelected`; reset query on collection switch (R14); prune selection on every list change; neighbour selection before removal; query-checked `prependImage`; injected side-effect closures. Tests that call refresh first `await model.start()`.
-- **Test scenarios:** AE1 (hidden selected images are not trashed); AE4 (canvas moves to neighbour; empty state when none left); AE6; a save during a filtered view does not appear if it doesn't match; a stale page after a filter change is discarded; ⌘R disabled with 2 selected; delete summary text counts deleted, skipped, failed.
+- **Test scenarios:** AE1 (hidden selected images are not trashed); AE4 (canvas moves to neighbour; empty state when none left); a filter or search that hides the canvas image moves the canvas to the nearest visible image (R3); AE6; a save during a filtered view does not appear if it doesn't match; a stale page after a filter change is discarded; ⌘R disabled with 2 selected; delete summary text counts deleted, skipped, failed; the "N of M selected" figures for a partial selection (R18).
 - **Verification:** `swift test --filter MCAppTests`.
 
 ### U5. Gallery UI
 
 - **Goal:** The visible controls.
-- **Requirements:** R1, R2, R4, R6-R9, R15; KTD4.
+- **Requirements:** R1, R2, R4, R6-R9, R15, R18; KTD4.
 - **Files:** `GalleryView.swift`, `GalleryCollectionView.swift`, `MainWindow.swift` if a command is added.
-- **Approach:** ⌘/⇧-click via modifier flags with the anchor; tile menu gains Delete, Reveal, Export on the selection; Delete key, ⌘A and Escape handled only when the gallery has focus; search field plus a filters popover (models any, LoRAs all) with a Clear action; "No matches" empty state; matching accessibility actions; progress indicator for large deletes; Export uses a save panel for one image and a folder panel for several.
+- **Approach:** ⌘/⇧-click via modifier flags with the anchor; the grid's `appliedSelection` becomes a `Set<UUID>` and each update reconfigures only the symmetric difference, so a single click still touches at most two items. Right-click: the coordinator returns a context menu for the clicked index path (`NSCollectionView` menu handling), applying R2's selection rule before calling the same AppModel actions as the tile menu. The tile menu gains Delete, Reveal, Export on the selection. Delete key and ⌘A are handled only when the gallery has focus. A search field plus a filters popover (models any, LoRAs all) with a criteria count and a Clear button (R15); "No matches" empty state; the status line from R18 under the grid; matching accessibility actions; Export uses a save panel for one image and a folder panel for several.
 - **Test expectation: none for the AppKit view code.** Behavior is covered in U4. Build with `xcodegen generate` and `xcodebuild`, launch the app and exercise select, delete, filter and export; the user tests the GUI.
 
 ---
@@ -218,7 +219,7 @@ The model and LoRA stack an image was made with are already recorded on each ima
 
 ## Definition of Done
 
-- R1-R17 and AE1-AE6 are true in the running app.
+- R1-R18 and AE1-AE6 are true in the running app.
 - D37 is in `docs/HLD.md`; no stale gallery wording remains.
 - Existing paging, move and collection tests still pass.
 - No scratch code or probe-only helpers are left in the diff; the FTS5 probe remains only if it guards a real behavior.
