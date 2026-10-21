@@ -1,5 +1,5 @@
-import MCLibrary
 import SwiftUI
+import MCLibrary
 
 /// The canvas (HLD §10): one of four states from ``CanvasMode``.
 struct CanvasView: View {

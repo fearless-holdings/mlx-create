@@ -95,13 +95,10 @@ struct LoRARowView: View {
     private var summary: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 8) {
-                Toggle(
-                    row.name,
-                    isOn: Binding(
-                        get: { row.isEnabled },
-                        set: { model.setLoRAEnabled(id: row.id, $0) }
-                    )
-                )
+                Toggle(row.name, isOn: Binding(
+                    get: { row.isEnabled },
+                    set: { model.setLoRAEnabled(id: row.id, $0) }
+                ))
                 .toggleStyle(.switch)
                 .controlSize(.small)
                 .lineLimit(1)
@@ -161,13 +158,10 @@ struct LoRARowView: View {
                         .frame(width: 44, alignment: .trailing)
                 }
             }
-            Toggle(
-                "Wide range (-20 to 20)",
-                isOn: Binding(
-                    get: { row.wideRange },
-                    set: { model.setLoRAWideRange(id: row.id, $0) }
-                )
-            )
+            Toggle("Wide range (-20 to 20)", isOn: Binding(
+                get: { row.wideRange },
+                set: { model.setLoRAWideRange(id: row.id, $0) }
+            ))
             .controlSize(.small)
             if !row.triggerWords.isEmpty {
                 LazyVGrid(
@@ -225,9 +219,7 @@ struct LoRARowView: View {
 @MainActor
 enum LoRADrop {
     static func handle(_ providers: [NSItemProvider], model: AppModel) -> Bool {
-        let fileProviders = providers.filter {
-            $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
-        }
+        let fileProviders = providers.filter { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }
         guard !fileProviders.isEmpty else { return false }
         Task {
             var urls: [URL] = []
@@ -247,9 +239,7 @@ enum LoRADrop {
 
     static func fileURL(of provider: NSItemProvider) async -> URL? {
         await withCheckedContinuation { continuation in
-            _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                continuation.resume(returning: url)
-            }
+            _ = provider.loadObject(ofClass: URL.self) { url, _ in continuation.resume(returning: url) }
         }
     }
 }
