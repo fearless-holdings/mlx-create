@@ -1,8 +1,9 @@
 import Foundation
 import MCEngine
 import MCGeneration
-@testable import MCLibrary
 import Testing
+
+@testable import MCLibrary
 
 private struct InjectedFailure: Error {}
 
@@ -81,11 +82,12 @@ private final class Flag: @unchecked Sendable {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [EngineStubProtocol.self]
         // The gate stays closed until the waiting task is cancelled, like an engine that never comes up.
-        let client = EngineClient(endpoint: {
-            waiting.set()
-            try await Task.sleep(for: .seconds(60))
-            return endpoint
-        }, configuration: configuration)
+        let client = EngineClient(
+            endpoint: {
+                waiting.set()
+                try await Task.sleep(for: .seconds(60))
+                return endpoint
+            }, configuration: configuration)
         let executor = JobExecutor(
             store: harness.store, modelsRoot: harness.modelsRoot, client: client, queue: harness.queue)
         let job = try await harness.enqueue(batch: 1)

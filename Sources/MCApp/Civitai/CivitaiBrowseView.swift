@@ -88,15 +88,21 @@ struct CivitaiBrowseView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                TextField("Search Civitai LoRAs", text: Binding(
-                    get: { browse.query },
-                    set: { browse.setQuery($0) }))
-                    .textFieldStyle(.roundedBorder)
-                    .frame(maxWidth: 240)
-                    .accessibilityLabel("Search Civitai LoRAs")
-                Picker("Sort", selection: Binding(
-                    get: { browse.sort },
-                    set: { sort in Task { await browse.setSort(sort) } })) {
+                TextField(
+                    "Search Civitai LoRAs",
+                    text: Binding(
+                        get: { browse.query },
+                        set: { browse.setQuery($0) })
+                )
+                .textFieldStyle(.roundedBorder)
+                .frame(maxWidth: 240)
+                .accessibilityLabel("Search Civitai LoRAs")
+                Picker(
+                    "Sort",
+                    selection: Binding(
+                        get: { browse.sort },
+                        set: { sort in Task { await browse.setSort(sort) } })
+                ) {
                     ForEach(CivitaiSort.allCases, id: \.self) { sort in
                         Text(sort.rawValue).tag(sort)
                     }
@@ -113,14 +119,20 @@ struct CivitaiBrowseView: View {
                 .accessibilityLabel(showingKey ? "Hide Civitai key field" : "Show Civitai key field")
             }
             HStack(spacing: 14) {
-                Toggle("Show incompatible", isOn: Binding(
-                    get: { browse.showIncompatible },
-                    set: { on in Task { await browse.setShowIncompatible(on) } }))
-                    .toggleStyle(.checkbox)
-                Toggle("Include NSFW", isOn: Binding(
-                    get: { browse.includeNSFW },
-                    set: { on in Task { await browse.setIncludeNSFW(on) } }))
-                    .toggleStyle(.checkbox)
+                Toggle(
+                    "Show incompatible",
+                    isOn: Binding(
+                        get: { browse.showIncompatible },
+                        set: { on in Task { await browse.setShowIncompatible(on) } })
+                )
+                .toggleStyle(.checkbox)
+                Toggle(
+                    "Include NSFW",
+                    isOn: Binding(
+                        get: { browse.includeNSFW },
+                        set: { on in Task { await browse.setIncludeNSFW(on) } })
+                )
+                .toggleStyle(.checkbox)
                 Spacer(minLength: 0)
                 if let name = selectedModelName {
                     Text("Fits \(name) by default")
@@ -221,13 +233,14 @@ struct CivitaiBrowseView: View {
             CivitaiResultRowView(
                 browse: browse,
                 row: row,
-                modelName: selectedModelName)
-                .onAppear {
-                    // Reaching the last row loads the next page. `loadMore` does nothing without a cursor.
-                    if row.id == rows.last?.id {
-                        Task { await browse.loadMore() }
-                    }
+                modelName: selectedModelName
+            )
+            .onAppear {
+                // Reaching the last row loads the next page. `loadMore` does nothing without a cursor.
+                if row.id == rows.last?.id {
+                    Task { await browse.loadMore() }
                 }
+            }
         }
     }
 
@@ -458,14 +471,16 @@ private struct CivitaiThumbnail: View {
         .frame(width: 64, height: 64)
         .clipped()
         .task(id: url) {
-            guard let url else { image = nil; return }
+            guard let url else {
+                image = nil
+                return
+            }
             let small = CivitaiImage.thumbnailURL(url, width: CivitaiThumbnailCache.pixelWidth)
             image = CivitaiThumbnailCache.shared.cached(small)
             if image == nil { image = await CivitaiThumbnailCache.shared.load(url) }
         }
     }
 }
-
 
 /// The license terms and the acceptance that starts a download (D20). Nothing downloads until Accept; Cancel
 /// leaves the row as it was.

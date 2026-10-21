@@ -6,9 +6,10 @@ public enum Thumbnails {
     /// Pixel size from the PNG header. This is the engine's real output size (D24).
     public static func pixelSize(ofPNG png: Data) throws -> (width: Int, height: Int) {
         guard let source = CGImageSourceCreateWithData(png as CFData, nil),
-              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
-              let width = properties[kCGImagePropertyPixelWidth] as? Int,
-              let height = properties[kCGImagePropertyPixelHeight] as? Int else {
+            let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+            let width = properties[kCGImagePropertyPixelWidth] as? Int,
+            let height = properties[kCGImagePropertyPixelHeight] as? Int
+        else {
             throw LibraryError.unreadableImage
         }
         return (width, height)

@@ -154,9 +154,9 @@ public struct SafetensorsHeader: Sendable, Equatable {
 
     private static func parseTensor(name: String, value: Any, dataSize: UInt64) throws -> Tensor {
         guard let entry = value as? [String: Any],
-              let dtype = entry["dtype"] as? String,
-              let shape = intArray(entry["shape"]), shape.allSatisfy({ $0 >= 0 }),
-              let offsets = intArray(entry["data_offsets"]), offsets.count == 2
+            let dtype = entry["dtype"] as? String,
+            let shape = intArray(entry["shape"]), shape.allSatisfy({ $0 >= 0 }),
+            let offsets = intArray(entry["data_offsets"]), offsets.count == 2
         else {
             throw SafetensorsError.malformedJSON(reason: "tensor \"\(name)\" lacks a valid dtype, shape or data_offsets")
         }

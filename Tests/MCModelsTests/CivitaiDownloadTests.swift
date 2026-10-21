@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import MCModels
 
 private let civitaiPythonAvailable = FileManager.default.isExecutableFile(atPath: "/usr/bin/python3")
@@ -253,9 +254,13 @@ struct CivitaiDownloadTests {
     @Test func ignoredRangeFallsBackToBoundedRead() async throws {
         let fixture = try await CivitaiFixture.start(civitai: ["ignore_range": true])
         let seen = Recorded()
-        let events = await collect(await downloader().start(request(fixture, classify: { prefix, total in
-            seen.add(prefix, total)
-        })))
+        let events = await collect(
+            await downloader().start(
+                request(
+                    fixture,
+                    classify: { prefix, total in
+                        seen.add(prefix, total)
+                    })))
 
         guard case .staged(let result)? = terminal(events) else {
             Issue.record("expected a staged terminal event, got \(events.map(\.phase))")
@@ -390,8 +395,9 @@ struct CivitaiDownloadTests {
         let local = CivitaiTransportPolicy(apiHost: "127.0.0.1", plaintextHosts: ["127.0.0.1"])
         let localFrom = try #require(URL(string: "http://127.0.0.1:9/a"))
         let localTo = try #require(URL(string: "http://127.0.0.1:9/b"))
-        #expect(local.redirect(from: localFrom, to: localTo, carriesKey: true)
-            == .refuse(reason: "the server redirected the key-bearing request to plain http"))
+        #expect(
+            local.redirect(from: localFrom, to: localTo, carriesKey: true)
+                == .refuse(reason: "the server redirected the key-bearing request to plain http"))
     }
 
     @Test func keyGoesOnlyToTheHTTPSAPIHostOnTheDefaultPort() throws {

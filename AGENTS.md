@@ -102,6 +102,7 @@ HLD Appendix A lists the files worth reusing. The rules:
   - On 16 GB, the enhancer LLM and the diffusion model are never resident together.
 - **Errors users see** must be actionable. Map engine failures (OOM, LoRA mismatch, missing weights) to plain-language messages.
 - Prefer boring, explicit code over abstraction. Add a protocol only where the HLD names a seam: `ModelSource`, `Entitlements`, `ModelFamily`, and the D30 network test seams `ModelTransport`, `CatalogTransport`, `HubClient`.
+- **Formatting:** `.swift-format` (4 spaces, 140 columns, otherwise swift-format defaults) is the style, and the repo is formatted to it. The OMP harness runs `lsp.formatOnWrite` (sourcekit-lsp → swift-format) on every `edit`/`write` of a Swift file and rewrites the whole file, so write code the way the formatter would; do not hand-wrap or restyle against it. Format with `git ls-files '*.swift' | xargs swift format format --in-place --configuration .swift-format`; check with `swift format lint --strict --configuration .swift-format <files>`. Without `.swift-format` the harness falls back to 2 spaces / 100 columns and reindents whole files, so never delete it.
 
 ## Commands
 

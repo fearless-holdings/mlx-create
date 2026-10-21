@@ -20,7 +20,8 @@ public struct GalleryQuery: Equatable, Sendable {
     /// FTS5 `MATCH` text for ``search``, or nil when it holds nothing searchable. Each word is quoted so operator
     /// characters cannot raise a syntax error, and the last word is a prefix, so results narrow as the user types.
     var matchExpression: String? {
-        let words = search
+        let words =
+            search
             .split(whereSeparator: \.isWhitespace)
             .map(String.init)
             .filter { $0.unicodeScalars.contains { CharacterSet.alphanumerics.contains($0) } }
@@ -51,7 +52,8 @@ public struct GalleryQuery: Equatable, Sendable {
         }
         if includeLoRAs, !loraHashes.isEmpty {
             let hashes = loraHashes.sorted()
-            clauses.append("""
+            clauses.append(
+                """
                 i.id IN (SELECT image_id FROM image_lora WHERE sha256 IN (\(Self.placeholders(hashes.count)))
                          GROUP BY image_id HAVING COUNT(*) = ?)
                 """)
@@ -108,8 +110,11 @@ extension LibraryStore {
             let (sql, arguments) = query.predicate()
             var args = arguments
             args += [limit, offset]
-            return try ImageRow
-                .fetchAll(db, sql: "SELECT i.* FROM image i WHERE \(sql) ORDER BY i.created_at DESC, i.id DESC LIMIT ? OFFSET ?", arguments: args)
+            return
+                try ImageRow
+                .fetchAll(
+                    db, sql: "SELECT i.* FROM image i WHERE \(sql) ORDER BY i.created_at DESC, i.id DESC LIMIT ? OFFSET ?", arguments: args
+                )
                 .map(\.image)
         }
     }
@@ -186,7 +191,8 @@ extension LibraryStore {
             for picked in query.loraHashes.sorted() where !loras.contains(where: { $0.sha256 == picked }) {
                 let name = try String.fetchOne(
                     db,
-                    sql: "SELECT COALESCE((SELECT name FROM lora WHERE sha256 = ?), (SELECT name FROM image_lora WHERE sha256 = ? LIMIT 1))",
+                    sql:
+                        "SELECT COALESCE((SELECT name FROM lora WHERE sha256 = ?), (SELECT name FROM image_lora WHERE sha256 = ? LIMIT 1))",
                     arguments: [picked, picked])
                 loras.append(GalleryLoRAOption(sha256: picked, name: name ?? String(picked.prefix(10))))
             }
@@ -231,9 +237,10 @@ extension LibraryStore {
                 guard let row = try ImageRow.fetchOne(db, key: id.uuidString) else { return nil }
                 let active: Bool
                 if let jobID = row.jobID {
-                    active = try Int.fetchOne(
-                        db, sql: "SELECT COUNT(*) FROM job WHERE id = ? AND status IN (?, ?, ?)",
-                        arguments: [jobID, JobStatus.queued.rawValue, JobStatus.running.rawValue, JobStatus.paused.rawValue]) ?? 0 > 0
+                    active =
+                        try Int.fetchOne(
+                            db, sql: "SELECT COUNT(*) FROM job WHERE id = ? AND status IN (?, ?, ?)",
+                            arguments: [jobID, JobStatus.queued.rawValue, JobStatus.running.rawValue, JobStatus.paused.rawValue]) ?? 0 > 0
                 } else {
                     active = false
                 }
@@ -306,8 +313,10 @@ extension LibraryStore {
     /// `<first words of the prompt>-<seed>`, safe as a file name.
     public static func exportBaseName(_ image: LibraryImage) -> String {
         let words = image.prompt.split(whereSeparator: \.isWhitespace).prefix(6).joined(separator: "-")
-        let slug = String(words.unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) || $0 == "-" }
-            .map(Character.init)).lowercased()
+        let slug = String(
+            words.unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) || $0 == "-" }
+                .map(Character.init)
+        ).lowercased()
         let stem = slug.isEmpty ? "image" : String(slug.prefix(60))
         return "\(stem)-\(image.seed)"
     }

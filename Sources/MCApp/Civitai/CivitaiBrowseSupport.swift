@@ -46,7 +46,7 @@ enum CivitaiBrowseRules {
         let usable = versions.enumerated().filter { $0.element.safetensorsFile != nil }
         let newestFirst = usable.sorted { lhs, rhs in
             switch (lhs.element.publishedAt, rhs.element.publishedAt) {
-            case let (left?, right?) where left != right: return left > right
+            case (let left?, let right?) where left != right: return left > right
             case (nil, _?): return false
             case (_?, nil): return true
             default: return lhs.offset < rhs.offset
@@ -217,8 +217,8 @@ enum CivitaiPreviewFetch {
         do {
             let (bytes, response) = try await session.bytes(from: url)
             guard let http = response as? HTTPURLResponse, http.statusCode == 200,
-                  http.url?.scheme?.lowercased() == "https",
-                  response.expectedContentLength <= Int64(sizeCap)
+                http.url?.scheme?.lowercased() == "https",
+                response.expectedContentLength <= Int64(sizeCap)
             else { return nil }
             var data = Data()
             for try await byte in bytes {

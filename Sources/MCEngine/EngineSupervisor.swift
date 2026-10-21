@@ -202,11 +202,12 @@ public actor EngineSupervisor {
             let exit = await terminate(run)
             child = nil
             PidFile.remove(at: paths.pidFile)
-            return .crashed(EngineCrash(
-                kind: .launchFailed,
-                message: Self.userMessage(for: .launchFailed),
-                detail: "another process is listening on port \(port)",
-                exit: exit))
+            return .crashed(
+                EngineCrash(
+                    kind: .launchFailed,
+                    message: Self.userMessage(for: .launchFailed),
+                    detail: "another process is listening on port \(port)",
+                    exit: exit))
         case .cancelled:
             await retire(run)
             return .cancelled
@@ -303,7 +304,8 @@ public actor EngineSupervisor {
             }
         }
         process.terminationHandler = { finished in
-            let status: ExitStatus = finished.terminationReason == .uncaughtSignal
+            let status: ExitStatus =
+                finished.terminationReason == .uncaughtSignal
                 ? .signal(finished.terminationStatus)
                 : .code(finished.terminationStatus)
             run.markExited(status)
@@ -393,8 +395,8 @@ public actor EngineSupervisor {
         var request = URLRequest(url: baseURL.appendingPathComponent("health"))
         request.timeoutInterval = 1
         guard let result = try? await URLSession.shared.data(for: request),
-              (result.1 as? HTTPURLResponse)?.statusCode == 200,
-              let object = try? JSONSerialization.jsonObject(with: result.0) as? [String: Any]
+            (result.1 as? HTTPURLResponse)?.statusCode == 200,
+            let object = try? JSONSerialization.jsonObject(with: result.0) as? [String: Any]
         else { return false }
         return object["status"] as? String == "ok"
     }

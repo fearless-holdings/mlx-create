@@ -15,7 +15,7 @@ struct PromptPack: Decodable, Equatable, Sendable {
     /// The pack at `Resources/Packs/<familyID>.json`, or nil when none ships for the family or the file cannot be read.
     static func bundled(familyID: String) -> PromptPack? {
         guard let url = Bundle.module.url(forResource: familyID, withExtension: "json", subdirectory: "Packs"),
-              let data = try? Data(contentsOf: url)
+            let data = try? Data(contentsOf: url)
         else { return nil }
         return try? JSONDecoder().decode(PromptPack.self, from: data)
     }

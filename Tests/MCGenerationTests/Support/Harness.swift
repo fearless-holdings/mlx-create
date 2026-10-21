@@ -1,8 +1,9 @@
 import Foundation
 import MCEngine
 import MCGeneration
-@testable import MCLibrary
 import Testing
+
+@testable import MCLibrary
 
 let kreaModel = "ddalcu/Krea-2-Turbo-MLX-Serve-mixed-4-8"
 let otherModel = "ddalcu/FLUX.2-klein-MLX-Serve-4bit"
@@ -63,9 +64,11 @@ final class FakeEngine: @unchecked Sendable {
     }
 
     private func modelsJSON() -> String {
-        let entries = lock.withLock { known.map { id in
-            #"{"id":"\#(id)","loaded":\#(loaded.contains(id)),"state":"ready","capabilities":["image"],"meta":{"architecture":"krea2_turbo"}}"#
-        } }
+        let entries = lock.withLock {
+            known.map { id in
+                #"{"id":"\#(id)","loaded":\#(loaded.contains(id)),"state":"ready","capabilities":["image"],"meta":{"architecture":"krea2_turbo"}}"#
+            }
+        }
         return #"{"object":"list","data":[\#(entries.joined(separator: ","))]}"#
     }
 

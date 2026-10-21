@@ -1,5 +1,5 @@
-import MCCatalog
 import Foundation
+import MCCatalog
 
 /// Paths, validation, manifest and publish for staged installs (plan KTD5). Pure rules run before any request.
 enum InstallStaging {
@@ -98,15 +98,18 @@ enum InstallStaging {
             guard name.hasSuffix(".install.json") else { return nil }
             let manifest = root.appending(path: name)
             guard let data = try? Data(contentsOf: manifest),
-                  let plan = try? JSONDecoder().decode(InstallPlan.self, from: data) else { return nil }
+                let plan = try? JSONDecoder().decode(InstallPlan.self, from: data)
+            else { return nil }
             let directory = root.appending(path: plan.id, directoryHint: .isDirectory)
             return StagedInstall(plan: plan, directory: directory, bytesOnDisk: directorySize(directory))
         }
     }
 
     private static func directorySize(_ directory: URL) -> Int64 {
-        guard let enumerator = FileManager.default.enumerator(
-            at: directory, includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey]) else { return 0 }
+        guard
+            let enumerator = FileManager.default.enumerator(
+                at: directory, includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey])
+        else { return 0 }
         var total: Int64 = 0
         for case let url as URL in enumerator {
             let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])

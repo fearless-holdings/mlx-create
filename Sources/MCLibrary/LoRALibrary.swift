@@ -124,9 +124,10 @@ extension LibraryStore {
 
         let typed = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let baseName = typed.isEmpty ? url.deletingPathExtension().lastPathComponent : typed
-        return try await commitLoRA(LoRACommit(
-            staged: partial, sha256: staged.sha256, sizeBytes: staged.sizeBytes, family: family, variant: variant,
-            baseName: baseName, triggerWords: [], source: nil, preview: nil))
+        return try await commitLoRA(
+            LoRACommit(
+                staged: partial, sha256: staged.sha256, sizeBytes: staged.sizeBytes, family: family, variant: variant,
+                baseName: baseName, triggerWords: [], source: nil, preview: nil))
     }
 
     /// Stores a finished Civitai download (KTD4). The caller has verified the SHA-256 and classified the file, and passes
@@ -148,9 +149,10 @@ extension LibraryStore {
             guard let previewImage else { return nil }
             return try? Thumbnails.makeHEIC(fromImageData: previewImage, maxPixelSize: 512)
         }.value
-        return try await commitLoRA(LoRACommit(
-            staged: staged, sha256: sha256, sizeBytes: sizeBytes, family: family, variant: variant, baseName: typed,
-            triggerWords: triggerWords, source: source, preview: preview))
+        return try await commitLoRA(
+            LoRACommit(
+                staged: staged, sha256: sha256, sizeBytes: sizeBytes, family: family, variant: variant, baseName: typed,
+                triggerWords: triggerWords, source: source, preview: preview))
     }
 
     /// The commit both import paths share (KTD4): the duplicate, restore and name-clash rules, the move into
@@ -200,7 +202,7 @@ extension LibraryStore {
                 let finalURL = directory.appending(path: fileName)
                 do {
                     try fm.createDirectory(at: directory, withIntermediateDirectories: true)
-                    try? fm.removeItem(at: finalURL) // an orphan from an interrupted import; no row names it
+                    try? fm.removeItem(at: finalURL)  // an orphan from an interrupted import; no row names it
                     try fm.moveItem(at: commit.staged, to: finalURL)
                 } catch {
                     throw LoRAImportError.copyFailed(reason: error.localizedDescription)

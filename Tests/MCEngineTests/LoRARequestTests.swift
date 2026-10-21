@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import MCEngine
 
 @Suite("LoRA request fields and 400 mapping")
@@ -40,8 +41,9 @@ struct LoRARequestTests {
     @Test func badRequestNamingNoModulesMatchingIsALoRARejection() {
         let body = Data(#"{"error":{"message":"LoRA rejected: no modules matching the model","type":"invalid_request_error"}}"#.utf8)
 
-        #expect(EngineError.fromResponse(status: 400, body: body)
-            == .loraRejected(engineMessage: "LoRA rejected: no modules matching the model"))
+        #expect(
+            EngineError.fromResponse(status: 400, body: body)
+                == .loraRejected(engineMessage: "LoRA rejected: no modules matching the model"))
     }
 
     @Test func otherBadRequestsStayBadRequests() {

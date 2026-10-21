@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import MCCatalog
 
 @Suite struct LoRAFingerprintTests {
@@ -63,18 +64,18 @@ import Testing
 
     @Test func familyWithoutLoraFingerprintsDecodesAsNoFingerprints() throws {
         let json = """
-        {
-          "id": "plain",
-          "displayName": "Plain",
-          "architectures": ["plain_arch"],
-          "sizeGrid": { "multiple": 16, "min": 256, "max": 2048 },
-          "sizePresets": [{ "width": 512, "height": 512 }],
-          "defaultSize": { "width": 512, "height": 512 },
-          "steps": { "defaultSteps": 4, "min": 1, "max": 100 },
-          "guidance": null,
-          "supportsNegativePrompt": false
-        }
-        """
+            {
+              "id": "plain",
+              "displayName": "Plain",
+              "architectures": ["plain_arch"],
+              "sizeGrid": { "multiple": 16, "min": 256, "max": 2048 },
+              "sizePresets": [{ "width": 512, "height": 512 }],
+              "defaultSize": { "width": 512, "height": 512 },
+              "steps": { "defaultSteps": 4, "min": 1, "max": 100 },
+              "guidance": null,
+              "supportsNegativePrompt": false
+            }
+            """
         let family = try JSONDecoder().decode(ModelFamily.self, from: Data(json.utf8))
         #expect(family.loraFingerprints == nil)
         #expect(!family.acceptsLoRAs)
@@ -82,44 +83,49 @@ import Testing
 
     @Test func familyWithLoraFingerprintsDecodesPatternsAndHints() throws {
         let json = """
-        {
-          "id": "fp",
-          "displayName": "FP",
-          "architectures": ["fp_arch"],
-          "sizeGrid": { "multiple": 16, "min": 256, "max": 2048 },
-          "sizePresets": [{ "width": 512, "height": 512 }],
-          "defaultSize": { "width": 512, "height": 512 },
-          "steps": { "defaultSteps": 4, "min": 1, "max": 100 },
-          "guidance": null,
-          "supportsNegativePrompt": false,
-          "loraFingerprints": [
             {
-              "tensorPatterns": [{ "kind": "prefix", "text": "lora_unet_" }],
-              "shapeHints": [{ "pattern": { "kind": "contains", "text": "attn" }, "dimension": 1, "size": 3072 }]
+              "id": "fp",
+              "displayName": "FP",
+              "architectures": ["fp_arch"],
+              "sizeGrid": { "multiple": 16, "min": 256, "max": 2048 },
+              "sizePresets": [{ "width": 512, "height": 512 }],
+              "defaultSize": { "width": 512, "height": 512 },
+              "steps": { "defaultSteps": 4, "min": 1, "max": 100 },
+              "guidance": null,
+              "supportsNegativePrompt": false,
+              "loraFingerprints": [
+                {
+                  "tensorPatterns": [{ "kind": "prefix", "text": "lora_unet_" }],
+                  "shapeHints": [{ "pattern": { "kind": "contains", "text": "attn" }, "dimension": 1, "size": 3072 }]
+                }
+              ]
             }
-          ]
-        }
-        """
+            """
         let family = try JSONDecoder().decode(ModelFamily.self, from: Data(json.utf8))
-        #expect(family.loraFingerprints == [LoRAFingerprint(
-            tensorPatterns: [TensorNamePattern(kind: .prefix, text: "lora_unet_")],
-            shapeHints: [LoRAShapeHint(
-                pattern: TensorNamePattern(kind: .contains, text: "attn"), dimension: 1, size: 3072)])])
+        #expect(
+            family.loraFingerprints == [
+                LoRAFingerprint(
+                    tensorPatterns: [TensorNamePattern(kind: .prefix, text: "lora_unet_")],
+                    shapeHints: [
+                        LoRAShapeHint(
+                            pattern: TensorNamePattern(kind: .contains, text: "attn"), dimension: 1, size: 3072)
+                    ])
+            ])
     }
 
     @Test func blockCountsDecodeAndDefaultToNone() throws {
         let withCounts = """
-        {
-          "tensorPatterns": [{ "kind": "contains", "text": ".attn.to_q" }],
-          "blockCounts": [{ "family": "transformer_blocks", "blockCount": 32 }]
-        }
-        """
+            {
+              "tensorPatterns": [{ "kind": "contains", "text": ".attn.to_q" }],
+              "blockCounts": [{ "family": "transformer_blocks", "blockCount": 32 }]
+            }
+            """
         let decoded = try JSONDecoder().decode(LoRAFingerprint.self, from: Data(withCounts.utf8))
         #expect(decoded.blockCounts == [LoRABlockCount(family: "transformer_blocks", blockCount: 32)])
 
         let withoutCounts = """
-        { "tensorPatterns": [{ "kind": "contains", "text": ".attn.to_q" }] }
-        """
+            { "tensorPatterns": [{ "kind": "contains", "text": ".attn.to_q" }] }
+            """
         let plain = try JSONDecoder().decode(LoRAFingerprint.self, from: Data(withoutCounts.utf8))
         #expect(plain.blockCounts == [])
     }

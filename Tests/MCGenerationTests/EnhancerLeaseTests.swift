@@ -1,8 +1,9 @@
 import Foundation
 import MCEngine
 import MCGeneration
-@testable import MCLibrary
 import Testing
+
+@testable import MCLibrary
 
 /// Below 24 GiB: memory tier 1, one model resident.
 private let belowTwentyFourGiB = MemoryTier(physicalMemoryBytes: 16 << 30)
@@ -86,10 +87,11 @@ private let noGeneration: @Sendable (Int, EngineStubProtocol.Recorded) -> Engine
         #expect(try await lease.value == "enhanced")
         try await run.value
         try await eventually { harness.engineCalls().contains("load \(kreaModel)") }
-        #expect(harness.engineCalls() == [
-            "generate 100", "unload \(kreaModel)", "load \(enhancerModel)", "unload \(enhancerModel)",
-            "load \(kreaModel)",
-        ])
+        #expect(
+            harness.engineCalls() == [
+                "generate 100", "unload \(kreaModel)", "load \(enhancerModel)", "unload \(enhancerModel)",
+                "load \(kreaModel)",
+            ])
     }
 
     @Test func belowTwentyFourGiBTheImageModelSwapsOutAroundTheEnhancer() async throws {
@@ -101,9 +103,10 @@ private let noGeneration: @Sendable (Int, EngineStubProtocol.Recorded) -> Engine
         }
         #expect(text == "enhanced")
         try await eventually { harness.engineCalls().contains("load \(kreaModel)") }
-        #expect(harness.engineCalls() == [
-            "unload \(kreaModel)", "load \(enhancerModel)", "unload \(enhancerModel)", "load \(kreaModel)",
-        ])
+        #expect(
+            harness.engineCalls() == [
+                "unload \(kreaModel)", "load \(enhancerModel)", "unload \(enhancerModel)", "load \(kreaModel)",
+            ])
     }
 
     /// The reply must not wait on the image model reloading (R13), while the lease stays held until that reload ends.
@@ -157,9 +160,10 @@ private let noGeneration: @Sendable (Int, EngineStubProtocol.Recorded) -> Engine
         lease.cancel()
         await #expect(throws: CancellationError.self) { try await lease.value }
         try await eventually { harness.engineCalls().contains("load \(kreaModel)") }
-        #expect(harness.engineCalls() == [
-            "unload \(kreaModel)", "load \(enhancerModel)", "unload \(enhancerModel)", "load \(kreaModel)",
-        ])
+        #expect(
+            harness.engineCalls() == [
+                "unload \(kreaModel)", "load \(enhancerModel)", "unload \(enhancerModel)", "load \(kreaModel)",
+            ])
     }
 
     @Test func outOfMemoryOnEnhancerLoadReleasesTheLeaseAndRestoresTheImageModel() async throws {
@@ -207,9 +211,10 @@ private let noGeneration: @Sendable (Int, EngineStubProtocol.Recorded) -> Engine
         #expect(try await lease.value == "enhanced")
         try await switching.value
         // The image model is not re-warmed first, because the switch the user asked for is already waiting.
-        #expect(harness.engineCalls() == [
-            "unload \(kreaModel)", "load \(enhancerModel)", "unload \(enhancerModel)", "load \(otherModel)",
-        ])
+        #expect(
+            harness.engineCalls() == [
+                "unload \(kreaModel)", "load \(enhancerModel)", "unload \(enhancerModel)", "load \(otherModel)",
+            ])
     }
 
     @Test func aLeaseRunsAheadOfTheQueuedJobsWhichKeepTheirOrder() async throws {
@@ -231,10 +236,11 @@ private let noGeneration: @Sendable (Int, EngineStubProtocol.Recorded) -> Engine
         EngineStubProtocol.finishHeld(harness.endpoint)
         #expect(try await lease.value == "enhanced")
         try await run.value
-        #expect(harness.engineCalls() == [
-            "generate 100", "unload \(kreaModel)", "load \(enhancerModel)", "unload \(enhancerModel)",
-            "load \(kreaModel)", "generate 200", "generate 300",
-        ])
+        #expect(
+            harness.engineCalls() == [
+                "generate 100", "unload \(kreaModel)", "load \(enhancerModel)", "unload \(enhancerModel)",
+                "load \(kreaModel)", "generate 200", "generate 300",
+            ])
     }
 
     @Test func aRunningJobWithQueuedJobsOnAnotherModelIsNotRewarmedAndTheQueuedJobLoadsItsModelOnce() async throws {
@@ -255,10 +261,11 @@ private let noGeneration: @Sendable (Int, EngineStubProtocol.Recorded) -> Engine
         EngineStubProtocol.finishHeld(harness.endpoint)
         #expect(try await lease.value == "enhanced")
         try await run.value
-        #expect(harness.engineCalls() == [
-            "generate 100", "unload \(kreaModel)", "load \(enhancerModel)", "unload \(enhancerModel)",
-            "load \(otherModel)", "generate 200", "generate 300",
-        ])
+        #expect(
+            harness.engineCalls() == [
+                "generate 100", "unload \(kreaModel)", "load \(enhancerModel)", "unload \(enhancerModel)",
+                "load \(otherModel)", "generate 200", "generate 300",
+            ])
     }
 
     @Test func aPausedQueueDoesNotBlockTheLeaseAndStaysPaused() async throws {

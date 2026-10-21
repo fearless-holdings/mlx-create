@@ -265,13 +265,14 @@ struct AppHarness {
 
     /// A saved image with settings, for ⌘R and gallery checks.
     func saveImage(prompt: String, model: String = kreaModel, width: Int = 768, height: Int = 768) async throws -> LibraryImage {
-        try await store.saveImage(NewImage(
-            collectionID: collectionID, jobID: nil,
-            pngData: PNGFixture.make(width: width, height: height),
-            settings: ImageSettings(
-                prompt: prompt, negativePrompt: nil, modelID: model, family: "krea-2-turbo",
-                requestedWidth: width, requestedHeight: height, requestedSteps: 6, guidance: nil,
-                seed: 12345, width: width, height: height, steps: 6)))
+        try await store.saveImage(
+            NewImage(
+                collectionID: collectionID, jobID: nil,
+                pngData: PNGFixture.make(width: width, height: height),
+                settings: ImageSettings(
+                    prompt: prompt, negativePrompt: nil, modelID: model, family: "krea-2-turbo",
+                    requestedWidth: width, requestedHeight: height, requestedSteps: 6, guidance: nil,
+                    seed: 12345, width: width, height: height, steps: 6)))
     }
 }
 

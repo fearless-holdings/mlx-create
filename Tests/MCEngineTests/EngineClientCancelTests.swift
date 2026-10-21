@@ -1,6 +1,7 @@
 import Foundation
 import Network
 import Testing
+
 @testable import MCEngine
 
 /// A real loopback HTTP listener. It reports when a request arrives and when the client closes the socket.

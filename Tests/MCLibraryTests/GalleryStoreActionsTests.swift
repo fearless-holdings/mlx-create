@@ -1,6 +1,7 @@
 import Foundation
 import GRDB
 import Testing
+
 @testable import MCLibrary
 
 @Suite struct GalleryStoreActionsTests {
@@ -52,7 +53,10 @@ import Testing
 
         let outcomes = await f.store.deleteImages(ids: [keep.id, drop.id], trash: trashFn)
 
-        guard case .failed(let message) = outcomes[keep.id] else { Issue.record("expected a failure"); return }
+        guard case .failed(let message) = outcomes[keep.id] else {
+            Issue.record("expected a failure")
+            return
+        }
         #expect(message.contains("no Trash"))
         #expect(outcomes[drop.id] == .deleted)
         #expect(try await f.store.image(id: keep.id) != nil)
@@ -72,7 +76,10 @@ import Testing
 
         let outcomes = await f.store.deleteImages(ids: [image.id], trash: trashFn)
 
-        guard case .failed = outcomes[image.id] else { Issue.record("expected a failure"); return }
+        guard case .failed = outcomes[image.id] else {
+            Issue.record("expected a failure")
+            return
+        }
         #expect(try await f.store.image(id: image.id) != nil)
         #expect(await Self.exists(f.store, image.filePath))
     }
@@ -91,11 +98,13 @@ import Testing
 
     @Test func imagesOfAnUnfinishedJobAreSkippedButFinishedOnesGo() async throws {
         let f = try await GalleryFilterTests.fixture()
-        let job = try await f.store.enqueueJob(collectionID: f.collection.id, request: LibraryStoreTests.request(), batchCount: 2, seedPolicy: "{}")
+        let job = try await f.store.enqueueJob(
+            collectionID: f.collection.id, request: LibraryStoreTests.request(), batchCount: 2, seedPolicy: "{}")
         func saveFor(_ job: Job) async throws -> LibraryImage {
-            try await f.store.saveImage(NewImage(
-                collectionID: f.collection.id, jobID: job.id, pngData: try TestPNG.make(width: 16, height: 16),
-                settings: LibraryStoreTests.settings()))
+            try await f.store.saveImage(
+                NewImage(
+                    collectionID: f.collection.id, jobID: job.id, pngData: try TestPNG.make(width: 16, height: 16),
+                    settings: LibraryStoreTests.settings()))
         }
         let trash = FileManager.default.temporaryDirectory.appending(path: "mc-trash-\(UUID().uuidString)")
 
@@ -148,7 +157,8 @@ import Testing
         let second = await f.store.exportImages(ids: [image.id], to: folder)
 
         guard case .exported(let one)? = first[image.id], case .exported(let two)? = second[image.id] else {
-            Issue.record("expected both exports to succeed"); return
+            Issue.record("expected both exports to succeed")
+            return
         }
         #expect(one != two)
         let original = try Data(contentsOf: await f.store.paths.url(relativePath: image.filePath))
@@ -181,7 +191,10 @@ import Testing
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let ghost = UUID()
         let outcomes = await f.store.exportImages(ids: [ghost], to: folder)
-        guard case .failed? = outcomes[ghost] else { Issue.record("expected a failure"); return }
+        guard case .failed? = outcomes[ghost] else {
+            Issue.record("expected a failure")
+            return
+        }
         #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).isEmpty)
     }
 }

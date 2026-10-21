@@ -1,6 +1,7 @@
 import Darwin
 import Foundation
 import Testing
+
 @testable import MCEngine
 
 /// Process-lifecycle smoke against the real engine binary. Runs only when MLXC_ENGINE_BIN points at

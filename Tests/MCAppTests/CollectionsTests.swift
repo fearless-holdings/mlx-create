@@ -10,13 +10,14 @@ import Testing
 /// Stores an image into `collectionID` directly in the library, the way a finished job would.
 @MainActor
 private func storeImage(_ harness: AppHarness, into collectionID: UUID, prompt: String) async throws -> LibraryImage {
-    try await harness.store.saveImage(NewImage(
-        collectionID: collectionID, jobID: nil,
-        pngData: PNGFixture.make(width: 768, height: 768),
-        settings: ImageSettings(
-            prompt: prompt, negativePrompt: nil, modelID: kreaModel, family: "krea-2-turbo",
-            requestedWidth: 768, requestedHeight: 768, requestedSteps: 6, guidance: nil,
-            seed: 12345, width: 768, height: 768, steps: 6)))
+    try await harness.store.saveImage(
+        NewImage(
+            collectionID: collectionID, jobID: nil,
+            pngData: PNGFixture.make(width: 768, height: 768),
+            settings: ImageSettings(
+                prompt: prompt, negativePrompt: nil, modelID: kreaModel, family: "krea-2-turbo",
+                requestedWidth: 768, requestedHeight: 768, requestedSteps: 6, guidance: nil,
+                seed: 12345, width: 768, height: 768, steps: 6)))
 }
 
 @MainActor
@@ -116,8 +117,10 @@ private func storeImage(_ harness: AppHarness, into collectionID: UUID, prompt: 
         let current = try #require(model.selectedModelID)
         let family = try #require(model.selectedModel?.family)
         let other = try await harness.store.createCollection(name: "Tuned")
-        try await harness.store.setCollectionDefaults(id: other.id, CollectionDefaults(
-            modelID: fluxModel, width: 777, height: 777, steps: 3, guidance: nil, negativePrompt: "blurry", loras: []))
+        try await harness.store.setCollectionDefaults(
+            id: other.id,
+            CollectionDefaults(
+                modelID: fluxModel, width: 777, height: 777, steps: 3, guidance: nil, negativePrompt: "blurry", loras: []))
 
         await model.switchCollection(to: other.id)
 

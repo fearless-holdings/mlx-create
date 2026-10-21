@@ -165,13 +165,14 @@ private func writeTurboIndex(under weightsRoot: URL) throws {
         let model = harness.model
         await model.start()
         await model.refreshModels()
-        let image = try await harness.store.saveImage(NewImage(
-            collectionID: harness.collectionID, jobID: nil,
-            pngData: PNGFixture.make(width: 1024, height: 1024),
-            settings: ImageSettings(
-                prompt: "a heron", negativePrompt: nil, modelID: turboModelID, family: "qwen-image-2.1-turbo",
-                requestedWidth: 1024, requestedHeight: 1024, requestedSteps: 8, guidance: nil,
-                seed: 5, width: 1024, height: 1024, steps: 8)))
+        let image = try await harness.store.saveImage(
+            NewImage(
+                collectionID: harness.collectionID, jobID: nil,
+                pngData: PNGFixture.make(width: 1024, height: 1024),
+                settings: ImageSettings(
+                    prompt: "a heron", negativePrompt: nil, modelID: turboModelID, family: "qwen-image-2.1-turbo",
+                    requestedWidth: 1024, requestedHeight: 1024, requestedSteps: 8, guidance: nil,
+                    seed: 5, width: 1024, height: 1024, steps: 8)))
         await model.reload()
         model.selection = image.id
         #expect(model.canReuse)

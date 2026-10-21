@@ -17,8 +17,9 @@ struct LicenseSheet: View {
                 pending.content.commercialUse
                     ? "This license allows commercial use."
                     : "This license does not allow commercial use.",
-                systemImage: pending.content.commercialUse ? "checkmark.seal" : "xmark.seal")
-                .font(.callout)
+                systemImage: pending.content.commercialUse ? "checkmark.seal" : "xmark.seal"
+            )
+            .font(.callout)
             ScrollView {
                 Text(pending.content.summary)
                     .font(.callout)

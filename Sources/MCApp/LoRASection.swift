@@ -95,10 +95,13 @@ struct LoRARowView: View {
     private var summary: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 8) {
-                Toggle(row.name, isOn: Binding(
-                    get: { row.isEnabled },
-                    set: { model.setLoRAEnabled(id: row.id, $0) }
-                ))
+                Toggle(
+                    row.name,
+                    isOn: Binding(
+                        get: { row.isEnabled },
+                        set: { model.setLoRAEnabled(id: row.id, $0) }
+                    )
+                )
                 .toggleStyle(.switch)
                 .controlSize(.small)
                 .lineLimit(1)
@@ -158,10 +161,13 @@ struct LoRARowView: View {
                         .frame(width: 44, alignment: .trailing)
                 }
             }
-            Toggle("Wide range (-20 to 20)", isOn: Binding(
-                get: { row.wideRange },
-                set: { model.setLoRAWideRange(id: row.id, $0) }
-            ))
+            Toggle(
+                "Wide range (-20 to 20)",
+                isOn: Binding(
+                    get: { row.wideRange },
+                    set: { model.setLoRAWideRange(id: row.id, $0) }
+                )
+            )
             .controlSize(.small)
             if !row.triggerWords.isEmpty {
                 LazyVGrid(

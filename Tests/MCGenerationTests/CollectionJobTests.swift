@@ -1,7 +1,8 @@
 import Foundation
 import MCGeneration
-@testable import MCLibrary
 import Testing
+
+@testable import MCLibrary
 
 @Suite struct CollectionJobTests {
     @Test func jobEnqueuedIntoAnotherCollectionSavesThereOnly() async throws {

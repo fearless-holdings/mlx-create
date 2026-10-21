@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import MCEngine
 
 @Suite struct EngineLaunchTests {
@@ -62,7 +63,7 @@ import Testing
 
     @Test func generatedKeysAreBase64URLWithoutPadding() {
         let key = EngineLaunch.makeAPIKey()
-        #expect(key.count == 43) // 32 bytes, base64url, unpadded
+        #expect(key.count == 43)  // 32 bytes, base64url, unpadded
         #expect(!key.contains("+") && !key.contains("/") && !key.contains("="))
     }
 

@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import MCModels
 
 /// Replies in order and records every request. Running out of replies fails the request.
@@ -69,7 +70,7 @@ private let testKey = "civitai-test-key-7f3a"
         let page = try await client.search(
             query: nil, sort: .mostDownloaded, baseModelLabels: ["Flux.2 Klein 4B"], includeNSFW: false, cursor: nil)
 
-        #expect(page.items.map(\.id) == [2416150, 2324991, 2423116])
+        #expect(page.items.map(\.id) == [2_416_150, 2_324_991, 2_423_116])
         #expect(page.nextCursor == "2794|119|2233658")
         let first = try #require(page.items.first)
         #expect(first.name == "Slider-LoRA for Klein4B")
@@ -83,7 +84,7 @@ private let testKey = "civitai-test-key-7f3a"
         #expect(first.license.allowDifferentLicense == true)
 
         let version = try #require(first.versions.first)
-        #expect(version.id == 2797480)
+        #expect(version.id == 2_797_480)
         #expect(version.modelID == nil, "listing versions carry no modelId; the listing item id is the model")
         #expect(version.publishedAt != nil)
         let file = try #require(version.safetensorsFile)
@@ -97,10 +98,10 @@ private let testKey = "civitai-test-key-7f3a"
         let transport = CivitaiScriptedTransport([try ok("version-2797480")])
         let client = CivitaiClient(transport: transport)
 
-        let version = try await client.versionDetail(id: 2797480)
+        let version = try await client.versionDetail(id: 2_797_480)
 
-        #expect(version.id == 2797480)
-        #expect(version.modelID == 2416150)
+        #expect(version.id == 2_797_480)
+        #expect(version.modelID == 2_416_150)
         #expect(version.name == "People")
         #expect(version.trainedWords.isEmpty)
         #expect(version.files.map(\.name) == ["people_4B.safetensors"])
@@ -118,10 +119,11 @@ private let testKey = "civitai-test-key-7f3a"
         let found = try await client.versionByHash(sha256: "33bdd0ed92ebcb493f79818864850af379a80e495d7b60aac7fb06022a616c36")
         let version = try #require(found)
 
-        #expect(version.id == 2797480)
+        #expect(version.id == 2_797_480)
         #expect(version.files.first?.sha256 == "33bdd0ed92ebcb493f79818864850af379a80e495d7b60aac7fb06022a616c36")
-        #expect(transport.requests.first?.url?.path
-            == "/api/v1/model-versions/by-hash/33BDD0ED92EBCB493F79818864850AF379A80E495D7B60AAC7FB06022A616C36")
+        #expect(
+            transport.requests.first?.url?.path
+                == "/api/v1/model-versions/by-hash/33BDD0ED92EBCB493F79818864850AF379A80E495D7B60AAC7FB06022A616C36")
     }
 
     // MARK: Synthetic shapes
@@ -130,7 +132,7 @@ private let testKey = "civitai-test-key-7f3a"
         let transport = CivitaiScriptedTransport([try ok("version-SYNTHETIC-several-files")])
         let client = CivitaiClient(transport: transport)
 
-        let version = try await client.versionDetail(id: 9100001)
+        let version = try await client.versionDetail(id: 9_100_001)
 
         let file = try #require(version.safetensorsFile)
         #expect(file.name == "style_v2.safetensors")
@@ -144,7 +146,7 @@ private let testKey = "civitai-test-key-7f3a"
         let transport = CivitaiScriptedTransport([try ok("version-SYNTHETIC-no-safetensors")])
         let client = CivitaiClient(transport: transport)
 
-        let version = try await client.versionDetail(id: 9100002)
+        let version = try await client.versionDetail(id: 9_100_002)
 
         #expect(version.safetensorsFile == nil, "a renamed file whose metadata is not SafeTensor is not offered")
         #expect(version.files.allSatisfy { !$0.isSafetensors })
@@ -234,8 +236,8 @@ private let testKey = "civitai-test-key-7f3a"
         let none = CivitaiClient(transport: transport, savedKey: { nil })
         let empty = CivitaiClient(transport: transport, savedKey: { "" })
 
-        _ = try await none.versionDetail(id: 2797480)
-        _ = try await empty.versionDetail(id: 2797480)
+        _ = try await none.versionDetail(id: 2_797_480)
+        _ = try await empty.versionDetail(id: 2_797_480)
 
         #expect(transport.requests.allSatisfy { $0.value(forHTTPHeaderField: "Authorization") == nil })
     }
@@ -308,11 +310,11 @@ private let testKey = "civitai-test-key-7f3a"
     @Test func unauthorizedAndForbiddenMeanNeedsKeyWithCivitaisMessage() async throws {
         for status in [401, 403] {
             let transport = CivitaiScriptedTransport([
-                civitaiReply(status, body: #"{"message":"Login required to download this file."}"#),
+                civitaiReply(status, body: #"{"message":"Login required to download this file."}"#)
             ])
             let client = CivitaiClient(transport: transport)
 
-            let error = await caught { try await client.versionDetail(id: 2797480) }
+            let error = await caught { try await client.versionDetail(id: 2_797_480) }
 
             #expect(error as? CivitaiError == .needsKey(message: "Login required to download this file."))
         }
@@ -322,14 +324,14 @@ private let testKey = "civitai-test-key-7f3a"
         let transport = CivitaiScriptedTransport([civitaiReply(401, body: #"{"message":"Invalid key"}"#)])
         let client = CivitaiClient(transport: transport, savedKey: { testKey })
 
-        let error = await caught { try await client.versionDetail(id: 2797480) }
+        let error = await caught { try await client.versionDetail(id: 2_797_480) }
 
         #expect(error as? CivitaiError == .keyRefused)
     }
 
     @Test func regionLimitedResponseIsItsOwnError() async throws {
         let transport = CivitaiScriptedTransport([
-            .respond(CivitaiResponse(status: 451, body: try civitaiFixture("region-limited-SYNTHETIC"))),
+            .respond(CivitaiResponse(status: 451, body: try civitaiFixture("region-limited-SYNTHETIC")))
         ])
         let client = CivitaiClient(transport: transport)
 
@@ -342,11 +344,11 @@ private let testKey = "civitai-test-key-7f3a"
 
     @Test func tooManyRequestsIsRateLimitedNotAGenericFailure() async throws {
         let transport = CivitaiScriptedTransport([
-            .respond(CivitaiResponse(status: 429, body: try civitaiFixture("rate-limited-SYNTHETIC"))),
+            .respond(CivitaiResponse(status: 429, body: try civitaiFixture("rate-limited-SYNTHETIC")))
         ])
         let client = CivitaiClient(transport: transport)
 
-        let error = await caught { try await client.versionDetail(id: 2797480) }
+        let error = await caught { try await client.versionDetail(id: 2_797_480) }
 
         #expect(error as? CivitaiError == .rateLimited)
     }
@@ -355,7 +357,7 @@ private let testKey = "civitai-test-key-7f3a"
         let transport = CivitaiScriptedTransport([civitaiReply(500)])
         let client = CivitaiClient(transport: transport)
 
-        let error = await caught { try await client.versionDetail(id: 2797480) }
+        let error = await caught { try await client.versionDetail(id: 2_797_480) }
 
         #expect(error as? CivitaiError == .httpStatus(500))
     }
@@ -364,7 +366,7 @@ private let testKey = "civitai-test-key-7f3a"
         let transport = CivitaiScriptedTransport([.fail(URLError(.notConnectedToInternet))])
         let client = CivitaiClient(transport: transport)
 
-        let error = await caught { try await client.versionDetail(id: 2797480) }
+        let error = await caught { try await client.versionDetail(id: 2_797_480) }
 
         #expect(error as? CivitaiError == .network)
         let description = (error as? LocalizedError)?.errorDescription
@@ -375,7 +377,7 @@ private let testKey = "civitai-test-key-7f3a"
         let transport = CivitaiScriptedTransport([.fail(URLError(.cancelled))])
         let client = CivitaiClient(transport: transport)
 
-        let error = await caught { try await client.versionDetail(id: 2797480) }
+        let error = await caught { try await client.versionDetail(id: 2_797_480) }
 
         #expect(error is CancellationError)
     }
@@ -384,7 +386,7 @@ private let testKey = "civitai-test-key-7f3a"
         let transport = CivitaiScriptedTransport([civitaiReply(200, body: "<html>maintenance</html>")])
         let client = CivitaiClient(transport: transport)
 
-        let error = await caught { try await client.versionDetail(id: 2797480) }
+        let error = await caught { try await client.versionDetail(id: 2_797_480) }
 
         #expect(error as? CivitaiError == .malformedResponse)
     }

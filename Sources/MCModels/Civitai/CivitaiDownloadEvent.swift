@@ -93,7 +93,8 @@ public enum CivitaiDownloadError: Error, Sendable, Equatable, LocalizedError {
             return "This LoRA is \(size.formatted(style)), over the \(cap.formatted(style)) limit."
         case .insufficientDisk(let needed, let available):
             let style = ByteCountFormatStyle(style: .file)
-            return "Not enough free disk space. This download needs \(needed.formatted(style)) free (remaining bytes plus 1 GB), but \(available.formatted(style)) is available."
+            return
+                "Not enough free disk space. This download needs \(needed.formatted(style)) free (remaining bytes plus 1 GB), but \(available.formatted(style)) is available."
         case .insecureAddress:
             return "Civitai's download address is not https, so the download was not started."
         case .needsKey:

@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import MCCatalog
 
 @Suite struct ModelFamilyRecordTests {
@@ -25,18 +26,18 @@ import Testing
 
     @Test func recordWithoutStepsAreFixedOrRequiresTraitDecodesAsAdjustableAndUngated() throws {
         let json = """
-        {
-          "id": "test-family",
-          "displayName": "Test",
-          "architectures": ["test_arch"],
-          "sizeGrid": { "multiple": 16, "min": 256, "max": 2048 },
-          "sizePresets": [{ "width": 512, "height": 512 }],
-          "defaultSize": { "width": 512, "height": 512 },
-          "steps": { "defaultSteps": 4, "min": 1, "max": 100 },
-          "guidance": null,
-          "supportsNegativePrompt": false
-        }
-        """
+            {
+              "id": "test-family",
+              "displayName": "Test",
+              "architectures": ["test_arch"],
+              "sizeGrid": { "multiple": 16, "min": 256, "max": 2048 },
+              "sizePresets": [{ "width": 512, "height": 512 }],
+              "defaultSize": { "width": 512, "height": 512 },
+              "steps": { "defaultSteps": 4, "min": 1, "max": 100 },
+              "guidance": null,
+              "supportsNegativePrompt": false
+            }
+            """
         let family = try JSONDecoder().decode(ModelFamily.self, from: Data(json.utf8))
         #expect(family.stepsAreFixed == false)
         #expect(family.requiresTrait == nil)
@@ -46,20 +47,20 @@ import Testing
 
     @Test func recordWithStepsAreFixedAndRequiresTraitDecodesThose() throws {
         let json = """
-        {
-          "id": "test-fixed",
-          "displayName": "Test Fixed",
-          "architectures": ["test_arch"],
-          "requiresTrait": "sample_sigmas",
-          "sizeGrid": { "multiple": 16, "min": 256, "max": 2048 },
-          "sizePresets": [{ "width": 512, "height": 512 }],
-          "defaultSize": { "width": 512, "height": 512 },
-          "steps": { "defaultSteps": 8, "min": 8, "max": 8 },
-          "stepsAreFixed": true,
-          "guidance": null,
-          "supportsNegativePrompt": false
-        }
-        """
+            {
+              "id": "test-fixed",
+              "displayName": "Test Fixed",
+              "architectures": ["test_arch"],
+              "requiresTrait": "sample_sigmas",
+              "sizeGrid": { "multiple": 16, "min": 256, "max": 2048 },
+              "sizePresets": [{ "width": 512, "height": 512 }],
+              "defaultSize": { "width": 512, "height": 512 },
+              "steps": { "defaultSteps": 8, "min": 8, "max": 8 },
+              "stepsAreFixed": true,
+              "guidance": null,
+              "supportsNegativePrompt": false
+            }
+            """
         let family = try JSONDecoder().decode(ModelFamily.self, from: Data(json.utf8))
         #expect(family.stepsAreFixed == true)
         #expect(family.requiresTrait == "sample_sigmas")

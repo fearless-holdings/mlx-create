@@ -38,7 +38,7 @@ public enum ImageGenerationReader {
 
         for chunk in chunks where isParametersChunk(chunk) {
             guard let text = parametersText(of: chunk),
-                  var parsed = A1111Parameters.parse(text)
+                var parsed = A1111Parameters.parse(text)
             else { continue }
             parsed.newerSchemaFallback = newerSchema
             return .data(parsed)
@@ -55,7 +55,7 @@ public enum ImageGenerationReader {
 
     private static func readEXIF(_ data: Data) -> ImageReadResult {
         guard let text = EXIFUserComment.read(from: data),
-              var parsed = A1111Parameters.parse(text)
+            var parsed = A1111Parameters.parse(text)
         else { return .none }
         parsed.source = .exif
         return .data(parsed)

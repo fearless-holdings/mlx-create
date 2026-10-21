@@ -1,7 +1,7 @@
 import Foundation
 import MCCatalog
-import MCEnhancer
 import MCEngine
+import MCEnhancer
 import MCLibrary
 import Testing
 
@@ -138,8 +138,10 @@ private func generateOne(_ harness: AppHarness) async throws -> ImageSettings {
 
         #expect(await model.startEnhance() == .started)
         await model.enhanceTask?.value
-        #expect(model.enhanceState == .ready(
-            EnhancedPrompt(prompt: "a misty lighthouse at dusk", negativePrompt: nil), stale: false))
+        #expect(
+            model.enhanceState
+                == .ready(
+                    EnhancedPrompt(prompt: "a misty lighthouse at dusk", negativePrompt: nil), stale: false))
 
         model.acceptEnhance()
         #expect(model.prompt == "a misty lighthouse at dusk")
@@ -269,17 +271,21 @@ private func generateOne(_ harness: AppHarness) async throws -> ImageSettings {
 
         #expect(await model.startEnhance() == .started)
         await model.enhanceTask?.value
-        #expect(model.enhanceState == .ready(
-            EnhancedPrompt(prompt: "a dim lighthouse at night", negativePrompt: nil), stale: false))
+        #expect(
+            model.enhanceState
+                == .ready(
+                    EnhancedPrompt(prompt: "a dim lighthouse at night", negativePrompt: nil), stale: false))
         model.acceptEnhance()
         #expect(model.prompt == "a dim lighthouse at night")
         #expect(model.originalPrompt == "a lighthouse at night")
     }
 
     @Test func anImageMadeAfterAcceptStoresTheOriginalPromptInItsMetadata() async throws {
-        let harness = try await enhancerHarness(script: immediateImage, chat: { _, _ in
-            chatReply("a misty lighthouse at dusk")
-        })
+        let harness = try await enhancerHarness(
+            script: immediateImage,
+            chat: { _, _ in
+                chatReply("a misty lighthouse at dusk")
+            })
         let model = await readyKrea(harness, prompt: "a lighthouse")
         #expect(await model.startEnhance() == .started)
         await model.enhanceTask?.value
@@ -292,9 +298,11 @@ private func generateOne(_ harness: AppHarness) async throws -> ImageSettings {
     }
 
     @Test func aRevertLeavesTheOriginalPromptAnImageAlreadyHadInItsMetadata() async throws {
-        let harness = try await enhancerHarness(script: immediateImage, chat: { number, _ in
-            chatReply(number == 1 ? "a misty lighthouse at dusk" : "a dim lighthouse")
-        })
+        let harness = try await enhancerHarness(
+            script: immediateImage,
+            chat: { number, _ in
+                chatReply(number == 1 ? "a misty lighthouse at dusk" : "a dim lighthouse")
+            })
         let model = await readyKrea(harness, prompt: "a lighthouse")
         #expect(await model.startEnhance() == .started)
         await model.enhanceTask?.value
@@ -311,9 +319,11 @@ private func generateOne(_ harness: AppHarness) async throws -> ImageSettings {
     }
 
     @Test func emptyingThePromptStoresNoOriginalInTheNextImage() async throws {
-        let harness = try await enhancerHarness(script: immediateImage, chat: { _, _ in
-            chatReply("a misty lighthouse at dusk")
-        })
+        let harness = try await enhancerHarness(
+            script: immediateImage,
+            chat: { _, _ in
+                chatReply("a misty lighthouse at dusk")
+            })
         let model = await readyKrea(harness, prompt: "a lighthouse")
         #expect(await model.startEnhance() == .started)
         await model.enhanceTask?.value
@@ -381,11 +391,14 @@ private func generateOne(_ harness: AppHarness) async throws -> ImageSettings {
             EngineStubProtocol.requests(harness.endpoint).dropFirst(before).compactMap(residencyStep).count == 5
         }
         let steps = EngineStubProtocol.requests(harness.endpoint).dropFirst(before).compactMap(residencyStep)
-        #expect(steps == [
-            "v1/unload-model \(kreaModel)", "v1/load-model \(enhancerRepo)", "\(chatPath) \(enhancerRepo)",
-            "v1/unload-model \(enhancerRepo)", "v1/load-model \(kreaModel)",
-        ])
-        #expect(model.enhanceState == .ready(
-            EnhancedPrompt(prompt: "a misty lighthouse at dusk", negativePrompt: nil), stale: false))
+        #expect(
+            steps == [
+                "v1/unload-model \(kreaModel)", "v1/load-model \(enhancerRepo)", "\(chatPath) \(enhancerRepo)",
+                "v1/unload-model \(enhancerRepo)", "v1/load-model \(kreaModel)",
+            ])
+        #expect(
+            model.enhanceState
+                == .ready(
+                    EnhancedPrompt(prompt: "a misty lighthouse at dusk", negativePrompt: nil), stale: false))
     }
 }

@@ -1,15 +1,17 @@
 import Foundation
-@testable import MCEngine
 import MCGeneration
 import MCLibrary
 import Testing
 
+@testable import MCEngine
+
 /// KTD15: every out-of-memory input stores the same message and retryable flag, whichever path reported it.
 @Suite struct OutOfMemoryAgreementTests {
     private static func crashFailure(_ kind: CrashKind, detail: String) -> JobFailure {
-        FailureMapping.failure(for: EngineCrash(
-            kind: kind, message: EngineSupervisor.userMessage(for: kind), detail: detail, exit: nil
-        ))
+        FailureMapping.failure(
+            for: EngineCrash(
+                kind: kind, message: EngineSupervisor.userMessage(for: kind), detail: detail, exit: nil
+            ))
     }
 
     @Test func the503RefusalAndEveryOutOfMemoryCrashStoreTheSameFailure() {

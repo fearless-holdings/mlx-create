@@ -1,6 +1,7 @@
 import Foundation
 import GRDB
 import Testing
+
 @testable import MCLibrary
 
 @Suite struct LoRATypesTests {
@@ -28,8 +29,11 @@ import Testing
 
         try await store.dbQueue.write { db in
             try db.execute(
-                sql: "INSERT INTO job (id, collection_id, mode, request, batch_count, seed_policy, status, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                arguments: [UUID().uuidString, collection.id.uuidString, Job.textToImageMode, legacy, 1, "fixed", JobStatus.queued.rawValue, 1])
+                sql:
+                    "INSERT INTO job (id, collection_id, mode, request, batch_count, seed_policy, status, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                arguments: [
+                    UUID().uuidString, collection.id.uuidString, Job.textToImageMode, legacy, 1, "fixed", JobStatus.queued.rawValue, 1,
+                ])
         }
 
         let queued = try #require(try await store.jobs(status: .queued).first)
@@ -57,12 +61,15 @@ import Testing
         let store = try LibraryStore(libraryRoot: root, modelsRoot: models)
         let collection = try await store.defaultCollection()
         let stack = [
-            LoRAStackEntry(id: "lora-a", name: "Pixel art", sha256: Self.hash("a"), weight: 0.8,
-                           relativePath: "LoRAs/krea-2/aaaaaaaaaa-pixel-art.safetensors"),
-            LoRAStackEntry(id: "lora-b", name: "Film grain", sha256: Self.hash("b"), weight: -1.25,
-                           relativePath: "LoRAs/krea-2/bbbbbbbbbb-film-grain.safetensors"),
-            LoRAStackEntry(id: "lora-c", name: "Portrait", sha256: Self.hash("c"), weight: 2,
-                           relativePath: "LoRAs/krea-2/cccccccccc-portrait.safetensors"),
+            LoRAStackEntry(
+                id: "lora-a", name: "Pixel art", sha256: Self.hash("a"), weight: 0.8,
+                relativePath: "LoRAs/krea-2/aaaaaaaaaa-pixel-art.safetensors"),
+            LoRAStackEntry(
+                id: "lora-b", name: "Film grain", sha256: Self.hash("b"), weight: -1.25,
+                relativePath: "LoRAs/krea-2/bbbbbbbbbb-film-grain.safetensors"),
+            LoRAStackEntry(
+                id: "lora-c", name: "Portrait", sha256: Self.hash("c"), weight: 2,
+                relativePath: "LoRAs/krea-2/cccccccccc-portrait.safetensors"),
         ]
         let request = JobRequest(modelID: "krea-2-turbo", family: "krea-2", prompt: "a fox", width: 512, height: 512, loras: stack)
         for entry in stack {

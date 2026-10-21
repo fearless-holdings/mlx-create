@@ -105,7 +105,8 @@ public enum InstallError: Error, Sendable, Equatable, LocalizedError {
             return "\(path) was rejected: \(reason)."
         case .insufficientDisk(let needed, let available):
             let style = ByteCountFormatStyle(style: .file)
-            return "Not enough free disk space. This download needs \(needed.formatted(style)) free (remaining bytes plus 1 GB), but \(available.formatted(style)) is available."
+            return
+                "Not enough free disk space. This download needs \(needed.formatted(style)) free (remaining bytes plus 1 GB), but \(available.formatted(style)) is available."
         case .destinationExists(let path):
             return "A model is already installed at \(path)."
         case .sizeMismatch(let path, let planned, let server):
@@ -119,7 +120,8 @@ public enum InstallError: Error, Sendable, Equatable, LocalizedError {
         case .httpStatus(let path, let status):
             switch status {
             case 404, 410:
-                return "The pinned revision of \(path) is no longer served. This version of mlx-create needs an update to install this model."
+                return
+                    "The pinned revision of \(path) is no longer served. This version of mlx-create needs an update to install this model."
             case 401, 403:
                 return "Access to \(path) was refused by the server."
             case 429, 500...599:

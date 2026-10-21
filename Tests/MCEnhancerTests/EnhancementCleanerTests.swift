@@ -28,10 +28,12 @@ private func occurrences(of word: String, in text: String) -> Int {
     }
 
     @Test func wrappingQuotesAreRemoved() {
-        #expect(EnhancementCleaner.clean("\"a red car at dusk\"", triggerWords: [], expectsNegativePrompt: false)?.prompt
-            == "a red car at dusk")
-        #expect(EnhancementCleaner.clean("\u{201C}a red car at dusk\u{201D}", triggerWords: [], expectsNegativePrompt: false)?.prompt
-            == "a red car at dusk")
+        #expect(
+            EnhancementCleaner.clean("\"a red car at dusk\"", triggerWords: [], expectsNegativePrompt: false)?.prompt
+                == "a red car at dusk")
+        #expect(
+            EnhancementCleaner.clean("\u{201C}a red car at dusk\u{201D}", triggerWords: [], expectsNegativePrompt: false)?.prompt
+                == "a red car at dusk")
     }
 
     @Test func quotesInsideTheTextAreKept() {
@@ -41,10 +43,12 @@ private func occurrences(of word: String, in text: String) -> Int {
     }
 
     @Test func aFencedBlockIsUnwrappedWithOrWithoutALanguageTag() {
-        #expect(EnhancementCleaner.clean("```text\na red car at dusk\n```", triggerWords: [], expectsNegativePrompt: false)?.prompt
-            == "a red car at dusk")
-        #expect(EnhancementCleaner.clean("```\na red car at dusk\n```", triggerWords: [], expectsNegativePrompt: false)?.prompt
-            == "a red car at dusk")
+        #expect(
+            EnhancementCleaner.clean("```text\na red car at dusk\n```", triggerWords: [], expectsNegativePrompt: false)?.prompt
+                == "a red car at dusk")
+        #expect(
+            EnhancementCleaner.clean("```\na red car at dusk\n```", triggerWords: [], expectsNegativePrompt: false)?.prompt
+                == "a red car at dusk")
     }
 
     @Test func aFenceWhoseFirstLineIsPromptTextKeepsIt() {
@@ -54,12 +58,14 @@ private func occurrences(of word: String, in text: String) -> Int {
     }
 
     @Test func aLeadingReasoningBlockIsRemoved() {
-        #expect(EnhancementCleaner.clean(
-            "<think>\nThe user wants a car.\n</think>\n\na red car at dusk", triggerWords: [], expectsNegativePrompt: false)?.prompt
-            == "a red car at dusk")
-        #expect(EnhancementCleaner.clean(
-            "<thinking>plan</thinking>a red car at dusk", triggerWords: [], expectsNegativePrompt: false)?.prompt
-            == "a red car at dusk")
+        #expect(
+            EnhancementCleaner.clean(
+                "<think>\nThe user wants a car.\n</think>\n\na red car at dusk", triggerWords: [], expectsNegativePrompt: false)?.prompt
+                == "a red car at dusk")
+        #expect(
+            EnhancementCleaner.clean(
+                "<thinking>plan</thinking>a red car at dusk", triggerWords: [], expectsNegativePrompt: false)?.prompt
+                == "a red car at dusk")
     }
 
     @Test func fencesQuotesAndReasoningTogetherStillLeaveThePromptAndKeepTheTriggerWord() {

@@ -118,7 +118,8 @@ extension AppModel {
         // The canvas may have changed, or the query may have moved on, while the store was read.
         guard selection == canvas, query == galleryQuery else { return }
         let listed = Set(galleryImages.map(\.id))
-        selection = GalleryNavigation.neighbour(of: canvas, in: previousOrder, where: listed.contains)
+        selection =
+            GalleryNavigation.neighbour(of: canvas, in: previousOrder, where: listed.contains)
             ?? galleryImages.first?.id
     }
 
@@ -151,7 +152,8 @@ extension AppModel {
             galleryAnchor = id
         case .range:
             if let anchor = galleryAnchor,
-               let range = GalleryNavigation.range(from: anchor, to: id, in: galleryImages.map(\.id)) {
+                let range = GalleryNavigation.range(from: anchor, to: id, in: galleryImages.map(\.id))
+            {
                 gallerySelection = Set(range)
             } else {
                 gallerySelection = [id]
@@ -323,7 +325,8 @@ extension AppModel {
     /// a page read that started before cannot put them back.
     private func removeFromGallery(_ ids: Set<UUID>, canvasToNeighbour: Bool) {
         if let canvas = selection, ids.contains(canvas) {
-            selection = canvasToNeighbour
+            selection =
+                canvasToNeighbour
                 ? GalleryNavigation.neighbour(of: canvas, in: galleryImages.map(\.id), where: { !ids.contains($0) })
                 : nil
         }
@@ -334,6 +337,6 @@ extension AppModel {
     }
 }
 
-private extension String {
-    var nilIfEmpty: String? { isEmpty ? nil : self }
+extension String {
+    fileprivate var nilIfEmpty: String? { isEmpty ? nil : self }
 }
