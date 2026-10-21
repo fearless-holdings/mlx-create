@@ -280,8 +280,9 @@ extension LibraryStore {
     // MARK: Export (KTD6)
 
     /// Copies each image's PNG into `folder` byte for byte, so the prompt and settings metadata stay in the file. A name
-    /// that is already taken gets a numeric suffix; nothing is overwritten (R7).
-    public func exportImages(ids: [UUID], to folder: URL) -> [UUID: ImageExportOutcome] {
+    /// that is already taken gets a numeric suffix; nothing is overwritten (R7). `baseName` names a single image's file,
+    /// as chosen in a save panel; with several images it is ignored.
+    public func exportImages(ids: [UUID], to folder: URL, baseName: String? = nil) -> [UUID: ImageExportOutcome] {
         let fm = FileManager.default
         var outcomes: [UUID: ImageExportOutcome] = [:]
         for id in ids {
@@ -291,7 +292,8 @@ extension LibraryStore {
                     continue
                 }
                 let source = paths.url(relativePath: image.filePath)
-                let target = Self.uniqueURL(in: folder, base: Self.exportBaseName(image), ext: "png")
+                let name = ids.count == 1 ? (baseName ?? Self.exportBaseName(image)) : Self.exportBaseName(image)
+                let target = Self.uniqueURL(in: folder, base: name, ext: "png")
                 try fm.copyItem(at: source, to: target)
                 outcomes[id] = .exported(target)
             } catch {
@@ -302,7 +304,7 @@ extension LibraryStore {
     }
 
     /// `<first words of the prompt>-<seed>`, safe as a file name.
-    static func exportBaseName(_ image: LibraryImage) -> String {
+    public static func exportBaseName(_ image: LibraryImage) -> String {
         let words = image.prompt.split(whereSeparator: \.isWhitespace).prefix(6).joined(separator: "-")
         let slug = String(words.unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) || $0 == "-" }
             .map(Character.init)).lowercased()

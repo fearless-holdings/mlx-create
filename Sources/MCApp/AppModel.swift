@@ -106,6 +106,26 @@ public final class AppModel {
     public var seedText = ""
     public var lastError: String?
     public var selection: UUID?
+    /// The images the gallery actions work on (D37). Separate from `selection`, which is what the canvas shows.
+    var gallerySelection: Set<UUID> = []
+    /// The last image clicked without ⇧, where a ⇧-click range starts.
+    var galleryAnchor: UUID?
+    /// The gallery search text and filters. Change them through `setGallerySearch`, `toggleGalleryModel`,
+    /// `toggleGalleryLoRA` and `clearGalleryFilters`, which also reload the gallery.
+    var gallerySearch = ""
+    var galleryModelFilter: Set<String> = []
+    var galleryLoRAFilter: Set<String> = []
+    /// The model and LoRA choices for the current query, and how many images match it.
+    var galleryFacets = GalleryFacets()
+    var galleryMatchCount = 0
+    /// The last delete or export result, shown under the grid until the next action.
+    var galleryStatus: String?
+    /// Set while a delete runs, so no second action starts.
+    var galleryBulk: GalleryBulkProgress?
+    /// Side effects of the gallery actions, injected so tests run without the Trash, Finder or panels (KTD7).
+    @ObservationIgnored var trashFile: TrashFunction = AppModel.systemTrash
+    @ObservationIgnored var revealFiles: @MainActor ([URL]) -> Void = AppModel.systemReveal
+    @ObservationIgnored var chooseExportTarget: @MainActor (ExportRequest) -> URL? = AppModel.exportPanel
 
     /// LoRA state (U6). The stack is plain state: rows derive from it, so a model switch never edits it.
     var loraSlots: [LoRAStackSlot] = []
@@ -356,8 +376,10 @@ public final class AppModel {
         galleryImages.first { $0.id == selection }
     }
 
+    /// Reuse works on one image: the gallery selection when it holds one, else the image shown in the canvas. With
+    /// several selected it is unavailable (R8).
     public var canReuse: Bool {
-        selectedImage != nil
+        reuseTarget != nil
     }
 
     private var engineFailed: Bool {
@@ -566,9 +588,9 @@ public final class AppModel {
         }
     }
 
-    /// ⌘R: the selected image's settings go back into the composer.
+    /// ⌘R: the reusable image's settings go back into the composer.
     public func reuseSelectedImageSettings() async {
-        guard let image = selectedImage else { return }
+        guard let image = reuseTarget else { return }
         reuseSettings(of: image)
     }
 
@@ -749,22 +771,25 @@ public final class AppModel {
         }
     }
 
-    /// Fetches the first gallery page. When more pages are already loaded, it refetches all of them instead, so a
-    /// reload never collapses the gallery back to one page under the user's scroll position. A read that a page, a
-    /// prepended image or a move overtook is read again, so the result that lands is never older than those changes.
-    private func reloadGallery() async {
+    /// Fetches the first gallery page of the current query. When more pages are already loaded, it refetches all of them
+    /// instead, so a reload never collapses the gallery back to one page under the user's scroll position. A read that a
+    /// page, a prepended image, a move or a query change overtook is read again, so the result that lands is never
+    /// older than those changes.
+    func reloadGallery() async {
         while true {
             let revision = galleryRevision
-            let collectionID = currentCollection.id
+            let query = galleryQuery
             do {
                 let count = max(Self.galleryPageSize, galleryImages.count)
                 // One extra row shows whether another page follows, so an exact multiple of the page size is right.
-                let rows = try await store.recentImages(collectionID: collectionID, limit: count + 1, offset: 0)
-                guard collectionID == currentCollection.id else { return }
+                let rows = try await store.recentImages(query: query, limit: count + 1, offset: 0)
+                guard query.collectionID == currentCollection.id else { return }
                 guard revision == galleryRevision else { continue }
                 galleryLoaded = true
                 galleryImages = Array(rows.prefix(count))
                 hasMoreImages = rows.count > count
+                pruneGallerySelection()
+                await refreshGalleryMeta()
                 return
             } catch {
                 lastError = message(for: error)
@@ -779,13 +804,14 @@ public final class AppModel {
         isLoadingMoreImages = true
         defer { isLoadingMoreImages = false }
         let revision = galleryRevision
-        let collectionID = currentCollection.id
+        let query = galleryQuery
         do {
             // One extra row shows whether another page follows, so an exact multiple of the page size is right.
             let rows = try await store.recentImages(
-                collectionID: collectionID, limit: Self.galleryPageSize + 1, offset: galleryImages.count)
-            // A switch, a move or a prepend that landed while this page was read makes its rows and offsets stale.
-            guard revision == galleryRevision, collectionID == currentCollection.id else { return }
+                query: query, limit: Self.galleryPageSize + 1, offset: galleryImages.count)
+            // A switch, a move, a filter change or a prepend that landed while this page was read makes its rows and
+            // offsets stale.
+            guard revision == galleryRevision, query == galleryQuery else { return }
             // A save that lands while this page is read shifts the offsets by one, so skip images already shown.
             let shown = Set(galleryImages.map(\.id))
             let fresh = rows.prefix(Self.galleryPageSize).filter { !shown.contains($0.id) }
@@ -800,17 +826,26 @@ public final class AppModel {
     }
 
     /// Handles a save. The image joins the gallery, and the selection follows the job's placeholder, only when the image
-    /// is in the current collection (KTD8). A save into another collection changes neither. Any gallery read in flight
-    /// is made to read again, because it may not have seen this image yet.
+    /// is in the current collection and matches the search and filters (KTD8). Any other save changes neither. Any
+    /// gallery read in flight is made to read again, because it may not have seen this image yet.
     private func prependImage(jobID: UUID, id imageID: UUID) async {
         do {
-            // The collection is read after the await, so the check and the change below run in one main-actor step.
-            guard let image = try await store.image(id: imageID), image.collectionID == currentCollection.id else { return }
+            let query = galleryQuery
+            let image = try await store.image(id: imageID, matching: query)
+            // The query is compared after the await, so the check and the change below run in one main-actor step.
+            guard query == galleryQuery else { return }
+            guard let image else {
+                // A save that the filters hide still changes what the filter lists and the match count show.
+                if query.collectionID == currentCollection.id { await refreshGalleryMeta() }
+                return
+            }
             if selection == jobID { selection = imageID }
             galleryRevision += 1
             // Before the first gallery load there is nothing to prepend to, and that load reads the image anyway.
-            guard galleryLoaded, !galleryImages.contains(where: { $0.id == imageID }) else { return }
-            galleryImages.insert(image, at: 0)
+            if galleryLoaded, !galleryImages.contains(where: { $0.id == imageID }) {
+                galleryImages.insert(image, at: 0)
+            }
+            await refreshGalleryMeta()
         } catch {
             lastError = message(for: error)
         }
@@ -835,7 +870,7 @@ public final class AppModel {
 
     // MARK: Messages
 
-    private func displayName(for modelID: String) -> String {
+    func displayName(for modelID: String) -> String {
         models.first { $0.id == modelID }?.family?.displayName ?? modelID
     }
 
