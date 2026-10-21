@@ -33,9 +33,11 @@ struct SourceModel: Decodable, Equatable {
     let ref: String
     let ramGB: Double
     let license: CatalogLicense
+    /// Absent means image (KTD4).
+    let kind: CatalogModelKind?
 
     enum CodingKeys: String, CodingKey {
-        case id, family, name, quantization, repo, ref, license
+        case id, family, name, quantization, repo, ref, license, kind
         case ramGB = "ram_gb"
     }
 }
@@ -92,7 +94,7 @@ struct CatalogBuilder: Sendable {
             id: entry.id, family: entry.family, name: entry.name, quantization: entry.quantization,
             repo: entry.repo, revision: revision,
             downloadBytes: files.reduce(0) { $0 + $1.size }, ramGB: entry.ramGB,
-            license: entry.license, files: files)
+            license: entry.license, files: files, kind: entry.kind ?? .image)
         try model.validate()
         return (model, dropped)
     }

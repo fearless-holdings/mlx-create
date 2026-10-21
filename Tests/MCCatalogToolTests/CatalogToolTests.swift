@@ -87,6 +87,17 @@ enum BuildFixture {
         #expect(build.skipped.contains("demo-model: README.md"))
     }
 
+    /// An enhancer in the source must come out as an enhancer, and an entry with no kind as an image model.
+    @Test func sourceKindIsCarriedIntoTheBuiltCatalog() async throws {
+        let json = BuildFixture.sourceJSON.replacingOccurrences(
+            of: "\"id\": \"demo-model\",", with: "\"id\": \"demo-model\",\n\"kind\": \"enhancer\",")
+        let source = try SourceCatalog.load(Data(json.utf8))
+        let enhancer = try await CatalogBuilder(hub: BuildFixture.hub()).build(source: source, previous: nil)
+        #expect(enhancer.catalog.models.first?.kind == .enhancer)
+        let image = try await CatalogBuilder(hub: BuildFixture.hub()).build(source: BuildFixture.source(), previous: nil)
+        #expect(image.catalog.models.first?.kind == .image)
+    }
+
     @Test func identicalInputsProduceByteIdenticalOutput() async throws {
         let first = try await CatalogBuilder(hub: BuildFixture.hub()).build(source: BuildFixture.source(), previous: nil)
         let second = try await CatalogBuilder(hub: BuildFixture.hub()).build(source: BuildFixture.source(), previous: nil)
@@ -253,6 +264,7 @@ enum BuildFixture {
         #expect(
             catalog.models.map(\.id) == [
                 "flux2-klein-4b-mflux-4bit", "krea-2-turbo-mixed-4-8", "qwen-image-2.1-turbo-4bit",
+                "gemma-4-e4b-heretic-4bit",
             ])
     }
 
