@@ -59,8 +59,8 @@ The model and LoRA stack an image was made with are already recorded on each ima
 
 - R9. The gallery panel has a search box and a filters control, always reachable without leaving the gallery.
 - R10. Search matches the prompt text of images in the current collection.
-- R11. The model filter lists the models used by images in the current collection, shown by their display names. Choosing several shows images made with any of them.
-- R12. The LoRA filter lists the LoRAs used by images in the current collection, including LoRAs since removed from the library. Choosing several shows only images made with all of them.
+- R11. The model filter lists the models used by images in the current collection that also match the current search and LoRA filter, shown by their display names. Models already picked stay listed. Choosing several shows images made with any of them.
+- R12. The LoRA filter lists the LoRAs used by images in the current collection that also match the current search, model filter and the LoRAs already picked, including LoRAs since removed from the library. LoRAs already picked stay listed. Choosing several shows only images made with all of them. So no pick in either list can produce an empty gallery that the other criteria did not already produce.
 - R13. Search, the model filter and the LoRA filter combine with AND. The gallery stays newest first and keeps paging, and one action clears them all.
 - R14. Search and filters reset when the user switches collection.
 - R15. When nothing matches, the gallery says so and offers the clear action instead of showing an empty grid. Whenever a search or filter is active, the filters control shows how many criteria are set and a Clear button is visible in the gallery header.
@@ -88,6 +88,7 @@ The model and LoRA stack an image was made with are already recorded on each ima
 - AE4. **Covers R5.** Given the canvas shows image 5 of 20 and image 5 is deleted, then the canvas shows the neighbouring remaining image.
 - AE5. **Covers R7.** Given the destination already holds a file with an exported name, then the export keeps both files.
 - AE6. **Covers R14.** Given a search term is typed in collection A, when the user switches to collection B, then B shows its full gallery with the search cleared.
+- AE7. **Covers R11, R12.** Given model M1 images used only LoRA X and model M2 images used only LoRA Y, when the user picks M1, then the LoRA list shows X and not Y. When the user instead picks LoRA Y, the model list shows M2 and not M1, and Y stays listed.
 
 ### Scope Boundaries
 
@@ -180,8 +181,8 @@ The model and LoRA stack an image was made with are already recorded on each ima
 - **Goal:** Make filters and search queryable at scale.
 - **Requirements:** R10-R13, R16; KTD1-3.
 - **Files:** `Sources/MCLibrary/LibraryStore.swift`, `Models.swift`, new `Tests/MCLibraryTests/GalleryFilterTests.swift`.
-- **Approach:** add `GalleryQuery`; `recentImages(query:limit:offset:)`; `galleryFacets(collectionID:)` returning models (with family name) and LoRAs (library name, else newest image's name); `image(id:matches:)`; `saveImage` fills `model_id` and `image_lora`. Never edit earlier migrations.
-- **Test scenarios:** migrate from v6 with legacy rows (some with LoRAs, some without, one with malformed settings JSON that must not abort the migration) and assert backfill; AE2 (X+Y picked returns only A); AE3; several models return the union; search is case-insensitive, prefix-matches the last word, and text containing FTS operator characters (quotes, `-`, `*`, `AND`) does not error; filters and search combine; newest-first paging with limit+1 under a filter.
+- **Approach:** add `GalleryQuery`; `recentImages(query:limit:offset:)`; `galleryFacets(query:)` returning models (with family name) and LoRAs (library name, else newest image's name). Each list is computed from the images matching the query's other criteria: the model list ignores the model selection (picks stay listed and "any" can widen), the LoRA list applies the model filter, search and the already-picked LoRAs ("all" narrows co-use) and keeps the picks listed. The facets are recomputed on every query change and after delete, move and each saved image; `image(id:matches:)`; `saveImage` fills `model_id` and `image_lora`. Never edit earlier migrations.
+- **Test scenarios:** migrate from v6 with legacy rows (some with LoRAs, some without, one with malformed settings JSON that must not abort the migration) and assert backfill; AE2 (X+Y picked returns only A); AE3; several models return the union; search is case-insensitive, prefix-matches the last word, and text containing FTS operator characters (quotes, `-`, `*`, `AND`) does not error; filters and search combine; newest-first paging with limit+1 under a filter; facet lists narrow with search, the other facet and the picks (AE7), picked values stay listed, and no listed option yields zero results.
 - **Verification:** `swift test --filter MCLibraryTests`.
 
 ### U3. Store delete, move-many, export
