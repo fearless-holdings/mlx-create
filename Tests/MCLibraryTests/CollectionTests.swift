@@ -187,7 +187,7 @@ import Testing
             collectionID: source.id, jobID: nil, pngData: try TestPNG.make(width: 16, height: 16),
             settings: LibraryStoreTests.settings()))
 
-        try await store.moveImage(id: saved.id, toCollection: home.id)
+        try await store.moveImages(ids: [saved.id], toCollection: home.id)
         #expect(try await Self.summary(store, source.id)?.imageCount == 0)
         #expect(try await Self.summary(store, home.id)?.imageCount == 1)
         #expect(try await store.recentImages(collectionID: source.id, limit: 10).isEmpty)
@@ -195,7 +195,7 @@ import Testing
         #expect(try await store.recentImages(collectionID: home.id, limit: 10, offset: 1).isEmpty)
 
         // Moving to the collection it already belongs to changes nothing.
-        try await store.moveImage(id: saved.id, toCollection: home.id)
+        try await store.moveImages(ids: [saved.id], toCollection: home.id)
         #expect(try await Self.summary(store, home.id)?.imageCount == 1)
 
         try await store.deleteCollection(id: source.id)

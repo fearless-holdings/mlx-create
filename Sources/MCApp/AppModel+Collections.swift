@@ -73,6 +73,8 @@ extension AppModel {
         hasMoreImages = false
         galleryLoaded = false
         selection = nil
+        // The search and filters belong to the collection they were set in (R14).
+        resetGalleryQuery()
         galleryRevision += 1
     }
 
@@ -114,18 +116,7 @@ extension AppModel {
     /// Moves an image to another collection (R5). Only its collection changes, never its file (KTD3). The image leaves
     /// the gallery, and a selection on it clears.
     func moveImage(_ image: LibraryImage, to collectionID: UUID) async {
-        guard collectionID != currentCollection.id else { return }
-        do {
-            try await store.moveImage(id: image.id, toCollection: collectionID)
-        } catch {
-            lastError = message(for: error)
-            return
-        }
-        // Bumped so a page read that started before the move cannot put the image back.
-        galleryRevision += 1
-        galleryImages.removeAll { $0.id == image.id }
-        if selection == image.id { selection = nil }
-        await refreshCollections()
+        await moveImages(ids: [image.id], to: collectionID)
     }
 
     /// Writes the composer's model, size, steps, guidance, negative prompt and enabled LoRAs into the current collection's
