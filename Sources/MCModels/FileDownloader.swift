@@ -208,7 +208,7 @@ final class FileAttempt: @unchecked Sendable {
             cancelled = true
             return tasks
         }
-        snapshot.forEach { $0.cancel() }
+        for task in snapshot { task.cancel() }
     }
 
     // MARK: Response policy (called from the delegate queue, before any byte of the response is written)
@@ -324,7 +324,7 @@ final class FileAttempt: @unchecked Sendable {
             cancelled = true
             return tasks
         }
-        snapshot.forEach { $0.cancel() }
+        for task in snapshot { task.cancel() }
     }
 
     private func monitorStalls() async {

@@ -23,12 +23,6 @@ public struct EnhancementRequest: Sendable, Equatable {
     public let triggerWords: [String]
     /// Whether the reply carries a `Negative:` line for the negative prompt.
     public let expectsNegativePrompt: Bool
-
-    init(chat: ChatRequest, triggerWords: [String], expectsNegativePrompt: Bool) {
-        self.chat = chat
-        self.triggerWords = triggerWords
-        self.expectsNegativePrompt = expectsNegativePrompt
-    }
 }
 
 /// The result of building an enhancement. `unavailable` carries a plain sentence the UI shows instead of a generic pack.
