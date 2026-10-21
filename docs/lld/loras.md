@@ -24,7 +24,7 @@ Discriminators. Klein's diffusers layout uses `.lora_A.weight` and Qwen's uses `
 
 Qwen PEFT layout (2026-10-20). A Civitai file can use PEFT keys with no wrapper prefix, an adapter infix and unfused MLP names (`transformer_blocks.N.attn.to_q.lora_A.default.weight`, `img_mlp.gate_layer`, `img_mlp.proj`; sample: Radiance Chrome Voluptuous, QwenImage2.1 v1.0, 448 tensors, header read by range request). Qwen's fourth fingerprint keys on `img_mlp.gate_layer` instead of a key suffix, so any suffix style classifies. Klein names its MLP `ff.linear_in` and never uses `img_mlp.gate_layer`, so the two stay apart. A Qwen LoRA that trains attention only and uses `.lora_A` keys is still unmatched, because on those files the suffix was the only separator from klein 9B. Kohya flat names (`lora_unet_...`), which the engine accepts, are still not classified.
 
-Temporary engine guard (2026-10-20). The pinned engine v26.10.2 has no Qwen-Image LoRA key mapping (`setLoras` returns 0 modules for `.qwen_image`), so every Qwen LoRA request ends in HTTP 400 "no modules matching". Upstream added the mapping in PR 849, which ships in v26.10.3. Until the pin moves, Qwen's record in `families.json` carries `engineAppliesLoRAs: false`. Qwen LoRAs still import and download, but `LoRAStackRules.fit` returns `.engineCannotApply` for them: the row is greyed with the reason, skipped at generate, and the library blocks Add. When `engine.lock` moves to a release that includes PR 849, delete the flag from `ModelFamily` and `families.json`, the `.engineCannotApply` case and the library item's `engineBlockedReason`, and generate once with a Qwen LoRA to confirm.
+Engine support (2026-10-21). Engine v26.10.2 had no Qwen-Image LoRA key mapping, so a Qwen LoRA ended in HTTP 400 "no modules matching" and the app greyed Qwen LoRAs behind an `engineAppliesLoRAs` flag. Upstream PR 849 shipped in v26.10.3-pre-release.1, which `engine.lock` now pins. The flag, `LoRAFit.engineCannotApply` and the library item's `engineBlockedReason` were removed in the same change, so Qwen LoRAs fit like any other family's. Verified against the real engine, see below.
 
 Known residual risk: a klein file in diffusers names that uses `lora_down` or `lora.down` keys and touches only blocks 0-7 matches Qwen. No such sample exists, so this is checked by simulation only, not by a real file.
 
@@ -49,7 +49,16 @@ Krea-2 Turbo (mixed 4/8) with `gokaygokay/Krea-2-Realism-LoRA` (469 MB), launche
 - A LoRA with no matching modules returns 400 `{"error":{"message":"LoRA(s) have no modules matching this model's DiT — wrong LoRA for this architecture?"}}`.
 - A relative or missing path returns 400 `'lora_path'/'lora_paths' must be absolute path(s) to .safetensors file(s)`.
 - The engine needs `POST /v1/models/rescan` after the model directory is set, and the load id is the full folder name, not the short id.
-- Not yet verified: fingerprints for FLUX.2 klein and Qwen match the real headers but have not been checked against a loaded model, and the GUI is untested.
+- Not yet verified: fingerprints for FLUX.2 klein match the real headers but have not been checked against a loaded model, and the GUI is untested.
+
+## Verified against the real engine (v26.10.3-pre-release.1, 2026-10-21)
+
+Qwen-Image 2.1 Turbo (8-bit), launched as the app does, with two Qwen LoRAs from the library (`high-resolution`, `canon-ultrareal`; both classified `qwen-image-2.1-turbo` by the shipped importer):
+
+- Each LoRA at strength 1.0 changes the image against the same seed without a LoRA, and the result is a coherent portrait (viewed). Generation took about 7 s at 512×512, 8 steps.
+- A klein LoRA sent to the Qwen model still returns 400 `LoRA(s) have no modules matching this model's DiT`, so the error mapping above stays reachable.
+- On the non-turbo 4-bit pack, strength -1.0 changes the image, strength 0 reproduces the no-LoRA image exactly, and two LoRAs at 0.7 differ from either alone.
+- Not verified: the GUI path (stack row, Add, generate), and a LoRA that carries only attention keys with `.lora_A` suffixes (still unclassified, see "Fit").
 
 ## Civitai browse and download
 
@@ -105,4 +114,4 @@ Status: built per `docs/plans/2026-10-19-1605-feat-civitai-lora-browse-download-
 - ETag absence, the redirect host and Range support on the real CDN were not captured as headers in the live run. The download succeeded and matched the advertised length, which is consistent with them but does not prove them.
 - Generation with a Civitai-downloaded LoRA on the real engine. The FLUX.2 klein 4B model is not on disk and is about 5 GB, so it was not downloaded without asking. The fit check for klein rests on header matching only (see "Fit").
 - The GUI: no one has looked at the Browse tab, the license sheet, blur behavior, or the Installed detail pane in the running app. The app builds with xcodegen and xcodebuild.
-- Qwen and klein 9B classification against a loaded model, the klein 9B engine architecture string, the 4 GiB cap in practice, and Mage-Flow's Civitai label.
+- Klein 9B classification against a loaded model, the klein 9B engine architecture string, the 4 GiB cap in practice, and Mage-Flow's Civitai label. (Qwen classification against a loaded model was verified 2026-10-21, see above.)

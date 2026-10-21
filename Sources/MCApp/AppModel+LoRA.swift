@@ -59,14 +59,12 @@ extension AppModel {
         let stacked = Set(loraSlots.map(\.id))
         return loraRecords.map { record in
             let fit = loraFit(for: record, selected: selected, installed: installed)
-            let engineReason: String? = if case .engineCannotApply = fit { fit.reason } else { nil }
             return LoRALibraryItem(
                 id: record.id, name: record.name, familyName: loraFamilyName(record.family), familyID: record.family,
                 sizeBytes: record.sizeBytes, triggerWords: record.triggerWords, notes: record.notes,
                 fileMissing: loraMissingFileIDs.contains(record.id),
                 fitsSelectedModel: fit == .fits,
-                inStack: stacked.contains(record.id),
-                engineBlockedReason: engineReason)
+                inStack: stacked.contains(record.id))
         }
     }
 

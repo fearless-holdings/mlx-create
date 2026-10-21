@@ -23,7 +23,7 @@ private func copy(
         sizeGrid: base.sizeGrid, sizePresets: base.sizePresets, defaultSize: base.defaultSize, steps: base.steps,
         guidance: base.guidance, supportsNegativePrompt: supportsNegativePrompt ?? base.supportsNegativePrompt,
         stepsAreFixed: base.stepsAreFixed, requiresTrait: base.requiresTrait, loraFingerprints: base.loraFingerprints,
-        engineAppliesLoRAs: base.engineAppliesLoRAs, civitaiBaseModels: base.civitaiBaseModels)
+        civitaiBaseModels: base.civitaiBaseModels)
 }
 
 private func readyRequest(_ build: EnhancementBuild) -> EnhancementRequest? {

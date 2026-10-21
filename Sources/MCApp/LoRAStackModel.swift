@@ -50,8 +50,6 @@ public enum LoRAFit: Equatable, Sendable {
     case needsModelInstalled(familyName: String)
     /// The selected model's family accepts no LoRAs at all.
     case modelTakesNoLoRAs
-    /// The LoRA's family is the selected one, but the pinned engine cannot apply LoRAs to it yet.
-    case engineCannotApply(familyName: String)
     /// The LoRA's file is gone from the library folder. No model switch makes it usable, so this outranks the fit (R17).
     case fileMissing
 
@@ -62,7 +60,6 @@ public enum LoRAFit: Equatable, Sendable {
         case .doesNotFit(let name): "doesn't fit \(name)"
         case .needsModelInstalled(let familyName): "needs \(familyName) installed"
         case .modelTakesNoLoRAs: "this model takes no LoRAs"
-        case .engineCannotApply(let name): "the bundled engine can't apply LoRAs to \(name) yet"
         case .fileMissing: "file missing from the LoRA library: re-import or remove it"
         }
     }
@@ -82,12 +79,10 @@ public struct LoRALibraryItem: Identifiable, Equatable, Sendable {
     /// The LoRA fits the selected model.
     public var fitsSelectedModel: Bool
     public var inStack: Bool
-    /// Set when the LoRA's family is the selected one but the engine cannot apply it; the reason Add is blocked.
-    public var engineBlockedReason: String?
 
     public init(
         id: String, name: String, familyName: String, familyID: String, sizeBytes: Int64, triggerWords: [String],
-        notes: String?, fileMissing: Bool, fitsSelectedModel: Bool, inStack: Bool, engineBlockedReason: String? = nil
+        notes: String?, fileMissing: Bool, fitsSelectedModel: Bool, inStack: Bool
     ) {
         self.id = id
         self.name = name
@@ -99,7 +94,6 @@ public struct LoRALibraryItem: Identifiable, Equatable, Sendable {
         self.fileMissing = fileMissing
         self.fitsSelectedModel = fitsSelectedModel
         self.inStack = inStack
-        self.engineBlockedReason = engineBlockedReason
     }
 }
 
@@ -188,7 +182,7 @@ enum LoRAStackRules {
         }
         guard selected.acceptsLoRAs else { return .modelTakesNoLoRAs }
         if selected.id == loraFamilyID {
-            return selected.engineAppliesLoRAs ? .fits : .engineCannotApply(familyName: selected.displayName)
+            return .fits
         }
         if !installedFamilyIDs.contains(loraFamilyID) {
             return .needsModelInstalled(familyName: loraFamilyName)
