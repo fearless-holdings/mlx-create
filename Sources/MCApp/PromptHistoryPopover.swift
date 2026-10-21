@@ -6,7 +6,7 @@ import SwiftUI
 struct PromptHistoryButton: View {
     @Bindable var model: AppModel
     @State private var isOpen = false
-    @State private var entries: [PromptHistoryEntry] = []
+    @State private var entries: [PromptHistoryEntry]?
     @State private var filter = ""
 
     var body: some View {
@@ -21,16 +21,21 @@ struct PromptHistoryButton: View {
             list
                 .padding(8)
                 .frame(width: 320)
-        }
-        .onChange(of: isOpen) { _, open in
-            guard open else { return }
-            filter = ""
-            Task { entries = await model.promptHistory() }
+                .onAppear {
+                    filter = ""
+                    entries = nil
+                }
+                // Reloads when the collection changes while open; a superseded load is cancelled.
+                .task(id: model.currentCollection.id) {
+                    let loaded = await model.promptHistory()
+                    if !Task.isCancelled { entries = loaded }
+                }
         }
     }
 
     private var matches: [PromptHistoryEntry] {
         let needle = filter.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let entries else { return [] }
         guard !needle.isEmpty else { return entries }
         return entries.filter {
             $0.prompt.localizedCaseInsensitiveContains(needle)
@@ -43,9 +48,14 @@ struct PromptHistoryButton: View {
             TextField("Filter", text: $filter)
                 .textFieldStyle(.roundedBorder)
                 .accessibilityLabel("Filter recent prompts")
-            if entries.isEmpty {
+            if let entries, entries.isEmpty {
                 Text("No prompts yet")
                     .foregroundStyle(.secondary)
+                    .padding(6)
+            } else if entries == nil {
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(maxWidth: .infinity)
                     .padding(6)
             } else if matches.isEmpty {
                 Text("No matching prompts")
