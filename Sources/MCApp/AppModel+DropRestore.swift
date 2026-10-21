@@ -17,7 +17,8 @@ public struct DropNotice: Equatable, Sendable {
 private let droppedFileLimit = 64 * 1024 * 1024
 
 /// What a dropped image does to the composer when its model is not installed (R6).
-private let uninstalledApplyNote = "Applied the prompt, negative prompt, seed and aspect ratio only."
+private let uninstalledApplyNote =
+    "Applied the prompt, negative prompt, seed and aspect ratio only."
 
 extension AppModel {
     /// Clears the drop banner.
@@ -26,21 +27,36 @@ extension AppModel {
     }
 
     /// Reads a dropped file and applies what it says about its generation (D38). The read and parse run off the main actor.
-    public func restoreFromDroppedImage(url: URL) async {
+    /// `extraNote` is appended to the banner, for example when more than one file was dropped. A newer drop supersedes this one.
+    public func restoreFromDroppedImage(url: URL?, extraNote: String? = nil) async {
+        dropCounter += 1
+        let token = dropCounter
+        guard let url else {
+            dropNotice = DropNotice(level: .warning, message: "That file could not be read.")
+            return
+        }
         let result = await Task.detached(priority: .userInitiated) {
             AppModel.readDroppedImage(at: url)
         }.value
+        guard token == dropCounter else { return }
         guard let result else {
             dropNotice = DropNotice(level: .warning, message: "That file could not be read.")
             return
         }
         applyDroppedImage(result)
+        if let extraNote, let notice = dropNotice {
+            dropNotice = DropNotice(
+                level: notice.level, message: joinedSentences([notice.message, extraNote]))
+        }
     }
 
     /// Reads at most `droppedFileLimit` bytes from `url` and parses them. Nil when the file is missing, unreadable or too large.
+    /// The file is read, not mapped, so a file that shrinks mid-parse cannot fault the process.
     nonisolated static func readDroppedImage(at url: URL) -> ImageReadResult? {
-        guard let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= droppedFileLimit,
-              let data = try? Data(contentsOf: url, options: .mappedIfSafe), data.count <= droppedFileLimit
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+        guard let data = try? handle.read(upToCount: droppedFileLimit + 1),
+            data.count <= droppedFileLimit
         else { return nil }
         return ImageGenerationReader.read(from: data)
     }
@@ -51,10 +67,13 @@ extension AppModel {
         case .none:
             dropNotice = DropNotice(
                 level: .warning,
-                message: "No generation data found in that image. Sites often strip it when they re-encode images.")
+                message:
+                    "No generation data found in that image. Sites often strip it when they re-encode images."
+            )
         case .comfyUI:
             dropNotice = DropNotice(
-                level: .warning, message: "This image carries a ComfyUI workflow, which is not supported yet.")
+                level: .warning,
+                message: "This image carries a ComfyUI workflow, which is not supported yet.")
         case .data(let data):
             applyDroppedData(data)
         }
@@ -74,14 +93,19 @@ extension AppModel {
             }
             dropNotice = DropNotice(
                 level: .info,
-                message: joinedSentences(["Restored settings for \(model.id).", newerAppNote(data), seedNote]))
+                message: joinedSentences([
+                    "Restored settings for \(model.id).", newerAppNote(data), seedNote,
+                ]))
         case .none:
-            let lead = name.isEmpty
+            let lead =
+                name.isEmpty
                 ? "This image does not name its model."
                 : "The model this image used (\(name)) is not installed."
             applyUninstalledDrop(data, lead: lead)
         case .ambiguous(let ids):
-            applyUninstalledDrop(data, lead: "Several installed models match \(name): \(ids.joined(separator: ", ")).")
+            applyUninstalledDrop(
+                data,
+                lead: "Several installed models match \(name): \(ids.joined(separator: ", ")).")
         }
     }
 
@@ -136,7 +160,8 @@ extension AppModel {
     }
 
     private func newerAppNote(_ data: ImageGenerationData) -> String? {
-        data.newerSchemaFallback ? "The image is from a newer app version; settings were read from its text." : nil
+        data.newerSchemaFallback
+            ? "The image is from a newer app version; settings were read from its text." : nil
     }
 
     /// Joins the banner's sentences in order, skipping the absent ones.

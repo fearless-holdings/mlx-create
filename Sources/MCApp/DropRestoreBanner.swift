@@ -9,13 +9,10 @@ enum CanvasDrop {
             $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
         }
         guard let first = fileProviders.first else { return false }
+        let extra = fileProviders.count > 1 ? "Only the first file was used." : nil
         Task {
-            guard let url = await LoRADrop.fileURL(of: first) else { return }
-            await model.restoreFromDroppedImage(url: url)
-            if fileProviders.count > 1, let notice = model.dropNotice {
-                model.dropNotice = DropNotice(
-                    level: notice.level, message: notice.message + " Only the first file was used.")
-            }
+            let url = await LoRADrop.fileURL(of: first)
+            await model.restoreFromDroppedImage(url: url, extraNote: extra)
         }
         return true
     }

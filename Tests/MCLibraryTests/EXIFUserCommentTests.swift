@@ -1,8 +1,22 @@
 import Foundation
 import Testing
+
 @testable import MCLibrary
 
 @Suite struct EXIFUserCommentTests {
+    @Test func byteTypedCommentIsReadInJPEGAndWebP() {
+        // Files written by PIL store UserComment as BYTE (1) instead of UNDEFINED (7).
+        let text = "a fox, Steps: 20, Seed: 42"
+        let tiff = makeTIFF(order: .big, comment: unicodeComment(text, order: .big), commentType: 1)
+        #expect(readComment(makeJPEG(tiff: tiff).bytes) == text)
+        #expect(readComment(makeWebP(tiff: tiff, exifPrefix: true).bytes) == text)
+    }
+
+    @Test func otherCommentTypesAreRejected() {
+        let tiff = makeTIFF(order: .big, comment: asciiComment("Steps: 20"), commentType: 2)
+        #expect(readComment(makeJPEG(tiff: tiff).bytes) == nil)
+    }
+
     @Test func asciiCommentInJPEG() {
         let text = "a cat in a hat, masterpiece, best quality, a comment longer than four bytes"
         let jpeg = makeJPEG(tiff: makeTIFF(order: .little, comment: asciiComment(text)))
@@ -25,13 +39,15 @@ import Testing
 
     @Test func utf16LittleEndianCommentInLittleEndianTIFF() {
         let text = "café 日本 🙂, Steps: 20"
-        let jpeg = makeJPEG(tiff: makeTIFF(order: .little, comment: unicodeComment(text, order: .little)))
+        let jpeg = makeJPEG(
+            tiff: makeTIFF(order: .little, comment: unicodeComment(text, order: .little)))
         #expect(readComment(jpeg.bytes) == text)
     }
 
     @Test func zeroFirstByteSelectsBigEndianInsideLittleEndianTIFF() {
         let text = "Steps: 20"
-        let jpeg = makeJPEG(tiff: makeTIFF(order: .little, comment: unicodeComment(text, order: .big)))
+        let jpeg = makeJPEG(
+            tiff: makeTIFF(order: .little, comment: unicodeComment(text, order: .big)))
         #expect(readComment(jpeg.bytes) == text)
     }
 
@@ -39,7 +55,8 @@ import Testing
         // U+4E2D and U+6587 contain no zero byte, so the TIFF byte order decides.
         let text = "中文"
         for order in [TestOrder.little, .big] {
-            let jpeg = makeJPEG(tiff: makeTIFF(order: order, comment: unicodeComment(text, order: order)))
+            let jpeg = makeJPEG(
+                tiff: makeTIFF(order: order, comment: unicodeComment(text, order: order)))
             #expect(readComment(jpeg.bytes) == text)
         }
     }
@@ -64,7 +81,8 @@ import Testing
 
     @Test func trailingNULsAreStripped() {
         let ascii = makeJPEG(tiff: makeTIFF(order: .little, comment: asciiComment("hello\0\0\0")))
-        let utf16 = makeJPEG(tiff: makeTIFF(order: .big, comment: unicodeComment("hi\0\0", order: .big)))
+        let utf16 = makeJPEG(
+            tiff: makeTIFF(order: .big, comment: unicodeComment("hi\0\0", order: .big)))
         #expect(readComment(ascii.bytes) == "hello")
         #expect(readComment(utf16.bytes) == "hi")
     }
@@ -85,14 +103,17 @@ import Testing
     }
 
     @Test func nonImageBytesReturnNil() {
-        let png: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]
+        let png: [UInt8] = [
+            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52,
+        ]
         #expect(readComment(png) == nil)
         #expect(readComment([0x12, 0x34, 0x56]) == nil)
         #expect(EXIFUserComment.read(from: Data()) == nil)
     }
 
     @Test func truncatedJPEGReturnsNilAtEveryCutBeforeTheCommentEnds() {
-        let jpeg = makeJPEG(tiff: makeTIFF(order: .big, comment: unicodeComment("prompt", order: .big)))
+        let jpeg = makeJPEG(
+            tiff: makeTIFF(order: .big, comment: unicodeComment("prompt", order: .big)))
         for cut in 0..<jpeg.metadataEnd {
             #expect(readComment(Array(jpeg.bytes.prefix(cut))) == nil, "cut at \(cut)")
         }
@@ -158,7 +179,9 @@ private func integer(_ value: Int, width: Int, _ order: TestOrder) -> [UInt8] {
     return order == .little ? little : Array(little.reversed())
 }
 
-private func put(_ value: Int, width: Int, at offset: Int, _ order: TestOrder, into bytes: inout [UInt8]) {
+private func put(
+    _ value: Int, width: Int, at offset: Int, _ order: TestOrder, into bytes: inout [UInt8]
+) {
     bytes.replaceSubrange(offset..<(offset + width), with: integer(value, width: width, order))
 }
 
@@ -171,7 +194,7 @@ private func ifdEntry(tag: Int, type: Int, count: Int, value: Int, _ order: Test
 }
 
 /// Little- or big-endian TIFF: IFD0 points at the Exif IFD, which holds one UserComment entry.
-private func makeTIFF(order: TestOrder, comment: [UInt8]) -> [UInt8] {
+private func makeTIFF(order: TestOrder, comment: [UInt8], commentType: Int = 7) -> [UInt8] {
     var tiff = Array((order == .little ? "II" : "MM").utf8)
     tiff += integer(42, width: 2, order)
     tiff += integer(TIFFLayout.ifd0, width: 4, order)
@@ -181,7 +204,8 @@ private func makeTIFF(order: TestOrder, comment: [UInt8]) -> [UInt8] {
     tiff += integer(0, width: 4, order)
     // Exif IFD: one UserComment entry whose bytes start at commentData.
     tiff += integer(1, width: 2, order)
-    tiff += ifdEntry(tag: 0x9286, type: 7, count: comment.count, value: TIFFLayout.commentData, order)
+    tiff += ifdEntry(
+        tag: 0x9286, type: commentType, count: comment.count, value: TIFFLayout.commentData, order)
     tiff += integer(0, width: 4, order)
     tiff += comment
     if comment.count % 2 == 1 { tiff.append(0) }
