@@ -69,7 +69,7 @@ struct PromptHistoryButton: View {
                         }
                     }
                 }
-                .frame(maxHeight: 320)
+                .frame(height: 340)
             }
         }
     }
