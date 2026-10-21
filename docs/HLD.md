@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Status** | Draft for review |
-| **Date** | 2026-10-16 |
+| **Date** | 2026-10-16 (strategy sweep 2026-10-21: D40, D41) |
 | **Scope** | Whole product: v1 delivery in detail, later phases at architecture level |
 | **Backend reference** | Upstream [ddalcu/mlx-serve](https://github.com/ddalcu/mlx-serve) (MIT). `src/…`, `app/…`, `docs/…` citations refer to commit `1c34059` |
 
@@ -11,7 +11,7 @@
 
 ## 1. Purpose
 
-mlx-create is a commercial, native macOS app for local image and video generation on Apple Silicon. It aims for the reach of Automatic1111 (full control, LoRAs, community models) in a Mac-native app that runs on hardware-tuned defaults and uses no Python, Electron or cloud.
+mlx-create is a commercial, native macOS app for local image and video generation on Apple Silicon. Its mission is to make uncensored media generation free and easy: you pay once, generate on the Mac you already own with no subscriptions or per-image costs, and get good results without learning the stack, because the app makes the technical calls. It uses no Python, Electron or cloud. `STRATEGY.md` carries the product strategy (purpose, persona, metrics, tracks); this document follows it.
 
 This document records the agreed product decisions, the system architecture, the split of work between the mlx-serve backend and the native app, the data model, and the phased roadmap. Implementation detail belongs in per-component LLDs; open items are listed in §15.
 
@@ -20,7 +20,7 @@ This document records the agreed product decisions, the system architecture, the
 ### Goals
 
 - **G1:** Native macOS 26.2+ app with a three-panel generation workspace (prompt and settings, canvas with queue strip, gallery of finished images), Collections, and a per-collection gallery.
-- **G2:** Text-to-image generation in v1, with every mlx-serve control that makes sense for the selected model family (steps, CFG, negative prompt, size, seed, LoRA stack).
+- **G2:** Text-to-image generation in v1. The app picks per-family defaults and shows only the controls a newcomer can use and the engine honours for the selected family (size, seed, negative prompt, LoRA stack; steps and CFG where the family supports them). There are no expert knobs (STRATEGY.md Boundaries).
 - **G3:** A prompt **Enhance** button backed by a local, uncensored LLM that knows how each model family wants to be prompted and what the active LoRAs need.
 - **G4:** Preselected models with recommendations tuned to the user's Mac, calibrated on the device itself.
 - **G5:** A manager for local checkpoints and LoRAs, and a browser/downloader for Civitai and CivArchive.
@@ -29,7 +29,7 @@ This document records the agreed product decisions, the system architecture, the
 
 ### Non-goals (explicitly out of scope)
 
-- SDXL / SD1.5 / Pony / Illustrious / Flux.1 / Chroma / Wan engines. Only families mlx-serve runs are supported (D5).
+- SDXL / SD1.5 / Pony / Illustrious / Flux.1 / Chroma / Wan engines **for now**. v1 supports only families mlx-serve runs (D5); D41 lets uncensored quality and LoRA supply pick families later, including through a second engine.
 - ControlNet and structural conditioning.
 - Sampler and scheduler pickers. Each family uses curated defaults (D14).
 - Tags, ratings, favorites and smart collections. Collections are the only organising unit (D10, D35).
@@ -42,10 +42,10 @@ Settled during the design interview. Later documents cite these IDs.
 | ID | Decision | Rationale / consequence |
 |---|---|---|
 | D1 | **Commercial product**, direct distribution (Developer ID, notarized DMG) | The App Store would reject uncensored generation and Civitai downloads |
-| D2 | **Business model undecided**: pluggable `Entitlements` seam | Paywall boundaries can be added without architectural change |
+| D2 | ~~**Business model undecided**~~ **Superseded by D40** (one-time purchase). The pluggable `Entitlements` seam stays | Paywall boundaries can be added without architectural change |
 | D3 | **Neutral creative tool** positioning; no filters; NSFW is opt-in in the browser | Lowers payment-processor and platform risk |
 | D4 | **16 GB, any M-series** is the floor; **macOS 26.2+** | Matches mlx-serve's dev baseline (16 GB M4 mini) and the engine binary's 26.2 minimum (`build.zig:24-30`) |
-| D5 | **Supported families only**: FLUX.2-klein, Krea-2, Qwen-Image 2.1 Turbo (D31; plain Qwen-Image 2.1 is not yet supported), Mage-Flow (image); LTX-Video, MiniMax-H3 (video) | No new engine work. The browser filters to compatible LoRAs |
+| D5 | **Supported families only**: FLUX.2-klein, Krea-2, Qwen-Image 2.1 Turbo (D31; plain Qwen-Image 2.1 is not yet supported), Mage-Flow (image); LTX-Video, MiniMax-H3 (video). Holds for v1; **amended by D41** for later family choices | No new engine work. The browser filters to compatible LoRAs |
 | D6 | **Pinned upstream mlx-serve release binary**, re-signed and bundled. No fork is carried; a GitHub fork exists only to stage upstream PRs | No Zig toolchain or rebase cost. Engine needs are upstreamed (§7.2); bundling a fork is the escape hatch if upstream rejects something v1 can't ship without |
 | D7 | **Design for all modes, deliver in phases**; v1 is **text→image only** | Data model, queue and engine API are mode-agnostic from day one |
 | D8 | **LoRAs only in v1**; fine-tune import and conversion come later | Avoids building a converter for v1 |
@@ -80,6 +80,8 @@ Settled during the design interview. Later documents cite these IDs.
 | D37 | **Gallery actions and filters.** The gallery has multi-select (⌘/⇧-click, separate from the image shown in the canvas). Delete moves the PNG and thumbnail to the Trash and removes the row, asks no confirmation and has no in-app undo; it skips images whose job is queued, running or paused, because the executor finishes a job by counting its saved images. Reveal in Finder, Export and Move to Collection act on the selection. **Export always keeps the prompt and settings metadata**: it is a byte copy, with no strip option and no privacy setting, which reverses the earlier "export with or without metadata" wording of §8.9. A search box matches prompt text (FTS5) and filters narrow by model (any of) and LoRA (all of), within the current collection; the option lists narrow with the other active criteria. Migration `v7-gallery-filters` adds `image.model_id`, `image_lora` and the prompt index. Plan: `docs/plans/2026-10-21-1154-feat-gallery-actions-plan.md` | Deleting or exporting dozens of images one at a time was the pain. Metadata in an export rarely hurts, and dropping the setting avoids the first Settings window. Filters read indexed columns rather than the settings JSON, so they stay fast across paging. Amends D10 (no tags or ratings stays), §8.9 |
 | D38 | **Drop-to-restore.** Dropping an image file on the canvas reads its generation data (the `mlx-create` chunk first, then A1111 `parameters`, then the EXIF `UserComment` of JPEG and WebP) and fills the composer. The image's model counts as installed only when exactly one selectable model matches its `Model:` value by id or by case-insensitive last path component of the id (D22: there is no model hash). **Installed:** every setting applies as stated, including steps, CFG and the LoRA stack, with the family winning where it cannot honour a value. **Not installed:** a warning on the canvas names the model, and only prompt, negative prompt, seed and aspect ratio apply; the selected model, steps, CFG and LoRA stack stay. A seed outside 0..<2^32 is not applied (D23). `<lora:…>` tags are stripped from the prompt. Foreign LoRAs match the library by AutoV2 prefix of the SHA-256. A drop overwrites the composer without asking. Gallery Reuse settings is unchanged. ComfyUI graphs, downloads of missing models or LoRAs, and hash lookup on Civitai or CivArchive are deferred. Plan: `docs/plans/2026-10-21-1545-feat-drop-to-restore-plan.md` | Civitai images mostly come from SDXL-class checkpoints this app cannot run, so foreign steps and CFG would mislead a turbo model. Restoring prompt, seed and aspect keeps the useful part. A wrong silent model match would apply foreign settings to the wrong model, so ambiguity means not installed. Amends §8.9 |
 | D39 | **Composer prompt history.** Each collection keeps the prompts of the jobs queued in it, in table `prompt_history` (migration `v8-prompt-history`; `collection_id` cascades on collection delete). A row holds the prompt and negative prompt exactly as sent to the engine, so an accepted Enhance result is recorded as the enhanced text, and a missing negative prompt is stored as empty. The row is written inside `enqueueJob`'s transaction, so a queued job always has an entry and a rejected job has none. A repeat of the same prompt and negative prompt replaces the old row and so moves to the top; a collection keeps its newest 100. Deleting or failing images and jobs does not remove entries. A clock button beside Enhance opens a popover with a type-to-filter list of the current collection's entries; picking one fills the prompt and negative prompt only and clears the Enhance provenance. Model, size, steps, CFG, seed and LoRAs stay (gallery Reuse settings restores those). Existing jobs are not backfilled. An All-collections list, pin, edit, per-entry delete and clear-all are deferred. Plan: `docs/plans/2026-10-21-1712-feat-prompt-history-plan.md` | Gallery search only finds prompts that produced an image; a cancelled or failed job's prompt was unrecoverable, and recall meant leaving the composer. Recording at queue time covers every job; one transaction keeps history and queue consistent. Amends D10, D35, §8.9, §9 |
+| D40 | **One-time purchase.** The user pays once for the app; generation never costs per image or per month. No subscription and no usage-metered tier. Supersedes D2's open business model; the `Entitlements` seam stays as the mechanism for the license check and any unlock boundaries | STRATEGY.md: "free" means no recurring cost once the app is bought. Resolves the subscription/freemium half of §15 Q4; the license provider and any trial or unlock boundary stay open |
+| D41 | **Families are chosen by uncensored quality and LoRA supply; the engine is a means, not a constraint.** A family outside mlx-serve (e.g. SDXL/Pony) may be added through a second bundled engine. This is a principle with no scheduled work: adding an engine needs its own decision entry first, and keeps the rules that hold for mlx-serve (separate child process, loopback-only with a per-launch key, stock upstream, own `HOME`, `.safetensors` only, no inference in the app process). mlx-serve stays stock upstream (D6) | STRATEGY.md track "Uncensored quality and supply": thin LoRA supply for the supported families is the top product risk (§14). Amends D5 and the non-goal on other engines; `AGENTS.md` non-negotiables still describe a single engine and must be updated alongside the first such decision |
 
 **Amendment (2026-10-19, D34):** Civitai LoRA browsing and download move from "separate work" into scope. The browser is a tab in the LoRA library sheet, not a Models-window tab. A finished download goes to the library only and is not attached to the generation stack. Design and open items: `docs/lld/loras.md`, section "Civitai browse and download".
 
@@ -472,11 +474,12 @@ The initial packs follow the structure of mlx-serve's `PromptRewriter.swift` (MI
 
 ### 8.10 Entitlements, updates, analytics
 
-- **Entitlements (D2):** `Entitlements.isEnabled(_ feature: Feature) -> Bool`, with features such as batch size cap, queue depth and video. The provider is pluggable: license key with offline grace, subscription, or freemium. Gates are checked in the composer and executor only, never in the engine. The provider choice is open (§15).
+- **Entitlements (D2, D40):** `Entitlements.isEnabled(_ feature: Feature) -> Bool`, with features such as batch size cap, queue depth and video. The app is a one-time purchase (D40): no subscription or metered tier. The provider is pluggable (license key with offline grace is the expected shape). Gates are checked in the composer and executor only, never in the engine. The license provider and any trial or unlock boundary are open (§15).
 - **Updates (D19):** Sparkle 2 with an EdDSA-signed appcast. Catalog and prompt packs update independently (daily, signed).
 - **Analytics (D19):**
   - Opt-in at onboarding, off by default, anonymous, through a privacy-first vendor.
   - **Events:** launch, generation completed (family, steps, resolution bucket, duration, tier, chip class), enhancer used, download completed (family, source type), errors by class.
+  - **Strategy metrics (STRATEGY.md):** events must support time to first kept image (first launch, first image not deleted), failed generation rate (errors by class over completed jobs) and week-4 active generators. A "kept" image is one not deleted, since the app has no favorites (D10). Weekly new buyers comes from the license provider, not analytics.
   - **Never sent to our servers or analytics:** prompts, images, file names, Civitai item IDs or names, API keys. Civitai itself receives the lookups and downloads the user makes (§12).
   - Crash diagnostics via MetricKit, uploaded only when the user opts in.
 
@@ -672,7 +675,7 @@ Nothing is written to `~/.mlx-serve`, and other tools' model folders are not sca
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| **Uncensored quality within supported families.** FLUX.2-klein is weak on NSFW out of the box, and the Civitai LoRA supply for these families is far thinner than for SDXL | Core promise feels partial | Lead with Qwen-Image where it fits. Curate a vetted LoRA shortlist per family in the catalog. Enhancer packs tuned per family. Fine-tune import in v2.x. Revisit D5 if needed |
+| **Uncensored quality within supported families.** FLUX.2-klein is weak on NSFW out of the box, and the Civitai LoRA supply for these families is far thinner than for SDXL | Core promise feels partial | Lead with Qwen-Image where it fits. Curate a vetted LoRA shortlist per family in the catalog. Enhancer packs tuned per family. Fine-tune import in v2.x. D41 allows adding families (including SDXL/Pony through a second engine) when supply demands it |
 | Upstream velocity (~200 commits/month) and single-maintainer bus factor | API breakage on bump, stalled or rejected PRs | Deliberate pinned bumps gated by the contract suite; upstream-first PRs; fork-and-bundle escape hatch (§7.2) |
 | Payment processors and Civitai ToS vs uncensored use | Lost merchant account or API access | Neutral positioning (D3), no NSFW marketing, NSFW opt-in, honour Civitai rate limits and ToS |
 | Model licenses (e.g. non-commercial FLUX.2-klein 9B) | Legal exposure for users and us | Licenses shown and accepted per download, permissive defaults, no redistribution (D20) |
@@ -688,7 +691,7 @@ Nothing is written to `~/.mlx-serve`, and other tools' model folders are not sca
 1. CivArchive API endpoints, auth, and rate limits.
 2. Exact Civitai `baseModel` labels for each supported family (catalog data).
 3. Enhancer model picks per tier (output of the evaluation in §8.8).
-4. Entitlements provider and paywall boundaries (D2).
+4. Entitlements license provider, trial shape and unlock boundaries (D40 settles one-time purchase; D2 superseded).
 5. Analytics vendor.
 6. App Sandbox on or off for Developer ID builds.
 7. Upscaler approach for v2.x (Core ML in-app vs MLX engine).
