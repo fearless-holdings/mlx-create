@@ -20,6 +20,13 @@ struct InstallRow: View {
                             .padding(.vertical, 2)
                             .background(.quaternary, in: Capsule())
                     }
+                    if row.isRecommended {
+                        Text("Recommended")
+                            .font(.caption.bold())
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.accentColor.opacity(0.2), in: Capsule())
+                    }
                 }
                 if let model = row.model {
                     Text(facts(for: model))
