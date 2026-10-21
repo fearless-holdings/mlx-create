@@ -237,7 +237,7 @@ enum LoRADrop {
         return true
     }
 
-    private static func fileURL(of provider: NSItemProvider) async -> URL? {
+    static func fileURL(of provider: NSItemProvider) async -> URL? {
         await withCheckedContinuation { continuation in
             _ = provider.loadObject(ofClass: URL.self) { url, _ in continuation.resume(returning: url) }
         }

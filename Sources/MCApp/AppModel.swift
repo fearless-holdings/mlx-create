@@ -105,6 +105,10 @@ public final class AppModel {
     public var seedChoice: SeedChoice = .random
     public var seedText = ""
     public var lastError: String?
+    /// The banner for the last dropped image (D38). Cleared by a successful Generate or `dismissDropNotice()`.
+    public internal(set) var dropNotice: DropNotice?
+    /// Counts drops so a slow earlier read cannot overwrite a newer drop's result.
+    var dropCounter = 0
     public var selection: UUID?
     /// The images the gallery actions work on (D37). Separate from `selection`, which is what the canvas shows.
     var gallerySelection: Set<UUID> = []
@@ -569,6 +573,7 @@ public final class AppModel {
             let job = try await composer.enqueue(draft, collectionID: currentCollection.id)
             selection = job.id
             lastError = nil
+            dropNotice = nil
             await reload()
             await startDraining()
         } catch {
@@ -603,6 +608,12 @@ public final class AppModel {
         } else {
             lastError = "The model that made this image is not installed."
         }
+        applyStoredSettings(settings)
+    }
+
+    /// Puts a stored image's settings into the composer, except the model, which the caller has already chosen.
+    /// Gallery Reuse and a dropped `mlx-create` image both use it. The family's rules apply last, through `fitComposerToSelectedFamily`.
+    func applyStoredSettings(_ settings: ImageSettings) {
         prompt = settings.prompt
         originalPrompt = settings.originalPrompt
         negativePrompt = settings.negativePrompt ?? ""

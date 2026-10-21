@@ -315,17 +315,44 @@ extension AppModel {
     /// Replaces the stack with the LoRAs an image was made with (R16). Each is matched by SHA-256 against the library,
     /// so a renamed LoRA restores under its current name. One no longer in the library is left out and named in the notice.
     func restoreLoRAStack(from used: [ImageLoRA]) {
+        setLoRAStack(used.map { lora in LoRARestoreEntry(name: lora.name, weight: lora.weight, matches: { $0.sha256 == lora.sha256 }) })
+    }
+
+    /// Replaces the stack with the LoRAs a dropped image names (D38). A reference matches the library LoRA whose SHA-256
+    /// starts with its hash, ignoring case, so an A1111 10-character AutoV2 hash matches and a full hash still matches exactly.
+    /// A hash must be at least 8 hex characters and select exactly one library LoRA; anything else is left out and named in the notice.
+    func restoreLoRAStack(fromReferences references: [ImageGenerationData.LoRAReference]) {
+        setLoRAStack(
+            references.map { reference -> LoRARestoreEntry in
+                let hash = reference.hash.lowercased()
+                let usable = hash.count >= 8 && hash.allSatisfy(\.isHexDigit)
+                let candidates = usable ? loraRecords.filter { $0.sha256.lowercased().hasPrefix(hash) } : []
+                let unique = candidates.count == 1 ? candidates[0].id : nil
+                return LoRARestoreEntry(name: reference.name, weight: reference.weight, matches: { $0.id == unique })
+            })
+    }
+
+    /// One LoRA to restore and the rule that finds its library record.
+    private struct LoRARestoreEntry {
+        let name: String
+        let weight: Double
+        let matches: (LoRARecord) -> Bool
+    }
+
+    /// Builds the slots for `entries` in order. Duplicate records are dropped, weights clamp to their range, and an entry
+    /// with no library record is named in the notice.
+    private func setLoRAStack(_ entries: [LoRARestoreEntry]) {
         var slots: [LoRAStackSlot] = []
         var missing: [String] = []
-        for lora in used {
-            guard let record = loraRecords.first(where: { $0.sha256 == lora.sha256 }) else {
-                missing.append(lora.name)
+        for entry in entries {
+            guard let record = loraRecords.first(where: entry.matches) else {
+                missing.append(entry.name)
                 continue
             }
             guard !slots.contains(where: { $0.id == record.id }) else { continue }
-            let wide = abs(lora.weight) > LoRAStackRules.narrowRange.upperBound
+            let wide = abs(entry.weight) > LoRAStackRules.narrowRange.upperBound
             slots.append(LoRAStackSlot(
-                id: record.id, weight: LoRAStackRules.clamped(lora.weight, wide: wide), isEnabled: true, wideRange: wide))
+                id: record.id, weight: LoRAStackRules.clamped(entry.weight, wide: wide), isEnabled: true, wideRange: wide))
         }
         loraSlots = slots
         loraNotice = missing.isEmpty ? nil : "Not installed: \(missing.joined(separator: ", ")) — left out."
