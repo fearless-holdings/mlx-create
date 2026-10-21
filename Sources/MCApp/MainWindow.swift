@@ -49,10 +49,13 @@ public struct MainWindow: View {
         .sheet(item: $model.collectionEditor) { editor in
             CollectionNameSheet(model: model, editor: editor)
         }
+        .sheet(isPresented: $model.isEnhancerInstallPresented) {
+            EnhancerInstallSheet(model: model)
+        }
     }
 }
 
-/// Keyboard shortcuts for actions that are not on a visible control: ⌘. cancel and ⌘R reuse.
+/// Keyboard shortcuts for actions that are not on a visible control: ⌘. cancel, ⌘R reuse and ⌘E enhance.
 /// ⌘↩ lives on the Generate button in ``GenerationPanel``. The buttons are zero-size and hidden from VoiceOver.
 private struct ShortcutButtons: View {
     let model: AppModel
@@ -69,6 +72,11 @@ private struct ShortcutButtons: View {
             }
             .keyboardShortcut("r", modifiers: .command)
             .disabled(!model.canReuse)
+            Button("Enhance") {
+                Task { await model.pressEnhance() }
+            }
+            .keyboardShortcut("e", modifiers: .command)
+            .disabled(!model.canEnhance)
         }
         .opacity(0)
         .frame(width: 0, height: 0)

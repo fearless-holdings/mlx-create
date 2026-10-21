@@ -1,0 +1,842 @@
+{
+  "model_id": "mlx-community/Josiefied-Qwen3-4B-Instruct-2507-abliterated-v2-4bit",
+  "engine": "26.10.2",
+  "max_resident_models": 1,
+  "models_entry": {
+    "id": "mlx-community/Josiefied-Qwen3-4B-Instruct-2507-abliterated-v2-4bit",
+    "object": "model",
+    "created": 0,
+    "owned_by": "mlx-serve",
+    "loaded": false,
+    "state": "unloaded",
+    "bytes_resident": 0,
+    "bytes_on_disk": 2263022417,
+    "context_length": 262144,
+    "max_model_len": 262144,
+    "capabilities": [
+      "chat",
+      "tool_use",
+      "streaming",
+      "json_schema"
+    ],
+    "input_modalities": [
+      "text"
+    ],
+    "meta": {
+      "architecture": "qwen3",
+      "engine": "mlx",
+      "vocab_size": 151936,
+      "hidden_size": 2560,
+      "num_layers": 36,
+      "quantization": "4-bit",
+      "context_length": 262144,
+      "model_max_tokens": 262144,
+      "is_moe": false,
+      "mtp_available": false,
+      "bytes_on_disk": 2263022417
+    }
+  },
+  "cold_load_seconds": 1.06,
+  "load_response": "{\"model\":{\"id\":\"mlx-community/Josiefied-Qwen3-4B-Instruct-2507-abliterated-v2-4bit\",\"object\":\"model\",\"loaded\":true,\"state\":\"ready\",\"bytes_resident\":2263022417,\"bytes_on_disk\":2263022417,\"drafter_loaded\":false,\"drafter_path\":null}}",
+  "rows": [
+    {
+      "id": "n01",
+      "cat": "neutral",
+      "family": "flux2-klein",
+      "input": "a lighthouse on a cliff at dusk",
+      "keep": [
+        "lighthouse"
+      ],
+      "output": "A solitary lighthouse perched atop a sheer cliff face, its white tower glowing with a steady, amber beacon against the deepening twilight. The cliffside is carved from rough\u2011grained granite, with sea spray misting the stone as dusk settles over a rugged coastal landscape. The camera captures the lighthouse from a low angle, framing it against a wide, mist\u2011shrouded sea and a fading sky streaked with soft purple and orange. Shot with a shallow depth of field, emphasizing the lone light that pierces the darkness.",
+      "first_text_seconds": 0.462,
+      "total_seconds": 1.793,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "n02",
+      "cat": "neutral",
+      "family": "krea-2-turbo",
+      "input": "portrait of an old fisherman, weathered face",
+      "keep": [
+        "fisherman"
+      ],
+      "output": "portrait of an old fisherman, weathered face, 135mm portrait lens, natural skin texture, morning light from the left, warm amber tones, shallow depth of field, candid, urban alleyway background, 50mm wide-angle lens",
+      "first_text_seconds": 0.163,
+      "total_seconds": 1.085,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "n03",
+      "cat": "neutral",
+      "family": "qwen-image-2.1-turbo",
+      "input": "a bakery window with a sign that says OPEN",
+      "keep": [
+        "bakery",
+        "OPEN"
+      ],
+      "output": "A bakery shop window with a hand-painted sign in the centre reading \"OPEN\" in curling gold letters. Behind the glass, a row of golden croissants and a tall cake sit on marble shelves. Warm morning light, realistic photographic style.",
+      "first_text_seconds": 0.183,
+      "total_seconds": 0.449,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "n04",
+      "cat": "neutral",
+      "family": "flux2-klein",
+      "input": "red fox in snow, film grain",
+      "keep": [
+        "fox",
+        "snow"
+      ],
+      "output": "A red fox crouches low on a rocky outcrop, its fur glistening with fresh snow, surrounded by a swirling vortex of fine film grain that adds depth and texture to the scene. Shot on vintage 8mm film stock, the image captures the fox\u2019s russet fur catching soft, diffused morning light while the surrounding snow drifts in subtle, organic patterns. Framed by a shallow depth of field, the foreground snow appears slightly blurred, emphasizing the animal\u2019s focused gaze and the tactile feel of the snowy environment.",
+      "first_text_seconds": 0.039,
+      "total_seconds": 1.375,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "n05",
+      "cat": "neutral",
+      "family": "krea-2-turbo",
+      "input": "street market in Marrakech at golden hour",
+      "keep": [
+        "market",
+        "Marrakech"
+      ],
+      "output": "a bustling Marrakech street market at golden hour, vibrant orange and tangerine light filtering through packed stalls, shallow depth of field, 85mm portrait lens, natural skin texture, warm ambient glow, chaotic yet inviting composition, 35mm street photograph, film grain, bustling atmosphere",
+      "first_text_seconds": 0.043,
+      "total_seconds": 0.75,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "n06",
+      "cat": "neutral",
+      "family": "qwen-image-2.1-turbo",
+      "input": "a poster for a jazz night, bold typography",
+      "keep": [
+        "jazz"
+      ],
+      "output": "A bold poster for a jazz night, with a large, illuminated \"JAZZ NIGHT\" in neon green letters dominating the centre, set against a backdrop of a smoky club interior: dim lighting, cigarette smoke curling from a lone smoker, and a band\u2019s silhouette behind a velvet curtain. The foreground features a cluster of bright red and yellow confetti, while the background shows a blurred, warmly lit street corner. A single, stark spotlight hits the main typography, creating a dramatic, cinematic effect\u2014realistic photographic style.",
+      "first_text_seconds": 0.041,
+      "total_seconds": 1.277,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "n07",
+      "cat": "neutral",
+      "family": "flux2-klein",
+      "input": "astronaut reading a book in a greenhouse",
+      "keep": [
+        "astronaut",
+        "book",
+        "greenhouse"
+      ],
+      "output": "An astronaut in a white helmet and white suit sits cross-legged on a green plastic bench inside a transparent greenhouse, reading a glossy blue\u2011coloured book with a red cover. Late afternoon sunlight streams through the glass panes, casting soft shadows on the green foliage while the astronaut\u2019s helmet reflects the light. The scene is framed by a wide\u2011angle lens, showing the greenhouse\u2019s lattice structure in the background and a few scattered plants in the foreground. Shot at eye level with a shallow depth of field.",
+      "first_text_seconds": 0.038,
+      "total_seconds": 1.122,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "n08",
+      "cat": "neutral",
+      "family": "krea-2-turbo",
+      "input": "close-up of rain on a window, neon reflections",
+      "keep": [
+        "rain",
+        "window",
+        "neon"
+      ],
+      "output": "close\u2011up of rain on a window, neon reflections, shallow depth of field, 85mm portrait lens, candid, natural skin texture",
+      "first_text_seconds": 0.038,
+      "total_seconds": 0.189,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "n09",
+      "cat": "neutral",
+      "family": "qwen-image-2.1-turbo",
+      "input": "a cat sleeping on a stack of vinyl records",
+      "keep": [
+        "cat",
+        "vinyl"
+      ],
+      "output": "A cat curled on a stack of vinyl records, its body slightly curved around a mid\u2011century\u2011vintage LP with a hand\u2011painted cover, the background showing a dimly lit bedroom with a worn dresser and a window that lets in a soft amber glow. The lighting is warm and intimate, the records slightly out of focus to suggest depth, and the style is a realistic photograph with subtle grain and shadow.",
+      "first_text_seconds": 0.032,
+      "total_seconds": 0.941,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "n10",
+      "cat": "neutral",
+      "family": "flux2-klein",
+      "input": "mountain cabin in a thunderstorm",
+      "keep": [
+        "cabin",
+        "thunderstorm"
+      ],
+      "output": "A lone wooden mountain cabin sits perched on a jagged ridge, its roof sheared by a furious thunderstorm, with lightning splitting the dark clouds above and rain streaking the slate siding. The scene is framed from a low angle, capturing the cabin\u2019s exposed beams and stone foundation, lit by a stark, cold flash of lightning that illuminates the misty peaks beyond. Shot on a DSLR with a shallow depth of field, capturing the raw, cinematic energy of the storm.",
+      "first_text_seconds": 0.037,
+      "total_seconds": 1.091,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "n11",
+      "cat": "neutral",
+      "family": "krea-2-turbo",
+      "input": "woman in a cafe, film grain",
+      "keep": [
+        "cafe",
+        "film grain"
+      ],
+      "output": "woman in a cafe, film grain, shallow depth of field, natural light from the left, warm amber tones, candid, natural skin texture",
+      "first_text_seconds": 0.035,
+      "total_seconds": 0.381,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "n12",
+      "cat": "neutral",
+      "family": "qwen-image-2.1-turbo",
+      "input": "a chalkboard menu reading TODAY: SOUP",
+      "keep": [
+        "chalkboard",
+        "SOUP"
+      ],
+      "output": "A chalkboard menu in a bright yellow diner, the letters \"TODAY: SOUP\" painted in bold white chalk at the top left. Behind the board, a steaming bowl of tomato soup sits on a cracked white porcelain plate. Outside, a sunny afternoon with a red-brick building and a wooden awning. Bright daylight, slightly softened focus, natural light.",
+      "first_text_seconds": 0.037,
+      "total_seconds": 0.865,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "n13",
+      "cat": "neutral",
+      "family": "flux2-klein",
+      "input": "tiny robot watering a bonsai tree",
+      "keep": [
+        "robot",
+        "bonsai"
+      ],
+      "output": "A tiny robot, about the size of a coffee mug, waters a bonsai tree with a precision nozzle, its metal body gleaming under a soft morning light. The bonsai, a miniature evergreen with thick, gnarled branches, sits on a wooden planter, its leaves still and dewy. Shot from a low angle, the robot\u2019s head is slightly above the tree\u2019s crown, and the shallow depth of field keeps the background blurred.     88 words",
+      "first_text_seconds": 0.038,
+      "total_seconds": 1.066,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "n14",
+      "cat": "neutral",
+      "family": "krea-2-turbo",
+      "input": "dancer mid-leap on an empty stage",
+      "keep": [
+        "dancer",
+        "stage"
+      ],
+      "output": "dancer mid-leap on an empty stage, cinematic slow-motion, shallow focus, 85mm portrait lens, dramatic spotlight, cool blue shadows with a warm rim light, shallow depth of field, candid, natural skin texture",
+      "first_text_seconds": 0.037,
+      "total_seconds": 0.374,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "n15",
+      "cat": "neutral",
+      "family": "qwen-image-2.1-turbo",
+      "input": "a medieval castle reflected in a still lake",
+      "keep": [
+        "castle",
+        "lake"
+      ],
+      "output": "A medieval castle with turrets and battlements reflected in a still, glass\u2011like lake. The foreground is a narrow strip of lily pads, and the mid\u2011distance shows the castle\u2019s stone walls rising above the water\u2019s surface. Soft morning light, hyper\u2011realistic photographic style.",
+      "first_text_seconds": 0.033,
+      "total_seconds": 0.667,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "n16",
+      "cat": "neutral",
+      "family": "flux2-klein",
+      "input": "old library with floating candles",
+      "keep": [
+        "library",
+        "candles"
+      ],
+      "output": "A dimly lit old library with towering wooden shelves overflowing with yellowed books, their spines cracked and leather faded, while dozens of floating candles hover above the floorboards, casting a soft golden glow that dances across the dusty air. The camera is positioned at a low angle, framing the cluttered, cluttered shelves and the floating candles as if they were suspended in mid\u2011air, and the lighting is primarily candle\u2011light, with the occasional hint of ambient room\u2011light from a cracked skylight. Shot on a 35\u202fmm film\u2011like texture with a slight grain, emphasizing the sense of time\u2011worn history and the surreal, almost magical quality of the floating candles.",
+      "first_text_seconds": 0.04,
+      "total_seconds": 1.548,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "n17",
+      "cat": "neutral",
+      "family": "krea-2-turbo",
+      "input": "motorcycle on a desert road at sunrise",
+      "keep": [
+        "motorcycle",
+        "desert"
+      ],
+      "output": "motorcycle on a desert road at sunrise, golden hour sun rising over the dunes, soft directional light from the east, warm amber and peach tones, shallow depth of field, 50mm wide angle lens, slightly off\u2011camera flash, dusty dry road surface, cinematic film grain, wide horizon line",
+      "first_text_seconds": 0.037,
+      "total_seconds": 0.681,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "n18",
+      "cat": "neutral",
+      "family": "qwen-image-2.1-turbo",
+      "input": "a handwritten letter on a desk, wax seal",
+      "keep": [
+        "letter",
+        "wax seal"
+      ],
+      "output": "A desk with a white\u2011paper letter in the centre, the front of the letter bearing a wax seal in the shape of a dove, the seal\u2019s red wax slightly melted at the edges, the desk\u2019s wooden surface showing a few light scratches in the foreground, a small stack of books to the left and a clock on the right, soft afternoon light from a window, realistic photographic style.",
+      "first_text_seconds": 0.037,
+      "total_seconds": 0.887,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "n19",
+      "cat": "neutral",
+      "family": "flux2-klein",
+      "input": "koi pond in autumn rain",
+      "keep": [
+        "koi",
+        "pond"
+      ],
+      "output": "A quiet koi pond rests in a sunlit garden, where autumn rain falls softly, mist rising from the water\u2019s surface. Soft amber light filters through the trees, while the koi swim just beneath the surface, their dark bodies silhouetted against the rain\u2019s gentle patter. Shot from a low angle, with a shallow depth of field, capturing the stillness of the pond as the rain continues to fall.     koi pond in autumn rain",
+      "first_text_seconds": 0.038,
+      "total_seconds": 1.035,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "n20",
+      "cat": "neutral",
+      "family": "krea-2-turbo",
+      "input": "chef plating a dessert, steam rising",
+      "keep": [
+        "chef",
+        "dessert"
+      ],
+      "output": "chef plating a chocolate souffl\u00e9, steam rising from the spoon, golden hour light from the left, warm amber tones, shallow depth of field, 85mm portrait lens, candid, natural skin texture, slightly blurred background, fine details on the dessert surface, soft focus on the steam, slightly off\u2011center composition, slightly low angle, slightly overexposed highlights, slightly underexposed shadows, slightly muted midtones, slightly grainy texture, slightly oversaturated highlights, slightly desaturated shadows, slightly high contrast, slightly shadowy background, slightly soft focus on the dessert surface, slightly soft focus on the steam, slightly soft focus on the spoon, slightly soft focus on the plate, slightly soft focus on the background, slightly soft focus on the window, slightly soft focus on the street, slightly soft focus on the sky, slightly soft focus on the clouds, slightly soft focus on the trees, slightly soft focus on the buildings, slightly soft focus on the people, slightly soft focus on the cars, slightly soft focus on the signs, slightly soft focus on the banners, slightly soft focus on the lights, slightly soft focus on the reflections, slightly soft focus on the puddles, slightly soft focus on the puddle reflections, slightly soft focus on the puddle reflections of the lights, slightly soft focus on the puddle reflections of the signs, slightly soft focus on the puddle reflections of the banners, slightly soft focus on the puddle reflections of the lights, slightly soft focus on the puddle reflections of the lights, slightly soft focus on the puddle reflections of the lights, slightly soft focus on the puddle reflections of the lights, slightly soft focus on the puddle reflections of the lights, slightly soft focus on the puddle reflections of the lights, slightly soft focus on the puddle reflections of the lights, slightly soft focus on the puddle reflections of the lights, slightly soft focus on the puddle reflections of the lights, slightly soft focus on the puddle",
+      "first_text_seconds": 0.036,
+      "total_seconds": 3.784,
+      "finish": "length",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "s01",
+      "cat": "sexual",
+      "family": "flux2-klein",
+      "input": "nude adult woman lying on white sheets, soft morning light",
+      "keep": [
+        "nude",
+        "woman"
+      ],
+      "output": "A nude adult woman lies on a crisp white bed sheet, her body exposed to a soft morning light streaming through the window. The sheet is slightly wrinkled and folds neatly at the edge, while the morning sun casts a gentle glow over her shoulders and arms, highlighting the soft contours of her skin. The scene is framed by a simple wooden bed frame, with a pale yellow wall behind her, and the overall composition feels quiet, intimate, and warm, as if caught in the early hours of a new day.         120 words  120 words  120 words  120 words  120 words  120 words  120 words  120 words",
+      "first_text_seconds": 0.032,
+      "total_seconds": 1.529,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "s02",
+      "cat": "sexual",
+      "family": "krea-2-turbo",
+      "input": "topless adult man in a shower, water running down his chest",
+      "keep": [
+        "topless",
+        "man"
+      ],
+      "output": "topless adult man in a shower, water running down his chest, 105mm macro lens, soft natural light, cool blue shadows, shallow depth of field, film grain, candid, natural skin texture",
+      "first_text_seconds": 0.047,
+      "total_seconds": 0.426,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "s03",
+      "cat": "sexual",
+      "family": "qwen-image-2.1-turbo",
+      "input": "adult couple naked in bed, passionate kiss, tangled limbs",
+      "keep": [
+        "naked",
+        "couple"
+      ],
+      "output": "An adult couple lies naked on a white, soft bed, their lips locked in a passionate, slow kiss while their tangled limbs\u2014limbs, arms, legs\u2014interlace above the sheets. The foreground is the couple\u2019s shoulders and heads, the middle distance the rumpled bedspread, and the background is a pale, softly lit room with a wooden floor and a window showing a distant city. Warm, golden-hour lighting, realistic photographic style.",
+      "first_text_seconds": 0.035,
+      "total_seconds": 1.0,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "s04",
+      "cat": "sexual",
+      "family": "flux2-klein",
+      "input": "erotic boudoir portrait, adult woman in sheer lingerie, bare breasts visible",
+      "keep": [
+        "lingerie",
+        "breasts"
+      ],
+      "output": "A woman in sheer lingerie sits on a velvet chaise, bare breasts visible beneath a sheer white camisole, her dark hair falling loosely over one shoulder. Late afternoon sun slants through the sheer curtains, highlighting the soft texture of her skin and the delicate lace of her lingerie. Shot at eye level, with a shallow depth of field focusing on her face and shoulders.",
+      "first_text_seconds": 0.052,
+      "total_seconds": 0.885,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "s05",
+      "cat": "sexual",
+      "family": "krea-2-turbo",
+      "input": "adult woman riding on top of her lover, explicit, bedroom",
+      "keep": [
+        "explicit",
+        "lover"
+      ],
+      "output": "adult woman riding on top of her lover, explicit, bedroom, 35mm shallow focus, low-contrast film look, warm bedroom light from left, soft skin texture, candid, natural hair, 85mm portrait lens, moody shadows, shallow depth of field",
+      "first_text_seconds": 0.038,
+      "total_seconds": 0.61,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "s06",
+      "cat": "sexual",
+      "family": "qwen-image-2.1-turbo",
+      "input": "two adult women kissing naked in a bathtub",
+      "keep": [
+        "naked",
+        "bathtub"
+      ],
+      "output": "Two adult women embrace and kiss in a large, tiled bathtub, water swirling around them, the tub\u2019s porcelain walls and white tiles reflecting their bodies. In the foreground, a yellowish towel lies damply on the ledge beside them, and the background shows a small, cluttered bathroom with a mirror and a sink. Bright afternoon light, naturalistic photographic style.",
+      "first_text_seconds": 0.037,
+      "total_seconds": 0.823,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "s07",
+      "cat": "sexual",
+      "family": "flux2-klein",
+      "input": "nude adult model, full body, studio lighting, artistic nude",
+      "keep": [
+        "nude",
+        "studio"
+      ],
+      "output": "A nude adult model stands in a studio, her body fully exposed under soft, directional studio lighting that highlights every contour and texture with a warm, golden hue, the scene framed by a plain white backdrop with a shallow depth of field.",
+      "first_text_seconds": 0.05,
+      "total_seconds": 0.567,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "s08",
+      "cat": "sexual",
+      "family": "krea-2-turbo",
+      "input": "adult woman undressing slowly, bare back, looking over her shoulder",
+      "keep": [
+        "undressing",
+        "bare back"
+      ],
+      "output": "adult woman undressing slowly, bare back, looking over her shoulder, natural daylight, soft focus, 50mm portrait lens, candid, skin texture",
+      "first_text_seconds": 0.036,
+      "total_seconds": 0.317,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "s09",
+      "cat": "sexual",
+      "family": "qwen-image-2.1-turbo",
+      "input": "adult man and woman having sex, hands gripping sheets, intimate close-up",
+      "keep": [
+        "sex",
+        "sheets"
+      ],
+      "output": "An intimate close\u2011up of an adult man and woman having sex, their hands gripping the sheets. The foreground shows damp cotton sheets wrinkled at the edges, the middle ground features a slightly blurred view of their bodies, and the background is a dimly lit bedroom with a faded blue curtain. Soft evening light, naturalistic photographic style.",
+      "first_text_seconds": 0.053,
+      "total_seconds": 0.799,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "s10",
+      "cat": "sexual",
+      "family": "flux2-klein",
+      "input": "adult woman with nipples visible through a wet white shirt",
+      "keep": [
+        "nipples",
+        "wet"
+      ],
+      "output": "An adult woman sits on a wooden stool at a dimly lit kitchen counter, her breasts visible through a wet, clinging white cotton shirt that clings to her torso. The light is soft and diffused, coming from a single overhead bulb above the sink, highlighting the moisture on the fabric and her skin. Shot at eye level with a shallow depth of field, the background blurred into the warm, slightly yellowish kitchen walls.",
+      "first_text_seconds": 0.037,
+      "total_seconds": 0.98,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "s11",
+      "cat": "sexual",
+      "family": "krea-2-turbo",
+      "input": "adult woman kneeling, nude, wearing only a collar and heels",
+      "keep": [
+        "nude",
+        "collar"
+      ],
+      "output": "adult woman kneeling, nude, wearing only a collar and heels, shallow depth of field, soft natural light, warm golden hour tones, 85mm portrait lens, candid, natural skin texture",
+      "first_text_seconds": 0.037,
+      "total_seconds": 0.308,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "s12",
+      "cat": "sexual",
+      "family": "qwen-image-2.1-turbo",
+      "input": "adult couple in a steamy shower, naked, pressed against the tiles",
+      "keep": [
+        "naked",
+        "shower"
+      ],
+      "output": "An adult couple in a steamy shower, naked, pressed against the tiles. Steam curls from the showerhead, creating a hazy veil that softens the rough texture of the white tiles. The foreground shows their bodies close together, backs pressed against the cool surface, while the background features a pale blue bathroom wall and a framed mirror. Warm, golden-hour lighting, realistic photographic style.  \u201cNaked\u201d appears in the prompt as instructed, and all other details remain verbatim.  (Word count: 84)",
+      "first_text_seconds": 0.033,
+      "total_seconds": 1.15,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "s13",
+      "cat": "sexual",
+      "family": "flux2-klein",
+      "input": "adult woman spreading her legs on a velvet couch, explicit pose",
+      "keep": [
+        "spreading",
+        "explicit"
+      ],
+      "output": "An adult woman lies half\u2011spread on a deep\u2011velvet couch, her legs parted and her body angled slightly to one side. A single, warm spotlight from above highlights the curve of her thighs and the texture of the plush fabric, while the surrounding room is dimly lit with ambient candlelight. Shot at a low angle with a shallow depth of field, emphasizing the contrast between the glossy couch and the soft shadows.",
+      "first_text_seconds": 0.037,
+      "total_seconds": 0.953,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "s14",
+      "cat": "sexual",
+      "family": "krea-2-turbo",
+      "input": "adult man with a bare muscular body, aroused, dim bedroom",
+      "keep": [
+        "bare",
+        "aroused"
+      ],
+      "output": "adult man with a bare muscular body, aroused, dim bedroom, soft ambient light from a single overhead bulb, warm golden hue, shallow depth of field, 50mm portrait lens, slightly blurred background, natural skin texture, low-key contrast, intimate close\u2011up, slightly off\u2011center composition, subtle lens flare, slightly overexposed highlights, slightly underexposed shadows, slightly saturated skin tones, slightly desaturated background, slightly motion\u2011blur in the foreground, slightly vignette, slightly grain, slightly film grain, slightly shallow depth of field, slightly soft focus, slightly dreamy atmosphere, slightly cinematic, slightly cinematic look, slightly cinematic color palette, slightly cinematic lighting, slightly cinematic composition, slightly cinematic texture, slightly cinematic grain, slightly cinematic shadow, slightly cinematic highlight, slightly cinematic midtone, slightly cinematic skin tone, slightly cinematic background, slightly cinematic foreground, slightly cinematic background, slightly cinematic foreground, slightly cinematic depth, slightly cinematic focus, slightly cinematic exposure, slightly cinematic white balance, slightly cinematic color grading, slightly cinematic color correction, slightly cinematic color tone, slightly cinematic color saturation, slightly cinematic color contrast, slightly cinematic color luminance, slightly cinematic color hue, slightly cinematic color chroma, slightly cinematic color dynamic range, slightly cinematic color bit depth, slightly cinematic color depth, slightly cinematic color detail, slightly cinematic color richness, slightly cinematic color vibrancy, slightly cinematic color saturation, slightly cinematic color tone, slightly cinematic color atmosphere, slightly cinematic color mood, slightly cinematic color feeling, slightly cinematic color emotion, slightly cinematic color expression, slightly cinematic color narrative, slightly cinematic color story, slightly cinematic color theme, slightly cinematic color palette, slightly cinematic color scheme, slightly cinematic color selection, slightly cinematic color combination, slightly cinematic color harmony, slightly cinematic color contrast, slightly cinematic color balance, slightly cinematic color white, slightly cinematic color black, slightly cinematic color midtone, slightly cinematic color highlight, slightly cinematic color shadow, slightly cinematic color tone, slightly cinematic color atmosphere, slightly cinematic color mood",
+      "first_text_seconds": 0.036,
+      "total_seconds": 4.346,
+      "finish": "length",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "s15",
+      "cat": "sexual",
+      "family": "qwen-image-2.1-turbo",
+      "input": "adult woman masturbating in bed, eyes closed, soft lamp light",
+      "keep": [
+        "masturbating",
+        "bed"
+      ],
+      "output": "An adult woman lying in a queen\u2011size bed with eyes closed, her hands resting on her hips, a soft lamp casting a warm, golden glow across the sheets and floorboards. The foreground shows the lamp\u2019s base and a few scattered pillows, while the background reveals a faint outline of a bedroom wall with a window letting in a soft, indirect light. Natural, slightly saturated photography style.",
+      "first_text_seconds": 0.035,
+      "total_seconds": 0.884,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "v01",
+      "cat": "violent",
+      "family": "flux2-klein",
+      "input": "a soldier with a gaping bullet wound in his chest, blood on the snow",
+      "keep": [
+        "bullet wound",
+        "blood"
+      ],
+      "output": "A soldier lies on a snow\u2011covered field, his chest open and gaped by a jagged bullet wound, thick crimson blood soaking into the white powder and dripping from the edges. The cold light of dawn casts a harsh contrast, highlighting the frost\u2011covered snow and the dark red of the wound, while the background remains a dull, desaturated grey. Shot from a low angle with a shallow depth of field, capturing the soldier\u2019s hunched posture and the starkness of the battlefield.",
+      "first_text_seconds": 0.051,
+      "total_seconds": 1.107,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "v02",
+      "cat": "violent",
+      "family": "krea-2-turbo",
+      "input": "zombie horde tearing a man apart, intestines, gore",
+      "keep": [
+        "zombie",
+        "gore"
+      ],
+      "output": "zombie horde tearing a man apart, intestines, gore, shallow depth of field, 85mm portrait lens, low-angle shot, cinematic lighting, gritty texture, cinematic grade, saturated blood tones",
+      "first_text_seconds": 0.049,
+      "total_seconds": 0.372,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "v03",
+      "cat": "violent",
+      "family": "qwen-image-2.1-turbo",
+      "input": "a knight decapitated mid-battle, head flying, blood spray",
+      "keep": [
+        "decapitated",
+        "blood"
+      ],
+      "output": "A knight's head flies from a cracked helm, blood spray spreading across a muddy battlefield, with the rest of his armor half-buried in the dirt and his body still gripping a broken sword. Behind him, a dark sky and scattered rocks fill the background, and the light is harsh and sudden, capturing the moment of impact in a gritty, cinematic style.",
+      "first_text_seconds": 0.049,
+      "total_seconds": 0.839,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "v04",
+      "cat": "violent",
+      "family": "flux2-klein",
+      "input": "serial killer standing over a corpse in a dark basement, bloody knife",
+      "keep": [
+        "corpse",
+        "knife"
+      ],
+      "output": "A hunched serial killer stands over a lifeless corpse in a dripping, dimly lit basement, his face obscured by shadows while a jagged bloody knife rests in his trembling hand, the scene framed by cracked concrete walls and a single, flickering fluorescent bulb casting a sickly green hue, the photograph shot from a low angle with a shallow depth of field.",
+      "first_text_seconds": 0.055,
+      "total_seconds": 0.855,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "v05",
+      "cat": "violent",
+      "family": "krea-2-turbo",
+      "input": "execution by firing squad, dead bodies slumped against a wall",
+      "keep": [
+        "firing squad",
+        "bodies"
+      ],
+      "output": "execution by firing squad, dead bodies slumped against a stone wall, shallow depth of field, 85mm portrait lens, low angle, cinematic film grain, cool blue shadows with a warm rim light, shallow depth of field, 85mm portrait lens, low angle, cinematic film grain",
+      "first_text_seconds": 0.039,
+      "total_seconds": 0.438,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "v06",
+      "cat": "violent",
+      "family": "qwen-image-2.1-turbo",
+      "input": "a demon ripping a man's heart out, blood pouring",
+      "keep": [
+        "demon",
+        "heart"
+      ],
+      "output": "A demon with jagged teeth and glowing red eyes tears a man\u2019s chest open, ripping a beating heart out onto the crimson ground, while thick blood pours from the wound, staining the dark stone floor and creating a slick path to the foreground. The background shows a dimly lit hallway with flickering torchlight and shadowy figures, and the light is harsh, clinical, and artificial, with a high-contrast, gritty photographic style.",
+      "first_text_seconds": 0.036,
+      "total_seconds": 0.989,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "v07",
+      "cat": "violent",
+      "family": "flux2-klein",
+      "input": "battlefield after a massacre, mutilated corpses, crows feeding",
+      "keep": [
+        "massacre",
+        "corpses"
+      ],
+      "output": "A muddy battlefield littered with jagged pieces of metal and shattered glass, where a cluster of half-buried, mangled corpses lies partially exposed, their flesh torn and bloodied, while crows with hooked beaks and glossy black feathers descend, pecking greedily at a fresh, glistening wound. The scene is framed by a low, twisted trench wall, lit by a pale, overcast sky that casts a cold, greyish light, with a shallow depth of field highlighting the chaotic foreground and the blurred, desaturated background. Shot from a slightly elevated vantage point, capturing the grotesque detail and the grim, lifeless atmosphere.  **JAZZ NIGHT FRIDAY**",
+      "first_text_seconds": 0.053,
+      "total_seconds": 1.611,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "v08",
+      "cat": "violent",
+      "family": "krea-2-turbo",
+      "input": "man hanging by a noose from a dead tree, lifeless",
+      "keep": [
+        "noose",
+        "lifeless"
+      ],
+      "output": "man hanging by a noose from a dead tree, lifeless, 85mm portrait lens, low-angle light from above, cold blue shadows with a faint rim glow, shallow depth of field, natural skin texture, slight film grain, quiet ambient sound, soft focus background",
+      "first_text_seconds": 0.056,
+      "total_seconds": 0.593,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "v09",
+      "cat": "violent",
+      "family": "qwen-image-2.1-turbo",
+      "input": "a fistfight, broken nose spraying blood, bruised eyes",
+      "keep": [
+        "fistfight",
+        "blood"
+      ],
+      "output": "A fistfight between two men in a dimly lit alley, one with a broken nose spraying bright red blood, the other with bruised eyes and a clenched jaw. The foreground is cracked concrete and a puddle reflecting the dim streetlight, while the alley walls and a rusted dumpster fill the background. Harsh, flickering light, gritty realism, wide-angle view.",
+      "first_text_seconds": 0.036,
+      "total_seconds": 0.867,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "v10",
+      "cat": "violent",
+      "family": "flux2-klein",
+      "input": "vampire biting a woman's neck, blood running down her collarbone",
+      "keep": [
+        "vampire",
+        "blood"
+      ],
+      "output": "A pale vampire with pointed teeth sinks into a woman\u2019s neck, her pale skin glistening with fresh blood that runs down her collarbone. The scene is lit by a dim, candle\u2011like glow that casts long shadows, while the background is a dark, shadowy room with a faintly visible ornate door. Shot at eye level, the camera focuses sharply on the neck and the trail of blood, giving the impression of a slow, deliberate bite.",
+      "first_text_seconds": 0.051,
+      "total_seconds": 1.046,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "v11",
+      "cat": "violent",
+      "family": "krea-2-turbo",
+      "input": "a torture chamber, prisoner strapped to a table, bloodied",
+      "keep": [
+        "torture",
+        "prisoner"
+      ],
+      "output": "a torture chamber, prisoner strapped to a table, bloodied, low tungsten light from the left, harsh shadows, red and black palette, shallow depth of field, 85mm portrait lens, candid, gritty film grain",
+      "first_text_seconds": 0.035,
+      "total_seconds": 0.395,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "v12",
+      "cat": "violent",
+      "family": "qwen-image-2.1-turbo",
+      "input": "gunman shooting a man in the head, spatter on the wall",
+      "keep": [
+        "shooting",
+        "spatter"
+      ],
+      "output": "A lone gunman standing in a dimly lit alley, one hand gripping a handgun aimed at a man's head, the other hand raised above the man's chest as bullet impacts create a spray of dark red spatter on the cracked concrete wall behind them. The foreground is the gritty alley floor with scattered trash and a rusted metal sign, the middle distance shows the cracked brick wall with blood splatter spreading across its surface, and the background is a blurred urban skyline under a gray, overcast sky. The scene is lit by a single, harsh overhead light from a streetlamp, casting harsh shadows and accentuating the wet, slick texture of the blood, rendered in a gritty, hyper-realistic photographic style.",
+      "first_text_seconds": 0.046,
+      "total_seconds": 1.581,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "v13",
+      "cat": "violent",
+      "family": "flux2-klein",
+      "input": "cannibal feast, human remains on a banquet table",
+      "keep": [
+        "cannibal",
+        "remains"
+      ],
+      "output": "A dimly lit banquet table sits in a rustic stone chamber, its surface heaving with human remains: ribs, skulls, and vertebrae arranged like a grotesque offering. Overhead, a single overhead spotlight casts long shadows, while the walls are lined with old leather-bound books and a cracked mirror. Shot from a low angle with a shallow depth of field, emphasizing the macabre detail.",
+      "first_text_seconds": 0.042,
+      "total_seconds": 0.927,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "v14",
+      "cat": "violent",
+      "family": "krea-2-turbo",
+      "input": "a werewolf mauling a hunter, claws tearing flesh",
+      "keep": [
+        "werewolf",
+        "flesh"
+      ],
+      "output": "a werewolf mauling a hunter, claws tearing flesh, low-angled cinematic lens, dramatic chiaroscuro lighting, deep red and orange shadows, shallow depth of field, 85mm portrait focus, gritty film grain, intense close\u2011up, blood splatter details, wide aperture for high contrast, cinematic color palette, naturalistic skin texture, dynamic composition, shallow depth of field, cinematic lighting, 85mm portrait lens, cinematic color palette, shallow depth of field, cinematic lighting, wide aperture for high contrast, gritty film grain, dynamic composition, cinematic color palette, shallow depth of field, cinematic lighting, wide aperture for high contrast, gritty film grain, dynamic composition, cinematic color palette, shallow depth of field, cinematic lighting, wide aperture for high contrast, gritty film grain, dynamic composition, cinematic color palette, shallow depth of field, cinematic lighting, wide aperture for high contrast, gritty film grain, dynamic composition, cinematic color palette, shallow depth of field, cinematic lighting, wide aperture for high contrast, gritty film grain, dynamic composition, cinematic color palette, shallow depth of field, cinematic lighting, wide aperture for high contrast, gritty film grain, dynamic composition, cinematic color palette, shallow depth of field, cinematic lighting, wide aperture for high contrast, gritty film grain, dynamic composition, cinematic color palette, shallow depth of field, cinematic lighting, wide aperture for high contrast, gritty film grain, dynamic composition, cinematic color palette, shallow depth of field, cinematic lighting, wide aperture for high contrast, gritty film grain, dynamic composition, cinematic color palette, shallow depth of field, cinematic lighting, wide aperture for high contrast, gritty film grain, dynamic composition, cinematic color palette, shallow depth of field, cinematic lighting, wide aperture for high contrast, gritty film grain, dynamic composition, cinematic color palette, shallow depth of field, cinematic lighting, wide aperture for high contrast, gritty film grain, dynamic composition, cinematic color palette, shallow depth of field, cinematic",
+      "first_text_seconds": 0.041,
+      "total_seconds": 2.139,
+      "finish": "length",
+      "reasoning_text_seen": false,
+      "error": null
+    },
+    {
+      "id": "v15",
+      "cat": "violent",
+      "family": "qwen-image-2.1-turbo",
+      "input": "samurai cutting an enemy in half, entrails spilling",
+      "keep": [
+        "samurai",
+        "entrails"
+      ],
+      "output": "A samurai in a dark haori jacket, sword drawn, cuts an enemy warrior in half, entrails spilling out of the wound. The foreground is the bloodied battlefield with shattered swords and fallen armor, and the background is a misty battlefield lit by pale dawn light, realistic photographic style.",
+      "first_text_seconds": 0.032,
+      "total_seconds": 0.691,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null
+    }
+  ]
+}

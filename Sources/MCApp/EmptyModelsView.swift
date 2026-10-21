@@ -22,6 +22,15 @@ struct EmptyModelsView: View {
             }
             .controlSize(.large)
             .keyboardShortcut(.defaultAction)
+            if EnhancerOffer.isOffered(model.enhancer) {
+                Text("Optional: a prompt enhancer rewrites prompts for the model you pick. It downloads separately.")
+                    .font(.callout)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.secondary)
+                Button("Get the prompt enhancer") {
+                    model.isEnhancerInstallPresented = true
+                }
+            }
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)

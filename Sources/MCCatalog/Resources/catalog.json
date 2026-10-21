@@ -245,8 +245,64 @@
       "ram_gb" : 14.3,
       "repo" : "ddalcu\/Qwen-Image-2.1-Turbo-MLX-Serve-4bit",
       "revision" : "394f9477a956a0c4fd70ebcbe3a326d74ef0add4"
+    },
+    {
+      "download_bytes" : 4262242410,
+      "family" : "gemma4",
+      "files" : [
+        {
+          "path" : "chat_template.jinja",
+          "sha256" : "4ebef94c9a26e0f1968a039b883259be52fa09e909cf544344e326507a6d2f36",
+          "size" : 16303
+        },
+        {
+          "path" : "config.json",
+          "sha256" : "1ad7faa840f2a3a6de90b79cc77637ede58bd95d9550795a46392eb2d13f981f",
+          "size" : 4968
+        },
+        {
+          "path" : "generation_config.json",
+          "sha256" : "d4226bbe3117d2d253ba4609720ba82c6c4ce4627a9a6ae05387c78983ac03de",
+          "size" : 208
+        },
+        {
+          "path" : "model.safetensors",
+          "sha256" : "2207975e2a4551398bedeb189763f780fd9150241cdb65a43caa6d5b5bfe3816",
+          "size" : 4229919385
+        },
+        {
+          "path" : "model.safetensors.index.json",
+          "sha256" : "de5503c932f6bbe408dadaa6e6cac1a0b3b1bca63568c3fb830a1910f2b68c83",
+          "size" : 129176
+        },
+        {
+          "path" : "tokenizer.json",
+          "sha256" : "cc8d3a0ce36466ccc1278bf987df5f71db1719b9ca6b4118264f45cb627bfe0f",
+          "size" : 32169626
+        },
+        {
+          "path" : "tokenizer_config.json",
+          "sha256" : "bb2981f7996db023f7f650d1b413df9f517490487050c87217355e479822e743",
+          "size" : 2744
+        }
+      ],
+      "id" : "gemma-4-e4b-heretic-4bit",
+      "kind" : "enhancer",
+      "license" : {
+        "commercial_use" : true,
+        "id" : "apache-2.0",
+        "name" : "Apache License 2.0",
+        "summary" : "Apache License 2.0, as declared on the model card (an abliterated community conversion of Gemma 4 E4B). Commercial use is allowed. Keep the license and any notices when you redistribute the model. The model is uncensored, so what it writes is your responsibility.",
+        "url" : "https:\/\/www.apache.org\/licenses\/LICENSE-2.0",
+        "version" : "2.0"
+      },
+      "name" : "Gemma 4 E4B heretic (prompt enhancer)",
+      "quantization" : "4-bit",
+      "ram_gb" : 3.94,
+      "repo" : "McG-221\/gemma-4-E4B-it-heretic-mlx-4Bit",
+      "revision" : "b0caa71ef36eabebafb01e23904195e751c5f8c4"
     }
   ],
   "schema_version" : 1,
-  "sequence" : 4
+  "sequence" : 5
 }

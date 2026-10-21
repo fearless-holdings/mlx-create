@@ -10,7 +10,7 @@ import Testing
 private let gib: UInt64 = 1 << 30
 
 /// Synthetic LoRA layouts whose tensor keys match the bundled families' fingerprints (families.json).
-private enum LoRALayout {
+enum LoRALayout {
     case krea, flux
 
     var tensorNames: [String] {
@@ -28,7 +28,7 @@ private struct FixtureFailure: Error {
 /// Writes a header-only safetensors file with the given tensor names. Each tensor takes the shape its bundled fingerprint's
 /// dimension hint expects (see `loraShape`), so the registry accepts the file. `tag` lands in `__metadata__`, so files with
 /// the same keys still differ in content and hash.
-private func writeSafetensors(at url: URL, tensors: [String], tag: String) throws {
+func writeSafetensors(at url: URL, tensors: [String], tag: String) throws {
     var header: [String: Any] = ["__metadata__": ["tag": tag]]
     var offset = 0
     for name in tensors {
@@ -65,7 +65,7 @@ private func readyModel(_ harness: AppHarness, paused: Bool = false) async -> Ap
 
 /// Imports a synthetic LoRA of `layout` into the harness library under `name` and re-reads the library.
 @MainActor
-private func importLoRA(_ harness: AppHarness, _ layout: LoRALayout, name: String) async throws -> LoRARecord {
+func importLoRA(_ harness: AppHarness, _ layout: LoRALayout, name: String) async throws -> LoRARecord {
     let url = harness.root.appending(path: "incoming/\(name).safetensors")
     try writeSafetensors(at: url, tensors: layout.tensorNames, tag: name)
     let outcome = try await harness.store.importLoRA(from: url, registry: FamilyRegistry.bundled(), name: name)

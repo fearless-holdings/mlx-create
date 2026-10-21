@@ -47,6 +47,12 @@ public final class AppModel {
     private(set) var browser: ModelBrowserModel!
     /// Whether the browser sheet is presented.
     var isBrowserPresented = false
+    /// Whether the inline enhancer install sheet is presented (U8, R16).
+    var isEnhancerInstallPresented = false
+    /// Why the last Enhance press did not start, shown under the button (U8).
+    var enhanceRefusal: String?
+    /// The one-time note that this Enhance reloads the image model (R14). The next press clears it.
+    var enhanceReloadNote: String?
 
     public private(set) var engineState: EngineState = .stopped
     public private(set) var models: [InstalledModel] = []
@@ -77,8 +83,21 @@ public final class AppModel {
         }
     }
 
-    public var prompt = ""
+    public var prompt = "" {
+        didSet {
+            // Emptying the prompt drops the provenance: a later image is not made from an enhancement (KTD7).
+            if prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { originalPrompt = nil }
+        }
+    }
     public var negativePrompt = ""
+    /// The Enhance run in progress or the result card it left (U7). Nil when no card is up.
+    var enhanceRun: EnhanceRun?
+    /// The task behind the latest Enhance press, kept after the run ends so a test can await it.
+    var enhanceTask: Task<Void, Never>?
+    /// The prompt an accepted enhancement replaced (KTD7, R17). The next generation records it in the image's metadata.
+    var originalPrompt: String?
+    /// The memory tier the engine residency follows (KTD5). Below 24 GiB an Enhance unloads the image model.
+    let memoryTier: MemoryTier
     public var size = ImageSize(width: 1024, height: 1024)
     public var steps: Int?
     public var guidance: Double?
@@ -107,16 +126,18 @@ public final class AppModel {
     let store: LibraryStore
     /// The Civitai Browse tab. It owns the Civitai client, downloader and Keychain, so downloads outlive the sheet.
     let civitai: CivitaiBrowseModel
-    private let client: EngineClient
+    let client: EngineClient
     private let gate: EngineGate
     let registry: FamilyRegistry
     private let states: AsyncStream<EngineState>
     private let supervisor: EngineSupervisor?
     let defaults: UserDefaults
+    /// The license prompt the model browser and the generation panel share (U8).
+    let license = LicensePrompt()
     private let installTransport: (any ModelTransport)?
     private let catalogStore: CatalogStore?
     private let queue: JobQueue
-    private let executor: JobExecutor
+    let executor: JobExecutor
     private let composer: GenerationComposer
     private let libraryPaths: LibraryPaths
     var galleryLoaded = false
@@ -148,7 +169,8 @@ public final class AppModel {
         civitaiTransport: (any CivitaiTransport)? = nil,
         civitaiFileTransport: (any CivitaiFileTransport)? = nil,
         civitaiKeychain: any CivitaiKeyStore = CivitaiKeychain(),
-        civitaiPreviewFetch: (@Sendable (URL) async -> Data?)? = nil
+        civitaiPreviewFetch: (@Sendable (URL) async -> Data?)? = nil,
+        memoryTier: MemoryTier = .current
     ) {
         self.store = store
         self.client = client
@@ -160,11 +182,12 @@ public final class AppModel {
         self.defaults = defaults
         self.installTransport = transport
         self.catalogStore = catalogStore
+        self.memoryTier = memoryTier
         let queue = JobQueue(store: store)
         self.queue = queue
         self.executor = JobExecutor(
             store: store, modelsRoot: libraryPaths.modelsRoot, client: client, queue: queue,
-            crashKind: { await gate.currentCrash() }, engineVersion: engineVersion)
+            crashKind: { await gate.currentCrash() }, engineVersion: engineVersion, memoryTier: memoryTier)
         self.composer = GenerationComposer(registry: registry, store: store)
         self.libraryPaths = libraryPaths
         self.selectedModelID = defaults.string(forKey: Self.lastUsedModelKey)
@@ -184,7 +207,7 @@ public final class AppModel {
         browser = ModelBrowserModel(
             catalog: catalog, installs: installs,
             weightsRoot: URL(fileURLWithPath: weightsPath, isDirectory: true),
-            workingSetGB: ModelBrowserModel.systemUsableWorkingSetGB(), engineModelIDs: [])
+            workingSetGB: ModelBrowserModel.systemUsableWorkingSetGB(), engineModelIDs: [], license: license)
         civitai.connect(
             selection: { [weak self] in self?.civitaiSelection },
             libraryChanged: { [weak self] in
@@ -302,6 +325,9 @@ public final class AppModel {
     public var selectedModel: InstalledModel? {
         models.first { $0.id == selectedModelID }
     }
+
+    /// The catalog's enhancer: whether it is installed and the engine id its chat calls use (U3, R11).
+    var enhancer: EnhancerStatus? { browser.enhancerStatus }
 
     public var controls: SettingsControls? {
         ModelSelection.controls(for: selectedModel)
@@ -448,7 +474,9 @@ public final class AppModel {
         do {
             let installed = InstalledModels(registry: registry, weightsRoot: URL(fileURLWithPath: weightsPath, isDirectory: true))
             models = try await installed.refresh(using: client)
-            browser.setEngineModelIDs(Set(models.map(\.id)))
+            // The picker keeps image models only, so the browser gets every engine id: an enhancer is not an image model (U3).
+            browser.setEngineModelIDs(Set(try await client.models().map(\.id)))
+            await browser.refresh()
             modelsLoaded = true
             chooseSelection()
         } catch is CancellationError {
@@ -513,7 +541,8 @@ public final class AppModel {
         }
         let draft = GenerationDraft(
             model: model, prompt: prompt, negativePrompt: negativePrompt, size: size,
-            steps: steps, guidance: guidance, batchCount: batchCount, seedPolicy: seedPolicy, loras: loras)
+            steps: steps, guidance: guidance, batchCount: batchCount, seedPolicy: seedPolicy, loras: loras,
+            originalPrompt: originalPrompt)
         do {
             let job = try await composer.enqueue(draft, collectionID: currentCollection.id)
             selection = job.id
@@ -553,6 +582,7 @@ public final class AppModel {
             lastError = "The model that made this image is not installed."
         }
         prompt = settings.prompt
+        originalPrompt = settings.originalPrompt
         negativePrompt = settings.negativePrompt ?? ""
         size = ImageSize(width: settings.requestedWidth, height: settings.requestedHeight)
         steps = settings.requestedSteps
@@ -566,6 +596,7 @@ public final class AppModel {
     /// Gallery tile menu: only the prompt and negative prompt are copied. Model, size, steps and seed stay as they are.
     public func reusePrompt(of image: LibraryImage) {
         prompt = image.settings.prompt
+        originalPrompt = image.settings.originalPrompt
         negativePrompt = image.settings.negativePrompt ?? ""
     }
 

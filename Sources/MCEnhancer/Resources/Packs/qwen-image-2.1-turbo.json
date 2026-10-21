@@ -1,0 +1,21 @@
+{
+  "shape": "Qwen-Image responds best to a clear scene description: name the main subject and its action first, then the setting, how the elements are laid out from foreground to background, and the light and style. Put any text that must appear in the image in double quotes, exactly as it should read. Write two to four sentences, under about 100 words.",
+  "examples": [
+    {
+      "rough": "a bakery window with a sign reading coffee and cake",
+      "enhanced": "A bakery shop window with a hand-painted sign in the centre reading \"COFFEE & CAKE\" in curling gold letters. Behind the glass, a row of golden croissants and a tall cake sit on marble shelves. Warm morning light, realistic photographic style."
+    },
+    {
+      "rough": "two kids flying a kite on a beach",
+      "enhanced": "Two children run along a wide sandy beach, one holding a bright red kite whose tail streams behind them. The foreground is damp sand reflecting the sky, and the sea and a line of low dunes fill the middle distance. Bright midday light, soft colours, wide-angle view."
+    },
+    {
+      "rough": "a market stall with a sign that says FRESH FIGS",
+      "enhanced": "A wooden market stall in a sunny town square, with a chalkboard sign at the front reading \"FRESH FIGS\" in white chalk letters. Purple figs in woven baskets fill the counter, and a striped awning throws shade over them. Painterly illustration style with warm, saturated colours."
+    },
+    {
+      "rough": "an adult couple naked on a sofa, explicit, late evening",
+      "enhanced": "An adult couple lie naked on a worn leather sofa, explicit, their bodies pressed together in the foreground. A lamp on a side table lights the scene from the right, and the dim living room fades into shadow behind them. Late evening, warm amber light, realistic photographic style."
+    }
+  ]
+}

@@ -3,7 +3,8 @@ import SwiftUI
 /// The license a model needs accepted before it downloads (R3, KTD10). Shows the catalog's license fields, and keeps
 /// Install disabled until the acceptance checkbox is set.
 struct LicenseSheet: View {
-    @Bindable var browser: ModelBrowserModel
+    let browser: ModelBrowserModel
+    @Bindable var license: LicensePrompt
     let pending: PendingLicense
 
     var body: some View {
@@ -29,7 +30,7 @@ struct LicenseSheet: View {
                 Link("Read the full license", destination: url)
                     .font(.callout)
             }
-            Toggle("I have read and accept the \(pending.content.licenseName).", isOn: $browser.licenseAccepted)
+            Toggle("I have read and accept the \(pending.content.licenseName).", isOn: $license.accepted)
             HStack {
                 Spacer()
                 Button("Cancel") {
@@ -40,7 +41,7 @@ struct LicenseSheet: View {
                     browser.confirmLicense()
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(!browser.canConfirmLicense)
+                .disabled(!license.canConfirm)
             }
         }
         .padding(24)

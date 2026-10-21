@@ -74,6 +74,37 @@ struct PendingLicense: Equatable {
     let content: Content
 }
 
+/// The license prompt the model browser and the generation panel share (U8). `AppModel` owns the one instance, so an
+/// install started from either view presents the same sheet.
+@MainActor
+@Observable
+final class LicensePrompt {
+    private(set) var pending: PendingLicense?
+    /// The checkbox on the license sheet.
+    var accepted = false
+
+    /// Whether Install can be confirmed: a license is pending and its checkbox is set.
+    var canConfirm: Bool { pending != nil && accepted }
+
+    func present(_ license: PendingLicense) {
+        pending = license
+        accepted = false
+    }
+
+    func dismiss() {
+        pending = nil
+        accepted = false
+    }
+}
+
+/// Whether the catalog's enhancer is installed, and the engine id its chat calls go to (U3, R11).
+struct EnhancerStatus: Equatable, Sendable {
+    /// The install record and its folder both exist.
+    let isInstalled: Bool
+    /// Nil unless the model is installed and the engine lists it.
+    let engineModelID: String?
+}
+
 /// Drives the model browser: combines the catalog, the installer's snapshot, the library records, and the folders in
 /// `Weights/` into rows, and runs the license gate in front of each install (plan U6, KTD7).
 @MainActor
@@ -97,9 +128,8 @@ final class ModelBrowserModel {
         let retryable: Bool
     }
     private(set) var failures: [String: Failure] = [:]
-    private(set) var pendingLicense: PendingLicense?
-    /// The checkbox on the license sheet.
-    var licenseAccepted = false
+    /// The license prompt the browser and the generation panel share (U8). `AppModel` owns it.
+    let license: LicensePrompt
     private(set) var installTask: Task<Void, Never>?
     /// When each license version was accepted this session, so Retry and Resume do not ask again.
     private var acceptances: [String: Date] = [:]
@@ -109,13 +139,15 @@ final class ModelBrowserModel {
         installs: InstallCoordinator?,
         weightsRoot: URL,
         workingSetGB: Double?,
-        engineModelIDs: Set<String>
+        engineModelIDs: Set<String>,
+        license: LicensePrompt
     ) {
         self.catalog = catalog
         self.installs = installs
         self.weightsRoot = weightsRoot
         self.workingSetGB = workingSetGB
         self.engineModelIDs = engineModelIDs
+        self.license = license
     }
 
     /// Usable GB from the Metal recommended working set, or nil when no Metal device is available (KTD19).
@@ -151,7 +183,8 @@ final class ModelBrowserModel {
     var rows: [ModelBrowserRow] {
         let models = catalog?.models ?? []
         let catalogRepos = Set(models.map(\.repo))
-        let catalogRows = models.map(row(for:))
+        // Image models, then enhancers in their own group, then folders no catalog entry lists (U3).
+        let catalogRows = (models.filter { $0.kind == .image } + models.filter { $0.kind == .enhancer }).map(row(for:))
         let folderRows = localFolders.filter { !catalogRepos.contains($0) }.map { folder in
             ModelBrowserRow(
                 id: folder, title: folder, model: nil,
@@ -161,8 +194,19 @@ final class ModelBrowserModel {
         return catalogRows + folderRows
     }
 
-    var canConfirmLicense: Bool {
-        pendingLicense != nil && licenseAccepted
+    /// The catalog rows of one kind, in browser order.
+    func rows(of kind: CatalogModelKind) -> [ModelBrowserRow] {
+        rows.filter { $0.model?.kind == kind }
+    }
+
+    /// The catalog's enhancer, or nil when the catalog lists none. Installed means the record and its folder exist (R11).
+    /// `engineModelID` is the catalog repo, the id the engine lists the model under; it is set only when the engine lists it.
+    var enhancerStatus: EnhancerStatus? {
+        guard let model = catalog?.models.first(where: { $0.kind == .enhancer }) else { return nil }
+        let installed = statuses[model.id] == .installed
+        return EnhancerStatus(
+            isInstalled: installed,
+            engineModelID: installed && engineModelIDs.contains(model.repo) ? model.repo : nil)
     }
 
     /// Reads the installer's current snapshot, the install status of every catalog model, and the folders in `Weights/`.
@@ -209,8 +253,7 @@ final class ModelBrowserModel {
     /// Install on a row: opens the license sheet. The install starts only when the license is accepted.
     func beginInstall(_ modelID: String) {
         guard let model = startableModel(modelID), row(for: model).action == .install else { return }
-        pendingLicense = PendingLicense(model: model, content: .init(model.license))
-        licenseAccepted = false
+        license.present(PendingLicense(model: model, content: .init(model.license)))
     }
 
     /// Resume or Retry on a row. Skips the sheet when the license version was accepted this session.
@@ -219,24 +262,21 @@ final class ModelBrowserModel {
         if let acceptedAt = acceptances[Self.licenseKey(model)] {
             start(model, acceptedAt: acceptedAt)
         } else {
-            pendingLicense = PendingLicense(model: model, content: .init(model.license))
-            licenseAccepted = false
+            license.present(PendingLicense(model: model, content: .init(model.license)))
         }
     }
 
     /// Confirm on the license sheet. Does nothing until the checkbox is set; then starts the install once.
     func confirmLicense() {
-        guard let pending = pendingLicense, licenseAccepted else { return }
-        pendingLicense = nil
-        licenseAccepted = false
+        guard license.canConfirm, let pending = license.pending else { return }
+        license.dismiss()
         let now = Date()
         acceptances[Self.licenseKey(pending.model)] = now
         start(pending.model, acceptedAt: now)
     }
 
     func dismissLicense() {
-        pendingLicense = nil
-        licenseAccepted = false
+        license.dismiss()
     }
 
     /// Cancel on the active row. Partials stay on disk, and the row reads as interrupted.
@@ -272,7 +312,7 @@ final class ModelBrowserModel {
     private func startableModel(_ modelID: String) -> CatalogModel? {
         guard let model = catalog?.models.first(where: { $0.id == modelID }) else { return nil }
         let row = row(for: model)
-        guard let action = row.action, action != .cancel, row.canAct else { return nil }
+        guard installTask == nil, let action = row.action, action != .cancel, row.canAct else { return nil }
         return model
     }
 

@@ -132,4 +132,37 @@ import Testing
         #expect(chunks.contains { $0.type == "tEXt" })
         #expect(chunks.contains { $0.type == "iTXt" })
     }
+
+    @Test func originalPromptRoundTripsThroughTheMLXCreateChunk() throws {
+        let png = try TestPNG.make(width: 8, height: 8)
+        var settings = Self.fullSettings(prompt: "a misty lighthouse")
+        settings.originalPrompt = "a lighthouse"
+        let embedded = try MetadataCodec.embed(settings, into: png)
+        #expect(try MetadataCodec.read(fromPNG: embedded)?.originalPrompt == "a lighthouse")
+    }
+
+    @Test func originalPromptDoesNotChangeTheA1111Line() {
+        var settings = Self.fullSettings(prompt: "a misty lighthouse")
+        let plain = MetadataCodec.a1111Parameters(settings)
+        settings.originalPrompt = "a lighthouse"
+        #expect(MetadataCodec.a1111Parameters(settings) == plain)
+    }
+
+    @Test func imageWithoutAnOriginalPromptKeepsSchemaVersionOneAndReadsNil() throws {
+        let png = try TestPNG.make(width: 8, height: 8)
+        let embedded = try MetadataCodec.embed(Self.fullSettings(), into: png)
+        #expect(try MetadataCodec.read(fromPNG: embedded)?.originalPrompt == nil)
+        let chunk = try #require(try PNGChunks.parse(embedded).last { $0.type == "iTXt" })
+        let probe = try JSONDecoder().decode(
+            MetadataCodec.Probe.self, from: try MetadataCodec.internationalTextValue(of: chunk))
+        #expect(probe.schemaVersion == 1)
+    }
+
+    @Test func settingsWrittenBeforeTheFieldExistedDecodeWithNoOriginalPrompt() throws {
+        let encoded = try JSONEncoder().encode(Self.fullSettings())
+        #expect(!String(decoding: encoded, as: UTF8.self).contains("original"))
+        let decoded = try JSONDecoder().decode(ImageSettings.self, from: encoded)
+        #expect(decoded == Self.fullSettings())
+        #expect(decoded.originalPrompt == nil)
+    }
 }

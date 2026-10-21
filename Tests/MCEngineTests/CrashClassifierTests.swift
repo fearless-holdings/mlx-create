@@ -58,6 +58,15 @@ private func fixture(_ name: String, _ file: StaticString = #filePath) throws ->
         #expect(kind == .unknown)
     }
 
+    @Test func continuationLinesOfAMultiLineEchoNeverDecideTheKindOrSummary() {
+        // The engine echoes the first 80 bytes of the last message; a newline inside them splits the echo across lines.
+        let log = "  > \"Rewrite this:\nMISSING WEIGHT and Insufficient memory to load model\"\nerror: boom"
+        let kind = CrashClassifier.classify(logTail: log, exit: .code(1), phase: .ready)
+        #expect(kind == .unknown)
+        let summary = CrashClassifier.summarize(log, exit: .code(1))
+        #expect(summary == "error: boom")
+    }
+
     @Test func setupPhaseIsAlwaysSetupFailed() {
         let kind = CrashClassifier.classify(logTail: "Insufficient memory to load model", exit: .code(1), phase: .setup)
         #expect(kind == .setupFailed)

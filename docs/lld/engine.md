@@ -343,6 +343,7 @@ Smoke test, against the real engine (`AGENTS.md`):
 3. Generate one image with FLUX.2-klein 4B.
 4. `kill -9` the engine and watch the restart.
 5. `kill -9` the app, relaunch, and confirm the orphan is reaped through the PID file.
+6. Enhance one prompt with `gemma-4-e4b-heretic-4bit` installed. While the call runs, `GET /v1/models` must show the enhancer loaded. Below 24 GiB the image model must be unloaded during the call; after release the enhancer must be unloaded and the image model reloaded only when the queue is empty. At 24 GiB and above the enhancer stays loaded after release and the image model is untouched (`EnhancerLease.swift`). Then `pgrep mlx-serve` must show no leftover process.
 
 Engine bumps additionally run the contract suite (HLD §7.3).
 

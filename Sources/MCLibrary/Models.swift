@@ -46,6 +46,8 @@ public struct ImageSettings: Codable, Equatable, Sendable {
     public var engineVersion: String?
     /// LoRAs the image was made with, copied from its job's stack (KTD3). Nil for images saved before LoRA support.
     public var loras: [ImageLoRA]?
+    /// The prompt an accepted enhancement replaced (KTD7, R17). Nil when the image was made from a typed prompt.
+    public var originalPrompt: String?
 
     public init(
         prompt: String,
@@ -61,7 +63,8 @@ public struct ImageSettings: Codable, Equatable, Sendable {
         height: Int,
         steps: Int? = nil,
         engineVersion: String? = nil,
-        loras: [ImageLoRA]? = nil
+        loras: [ImageLoRA]? = nil,
+        originalPrompt: String? = nil
     ) {
         self.prompt = prompt
         self.negativePrompt = negativePrompt
@@ -77,6 +80,7 @@ public struct ImageSettings: Codable, Equatable, Sendable {
         self.steps = steps
         self.engineVersion = engineVersion
         self.loras = loras
+        self.originalPrompt = originalPrompt
     }
 }
 
@@ -178,6 +182,8 @@ public struct JobRequest: Codable, Equatable, Sendable {
     public var guidance: Double?
     /// LoRA stack frozen at enqueue (KTD3). Nil for jobs made before LoRA support.
     public var loras: [LoRAStackEntry]?
+    /// The prompt an accepted enhancement replaced (KTD7, R17). Nil when the job was made from a typed prompt.
+    public var originalPrompt: String?
 
     public init(
         modelID: String,
@@ -188,7 +194,8 @@ public struct JobRequest: Codable, Equatable, Sendable {
         height: Int,
         steps: Int? = nil,
         guidance: Double? = nil,
-        loras: [LoRAStackEntry]? = nil
+        loras: [LoRAStackEntry]? = nil,
+        originalPrompt: String? = nil
     ) {
         self.modelID = modelID
         self.family = family
@@ -199,6 +206,7 @@ public struct JobRequest: Codable, Equatable, Sendable {
         self.steps = steps
         self.guidance = guidance
         self.loras = loras
+        self.originalPrompt = originalPrompt
     }
 }
 

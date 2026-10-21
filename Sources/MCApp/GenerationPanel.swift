@@ -48,6 +48,9 @@ struct GenerationPanel: View {
                     minHeight: Self.promptMinHeight,
                     idealHeight: Self.promptMinHeight,
                     maxHeight: promptFillsHeight ? .infinity : Self.promptMinHeight)
+            originalPromptField
+            enhanceRow
+            EnhanceResultCard(model: model)
             ModelChip(model: model)
             settings
             LoRASection(model: model)
@@ -75,6 +78,59 @@ struct GenerationPanel: View {
                 }
             }
             .accessibilityLabel("Prompt")
+    }
+
+    /// The prompt an accepted enhancement replaced, read-only (KTD7). It is the text saved as provenance with the next image.
+    @ViewBuilder
+    private var originalPromptField: some View {
+        if let original = model.originalPrompt {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Original prompt")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                ScrollView {
+                    Text(original)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 72)
+            }
+            .padding(8)
+            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(nsColor: .separatorColor)))
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Original prompt, read only: \(original)")
+        }
+    }
+
+    /// The Enhance button with its caption: the reason it can't run, else the reason the last press was refused, and the
+    /// note about the image model reload (U8). The caption is the button's accessibility hint too.
+    private var enhanceRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                if let caption = model.enhanceBlockReason ?? model.enhanceRefusal {
+                    Text(caption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+                Button("Enhance") {
+                    Task { await model.pressEnhance() }
+                }
+                .disabled(!model.canEnhance)
+                .accessibilityHint(
+                    model.enhanceBlockReason ?? "Rewrites the prompt for the selected model and LoRAs. Accept keeps the result.")
+            }
+            if let note = model.enhanceReloadNote {
+                Text(note)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 
     // MARK: Settings
