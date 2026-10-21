@@ -67,6 +67,9 @@ extension CatalogModel {
         }
         guard ramGB > 0 else { throw CatalogError.invalid("ram_gb for \(id) must be positive") }
         guard !files.isEmpty else { throw CatalogError.invalid("model \(id) lists no files") }
+        if let recommendRank, recommendRank < 1 {
+            throw CatalogError.invalid("recommend_rank for \(id) must be a positive integer")
+        }
 
         var seen = Set<String>()
         var total: Int64 = 0

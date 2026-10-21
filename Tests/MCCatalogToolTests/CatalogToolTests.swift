@@ -98,6 +98,17 @@ enum BuildFixture {
         #expect(image.catalog.models.first?.kind == .image)
     }
 
+    /// A source entry's rank reaches the built catalog, and an entry without one stays unranked (D42).
+    @Test func sourceRecommendRankIsCarriedIntoTheBuiltCatalog() async throws {
+        let json = BuildFixture.sourceJSON.replacingOccurrences(
+            of: "\"id\": \"demo-model\",", with: "\"id\": \"demo-model\",\n\"recommend_rank\": 3,")
+        let ranked = try await CatalogBuilder(hub: BuildFixture.hub())
+            .build(source: try SourceCatalog.load(Data(json.utf8)), previous: nil)
+        #expect(ranked.catalog.models.first?.recommendRank == 3)
+        let plain = try await CatalogBuilder(hub: BuildFixture.hub()).build(source: BuildFixture.source(), previous: nil)
+        #expect(plain.catalog.models.first?.recommendRank == nil)
+    }
+
     @Test func identicalInputsProduceByteIdenticalOutput() async throws {
         let first = try await CatalogBuilder(hub: BuildFixture.hub()).build(source: BuildFixture.source(), previous: nil)
         let second = try await CatalogBuilder(hub: BuildFixture.hub()).build(source: BuildFixture.source(), previous: nil)
@@ -266,6 +277,11 @@ enum BuildFixture {
                 "flux2-klein-4b-mflux-4bit", "krea-2-turbo-mixed-4-8", "qwen-image-2.1-turbo-4bit",
                 "gemma-4-e4b-heretic-4bit",
             ])
+        let ranks = Dictionary(uniqueKeysWithValues: catalog.models.map { ($0.id, $0.recommendRank) })
+        #expect(ranks["qwen-image-2.1-turbo-4bit"] == 1)
+        #expect(ranks["krea-2-turbo-mixed-4-8"] == 2)
+        #expect(ranks["flux2-klein-4b-mflux-4bit"] == 3)
+        #expect(ranks["gemma-4-e4b-heretic-4bit"] == .some(nil))
     }
 
     @Test func bundledCatalogPassesTheReleaseGateWithNoCatalogURL() throws {

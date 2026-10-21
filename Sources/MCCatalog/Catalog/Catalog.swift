@@ -49,11 +49,13 @@ public struct CatalogModel: Sendable, Codable, Equatable, Identifiable {
     public let license: CatalogLicense
     public let files: [CatalogFile]
     public let kind: CatalogModelKind
+    /// Preference order for the automatic recommendation, lowest first (D42). Nil means never recommended.
+    public let recommendRank: Int?
 
     public init(
         id: String, family: String, name: String, quantization: String, repo: String, revision: String,
         downloadBytes: Int64, ramGB: Double, license: CatalogLicense, files: [CatalogFile],
-        kind: CatalogModelKind = .image
+        kind: CatalogModelKind = .image, recommendRank: Int? = nil
     ) {
         self.id = id
         self.family = family
@@ -66,10 +68,12 @@ public struct CatalogModel: Sendable, Codable, Equatable, Identifiable {
         self.license = license
         self.files = files
         self.kind = kind
+        self.recommendRank = recommendRank
     }
 
     enum CodingKeys: String, CodingKey {
         case id, family, name, quantization, repo, revision, license, files, kind
+        case recommendRank = "recommend_rank"
         case downloadBytes = "download_bytes"
         case ramGB = "ram_gb"
     }
@@ -88,10 +92,12 @@ public struct CatalogModel: Sendable, Codable, Equatable, Identifiable {
         license = try c.decode(CatalogLicense.self, forKey: .license)
         files = try c.decode([CatalogFile].self, forKey: .files)
         kind = try c.decodeIfPresent(CatalogModelKind.self, forKey: .kind) ?? .image
+        recommendRank = try c.decodeIfPresent(Int.self, forKey: .recommendRank)
     }
 
-    /// Writes the keys in the order the synthesised encoder used. `kind` is written only for an enhancer, so re-encoding
-    /// an image model produces the same bytes, and the signature over them still matches.
+    /// Writes the keys in the order the synthesised encoder used. `kind` is written only for an enhancer and
+    /// `recommend_rank` only when set, so re-encoding an unranked image model produces the same bytes, and the
+    /// signature over them still matches.
     public func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(id, forKey: .id)
@@ -105,6 +111,7 @@ public struct CatalogModel: Sendable, Codable, Equatable, Identifiable {
         try c.encode(license, forKey: .license)
         try c.encode(files, forKey: .files)
         if kind != .image { try c.encode(kind, forKey: .kind) }
+        if let recommendRank { try c.encode(recommendRank, forKey: .recommendRank) }
     }
 }
 
