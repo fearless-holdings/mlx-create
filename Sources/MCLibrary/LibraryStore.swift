@@ -161,6 +161,9 @@ public actor LibraryStore {
                 WHERE json_type(l.value, '$.sha256') = 'text'
                 """)
             // External-content full-text index over the prompt column (D37). Triggers keep it in step with `image`.
+            // The index is keyed on `image`'s implicit rowid, which VACUUM may renumber (the table has a TEXT primary
+            // key). Nothing vacuums today; one that does must follow with
+            // `INSERT INTO image_fts(image_fts) VALUES('rebuild')`, or search results will point at the wrong rows.
             try db.execute(sql: "CREATE VIRTUAL TABLE image_fts USING fts5(prompt, content='image', content_rowid='rowid', tokenize='unicode61')")
             try db.execute(sql: "INSERT INTO image_fts(rowid, prompt) SELECT rowid, prompt FROM image")
             try db.execute(sql: """
