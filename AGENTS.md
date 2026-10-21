@@ -57,7 +57,7 @@ Step previews currently exist **only for video** (`"preview": true` together wit
 - Accepted only from loopback.
 - An incompatible LoRA returns HTTP 400 "no modules matching". Pre-check compatibility locally from the safetensors header (key names **and** tensor shapes, HLD §8.6). Treat the engine's 400 as the final authority.
 - App side: LoRAs live in the `lora` table and under `Models/LoRAs/<family>/` (HLD D34, `docs/lld/loras.md`). Fit comes from per-family `loraFingerprints` in `families.json`; a family without one accepts no LoRAs. Take new fingerprints from a real LoRA header, never from guessed key names.
-- The engine accepts LoRA paths outside `--model-dir` (verified v26.10.2), and its real 400 text contains `no modules matching`.
+- The engine accepts LoRA paths outside `--model-dir` (verified v26.10.2), and its real 400 text contains `no modules matching`. Qwen-Image 2.1 LoRAs apply from v26.10.3-pre-release.1 on (verified 2026-10-21); v26.10.2 returned that 400 for every Qwen LoRA.
 
 ### Per-family controls
 

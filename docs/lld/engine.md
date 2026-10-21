@@ -2,7 +2,7 @@
 
 Module: `MCEngine` (runtime), `scripts/embed-engine.sh` (build). Implements HLD §7.3–7.4 under D6 and D17.
 
-Facts marked **[observed]** were checked against upstream release `v26.10.2` (commit `ccedc6a`, published 2026-10-12) on 2026-10-16. Re-check them on every pin bump. **[verify]** marks things to confirm the first time the phase runs for real.
+Facts marked **[observed]** were checked against upstream release `v26.10.2` (commit `ccedc6a`, published 2026-10-12) on 2026-10-16. The pin has since moved to `v26.10.3-pre-release.1` (commit `49bb6be`, 2026-10-20); §5.10 records what was re-checked on that bump. Re-check them on every pin bump. **[verify]** marks things to confirm the first time the phase runs for real.
 
 ## 1. Scope
 
@@ -42,13 +42,13 @@ The file sits at the repo root and is JSON, so the build script can read it with
 ```json
 {
   "schema": 1,
-  "version": "26.10.2",
-  "tag": "v26.10.2",
-  "commit": "ccedc6a4820f48e576633062232ed0cba1139616",
+  "version": "26.10.3-pre-release.1",
+  "tag": "v26.10.3-pre-release.1",
+  "commit": "49bb6be0760316c75f3b8ba2c6d9cce5103735fa",
   "asset": "mlx-serve-bin-macos-arm64.tar.gz",
-  "url": "https://github.com/ddalcu/mlx-serve/releases/download/v26.10.2/mlx-serve-bin-macos-arm64.tar.gz",
-  "sha256": "7082424c2d4c3821c1b323e2822aec79502cc82475b01fd2bfcd70d6ccd7ec27",
-  "size": 78894505,
+  "url": "https://github.com/ddalcu/mlx-serve/releases/download/v26.10.3-pre-release.1/mlx-serve-bin-macos-arm64.tar.gz",
+  "sha256": "b2abd6eacb1845a591ed4fc8bf70424800c718ad12b2819cef28b8e23ec6d25d",
+  "size": 81272786,
   "upstream_team_id": "S77TW432YG",
   "root": "mlx-serve-macos-arm64",
   "executable": "mlx-serve",
@@ -57,14 +57,14 @@ The file sits at the repo root and is JSON, so the build script can read it with
     "lib/libsharpyuv.dylib", "lib/libwebp.dylib", "lib/mlx.metallib"
   ],
   "notices": ["LICENSE", "LICENSE-APACHE-2.0", "NOTICE"],
-  "contract_suite": { "result": "pass", "run_at": "2026-10-16" }
+  "contract_suite": { "result": "smoke-only", "run_at": "2026-10-21" }
 }
 ```
 
 | Field | Purpose |
 |---|---|
 | `schema` | Format version. The script refuses any value it doesn't know |
-| `version`, `tag`, `commit` | `version` must match the first line of `mlx-serve --version` (`mlx-serve 26.10.2`). `commit` is the ref that HLD and LLD source citations point at |
+| `version`, `tag`, `commit` | `version` must match the first line of `mlx-serve --version` (`mlx-serve 26.10.3-pre-release.1`). `commit` is the ref that HLD and LLD source citations point at |
 | `url`, `sha256`, `size` | Integrity. The sha256 is the authority. `size` only makes truncated downloads fail with a clear message |
 | `upstream_team_id` | Provenance. The build checks upstream's signature before stripping it, so a change of upstream signer becomes a deliberate bump instead of a silent one |
 | `root`, `executable`, `frameworks`, `notices` | The expected payload, relative to `root`. Every file in the tarball has to appear in exactly one list. Unknown or missing files fail the build, so a new upstream dylib can't ship unsigned or unlinked |
@@ -320,6 +320,18 @@ Run by hand with the §5.2 flags and `HOME=/tmp/mc-home`. `mlx-serve-bin-macos-a
 - **Memory preflight rejects the request** with a JSON error `type:"out_of_memory"` (HTTP status not recorded) when free memory is too low. Observed: Krea-2 Turbo needs about 14.7 GB peak and about 17.6 GB free (log line `[preflight] media peak … available …`). The app must map this to a plain-language message (AGENTS.md → Errors users see). Don't pass `--skip-mem-preflight`.
 - **Gotcha:** the tarball extracts to `mlx-serve-macos-arm64/` with `mlx-serve` next to `lib/`. The binary runs in place from there.
 - **Auth verified (U3 lifecycle smoke, `EngineSupervisorTests`).** A request without the key to `/v1/models` returned **401** under `--api-key-strict`. `ps -o command=` for the engine showed no key in argv: the key is delivered only through `--api-key-env` in the environment. The same run confirmed start to `.ready`, `stop()` leaving no listener and no PID file, and `kill -9` giving `.restarting` then `.ready` on a new port and key.
+
+### 5.10 Bump record (2026-10-21, `v26.10.3-pre-release.1`)
+
+Motivation: upstream PR 849 adds the Qwen-Image 2.1 LoRA key mapping (and negative or very large strengths on every model; a strength of 0 turns a LoRA off). Pre-release tag; the asset sha256 `b2abd6ea…ec6d25d` matched the release digest. `--refresh-manifest` found the same seven frameworks and three notices; `mlx-serve --version` prints `mlx-serve 26.10.3-pre-release.1`, and the binary still carries Team ID `S77TW432YG`.
+
+Run by hand with the §5.2 flags, `HOME=/tmp/mc-home`, `--max-resident-models 1`:
+
+- **Auth:** under `--api-key-strict` a request without the key and one with a wrong key to `/v1/models` both return 401, and the right key returns 200. The startup banner still says "ENABLED for non-loopback requests (localhost is trusted)"; it is misleading, since strict mode is enforced.
+- **Qwen-Image 2.1 Turbo 8-bit with real Qwen LoRAs** (`high-resolution`, `canon-ultrareal`, 79.7 MB each, imported through the app), 512×512, 8 steps, seed 7: each LoRA at 1.0 gave a different, coherent image from the no-LoRA image. A wrong-family klein LoRA still returns 400 `LoRA(s) have no modules matching this model's DiT`.
+- **Qwen-Image 2.1 (non-turbo) 4-bit**, 12 steps, seed 7: LoRA at 1.0 and at -1.0 each differ from the base image, a strength of 0 gives the base image byte for byte, and two LoRAs at 0.7 differ from either alone. No family record exists for non-turbo Qwen, so the app does not offer it.
+- **Memory:** the Turbo 8-bit preflight asks for about 26.3 GB free (22.5 GB peak) and the first loads failed with `out_of_memory` at 26.2 GB available; the load succeeded on a later retry. No `--skip-mem-preflight`.
+- **Not done:** the contract suite (HLD §7.3) does not exist as code yet, so `contract_suite` is `smoke-only`, not `pass`. FLUX.2 klein was not re-run on the new pin, and the GUI was not exercised.
 
 ## 6. Tests
 
