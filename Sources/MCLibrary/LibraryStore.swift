@@ -136,6 +136,50 @@ public actor LibraryStore {
                 WHERE file_path LIKE 'Projects/%'
                 """)
         }
+        migrator.registerMigration("v7-gallery-filters") { db in
+            try db.execute(sql: "ALTER TABLE image ADD COLUMN model_id TEXT")
+            try db.create(table: "image_lora") { t in
+                t.column("image_id", .text).notNull().references("image", onDelete: .cascade)
+                t.column("sha256", .text).notNull()
+                t.column("name", .text).notNull()
+                t.primaryKey(["image_id", "sha256"])
+            }
+            try db.create(index: "image_lora_sha256", on: "image_lora", columns: ["sha256"])
+            try db.create(index: "image_collection_model", on: "image", columns: ["collection_id", "model_id", "created_at"])
+            // SQLite raises on malformed JSON, and one unreadable `settings` row must not stop the library from opening,
+            // so every read is guarded by `json_valid`. Such a row keeps a NULL model and gets no LoRA rows.
+            try db.execute(sql: """
+                UPDATE image SET model_id = json_extract(settings, '$.modelID')
+                WHERE json_valid(settings) AND json_type(settings, '$.modelID') = 'text'
+                """)
+            // `json_each` over a guarded argument: the planner may evaluate it before the WHERE clause.
+            try db.execute(sql: """
+                INSERT OR IGNORE INTO image_lora (image_id, sha256, name)
+                SELECT i.id, json_extract(l.value, '$.sha256'), COALESCE(json_extract(l.value, '$.name'), '')
+                FROM image i,
+                     json_each(CASE WHEN json_valid(i.settings) THEN i.settings ELSE '{}' END, '$.loras') l
+                WHERE json_type(l.value, '$.sha256') = 'text'
+                """)
+            // External-content full-text index over the prompt column (D37). Triggers keep it in step with `image`.
+            try db.execute(sql: "CREATE VIRTUAL TABLE image_fts USING fts5(prompt, content='image', content_rowid='rowid', tokenize='unicode61')")
+            try db.execute(sql: "INSERT INTO image_fts(rowid, prompt) SELECT rowid, prompt FROM image")
+            try db.execute(sql: """
+                CREATE TRIGGER image_fts_insert AFTER INSERT ON image BEGIN
+                    INSERT INTO image_fts(rowid, prompt) VALUES (new.rowid, new.prompt);
+                END
+                """)
+            try db.execute(sql: """
+                CREATE TRIGGER image_fts_delete AFTER DELETE ON image BEGIN
+                    INSERT INTO image_fts(image_fts, rowid, prompt) VALUES ('delete', old.rowid, old.prompt);
+                END
+                """)
+            try db.execute(sql: """
+                CREATE TRIGGER image_fts_update AFTER UPDATE OF prompt ON image WHEN old.prompt IS NOT new.prompt BEGIN
+                    INSERT INTO image_fts(image_fts, rowid, prompt) VALUES ('delete', old.rowid, old.prompt);
+                    INSERT INTO image_fts(rowid, prompt) VALUES (new.rowid, new.prompt);
+                END
+                """)
+        }
         return migrator
     }
 
@@ -268,17 +312,6 @@ public actor LibraryStore {
             if jobs > 0 { throw LibraryError.collectionHasJobs(count: jobs) }
             // Finished, failed and cancelled job rows go with the collection through the foreign key.
             _ = try row.delete(db)
-        }
-    }
-
-    /// Reassigns an image's home collection. Only `collection_id` changes: the file and thumbnail stay where they are (KTD3).
-    public func moveImage(id: UUID, toCollection collectionID: UUID) throws {
-        try dbQueue.write { db in
-            guard var row = try ImageRow.fetchOne(db, key: id.uuidString) else { throw LibraryError.notFound }
-            guard try CollectionRow.fetchOne(db, key: collectionID.uuidString) != nil else { throw LibraryError.notFound }
-            guard row.collectionID != collectionID.uuidString else { return }
-            row.collectionID = collectionID.uuidString
-            try row.update(db)
         }
     }
 
@@ -479,23 +512,18 @@ public actor LibraryStore {
                 settings: settings,
                 createdAt: now
             )
-            try dbQueue.write { db in try ImageRow(image).insert(db) }
+            try dbQueue.write { db in
+                try ImageRow(image).insert(db)
+                for lora in settings.loras ?? [] {
+                    try db.execute(
+                        sql: "INSERT OR IGNORE INTO image_lora (image_id, sha256, name) VALUES (?, ?, ?)",
+                        arguments: [image.id.uuidString, lora.sha256, lora.name])
+                }
+            }
             return image
         } catch {
             for url in created { try? fm.removeItem(at: url) }
             throw error
-        }
-    }
-
-    /// The collection's most recent images, newest first, skipping the first `offset`. Callers page with growing offsets.
-    public func recentImages(collectionID: UUID, limit: Int, offset: Int = 0) throws -> [LibraryImage] {
-        try dbQueue.read { db in
-            try ImageRow
-                .filter(Column("collection_id") == collectionID.uuidString)
-                .order(Column("created_at").desc, Column("id").desc)
-                .limit(limit, offset: offset)
-                .fetchAll(db)
-                .map(\.image)
         }
     }
 
@@ -523,7 +551,7 @@ enum JSONCoding {
     }
 }
 
-private struct CollectionRow: Codable, FetchableRecord, PersistableRecord {
+struct CollectionRow: Codable, FetchableRecord, PersistableRecord {
     static let databaseTableName = "collection"
     var id: String
     var name: String
@@ -619,6 +647,7 @@ struct ImageRow: Codable, FetchableRecord, PersistableRecord {
     var seed: Int64
     var settings: String
     var prompt: String
+    var modelID: String?
     var createdAt: Date
 
     init(_ image: LibraryImage) throws {
@@ -633,6 +662,7 @@ struct ImageRow: Codable, FetchableRecord, PersistableRecord {
         seed = image.seed
         settings = try JSONCoding.encode(image.settings)
         prompt = image.prompt
+        modelID = image.settings.modelID
         createdAt = image.createdAt
     }
 
@@ -653,6 +683,7 @@ struct ImageRow: Codable, FetchableRecord, PersistableRecord {
 
     enum CodingKeys: String, CodingKey {
         case id, width, height, seed, settings, prompt
+        case modelID = "model_id"
         case collectionID = "collection_id"
         case jobID = "job_id"
         case mediaType = "media_type"

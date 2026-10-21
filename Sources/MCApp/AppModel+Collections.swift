@@ -116,7 +116,7 @@ extension AppModel {
     func moveImage(_ image: LibraryImage, to collectionID: UUID) async {
         guard collectionID != currentCollection.id else { return }
         do {
-            try await store.moveImage(id: image.id, toCollection: collectionID)
+            try await store.moveImages(ids: [image.id], toCollection: collectionID)
         } catch {
             lastError = message(for: error)
             return
