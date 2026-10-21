@@ -144,3 +144,14 @@ HLD Appendix A lists the files worth reusing. The rules:
 - Keep `docs/HLD.md` current. Write component LLDs alongside it as `docs/lld/<component>.md`.
 - `docs/solutions/` holds verified learnings from solved problems, grouped by category (for example `integration-issues/`). Search it before working on an external API or a recurring bug, and add one when a fix hides reasoning the code does not carry. Example: Civitai listing previews and NSFW signals.
 - **Update this file** when you establish a command, convention or gotcha that the next agent would otherwise rediscover. Keep entries short and factual.
+
+<!-- CODEGRAPH_START -->
+## CodeGraph
+
+In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the repo root), reach for it BEFORE grep/find or reading files when you need to understand or locate code:
+
+- **MCP tool** (when available): `codegraph_explore` answers most code questions in one call — the relevant symbols' verbatim source plus the call paths between them, including dynamic-dispatch hops grep can't follow. Name a file or symbol in the query to read its current line-numbered source. If it's listed but deferred, load it by name via tool search.
+- **Shell** (always works): `codegraph explore "<symbol names or question>"` prints the same output.
+
+If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is the user's decision.
+<!-- CODEGRAPH_END -->
