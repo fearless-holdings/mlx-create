@@ -1,11 +1,33 @@
-import SwiftUI
 import MCLibrary
+import SwiftUI
 
 /// The canvas (HLD §10): one of four states from ``CanvasMode``.
 struct CanvasView: View {
     @Bindable var model: AppModel
+    @State private var isDropTargeted = false
 
     var body: some View {
+        canvas
+            .overlay(alignment: .top) {
+                if let notice = model.dropNotice {
+                    DropRestoreBanner(notice: notice) { model.dismissDropNotice() }
+                }
+            }
+            .overlay {
+                if isDropTargeted {
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(Color.accentColor, lineWidth: 3)
+                        .padding(4)
+                        .allowsHitTesting(false)
+                }
+            }
+            .onDrop(of: [.fileURL], isTargeted: $isDropTargeted) { providers in
+                CanvasDrop.handle(providers, model: model)
+            }
+    }
+
+    @ViewBuilder
+    private var canvas: some View {
         switch model.canvasMode {
         case .noModels:
             EmptyModelsView(model: model)
