@@ -44,11 +44,12 @@ public enum EnhancementCleaner {
         return rest
     }
 
-    /// Unwraps a fenced code block, dropping the opening line when it carries a language tag.
+    /// Unwraps a fenced code block, dropping the opening line only when it is a bare language tag (`` ```text ``), so a
+    /// fenced prompt whose first line is prompt text keeps it.
     private static func strippingFence(_ text: String) -> String {
         guard text.hasPrefix("```") else { return text }
         var body = text.dropFirst(3)
-        if let newline = body.firstIndex(of: "\n") {
+        if let newline = body.firstIndex(of: "\n"), isBareLanguageTag(body[..<newline]) {
             body = body[body.index(after: newline)...]
         }
         var inner = String(body).trimmedWhitespace
@@ -56,6 +57,12 @@ public enum EnhancementCleaner {
             inner.removeLast(3)
         }
         return inner.trimmedWhitespace
+    }
+
+    /// A tag is one token: no whitespace or commas. An empty line counts as a tag so the fence's blank first line goes.
+    private static func isBareLanguageTag(_ line: Substring) -> Bool {
+        let tag = line.trimmingCharacters(in: .whitespaces)
+        return !tag.contains(where: { $0.isWhitespace || $0 == "," })
     }
 
     /// Removes one pair of quotes that wraps the whole text. Quotes of the same kind inside the text mean it is not

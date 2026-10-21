@@ -73,6 +73,9 @@ extension AppModel {
     /// Whether any job is queued. U8 says the next image starts after an Enhance when one is.
     public var hasQueuedJobs: Bool { queueJobs.contains { $0.status == .queued } }
 
+    /// Whether an image job is running now. A waiting Enhance then starts after it; otherwise it is loading the enhancer.
+    public var enhanceWaitsForImage: Bool { queueJobs.contains { $0.status == .running } }
+
     /// Below 24 GiB the enhancer's lease unloads the resident image model and re-warms it when the queue is empty, so
     /// U8 shows a one-time note (R14). Larger tiers keep both resident.
     public var enhanceWillReloadImageModel: Bool { memoryTier.maxResidentModels == 1 }
@@ -150,10 +153,10 @@ extension AppModel {
                     text += delta
                     await self.setEnhancePhase(id, .streaming(text))
                 }
+                // A cancelled stream ends early without throwing, so it is checked before the reply leaves the lease.
+                try Task.checkCancellation()
                 return text
             }
-            // A cancelled stream ends early without throwing, so the cancellation is checked before the reply is used.
-            try Task.checkCancellation()
             guard let enhanced = EnhancementCleaner.clean(
                 reply, triggerWords: request.triggerWords, expectsNegativePrompt: request.expectsNegativePrompt)
             else {

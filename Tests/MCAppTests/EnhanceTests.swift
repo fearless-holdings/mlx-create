@@ -196,6 +196,25 @@ private func generateOne(_ harness: AppHarness) async throws -> ImageSettings {
         #expect(model.prompt == "a lighthouse")
     }
 
+    @Test func aReplyCutOffAtTheTokenLimitIsNeverOfferedAndSaysToShortenThePrompt() async throws {
+        let cutOff = #"data: {"choices":[{"delta":{},"finish_reason":"length"}]}"# + "\n\ndata: [DONE]\n\n"
+        let harness = try await enhancerHarness(chat: { _, _ in
+            .init(status: 200, body: Data((deltaFrame("a misty lighthouse, soft") + cutOff).utf8), tail: nil)
+        })
+        let model = await readyKrea(harness, prompt: "a lighthouse")
+
+        #expect(await model.startEnhance() == .started)
+        await model.enhanceTask?.value
+
+        guard case .failed(let message) = model.enhanceState else {
+            Issue.record("expected a failed Enhance, got \(model.enhanceState)")
+            return
+        }
+        #expect(message.contains("shorter prompt"))
+        #expect(model.prompt == "a lighthouse")
+        #expect(model.originalPrompt == nil)
+    }
+
     @Test func cancelWhileWaitingForTheImageLeavesNoCardAndSendsNoChat() async throws {
         let harness = try await enhancerHarness(script: heldImage, chat: { _, _ in chatReply("a misty lighthouse") })
         let model = await readyKrea(harness, prompt: "a lighthouse")
@@ -358,7 +377,9 @@ private func generateOne(_ harness: AppHarness) async throws -> ImageSettings {
 
         #expect(await model.startEnhance() == .started)
         await model.enhanceTask?.value
-
+        try await eventually {
+            EngineStubProtocol.requests(harness.endpoint).dropFirst(before).compactMap(residencyStep).count == 5
+        }
         let steps = EngineStubProtocol.requests(harness.endpoint).dropFirst(before).compactMap(residencyStep)
         #expect(steps == [
             "v1/unload-model \(kreaModel)", "v1/load-model \(enhancerRepo)", "\(chatPath) \(enhancerRepo)",

@@ -79,10 +79,26 @@ public enum CrashClassifier {
             || (line.contains("[METAL]") && line.localizedCaseInsensitiveContains("Insufficient Memory"))
     }
 
+    /// Lines with request echoes removed. An echo can span several lines when its first 80 bytes hold a newline; the
+    /// engine closes the echo with `"` at the end of its last line, so everything in between is dropped. 80 bytes hold at
+    /// most 80 newlines, so an echo that never closes stops swallowing lines after that, and a real error behind it stays.
     private static func conversationFreeLines(_ log: String) -> [String] {
-        log.trimmingCharacters(in: .whitespacesAndNewlines)
-            .split(whereSeparator: \.isNewline)
-            .map(String.init)
-            .filter { !isRequestPreviewLine($0) }
+        let maxEchoLines = 81
+        var kept: [String] = []
+        var echoLinesLeft = 0
+        for line in log.trimmingCharacters(in: .whitespacesAndNewlines).split(whereSeparator: \.isNewline).map(String.init) {
+            if echoLinesLeft > 0 {
+                echoLinesLeft = line.hasSuffix("\"") ? 0 : echoLinesLeft - 1
+                continue
+            }
+            guard isRequestPreviewLine(line) else {
+                kept.append(line)
+                continue
+            }
+            // The opening `> "` is three bytes; the echo is closed on this line only if a quote follows it.
+            let body = line.trimmingCharacters(in: .whitespaces).dropFirst(3)
+            echoLinesLeft = (body.hasSuffix("\"") && !body.isEmpty) ? 0 : maxEchoLines
+        }
+        return kept
     }
 }

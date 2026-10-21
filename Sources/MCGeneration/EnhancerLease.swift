@@ -15,9 +15,11 @@ extension JobExecutor {
     ///
     /// The lease sets its flag at once, so `drain` claims no queued job and model switches wait. It then waits for the
     /// running image to finish; queued jobs keep their order. Below 24 GiB the image model is unloaded before the enhancer
-    /// loads, and release unloads the enhancer and re-warms the image model only when no job is queued. At or above 24 GiB
-    /// the enhancer stays resident and the image model is left alone. Release always runs, including when `body` throws or
-    /// the caller is cancelled.
+    /// loads. When `body` returns or throws, the enhancer is unloaded and the caller gets the result (or error) without
+    /// waiting for the image model to reload. The lease stays held through that re-warm, so queued jobs and model
+    /// switches still wait behind it. The re-warm is skipped when jobs are queued. At or above 24 GiB the enhancer stays
+    /// resident and the image model is left alone. Release runs when `body` throws or the caller is cancelled, and a
+    /// result already produced is returned even if the caller is cancelled afterwards.
     ///
     /// `body` is where the caller streams its chat call. The executor does not know what that call sends.
     public func withEnhancerLease<T: Sendable>(
@@ -35,8 +37,15 @@ extension JobExecutor {
             outcome = .failure(error)
         }
         let finished = residency
-        // Release runs in a task that does not inherit cancellation, so a cancelled caller still unloads the enhancer.
-        await Task { await self.releaseEnhancerLease(enhancerModelID: enhancerModelID, residency: finished) }.value
+        // Runs in a task that does not inherit cancellation, so a cancelled caller still unloads the enhancer.
+        await Task { await self.unloadEnhancer(enhancerModelID: enhancerModelID, residency: finished) }.value
+        if await shouldRewarmDisplaced(finished) {
+            // Unstructured, so the re-warm is not tied to the caller's cancellation. It keeps the flag until it finishes.
+            Task { await self.rewarmDisplaced(finished.displaced) }
+        } else {
+            enhancerLeaseHeld = false
+            notifyStateChanged()
+        }
         return try outcome.get()
     }
 
@@ -79,17 +88,24 @@ extension JobExecutor {
         }
     }
 
-    /// Undoes what the lease changed, then gives the flag back so `drain` and any waiting switch resume. Engine failures
-    /// here are ignored: the next model switch loads whatever it needs.
-    private func releaseEnhancerLease(enhancerModelID: String, residency: EnhancerResidency) async {
-        if memoryTier.maxResidentModels == 1 {
-            if residency.enhancerLoaded { try? await client.unload(model: enhancerModelID) }
-            // With jobs queued, `drain` loads the model the next job needs, and a user switch waiting behind the lease
-            // loads its own, so re-warming either would be wasted.
-            if !residency.displaced.isEmpty, selectionsWaiting == 0, await queueIsEmpty() {
-                for id in residency.displaced { try? await client.load(model: id) }
-            }
-        }
+    /// Unloads the enhancer this lease loaded, below 24 GiB only. Runs even when the lease failed part-way. Engine failures
+    /// are ignored: the next model switch loads whatever it needs.
+    private func unloadEnhancer(enhancerModelID: String, residency: EnhancerResidency) async {
+        guard memoryTier.maxResidentModels == 1, residency.enhancerLoaded else { return }
+        try? await client.unload(model: enhancerModelID)
+    }
+
+    /// Whether the displaced image models should be re-warmed now. With jobs queued, `drain` loads the model the next job
+    /// needs, and a user switch waiting behind the lease loads its own, so re-warming either would be wasted.
+    private func shouldRewarmDisplaced(_ residency: EnhancerResidency) async -> Bool {
+        guard memoryTier.maxResidentModels == 1, !residency.displaced.isEmpty else { return false }
+        guard selectionsWaiting == 0 else { return false }
+        return await queueIsEmpty()
+    }
+
+    /// Re-warms the displaced image models, then gives the flag back so `drain` and any waiting switch resume.
+    private func rewarmDisplaced(_ ids: [String]) async {
+        for id in ids { try? await client.load(model: id) }
         enhancerLeaseHeld = false
         notifyStateChanged()
     }

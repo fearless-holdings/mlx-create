@@ -59,7 +59,7 @@ public enum FailureMapping {
         case .modelNotLoaded, .enhancerModelNotLoaded, .noModel, .engineFailure,
              .connectionLost, .timedOut, .streamEndedWithoutComplete:
             true
-        case .unauthorized, .badRequest, .loraRejected, .malformedResponse:
+        case .unauthorized, .badRequest, .loraRejected, .malformedResponse, .chatOutputTruncated:
             false
         }
     }
@@ -75,7 +75,7 @@ public enum FailureMapping {
             message
         case .malformedResponse(let detail):
             detail
-        case .connectionLost, .streamEndedWithoutComplete, .timedOut:
+        case .connectionLost, .streamEndedWithoutComplete, .timedOut, .chatOutputTruncated:
             nil
         }
     }

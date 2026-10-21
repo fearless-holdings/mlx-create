@@ -79,7 +79,7 @@ public struct ChatRequest: Sendable, Equatable {
 enum ChatStreamParser {
     enum Parsed: Equatable {
         /// `text` is the non-empty content delta, if the frame has one. `finished` is true when the frame
-        /// carries a finish reason other than `error`.
+        /// carries a normal finish reason. `error` and `length` fail the stream: `length` means the reply was cut off.
         case delta(text: String?, finished: Bool)
         case done
         case ignored
@@ -101,6 +101,9 @@ enum ChatStreamParser {
         guard let choice = frame.choices?.first else { return .ignored }
         if choice.finishReason == "error" {
             return .failed(.engineFailure(type: nil, engineMessage: nil))
+        }
+        if choice.finishReason == "length" {
+            return .failed(.chatOutputTruncated)
         }
         let text = choice.delta?.content.flatMap { $0.isEmpty ? nil : $0 }
         let finished = choice.finishReason != nil

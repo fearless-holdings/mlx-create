@@ -47,6 +47,12 @@ private func occurrences(of word: String, in text: String) -> Int {
             == "a red car at dusk")
     }
 
+    @Test func aFenceWhoseFirstLineIsPromptTextKeepsIt() {
+        let reply = "```a red car at dusk, cinematic\n```"
+        let cleaned = EnhancementCleaner.clean(reply, triggerWords: [], expectsNegativePrompt: false)
+        #expect(cleaned?.prompt == "a red car at dusk, cinematic")
+    }
+
     @Test func aLeadingReasoningBlockIsRemoved() {
         #expect(EnhancementCleaner.clean(
             "<think>\nThe user wants a car.\n</think>\n\na red car at dusk", triggerWords: [], expectsNegativePrompt: false)?.prompt

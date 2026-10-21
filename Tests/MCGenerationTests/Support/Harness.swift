@@ -15,6 +15,8 @@ final class FakeEngine: @unchecked Sendable {
     private var generations = 0
     private let known: [String]
     private let holdLoads: Bool
+    /// Model ids whose load stays open until `finishHeld`, whatever `holdLoads` says.
+    private let heldLoadModels: Set<String>
     private let refusedLoads: Set<String>
     private let script: @Sendable (Int, EngineStubProtocol.Recorded) -> EngineStubProtocol.Reply
 
@@ -22,12 +24,14 @@ final class FakeEngine: @unchecked Sendable {
         loaded: Set<String>,
         known: [String],
         holdLoads: Bool,
+        heldLoadModels: Set<String> = [],
         refusedLoads: Set<String>,
         script: @escaping @Sendable (Int, EngineStubProtocol.Recorded) -> EngineStubProtocol.Reply
     ) {
         self.loaded = loaded
         self.known = known
         self.holdLoads = holdLoads
+        self.heldLoadModels = heldLoadModels
         self.refusedLoads = refusedLoads
         self.script = script
     }
@@ -41,7 +45,8 @@ final class FakeEngine: @unchecked Sendable {
             if refusedLoads.contains(id) { return .init(status: 503, body: PNGFixture.oomBody(), tail: nil) }
             lock.withLock { _ = loaded.insert(id) }
             // A held load keeps its reply open until the test finishes it or the client cancels the request.
-            return holdLoads ? .init(status: 200, body: Data("{}".utf8), tail: Data()) : .json("{}")
+            return (holdLoads || heldLoadModels.contains(id))
+                ? .init(status: 200, body: Data("{}".utf8), tail: Data()) : .json("{}")
         case "v1/unload-model":
             let id = Self.modelID(request.body)
             lock.withLock { _ = loaded.remove(id) }
@@ -83,6 +88,7 @@ struct Harness {
         loaded: Set<String> = [],
         known: [String] = [kreaModel, otherModel],
         holdLoads: Bool = false,
+        heldLoadModels: Set<String> = [],
         refusedLoads: Set<String> = [],
         engineVersion: String? = nil,
         memoryTier: MemoryTier = MemoryTier(physicalMemoryBytes: 16 << 30),
@@ -92,7 +98,8 @@ struct Harness {
         let modelsRoot = root.appending(path: "Models", directoryHint: .isDirectory)
         let store = try LibraryStore(libraryRoot: root, modelsRoot: modelsRoot)
         let engine = FakeEngine(
-            loaded: loaded, known: known, holdLoads: holdLoads, refusedLoads: refusedLoads, script: script)
+            loaded: loaded, known: known, holdLoads: holdLoads, heldLoadModels: heldLoadModels,
+            refusedLoads: refusedLoads, script: script)
         let endpoint = EngineStubProtocol.register(handler: { engine.handle($0) })
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [EngineStubProtocol.self]

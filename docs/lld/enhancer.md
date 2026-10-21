@@ -168,6 +168,8 @@ Verified against `Sources/MCGeneration/EnhancerLease.swift`, `Sources/MCEngine/E
 - **UI.** `enhanceWillReloadImageModel` is true below 24 GiB and drives the one-time note that the image model will reload.
 - **Packs.** `MCEnhancer` loads `Resources/Packs/<familyID>.json` (a `.copy` resource in `Package.swift`) for each family that ships one. The final pack text is the one measured in §3.6.
 
+Two behaviours added by the branch review. The reply is handed back as soon as the enhancer is unloaded; the image model re-warm runs afterwards in its own task, and the lease flag stays set until it ends, so a queued job or a model switch still waits behind it. A chat stream that ends with `finish_reason: "length"` fails with `chatOutputTruncated` ("The enhancer ran out of room; try a shorter prompt.") and never becomes a card, so the prompt is untouched.
+
 ## 8. Removal conditions for the provisional pick
 
 Gemma 4 E4B heretic 4-bit (`gemma-4-e4b-heretic-4bit`) stays provisional. Revisit or remove it if any of these holds:

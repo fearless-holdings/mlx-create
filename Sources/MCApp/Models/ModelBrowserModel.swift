@@ -312,7 +312,7 @@ final class ModelBrowserModel {
     private func startableModel(_ modelID: String) -> CatalogModel? {
         guard let model = catalog?.models.first(where: { $0.id == modelID }) else { return nil }
         let row = row(for: model)
-        guard let action = row.action, action != .cancel, row.canAct else { return nil }
+        guard installTask == nil, let action = row.action, action != .cancel, row.canAct else { return nil }
         return model
     }
 

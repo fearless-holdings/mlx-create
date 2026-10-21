@@ -29,6 +29,8 @@ public enum EngineError: Error, Equatable, Sendable {
     case timedOut
     /// The response did not match the documented shape.
     case malformedResponse(detail: String)
+    /// The chat reply hit its token limit (`finish_reason: "length"`), so the text is cut off.
+    case chatOutputTruncated
 
     public var userMessage: String {
         switch self {
@@ -45,6 +47,7 @@ public enum EngineError: Error, Equatable, Sendable {
         case .streamEndedWithoutComplete: "The image engine stopped before the image finished."
         case .timedOut: "The image engine stopped responding."
         case .malformedResponse: "The image engine sent a response the app could not read."
+        case .chatOutputTruncated: "The enhancer ran out of room; try a shorter prompt."
         }
     }
 
@@ -58,7 +61,7 @@ public enum EngineError: Error, Equatable, Sendable {
             m
         case .malformedResponse(let detail):
             detail
-        case .connectionLost, .streamEndedWithoutComplete, .timedOut:
+        case .connectionLost, .streamEndedWithoutComplete, .timedOut, .chatOutputTruncated:
             nil
         }
     }

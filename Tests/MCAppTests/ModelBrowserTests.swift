@@ -500,6 +500,30 @@ func browserRow(_ rows: [ModelBrowserRow], _ id: String) -> ModelBrowserRow? {
         #expect(rig.transport.requests.count == 1, "nothing is requested again")
     }
 
+    /// The install sheet observes installs, so Downloading and Cancel show once an install starts. A second Install press
+    /// while it runs does not reopen the license sheet.
+    @Test func enhancerInstallSheetShowsDownloadingAndRefusesASecondStart() async throws {
+        let rig = try await BrowserRig.make(outcomes: [.holds], catalog: BrowserFixture.catalogWithEnhancer)
+        let sheet = Task { await rig.browser.observe() }
+        defer { sheet.cancel() }
+
+        rig.browser.beginInstall(BrowserFixture.enhancer.id)
+        rig.browser.license.accepted = true
+        rig.browser.confirmLicense()
+        try await eventually {
+            if case .downloading = EnhancerInstallPhase.phase(for: rig.browser.rows(of: .enhancer).first) {
+                return true
+            }
+            return false
+        }
+
+        rig.browser.beginInstall(BrowserFixture.enhancer.id)
+        #expect(rig.browser.license.pending == nil, "a second Install cannot reopen the license while one runs")
+
+        rig.browser.cancelInstall()
+        await rig.browser.installTask?.value
+    }
+
     /// The enhancer is its own group after the image models. Its family names no record, and it still offers Install.
     @Test func enhancerRowsSitInTheirOwnGroupAndOfferInstallWithoutAFamilyRecord() async throws {
         let rig = try await BrowserRig.make(catalog: BrowserFixture.catalogWithEnhancer)

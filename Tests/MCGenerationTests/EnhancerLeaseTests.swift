@@ -85,6 +85,7 @@ private let noGeneration: @Sendable (Int, EngineStubProtocol.Recorded) -> Engine
         EngineStubProtocol.finishHeld(harness.endpoint)
         #expect(try await lease.value == "enhanced")
         try await run.value
+        try await eventually { harness.engineCalls().contains("load \(kreaModel)") }
         #expect(harness.engineCalls() == [
             "generate 100", "unload \(kreaModel)", "load \(enhancerModel)", "unload \(enhancerModel)",
             "load \(kreaModel)",
@@ -99,9 +100,36 @@ private let noGeneration: @Sendable (Int, EngineStubProtocol.Recorded) -> Engine
             "enhanced"
         }
         #expect(text == "enhanced")
+        try await eventually { harness.engineCalls().contains("load \(kreaModel)") }
         #expect(harness.engineCalls() == [
             "unload \(kreaModel)", "load \(enhancerModel)", "unload \(enhancerModel)", "load \(kreaModel)",
         ])
+    }
+
+    /// The reply must not wait on the image model reloading (R13), while the lease stays held until that reload ends.
+    @Test func theReplyDoesNotWaitForTheImageModelRewarmButTheLeaseStaysHeldThroughIt() async throws {
+        let harness = try await Harness.make(
+            loaded: [kreaModel], known: [kreaModel, otherModel, enhancerModel], heldLoadModels: [kreaModel],
+            memoryTier: belowTwentyFourGiB, script: noGeneration)
+        let lease = Task {
+            try await harness.executor.withEnhancerLease(enhancerModelID: enhancerModel) { () async throws -> String in
+                "enhanced"
+            }
+        }
+        // The reply arrives while the Krea reload is still open.
+        #expect(try await lease.value == "enhanced")
+        try await eventually { harness.engineCalls().contains("load \(kreaModel)") }
+
+        // A second lease waits behind the re-warm instead of racing it.
+        let second = Task {
+            try await harness.executor.withEnhancerLease(enhancerModelID: enhancerModel) { () async throws -> String in
+                "second"
+            }
+        }
+        try await Task.sleep(for: .milliseconds(150))
+        #expect(harness.engineCalls().filter { $0 == "load \(enhancerModel)" }.count == 1)
+        EngineStubProtocol.finishHeld(harness.endpoint)
+        #expect(try await second.value == "second")
     }
 
     @Test func atTwentyFourGiBOrMoreTheImageModelStaysResident() async throws {
@@ -128,6 +156,7 @@ private let noGeneration: @Sendable (Int, EngineStubProtocol.Recorded) -> Engine
         try await eventually { harness.engineCalls().contains("load \(enhancerModel)") }
         lease.cancel()
         await #expect(throws: CancellationError.self) { try await lease.value }
+        try await eventually { harness.engineCalls().contains("load \(kreaModel)") }
         #expect(harness.engineCalls() == [
             "unload \(kreaModel)", "load \(enhancerModel)", "unload \(enhancerModel)", "load \(kreaModel)",
         ])
@@ -150,6 +179,7 @@ private let noGeneration: @Sendable (Int, EngineStubProtocol.Recorded) -> Engine
         case .enhancerOutOfMemory: break
         default: Issue.record("expected enhancerOutOfMemory, got \(error)")
         }
+        try await eventually { harness.engineCalls().contains("load \(kreaModel)") }
         #expect(harness.engineCalls() == ["unload \(kreaModel)", "load \(enhancerModel)", "load \(kreaModel)"])
 
         // The lease is released: a queued job now runs.

@@ -41,7 +41,7 @@ struct EnhanceResultCard: View {
             EmptyView()
         case .waiting:
             VStack(alignment: .leading, spacing: 4) {
-                Text("Enhance starts after the current image.")
+                Text(model.enhanceWaitsForImage ? "Enhance starts after the current image." : "Loading the enhancer…")
                     .font(.callout)
                 if model.hasQueuedJobs {
                     Text("Queued images start after the enhancement.")
@@ -142,7 +142,9 @@ struct EnhanceResultCard: View {
         case .idle:
             return ""
         case .waiting:
-            return "Enhancement waiting for the current image."
+            return model.enhanceWaitsForImage
+                ? "Enhancement waiting for the current image."
+                : "Loading the enhancer."
         case .streaming:
             return "Enhancement in progress."
         case .failed(let message):

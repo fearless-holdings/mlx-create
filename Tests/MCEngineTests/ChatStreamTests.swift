@@ -212,6 +212,24 @@ struct ChatStreamTests {
         #expect(outcome.error as? EngineError == .engineFailure(type: "server_error", engineMessage: "decode failed"))
     }
 
+    @Test("a finish_reason of length fails the stream after the text received before it, so a cut-off reply is never accepted")
+    func finishReasonLengthIsTruncation() async throws {
+        let stub = ChatStub()
+        let body = """
+        data: {"choices":[{"index":0,"delta":{"content":"A red fox crouches in fresh snow, "},"finish_reason":null}]}
+
+        data: {"choices":[{"index":0,"delta":{},"finish_reason":"length"}]}
+
+        data: [DONE]
+
+        """
+        stub.respond(.init(contentType: "text/event-stream", body: Data(body.utf8)))
+
+        let outcome = await runChat(stub.client, enhancerChatRequest)
+        #expect(outcome.text == ["A red fox crouches in fresh snow, "])
+        #expect(outcome.error as? EngineError == .chatOutputTruncated)
+    }
+
     @Test("a top-level out_of_memory error mid-stream throws after the text received before it")
     func topLevelErrorMidStream() async throws {
         let stub = ChatStub()

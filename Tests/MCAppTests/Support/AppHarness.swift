@@ -27,16 +27,20 @@ final class FakeEngine: @unchecked Sendable {
     private var models: [(id: String, architecture: String)]
     private let script: Script
     private let chat: ChatScript
+    /// Model ids whose load stays open until `EngineStubProtocol.finishHeld`, as a model still loading would.
+    private let holdLoads: Set<String>
     private var chats = 0
 
     init(
         loaded: Set<String>, models: [(id: String, architecture: String)], script: @escaping Script,
-        chat: @escaping ChatScript = { _, _ in .init(status: 404, body: Data(), tail: nil) }
+        chat: @escaping ChatScript = { _, _ in .init(status: 404, body: Data(), tail: nil) },
+        holdLoads: Set<String> = []
     ) {
         self.loaded = loaded
         self.models = models
         self.script = script
         self.chat = chat
+        self.holdLoads = holdLoads
     }
 
     /// What the engine reports from now on: a new model folder shows up after the rescan that follows an install.
@@ -53,7 +57,10 @@ final class FakeEngine: @unchecked Sendable {
         case "v1/load-model":
             let id = Self.modelID(request.body)
             lock.withLock { _ = loaded.insert(id) }
-            return .json("{}")
+            // A held load answers only when the test releases it; the empty tail completes the request then.
+            return holdLoads.contains(id)
+                ? .init(status: 200, body: Data("{}".utf8), tail: Data())
+                : .json("{}")
         case "v1/unload-model":
             let id = Self.modelID(request.body)
             lock.withLock { _ = loaded.remove(id) }
@@ -170,7 +177,8 @@ struct AppHarness {
         civitaiPreviewFetch: (@Sendable (URL) async -> Data?)? = nil,
         root: URL? = nil,
         chat: @escaping FakeEngine.ChatScript = { _, _ in .init(status: 404, body: Data(), tail: nil) },
-        memoryTier: MemoryTier = .current
+        memoryTier: MemoryTier = .current,
+        holdLoads: Set<String> = []
     ) async throws -> AppHarness {
         let libraryRoot = root ?? FileManager.default.temporaryDirectory.appendingPathComponent("app-\(UUID().uuidString)")
         let store = try LibraryStore(libraryRoot: libraryRoot, modelsRoot: libraryRoot.appending(path: "Models"))
@@ -180,7 +188,7 @@ struct AppHarness {
             supervisor: supervisor, script: script, catalog: catalog, transport: transport, catalogStore: catalogStore,
             civitaiTransport: civitaiTransport, civitaiFileTransport: civitaiFileTransport,
             civitaiKeychain: civitaiKeychain, civitaiPreviewFetch: civitaiPreviewFetch, chat: chat,
-            memoryTier: memoryTier)
+            memoryTier: memoryTier, holdLoads: holdLoads)
     }
 
     /// Builds a new `AppModel` over this harness's library and defaults with a fresh engine, as a relaunch would.
@@ -214,9 +222,10 @@ struct AppHarness {
         civitaiKeychain: (any CivitaiKeyStore)?,
         civitaiPreviewFetch: (@Sendable (URL) async -> Data?)?,
         chat: @escaping FakeEngine.ChatScript = { _, _ in .init(status: 404, body: Data(), tail: nil) },
-        memoryTier: MemoryTier = .current
+        memoryTier: MemoryTier = .current,
+        holdLoads: Set<String> = []
     ) async throws -> AppHarness {
-        let engine = FakeEngine(loaded: loaded, models: models, script: script, chat: chat)
+        let engine = FakeEngine(loaded: loaded, models: models, script: script, chat: chat, holdLoads: holdLoads)
         let endpoint = EngineStubProtocol.register(handler: { engine.handle($0) })
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [EngineStubProtocol.self]

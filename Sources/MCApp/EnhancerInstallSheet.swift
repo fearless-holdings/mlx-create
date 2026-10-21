@@ -28,6 +28,7 @@ struct EnhancerInstallSheet: View {
                 LicenseSheet(browser: browser, license: model.license, pending: pending)
             }
         }
+        .task { await browser.observe() }
     }
 
     @ViewBuilder
