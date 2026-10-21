@@ -36,38 +36,6 @@ private func familyWithoutPack(_ family: ModelFamily) throws -> ModelFamily {
 
 @MainActor
 @Suite struct EnhanceOfferTests {
-    // MARK: Word marking
-
-    @Test func onlyWordsTheEnhancementAddedAreMarked() {
-        let added = EnhanceWordDiff.added(in: "a red fox, cinematic lighting", comparedTo: "a red fox")
-
-        #expect(added.map(\.text) == ["cinematic", "lighting"])
-    }
-
-    @Test func wordsThatWereOnlyReorderedOrRecasedAreNotMarked() {
-        #expect(EnhanceWordDiff.added(in: "Fox, a RED", comparedTo: "a red fox").isEmpty)
-    }
-
-    @Test func aRepeatedWordBeyondThePromptsCountIsMarked() {
-        #expect(EnhanceWordDiff.added(in: "fox fox", comparedTo: "fox").map(\.text) == ["fox"])
-    }
-
-    @Test func markedRangesAreCharacterOffsetsIntoTheEnhancedText() {
-        let enhanced = "a red fox, cinematic lighting"
-        let characters = Array(enhanced)
-
-        let added = EnhanceWordDiff.added(in: enhanced, comparedTo: "a red fox")
-
-        #expect(!added.isEmpty)
-        for word in added {
-            #expect(String(characters[word.range]) == word.text)
-        }
-    }
-
-    @Test func punctuationAloneIsNeverMarked() {
-        #expect(EnhanceWordDiff.added(in: "a fox - , .", comparedTo: "a fox").isEmpty)
-    }
-
     // MARK: Offer
 
     @Test func anEnhancerNotInTheCatalogOrAlreadyInstalledIsNotOffered() {

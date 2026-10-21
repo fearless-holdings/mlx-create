@@ -48,6 +48,7 @@ struct GenerationPanel: View {
                     minHeight: Self.promptMinHeight,
                     idealHeight: Self.promptMinHeight,
                     maxHeight: promptFillsHeight ? .infinity : Self.promptMinHeight)
+            originalPromptField
             enhanceRow
             EnhanceResultCard(model: model)
             ModelChip(model: model)
@@ -77,6 +78,31 @@ struct GenerationPanel: View {
                 }
             }
             .accessibilityLabel("Prompt")
+    }
+
+    /// The prompt an accepted enhancement replaced, read-only (KTD7). It is the text saved as provenance with the next image.
+    @ViewBuilder
+    private var originalPromptField: some View {
+        if let original = model.originalPrompt {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Original prompt")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                ScrollView {
+                    Text(original)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 72)
+            }
+            .padding(8)
+            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(nsColor: .separatorColor)))
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Original prompt, read only: \(original)")
+        }
     }
 
     /// The Enhance button with its caption: the reason it can't run, else the reason the last press was refused, and the

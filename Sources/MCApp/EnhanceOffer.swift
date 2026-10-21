@@ -2,60 +2,6 @@ import Foundation
 import MCCatalog
 import MCEnhancer
 
-/// A word an enhancement added to the prompt: the word, and where it sits in the enhanced text, in characters.
-struct AddedWord: Equatable {
-    let text: String
-    let range: Range<Int>
-}
-
-/// Finds the words an enhancement added to the prompt (U8, R15). A word is kept when the prompt has it too, wherever it
-/// moved and whatever its case. Each kept occurrence cancels one occurrence in the prompt, so a word repeated beyond
-/// the prompt's count is marked.
-enum EnhanceWordDiff {
-    static func added(in enhanced: String, comparedTo original: String) -> [AddedWord] {
-        var kept: [String: Int] = [:]
-        for word in words(in: original) {
-            kept[word.text.lowercased(), default: 0] += 1
-        }
-        return words(in: enhanced).filter { word in
-            let key = word.text.lowercased()
-            guard let count = kept[key], count > 0 else { return true }
-            kept[key] = count - 1
-            return false
-        }
-    }
-
-    private static func words(in text: String) -> [AddedWord] {
-        var words: [AddedWord] = []
-        var start: Int?
-        var current = ""
-        for (offset, character) in text.enumerated() {
-            if isWordCharacter(character) {
-                if start == nil { start = offset }
-                current.append(character)
-            } else if let begin = start {
-                appendWord(current, range: begin..<offset, to: &words)
-                start = nil
-                current = ""
-            }
-        }
-        if let begin = start {
-            appendWord(current, range: begin..<text.count, to: &words)
-        }
-        return words
-    }
-
-    /// A run of word characters counts only when it holds a letter or a digit, so a lone dash is not a word.
-    private static func appendWord(_ text: String, range: Range<Int>, to words: inout [AddedWord]) {
-        guard text.contains(where: { $0.isLetter || $0.isNumber }) else { return }
-        words.append(AddedWord(text: text, range: range))
-    }
-
-    private static func isWordCharacter(_ character: Character) -> Bool {
-        character.isLetter || character.isNumber || character == "'" || character == "-"
-    }
-}
-
 /// When the prompt enhancer is offered as an optional extra (F2, R16). It is offered while the catalog lists one and it
 /// is not installed. There is no persisted dismissal: the offer stays until the enhancer is installed.
 enum EnhancerOffer {
