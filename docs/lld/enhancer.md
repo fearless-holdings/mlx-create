@@ -2,7 +2,7 @@
 
 Module context: `MCEnhancer` (request building), `MCEngine` chat client, plan `docs/plans/2026-10-20-1608-feat-prompt-enhancer-plan.md` (U6; KTD2, KTD3; R11-R13), HLD D36.
 
-This file records the measured gate for the provisional enhancer model. **Status: no candidate has cleared the refusal bar. No enhancer catalog entry has been added.** The decision on how to proceed is open (see §6).
+This file records the measured gate for the provisional enhancer model. **Status: Gemma 4 E4B heretic 4-bit cleared the refusal bar on the fourth clean set (§3.6) and is the catalog's enhancer entry (§4).** Qwen3 4B abliterated did not clear it. Earlier sections record the path there, including sets that scored over the bar.
 
 ## 1. What the gate measures
 
@@ -176,3 +176,16 @@ Gemma 4 E4B heretic 4-bit (`gemma-4-e4b-heretic-4bit`) stays provisional. Revisi
 - The pack text or the engine pin changes. §3.6 applies only to the final packs and `v26.10.2`.
 - A measurement on a 16 GB Mac misses the R13 bar: first text in about 3 s and a finished result in about 10 s, cold. §3 measured on 48 GB only.
 - The model license changes from the catalog's `apache-2.0`, or the model is withdrawn.
+
+## 9. Real-engine smoke (2026-10-21)
+
+Pinned engine `v26.10.2`, launched by `EngineSupervisor` with a private `HOME`, per-launch key, `--api-key-strict` and `--max-resident-models 1`, tier forced to 16 GiB on this 48 GiB Mac. Krea 2 Turbo as the image model, Gemma as the enhancer.
+
+Exercised, against the real engine: `EngineClient` (`models`, `load`, `streamChat`, `generateImage`), `PromptEnhancer.request`, `JobExecutor.withEnhancerLease`, `EnhancementCleaner.clean`, `MetadataCodec.embed`/`read`.
+
+- **Enhance.** `woman in a cafe, film grain` came back as `woman in a cafe, film grain, soft natural light, shallow depth of field, 50mm lens`. First token 0.24 s, stream done 0.42 s.
+- **Residency.** Before the lease Krea was loaded. Inside the lease body only Gemma was loaded. After release Gemma was unloaded and Krea was loaded again. The whole lease took 1.13 s.
+- **Provenance.** A 512x512 image at seed 42 took 8.76 s. Reading the PNG back gave `originalPrompt = "woman in a cafe, film grain"` and `prompt` equal to the enhanced text.
+- The engine was stopped and `pgrep mlx-serve` was empty afterwards.
+
+Not exercised: the `AppModel` wrapper (pending, accept and revert state, saving the image to the library) and the `JobQueue` image path. They are covered by the app tests with a stub engine and by the user's own GUI check. The smoke did not capture engine log lines, and it did not run on a physical 16 GB Mac.
