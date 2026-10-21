@@ -1,6 +1,6 @@
 # AGENTS.md: mlx-create
 
-mlx-create is a commercial, native macOS app (macOS 26.2+, Apple Silicon, 16 GB minimum) for local image and video generation. It is Auto1111-class in scope but Mac-native. Inference runs in a bundled, pinned **upstream mlx-serve** binary, which the app drives over localhost HTTP/SSE.
+mlx-create is a commercial, native macOS app (macOS 26.2+, Apple Silicon, 16 GB minimum) for local image and video generation. Its mission (`STRATEGY.md`) is to make uncensored generation free and easy: a one-time purchase (D40), with the expertise baked in so the user has nothing to learn. Inference runs in a bundled, pinned **upstream mlx-serve** binary, which the app drives over localhost HTTP/SSE.
 
 ## Status and source of truth
 
@@ -11,8 +11,10 @@ mlx-create is a commercial, native macOS app (macOS 26.2+, Apple Silicon, 16 GB 
 
 ## Non-negotiables
 
+Rules 2–6 describe mlx-serve, today's only engine. HLD D41 allows a second bundled engine (e.g. for SDXL/Pony) once its own decision entry exists. Any such engine inherits the same rules: a separate child process, stock upstream pinned by release, loopback-only behind a per-launch key, its own `HOME` under `<AppSupport>`, and `.safetensors` only. Do not start engine work without that decision.
+
 1. **No content filtering anywhere:** no prompt filters, no output classifiers, no refusal paths (D3/G6). The only content-related UI is NSFW opt-in and blur in the model browser and the LoRA library's Browse Civitai tab (D15, D34).
-2. **No inference in the app process.** All generation and LLM work goes through the engine child process.
+2. **No inference in the app process.** All generation and LLM work goes through an engine child process.
 3. **The engine is stock upstream.** Never vendor, patch, or commit mlx-serve source. Engine changes go upstream as PRs (HLD §7.2). The app consumes them only through a tagged release pinned in `engine.lock`.
 4. **The engine is private:**
    - Always launch it with `--host 127.0.0.1` and a random per-launch key passed via `--api-key-env` plus `--api-key-strict`. Without `--api-key-strict`, upstream exempts loopback callers from the key, and argv is world-readable (`docs/lld/engine.md` §5.2).
@@ -29,7 +31,7 @@ mlx-create is a commercial, native macOS app (macOS 26.2+, Apple Silicon, 16 GB 
 8. **Licenses:** show the model license and require acceptance at download (D20). Never redistribute weights.
 9. **Scope guards:**
    - v1 executor accepts only `t2i`, but the data model stays mode-agnostic (D7).
-   - Out of scope: sampler pickers (D14), tags, ratings and smart collections (D10), SDXL/SD1.5-family engines (D5), and ControlNet.
+   - Out of scope: expert knobs such as sampler pickers or an Advanced panel (D14, `STRATEGY.md` Boundaries), tags, ratings and smart collections (D10), SDXL/SD1.5-family engines until a D41 decision adds one (D5), and ControlNet.
 
 ## Engine facts (upstream mlx-serve)
 

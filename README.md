@@ -1,6 +1,6 @@
 # mlx-create
 
-Native macOS app (26.2+, Apple Silicon, 16 GB min) for local image and video generation. It is Auto1111-class in scope but Mac-native. The app drives a bundled, pinned, stock upstream [mlx-serve](https://github.com/ddalcu/mlx-serve) binary over localhost HTTP/SSE. No inference runs in the app process.
+Native macOS app (26.2+, Apple Silicon, 16 GB min) for local image and video generation: uncensored, a one-time purchase, and nothing to learn (see `STRATEGY.md`). The app drives a bundled, pinned, stock upstream [mlx-serve](https://github.com/ddalcu/mlx-serve) binary over localhost HTTP/SSE. No inference runs in the app process.
 
 Currently: the text-to-image slice only. Source of truth is `docs/HLD.md` (decisions `D*`). Rules and gotchas are in `AGENTS.md`.
 
