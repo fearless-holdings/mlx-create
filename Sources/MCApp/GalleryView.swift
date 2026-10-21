@@ -15,7 +15,7 @@ struct GalleryView: View {
                 Divider()
             }
             content
-            if model.galleryStatusLine != nil || model.galleryBulk != nil {
+            if model.galleryStatusLine != nil || model.galleryBulk?.showsProgress == true {
                 Divider()
                 GalleryStatusLine(model: model)
             }
@@ -100,6 +100,10 @@ private struct GalleryHeader: View {
         // A collection switch or Clear changes the search from outside.
         .onChange(of: model.gallerySearch) { _, new in
             if new != searchText { searchText = new }
+        }
+        // A switch resets the search in the model, which may already be empty while a debounce is still pending.
+        .onChange(of: model.currentCollection.id) {
+            searchText = ""
         }
     }
 }
@@ -216,6 +220,7 @@ struct ImageCell: View {
     /// Applies the right-click rule (R2) and then runs an action on the selection: an unselected tile replaces the
     /// selection, a selected one acts with all of it.
     private func act(_ action: @escaping () async -> Void) {
+        guard !isBusy else { return }
         model.prepareGalleryMenu(for: image.id)
         Task { await action() }
     }
@@ -269,8 +274,8 @@ struct ImageCell: View {
         .onHover { isHovering = $0 }
         .accessibilityLabel("Image: \(image.prompt)")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
-        .accessibilityAction(named: "Reuse prompt", onReusePrompt)
-        .accessibilityAction(named: "Reuse all settings", onReuseSettings)
+        .accessibilityAction(named: "Reuse prompt") { if canReuse { onReusePrompt() } }
+        .accessibilityAction(named: "Reuse all settings") { if canReuse { onReuseSettings() } }
         .accessibilityAction(named: "Reveal in Finder") { act { await model.revealSelected() } }
         .accessibilityAction(named: "Export") { act { await model.exportSelected() } }
         .accessibilityAction(named: "Delete") { act { await model.deleteSelected() } }

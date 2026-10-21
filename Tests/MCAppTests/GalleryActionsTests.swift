@@ -16,6 +16,8 @@ private final class TrashLog: @unchecked Sendable {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
     }
 
+    deinit { try? FileManager.default.removeItem(at: folder) }
+
     var count: Int { lock.withLock { trashed.count } }
 
     var function: TrashFunction {
@@ -205,7 +207,7 @@ private func startedHarness(
         #expect(Set(model.galleryImages.map(\.id)) == [busy.id])
         #expect(!model.galleryImages.contains { $0.id == plain.id })
         let status = try #require(model.galleryStatus)
-        #expect(status.contains("1 image"))
+        #expect(status.contains("Skipped 1 image"))
         #expect(try await harness.store.image(id: busy.id) != nil)
     }
 
@@ -317,6 +319,7 @@ private func startedHarness(
         let model = harness.model
         let folder = FileManager.default.temporaryDirectory.appending(path: "export-\(UUID().uuidString)", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
         let a = try await save(harness, prompt: "a lighthouse")
         let b = try await save(harness, prompt: "a lighthouse")
         await model.reload()
@@ -339,6 +342,7 @@ private func startedHarness(
         let model = harness.model
         let folder = FileManager.default.temporaryDirectory.appending(path: "export-\(UUID().uuidString)", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
         let image = try await save(harness, prompt: "a lighthouse")
         await model.reload()
         model.selectGalleryImage(image.id, click: .plain)

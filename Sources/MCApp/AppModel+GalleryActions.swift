@@ -100,15 +100,24 @@ extension AppModel {
         // A page or a save in flight was read for the old query, so it must not land.
         galleryRevision += 1
         await reloadGallery()
-        keepCanvasVisible(canvas, previousOrder: previousOrder)
+        await keepCanvasVisible(canvas, previousOrder: previousOrder)
     }
 
-    /// The canvas shows an image only while the gallery lists it (R3). When a new query drops it, the canvas moves to
-    /// the nearest image that is still listed, older first, or to the empty state when none is.
-    private func keepCanvasVisible(_ canvas: UUID?, previousOrder: [UUID]) {
+    /// The canvas shows an image only while the query still matches it (R3). When a new query drops it, the canvas moves
+    /// to the nearest loaded image, older first, or to the empty state when none is loaded. The store decides whether
+    /// the image matches, since it may match yet sit beyond the first page.
+    private func keepCanvasVisible(_ canvas: UUID?, previousOrder: [UUID]) async {
         guard let canvas, selection == canvas else { return }
+        let query = galleryQuery
+        do {
+            guard try await store.ids([canvas], matching: query).isEmpty else { return }
+        } catch {
+            lastError = message(for: error)
+            return
+        }
+        // The canvas may have changed, or the query may have moved on, while the store was read.
+        guard selection == canvas, query == galleryQuery else { return }
         let listed = Set(galleryImages.map(\.id))
-        guard !listed.contains(canvas) else { return }
         selection = GalleryNavigation.neighbour(of: canvas, in: previousOrder, where: listed.contains)
             ?? galleryImages.first?.id
     }
@@ -164,11 +173,6 @@ extension AppModel {
         gallerySelection = Set(galleryImages.map(\.id))
     }
 
-    func clearGallerySelection() {
-        gallerySelection = []
-        galleryAnchor = nil
-    }
-
     /// Keeps only selected images the gallery lists, so an action never reaches an image the user cannot see (R3).
     func pruneGallerySelection() {
         let listed = Set(galleryImages.map(\.id))
@@ -209,11 +213,13 @@ extension AppModel {
     func deleteSelected() async {
         guard galleryBulk == nil else { return }
         galleryStatus = nil
+        galleryBulk = GalleryBulkProgress(done: 0, total: 0)
+        defer { galleryBulk = nil }
+        let collection = currentCollection.id
         let targets = await actionableSelection()
         guard !targets.isEmpty else { return }
         let ids = targets.map(\.id)
         galleryBulk = GalleryBulkProgress(done: 0, total: ids.count)
-        defer { galleryBulk = nil }
 
         let trash = trashFile
         var outcomes: [UUID: ImageDeleteOutcome] = [:]
@@ -233,7 +239,10 @@ extension AppModel {
         await reloadGallery()
         if canvasLost, selection == nil { selection = galleryImages.first?.id }
         await refreshCollections()
-        galleryStatus = GalleryText.deleteSummary(deleted: deleted.count, skipped: skipped, failures: failures)
+        // A collection switch while this ran cleared the status line; the result belongs to the old collection.
+        if collection == currentCollection.id {
+            galleryStatus = GalleryText.deleteSummary(deleted: deleted.count, skipped: skipped, failures: failures)
+        }
     }
 
     /// Selects the selection's PNG files in a Finder window (R6).
@@ -247,6 +256,9 @@ extension AppModel {
     func exportSelected() async {
         guard galleryBulk == nil else { return }
         galleryStatus = nil
+        galleryBulk = GalleryBulkProgress(done: 0, total: 0)
+        defer { galleryBulk = nil }
+        let collection = currentCollection.id
         let targets = await actionableSelection()
         guard !targets.isEmpty else { return }
         let single = targets.count == 1
@@ -257,7 +269,6 @@ extension AppModel {
         let baseName = single ? destination.deletingPathExtension().lastPathComponent : nil
 
         galleryBulk = GalleryBulkProgress(done: 0, total: targets.count)
-        defer { galleryBulk = nil }
         let outcomes = await store.exportImages(ids: targets.map(\.id), to: folder, baseName: baseName)
         var exported = 0
         var failures: [String] = []
@@ -267,20 +278,35 @@ extension AppModel {
             case .failed(let reason): failures.append(reason)
             }
         }
-        galleryStatus = GalleryText.exportSummary(exported: exported, failures: failures)
+        if collection == currentCollection.id {
+            galleryStatus = GalleryText.exportSummary(exported: exported, failures: failures)
+        }
     }
 
     /// Moves the selection to another collection (R8).
     func moveSelected(to collectionID: UUID) async {
         guard galleryBulk == nil, collectionID != currentCollection.id else { return }
         galleryStatus = nil
+        galleryBulk = GalleryBulkProgress(done: 0, total: 0)
+        defer { galleryBulk = nil }
+        let source = currentCollection.id
         let targets = await actionableSelection()
-        await moveImages(ids: targets.map(\.id), to: collectionID)
+        // A switch while the selection was checked leaves these images off screen; the user did not ask to move them.
+        guard source == currentCollection.id else { return }
+        await performMove(ids: targets.map(\.id), to: collectionID)
     }
 
-    /// Moves images to another collection. Only their collection changes, never their files (KTD3, KTD9). They leave
-    /// the gallery, and a canvas on one of them clears.
+    /// Moves images to another collection, unless another gallery action is running.
     func moveImages(ids: [UUID], to collectionID: UUID) async {
+        guard galleryBulk == nil else { return }
+        galleryBulk = GalleryBulkProgress(done: 0, total: 0)
+        defer { galleryBulk = nil }
+        await performMove(ids: ids, to: collectionID)
+    }
+
+    /// Only the images' collection changes, never their files (KTD3, KTD9). They leave the gallery, and a canvas on one
+    /// of them clears. The caller holds `galleryBulk`.
+    private func performMove(ids: [UUID], to collectionID: UUID) async {
         guard !ids.isEmpty, collectionID != currentCollection.id else { return }
         do {
             try await store.moveImages(ids: ids, toCollection: collectionID)

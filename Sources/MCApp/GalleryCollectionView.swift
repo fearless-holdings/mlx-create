@@ -280,8 +280,19 @@ final class GalleryItemView: NSView {
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         let hit = super.hitTest(point)
-        guard hit != nil, NSApp.currentEvent?.type == .rightMouseDown else { return hit }
-        return self
+        guard hit != nil, let event = NSApp.currentEvent else { return hit }
+        let isContextClick = event.type == .rightMouseDown
+            || (event.type == .leftMouseDown && event.modifierFlags.contains(.control))
+        return isContextClick ? self : hit
+    }
+
+    /// A control-click opens the context menu like a right-click, so it applies the selection rule first.
+    override func mouseDown(with event: NSEvent) {
+        if event.modifierFlags.contains(.control) {
+            rightMouseDown(with: event)
+        } else {
+            super.mouseDown(with: event)
+        }
     }
 
     override func rightMouseDown(with event: NSEvent) {

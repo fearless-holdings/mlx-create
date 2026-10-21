@@ -836,6 +836,7 @@ public final class AppModel {
             guard query == galleryQuery else { return }
             guard let image else {
                 // A save that the filters hide still changes what the filter lists and the match count show.
+                if selection == jobID { selection = nil }
                 if query.collectionID == currentCollection.id { await refreshGalleryMeta() }
                 return
             }

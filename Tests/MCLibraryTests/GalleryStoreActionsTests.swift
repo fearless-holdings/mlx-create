@@ -158,6 +158,23 @@ import Testing
         #expect(restored.prompt == "a lighthouse at dusk")
     }
 
+    @Test func aChosenExportNameCannotLeaveTheFolderOrDoublePngExtension() async throws {
+        let f = try await GalleryFilterTests.fixture()
+        let image = try await GalleryFilterTests.save(f, prompt: "a lighthouse at dusk")
+        let root = FileManager.default.temporaryDirectory.appending(path: "mc-export-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let folder = root.appending(path: "out", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        _ = await f.store.exportImages(ids: [image.id], to: folder, baseName: "../escaped.png")
+        _ = await f.store.exportImages(ids: [image.id], to: folder, baseName: "..")
+
+        #expect(try FileManager.default.contentsOfDirectory(atPath: root.path) == ["out"])
+        let files = try FileManager.default.contentsOfDirectory(atPath: folder.path).sorted()
+        #expect(files.contains("escaped.png"))
+        #expect(files.count == 2)
+    }
+
     @Test func exportOfAnUnknownImageFailsWithoutAFile() async throws {
         let f = try await GalleryFilterTests.fixture()
         let folder = FileManager.default.temporaryDirectory.appending(path: "mc-export-\(UUID().uuidString)", directoryHint: .isDirectory)

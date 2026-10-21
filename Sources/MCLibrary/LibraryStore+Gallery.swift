@@ -292,7 +292,7 @@ extension LibraryStore {
                     continue
                 }
                 let source = paths.url(relativePath: image.filePath)
-                let name = ids.count == 1 ? (baseName ?? Self.exportBaseName(image)) : Self.exportBaseName(image)
+                let name = ids.count == 1 ? Self.safeExportName(baseName, fallback: image) : Self.exportBaseName(image)
                 let target = Self.uniqueURL(in: folder, base: name, ext: "png")
                 try fm.copyItem(at: source, to: target)
                 outcomes[id] = .exported(target)
@@ -310,6 +310,15 @@ extension LibraryStore {
             .map(Character.init)).lowercased()
         let stem = slug.isEmpty ? "image" : String(slug.prefix(60))
         return "\(stem)-\(image.seed)"
+    }
+
+    /// A user-chosen name reduced to one path component without a trailing `.png`, or the image's own default when
+    /// nothing is left. A name from a save panel is already clean; this keeps the public API from writing outside the folder.
+    static func safeExportName(_ chosen: String?, fallback image: LibraryImage) -> String {
+        guard let chosen else { return exportBaseName(image) }
+        var name = (chosen as NSString).lastPathComponent
+        if name.lowercased().hasSuffix(".png") { name = String(name.dropLast(4)) }
+        return name.isEmpty || name == "." || name == ".." ? exportBaseName(image) : name
     }
 
     static func uniqueURL(in folder: URL, base: String, ext: String) -> URL {
