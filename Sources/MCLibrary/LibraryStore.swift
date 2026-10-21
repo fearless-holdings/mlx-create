@@ -183,6 +183,7 @@ public actor LibraryStore {
                 END
                 """)
         }
+        migrator.registerMigration("v8-prompt-history", migrate: Self.createPromptHistoryTable)
         return migrator
     }
 
@@ -370,6 +371,7 @@ public actor LibraryStore {
                 batchCount: batchCount, seedPolicy: seedPolicy, status: .queued, position: next
             )
             try JobRow(job).insert(db)
+            try Self.recordPrompt(db, collectionID: collectionID, prompt: request.prompt, negativePrompt: request.negativePrompt)
             return job
         }
     }
