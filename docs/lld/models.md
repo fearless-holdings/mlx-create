@@ -60,6 +60,7 @@ Field rules:
 - `family` must match a `FamilyRegistry` record id (`families.json`). A catalog entry for an unknown family is ignored by the app, not rejected by the loader (HLD §8.4).
 - Installed-model family detection (app side, not catalog): an installed folder matches a family by the engine's architecture from `/v1/models`. A family may also require a checkpoint trait. Qwen-Image 2.1 Turbo requires a non-empty `sample_sigmas` list, read from `Weights/<model id>/model_index.json`. A missing, unreadable or malformed file counts as trait absent, and the folder stays unavailable with the "not supported by this app yet" reason. Only architectures that declare a trait are probed (D31).
 - Model `id` values are unique within a catalog.
+- `recommend_rank` is optional. When present it is a positive integer (≥1), and lower ranks are recommended first (HLD D42). It is written only when set, so a model without it re-encodes to the same bytes and the signature still matches. An unranked model is never recommended by the Recommender. It does not change `schema_version`, which stays `1`; a build that does not know the key ignores it. Unlike array order, rank does not set the browser's display order.
 
 ## 3. Verification order
 

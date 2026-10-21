@@ -50,6 +50,8 @@ struct ModelBrowserRow: Identifiable, Equatable {
     let canAct: Bool
     /// One line explaining why `action` is disabled.
     let actionBlockedReason: String?
+    /// The model the app recommends for this Mac (D42). At most one row carries it.
+    var isRecommended = false
 }
 
 /// The license a user must accept before an install starts (R3, KTD10). Shows the catalog's own fields.
@@ -183,8 +185,13 @@ final class ModelBrowserModel {
     var rows: [ModelBrowserRow] {
         let models = catalog?.models ?? []
         let catalogRepos = Set(models.map(\.repo))
+        let recommendedID = recommendedModel?.id
         // Image models, then enhancers in their own group, then folders no catalog entry lists (U3).
-        let catalogRows = (models.filter { $0.kind == .image } + models.filter { $0.kind == .enhancer }).map(row(for:))
+        let catalogRows = (models.filter { $0.kind == .image } + models.filter { $0.kind == .enhancer }).map { model in
+            var row = row(for: model)
+            row.isRecommended = model.id == recommendedID
+            return row
+        }
         let folderRows = localFolders.filter { !catalogRepos.contains($0) }.map { folder in
             ModelBrowserRow(
                 id: folder, title: folder, model: nil,
@@ -192,6 +199,18 @@ final class ModelBrowserModel {
                 fit: .unknown, fitWarning: nil, action: nil, canAct: false, actionBlockedReason: nil)
         }
         return catalogRows + folderRows
+    }
+
+    /// The recommended row (D42): the best-ranked comfortable model the user can act on right now. A model that is
+    /// installed, an unverified folder, a failure that cannot be retried, or any model while installs are off has no
+    /// action, so it is skipped and the next-ranked one is considered. A model that is installing keeps the pick.
+    var recommendedRow: ModelBrowserRow? {
+        rows.first { $0.isRecommended }
+    }
+
+    private var recommendedModel: CatalogModel? {
+        guard let catalog, installs != nil else { return nil }
+        return Recommender.pick(from: catalog, usableGB: workingSetGB) { state(for: $0).1 != nil }
     }
 
     /// The catalog rows of one kind, in browser order.

@@ -268,6 +268,30 @@ import Testing
         #expect(object["kind"] == nil)
     }
 
+    /// A catalog signed before `recommend_rank` carries no rank: it decodes as unranked and re-encodes without the key.
+    @Test func catalogWithoutRankReencodesWithoutTheKey() throws {
+        let catalog = try Catalog.decodeValidated(CatalogFixture.catalogJSON())
+        #expect(catalog.models[0].recommendRank == nil)
+        let encoded = try JSONEncoder().encode(catalog.models[0])
+        let object = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        #expect(object["recommend_rank"] == nil)
+    }
+
+    @Test func recommendRankRoundTrips() throws {
+        let bytes = try CatalogFixture.catalogJSON(edit: CatalogFixture.editModel { $0["recommend_rank"] = 2 })
+        let model = try Catalog.decodeValidated(bytes).models[0]
+        #expect(model.recommendRank == 2)
+        let object = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(model)) as? [String: Any])
+        #expect(object["recommend_rank"] as? Int == 2)
+    }
+
+    @Test(arguments: [0, -1])
+    func nonPositiveRecommendRankRejectsWholeCatalog(rank: Int) throws {
+        let bytes = try CatalogFixture.catalogJSON(edit: CatalogFixture.editModel { $0["recommend_rank"] = rank })
+        expectInvalid(bytes)
+    }
+
     /// Validation never reads the family registry, so a family that names no record validates for every kind.
     @Test(arguments: [CatalogModelKind.image, .enhancer])
     func unknownFamilyValidatesForEveryKind(kind: CatalogModelKind) throws {
