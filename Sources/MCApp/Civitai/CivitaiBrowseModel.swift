@@ -284,7 +284,7 @@ final class CivitaiBrowseModel {
     /// The family and size the search uses: the chip's family when it differs from the selected one, else the selection.
     private func activeSelection(_ selection: CivitaiSelection) -> CivitaiSelection {
         guard let id = familyOverride, id != selection.family.id,
-              let family = registry.families.first(where: { $0.id == id })
+            let family = registry.families.first(where: { $0.id == id })
         else { return selection }
         return CivitaiSelection(family: family, variant: nil)
     }
@@ -304,7 +304,8 @@ final class CivitaiBrowseModel {
 
     private func makeFound(_ model: CivitaiModel, preferred: [String]) -> CivitaiFoundModel {
         let version = CivitaiBrowseRules.chooseVersion(model.versions, labels: preferred)
-        let matchesLabel = model.baseModels.contains { preferred.contains($0) }
+        let matchesLabel =
+            model.baseModels.contains { preferred.contains($0) }
             || (version?.baseModel.map { preferred.contains($0) } ?? false)
         return CivitaiFoundModel(
             id: model.id, name: model.name, creatorName: model.creatorName, downloadCount: model.downloadCount,
@@ -323,7 +324,7 @@ final class CivitaiBrowseModel {
 
     private static func makeSpec(model: CivitaiModel, version: CivitaiModelVersion) -> CivitaiDownloadSpec? {
         guard let file = version.safetensorsFile, let url = file.downloadURL, let sha = file.sha256,
-              CivitaiBrowseRules.isSHA256Hex(sha), let size = file.sizeBytes
+            CivitaiBrowseRules.isSHA256Hex(sha), let size = file.sizeBytes
         else { return nil }
         let image = version.images.first { $0.url != nil }
         return CivitaiDownloadSpec(
@@ -384,7 +385,7 @@ final class CivitaiBrowseModel {
     /// Asks for the license of a result before its download. Nothing starts until the user accepts.
     func requestDownload(modelID: Int) {
         guard let found = foundModels.first(where: { $0.id == modelID }), let spec = found.spec,
-              Self.allowsDownload(status(for: found))
+            Self.allowsDownload(status(for: found))
         else { return }
         pendingLicense = spec
     }

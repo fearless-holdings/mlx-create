@@ -1,7 +1,7 @@
 import Foundation
 import MCCatalog
-import MCEnhancer
 import MCEngine
+import MCEnhancer
 import MCGeneration
 import MCLibrary
 
@@ -157,8 +157,9 @@ extension AppModel {
                 try Task.checkCancellation()
                 return text
             }
-            guard let enhanced = EnhancementCleaner.clean(
-                reply, triggerWords: request.triggerWords, expectsNegativePrompt: request.expectsNegativePrompt)
+            guard
+                let enhanced = EnhancementCleaner.clean(
+                    reply, triggerWords: request.triggerWords, expectsNegativePrompt: request.expectsNegativePrompt)
             else {
                 setEnhancePhase(id, .failed(Self.noResultReason))
                 return

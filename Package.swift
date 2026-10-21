@@ -15,7 +15,7 @@ let package = Package(
         .library(name: "MCApp", targets: ["MCApp"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/groue/GRDB.swift.git", exact: "7.11.1"),
+        .package(url: "https://github.com/groue/GRDB.swift.git", exact: "7.11.1")
     ],
     targets: [
         .target(name: "MCEngine"),

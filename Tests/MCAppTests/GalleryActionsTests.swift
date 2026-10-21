@@ -41,9 +41,10 @@ private func save(
         requestedWidth: 768, requestedHeight: 768, requestedSteps: 6, guidance: nil,
         seed: 12345, width: 768, height: 768, steps: 6)
     settings.loras = loras
-    return try await harness.store.saveImage(NewImage(
-        collectionID: collection ?? harness.collectionID, jobID: nil,
-        pngData: PNGFixture.make(width: 768, height: 768), settings: settings))
+    return try await harness.store.saveImage(
+        NewImage(
+            collectionID: collection ?? harness.collectionID, jobID: nil,
+            pngData: PNGFixture.make(width: 768, height: 768), settings: settings))
 }
 
 @MainActor
@@ -192,12 +193,13 @@ private func startedHarness(
         let trash = try TrashLog()
         model.trashFile = trash.function
         let job = try await harness.enqueue(batch: 2)
-        let busy = try await harness.store.saveImage(NewImage(
-            collectionID: harness.collectionID, jobID: job.id, pngData: PNGFixture.make(width: 64, height: 64),
-            settings: ImageSettings(
-                prompt: "from a running job", negativePrompt: nil, modelID: "m1", family: "krea-2-turbo",
-                requestedWidth: 64, requestedHeight: 64, requestedSteps: 4, guidance: nil,
-                seed: 1, width: 64, height: 64, steps: 4)))
+        let busy = try await harness.store.saveImage(
+            NewImage(
+                collectionID: harness.collectionID, jobID: job.id, pngData: PNGFixture.make(width: 64, height: 64),
+                settings: ImageSettings(
+                    prompt: "from a running job", negativePrompt: nil, modelID: "m1", family: "krea-2-turbo",
+                    requestedWidth: 64, requestedHeight: 64, requestedSteps: 4, guidance: nil,
+                    seed: 1, width: 64, height: 64, steps: 4)))
         let plain = try await save(harness, prompt: "no job")
         await model.reload()
         model.selectAllGalleryImages()

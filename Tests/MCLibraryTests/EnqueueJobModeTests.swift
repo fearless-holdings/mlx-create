@@ -1,6 +1,7 @@
 import Foundation
-@testable import MCLibrary
 import Testing
+
+@testable import MCLibrary
 
 /// KTD17: `enqueueJob` defaults to the t2i mode, so existing callers keep their behaviour.
 @Suite struct EnqueueJobModeTests {

@@ -1,6 +1,7 @@
 import Foundation
 import ImageIO
 import Testing
+
 @testable import MCLibrary
 
 @Suite struct MetadataCodecTests {
@@ -84,8 +85,9 @@ import Testing
         let settings = Self.fullSettings()
         let embedded = try MetadataCodec.embed(settings, into: png)
         let text = try #require(try PNGChunks.parse(embedded).first { $0.type == "tEXt" })
-        #expect(String(decoding: text.data, as: UTF8.self)
-            == "parameters\0" + MetadataCodec.a1111Parameters(settings))
+        #expect(
+            String(decoding: text.data, as: UTF8.self)
+                == "parameters\0" + MetadataCodec.a1111Parameters(settings))
     }
 
     @Test func promptWithNewlinesColonsAndNonASCIIRoundTrips() throws {

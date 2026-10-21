@@ -35,8 +35,9 @@ struct ModelBrowserView: View {
                                 InstallRow(row: row, browser: browser)
                             }
                         } header: {
-                            Text(EnhancerOffer.isOffered(browser.enhancerStatus)
-                                ? "Optional extra: prompt enhancer" : "Prompt enhancer")
+                            Text(
+                                EnhancerOffer.isOffered(browser.enhancerStatus)
+                                    ? "Optional extra: prompt enhancer" : "Prompt enhancer")
                         }
                     }
                 }

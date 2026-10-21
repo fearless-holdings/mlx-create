@@ -1,11 +1,13 @@
 import Foundation
-@testable import MCLibrary
 import Testing
+
+@testable import MCLibrary
 
 /// KTD16: `ImageSettings.steps` is optional; the PNG `parameters` line omits `Steps:` when unknown.
 /// Files written before the change carry an integer step count and decode unchanged.
 @Suite struct ImageStepsCompatibilityTests {
-    private static let legacyJSON = #"{"prompt":"a cat","negativePrompt":null,"modelID":"ddalcu/Krea-2-Turbo","family":"krea2","requestedWidth":512,"requestedHeight":512,"requestedSteps":4,"guidance":null,"seed":7,"width":512,"height":512,"steps":6,"engineVersion":"26.10.2"}"#
+    private static let legacyJSON =
+        #"{"prompt":"a cat","negativePrompt":null,"modelID":"ddalcu/Krea-2-Turbo","family":"krea2","requestedWidth":512,"requestedHeight":512,"requestedSteps":4,"guidance":null,"seed":7,"width":512,"height":512,"steps":6,"engineVersion":"26.10.2"}"#
 
     @Test func legacyIntegerStepsDecodeAndRestoreUnchanged() throws {
         let settings = try JSONDecoder().decode(ImageSettings.self, from: Data(Self.legacyJSON.utf8))

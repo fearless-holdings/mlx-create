@@ -299,7 +299,7 @@ public final class AppModel {
     static func catalogRemoteURL(configured value: String?) -> URL? {
         let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard let url = URL(string: trimmed), let scheme = url.scheme?.lowercased(), scheme == "https" || scheme == "http",
-              url.host != nil
+            url.host != nil
         else { return nil }
         return url
     }
@@ -308,10 +308,12 @@ public final class AppModel {
     private func makeInstalls(catalog: Catalog?, transport: (any ModelTransport)?) -> InstallCoordinator? {
         guard let catalog, let transport else { return nil }
         // The installer's rescan refreshes the picker as well as asking the engine to rescan (R10).
-        return InstallCoordinator(catalog: catalog, store: store, transport: transport, rescan: { [weak self] in
-            guard let self else { return }
-            await self.refreshModels()
-        })
+        return InstallCoordinator(
+            catalog: catalog, store: store, transport: transport,
+            rescan: { [weak self] in
+                guard let self else { return }
+                await self.refreshModels()
+            })
     }
 
     /// Asks the store for a newer signed catalog and applies it when accepted (R8, R9). A refused, unreachable or

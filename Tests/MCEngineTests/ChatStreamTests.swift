@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import MCEngine
 
 /// Records what `StubURLProtocol` does not keep: the method, the route and the request body.
@@ -198,13 +199,13 @@ struct ChatStreamTests {
     func finishReasonError() async throws {
         let stub = ChatStub()
         let body = """
-        data: {"choices":[{"index":0,"delta":{"content":"A red fox "},"finish_reason":null}]}
+            data: {"choices":[{"index":0,"delta":{"content":"A red fox "},"finish_reason":null}]}
 
-        data: {"choices":[{"index":0,"delta":{},"finish_reason":"error"}],"error":{"message":"decode failed","type":"server_error"}}
+            data: {"choices":[{"index":0,"delta":{},"finish_reason":"error"}],"error":{"message":"decode failed","type":"server_error"}}
 
-        data: [DONE]
+            data: [DONE]
 
-        """
+            """
         stub.respond(.init(contentType: "text/event-stream", body: Data(body.utf8)))
 
         let outcome = await runChat(stub.client, enhancerChatRequest)
@@ -216,13 +217,13 @@ struct ChatStreamTests {
     func finishReasonLengthIsTruncation() async throws {
         let stub = ChatStub()
         let body = """
-        data: {"choices":[{"index":0,"delta":{"content":"A red fox crouches in fresh snow, "},"finish_reason":null}]}
+            data: {"choices":[{"index":0,"delta":{"content":"A red fox crouches in fresh snow, "},"finish_reason":null}]}
 
-        data: {"choices":[{"index":0,"delta":{},"finish_reason":"length"}]}
+            data: {"choices":[{"index":0,"delta":{},"finish_reason":"length"}]}
 
-        data: [DONE]
+            data: [DONE]
 
-        """
+            """
         stub.respond(.init(contentType: "text/event-stream", body: Data(body.utf8)))
 
         let outcome = await runChat(stub.client, enhancerChatRequest)
@@ -234,11 +235,11 @@ struct ChatStreamTests {
     func topLevelErrorMidStream() async throws {
         let stub = ChatStub()
         let body = """
-        data: {"choices":[{"index":0,"delta":{"content":"A red fox "},"finish_reason":null}]}
+            data: {"choices":[{"index":0,"delta":{"content":"A red fox "},"finish_reason":null}]}
 
-        data: {"error":{"message":"Not enough free memory","type":"out_of_memory"}}
+            data: {"error":{"message":"Not enough free memory","type":"out_of_memory"}}
 
-        """
+            """
         stub.respond(.init(contentType: "text/event-stream", body: Data(body.utf8)))
 
         let outcome = await runChat(stub.client, enhancerChatRequest)
@@ -300,11 +301,11 @@ struct ChatStreamTests {
     func finishWithoutDone() async throws {
         let stub = ChatStub()
         let body = """
-        data: {"choices":[{"index":0,"delta":{"content":"A red fox"},"finish_reason":null}]}
+            data: {"choices":[{"index":0,"delta":{"content":"A red fox"},"finish_reason":null}]}
 
-        data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+            data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
 
-        """
+            """
         stub.respond(.init(contentType: "text/event-stream", body: Data(body.utf8)))
 
         let outcome = await runChat(stub.client, enhancerChatRequest)
@@ -316,15 +317,15 @@ struct ChatStreamTests {
     func emptyChoicesIgnored() async throws {
         let stub = ChatStub()
         let body = """
-        data: {"choices":[{"index":0,"delta":{"content":"A red "},"finish_reason":null}]}
+            data: {"choices":[{"index":0,"delta":{"content":"A red "},"finish_reason":null}]}
 
-        data: {"choices":[],"usage":{"prompt_tokens":41,"completion_tokens":2,"total_tokens":43}}
+            data: {"choices":[],"usage":{"prompt_tokens":41,"completion_tokens":2,"total_tokens":43}}
 
-        data: {"choices":[{"index":0,"delta":{"content":"fox"},"finish_reason":null}]}
+            data: {"choices":[{"index":0,"delta":{"content":"fox"},"finish_reason":null}]}
 
-        data: [DONE]
+            data: [DONE]
 
-        """
+            """
         stub.respond(.init(contentType: "text/event-stream", body: Data(body.utf8)))
 
         let outcome = await runChat(stub.client, enhancerChatRequest)

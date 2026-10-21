@@ -125,16 +125,18 @@ public actor LibraryStore {
             try db.create(index: "image_collection_recent", on: "image", columns: ["collection_id", "created_at"])
             try db.execute(sql: "ALTER TABLE collection ADD COLUMN defaults TEXT")
             // `default_model_id` was never written by the app; carry a value over rather than drop it silently.
-            try db.execute(sql: """
-                UPDATE collection SET defaults = json_object('modelID', default_model_id)
-                WHERE default_model_id IS NOT NULL
-                """)
+            try db.execute(
+                sql: """
+                    UPDATE collection SET defaults = json_object('modelID', default_model_id)
+                    WHERE default_model_id IS NOT NULL
+                    """)
             try db.execute(sql: "ALTER TABLE collection DROP COLUMN default_model_id")
             // 'Projects/' is nine characters, so the remainder starts at the tenth.
-            try db.execute(sql: """
-                UPDATE image SET file_path = 'Collections/' || substr(file_path, 10)
-                WHERE file_path LIKE 'Projects/%'
-                """)
+            try db.execute(
+                sql: """
+                    UPDATE image SET file_path = 'Collections/' || substr(file_path, 10)
+                    WHERE file_path LIKE 'Projects/%'
+                    """)
         }
         migrator.registerMigration("v7-gallery-filters") { db in
             try db.execute(sql: "ALTER TABLE image ADD COLUMN model_id TEXT")
@@ -148,40 +150,46 @@ public actor LibraryStore {
             try db.create(index: "image_collection_model", on: "image", columns: ["collection_id", "model_id", "created_at"])
             // SQLite raises on malformed JSON, and one unreadable `settings` row must not stop the library from opening,
             // so every read is guarded by `json_valid`. Such a row keeps a NULL model and gets no LoRA rows.
-            try db.execute(sql: """
-                UPDATE image SET model_id = json_extract(settings, '$.modelID')
-                WHERE json_valid(settings) AND json_type(settings, '$.modelID') = 'text'
-                """)
+            try db.execute(
+                sql: """
+                    UPDATE image SET model_id = json_extract(settings, '$.modelID')
+                    WHERE json_valid(settings) AND json_type(settings, '$.modelID') = 'text'
+                    """)
             // `json_each` over a guarded argument: the planner may evaluate it before the WHERE clause.
-            try db.execute(sql: """
-                INSERT OR IGNORE INTO image_lora (image_id, sha256, name)
-                SELECT i.id, json_extract(l.value, '$.sha256'), COALESCE(json_extract(l.value, '$.name'), '')
-                FROM image i,
-                     json_each(CASE WHEN json_valid(i.settings) THEN i.settings ELSE '{}' END, '$.loras') l
-                WHERE json_type(l.value, '$.sha256') = 'text'
-                """)
+            try db.execute(
+                sql: """
+                    INSERT OR IGNORE INTO image_lora (image_id, sha256, name)
+                    SELECT i.id, json_extract(l.value, '$.sha256'), COALESCE(json_extract(l.value, '$.name'), '')
+                    FROM image i,
+                         json_each(CASE WHEN json_valid(i.settings) THEN i.settings ELSE '{}' END, '$.loras') l
+                    WHERE json_type(l.value, '$.sha256') = 'text'
+                    """)
             // External-content full-text index over the prompt column (D37). Triggers keep it in step with `image`.
             // The index is keyed on `image`'s implicit rowid, which VACUUM may renumber (the table has a TEXT primary
             // key). Nothing vacuums today; one that does must follow with
             // `INSERT INTO image_fts(image_fts) VALUES('rebuild')`, or search results will point at the wrong rows.
-            try db.execute(sql: "CREATE VIRTUAL TABLE image_fts USING fts5(prompt, content='image', content_rowid='rowid', tokenize='unicode61')")
+            try db.execute(
+                sql: "CREATE VIRTUAL TABLE image_fts USING fts5(prompt, content='image', content_rowid='rowid', tokenize='unicode61')")
             try db.execute(sql: "INSERT INTO image_fts(rowid, prompt) SELECT rowid, prompt FROM image")
-            try db.execute(sql: """
-                CREATE TRIGGER image_fts_insert AFTER INSERT ON image BEGIN
-                    INSERT INTO image_fts(rowid, prompt) VALUES (new.rowid, new.prompt);
-                END
-                """)
-            try db.execute(sql: """
-                CREATE TRIGGER image_fts_delete AFTER DELETE ON image BEGIN
-                    INSERT INTO image_fts(image_fts, rowid, prompt) VALUES ('delete', old.rowid, old.prompt);
-                END
-                """)
-            try db.execute(sql: """
-                CREATE TRIGGER image_fts_update AFTER UPDATE OF prompt ON image WHEN old.prompt IS NOT new.prompt BEGIN
-                    INSERT INTO image_fts(image_fts, rowid, prompt) VALUES ('delete', old.rowid, old.prompt);
-                    INSERT INTO image_fts(rowid, prompt) VALUES (new.rowid, new.prompt);
-                END
-                """)
+            try db.execute(
+                sql: """
+                    CREATE TRIGGER image_fts_insert AFTER INSERT ON image BEGIN
+                        INSERT INTO image_fts(rowid, prompt) VALUES (new.rowid, new.prompt);
+                    END
+                    """)
+            try db.execute(
+                sql: """
+                    CREATE TRIGGER image_fts_delete AFTER DELETE ON image BEGIN
+                        INSERT INTO image_fts(image_fts, rowid, prompt) VALUES ('delete', old.rowid, old.prompt);
+                    END
+                    """)
+            try db.execute(
+                sql: """
+                    CREATE TRIGGER image_fts_update AFTER UPDATE OF prompt ON image WHEN old.prompt IS NOT new.prompt BEGIN
+                        INSERT INTO image_fts(image_fts, rowid, prompt) VALUES ('delete', old.rowid, old.prompt);
+                        INSERT INTO image_fts(rowid, prompt) VALUES (new.rowid, new.prompt);
+                    END
+                    """)
         }
         migrator.registerMigration("v8-prompt-history", migrate: Self.createPromptHistoryTable)
         return migrator
@@ -239,9 +247,10 @@ public actor LibraryStore {
         let root = paths.loraRoot
         let fm = FileManager.default
         // `enumerator(atPath:)` yields paths relative to the root, so the result does not depend on how /var and /private/var resolve.
-        guard let referenced = try? dbQueue.read({ (db: Database) throws -> Set<String> in
-            try Set(String.fetchAll(db, sql: "SELECT relative_path FROM lora"))
-        }),
+        guard
+            let referenced = try? dbQueue.read({ (db: Database) throws -> Set<String> in
+                try Set(String.fetchAll(db, sql: "SELECT relative_path FROM lora"))
+            }),
             let enumerator = fm.enumerator(atPath: root.path)
         else { return }
         var orphans: [URL] = []
@@ -355,17 +364,21 @@ public actor LibraryStore {
 
     /// Adds a job at the end of the queue and returns it with its assigned position.
     @discardableResult
-    public func enqueueJob(collectionID: UUID, request: JobRequest, batchCount: Int, seedPolicy: String, mode: String = Job.textToImageMode) throws -> Job {
+    public func enqueueJob(collectionID: UUID, request: JobRequest, batchCount: Int, seedPolicy: String, mode: String = Job.textToImageMode)
+        throws -> Job
+    {
         try dbQueue.write { db in
             for entry in request.loras ?? [] {
                 guard let row = try LoRARecord.fetchOne(db, key: entry.id), row.sha256 == entry.sha256,
-                      row.relativePath == entry.relativePath,
-                      let file = paths.loraURL(relativePath: row.relativePath),
-                      FileManager.default.fileExists(atPath: file.path)
+                    row.relativePath == entry.relativePath,
+                    let file = paths.loraURL(relativePath: row.relativePath),
+                    FileManager.default.fileExists(atPath: file.path)
                 else { throw LibraryError.loraUnavailable(name: entry.name) }
             }
-            let next = try Int.fetchOne(db, sql: "SELECT COALESCE(MAX(position), 0) + 1 FROM job WHERE status = ?",
-                                        arguments: [JobStatus.queued.rawValue]) ?? 1
+            let next =
+                try Int.fetchOne(
+                    db, sql: "SELECT COALESCE(MAX(position), 0) + 1 FROM job WHERE status = ?",
+                    arguments: [JobStatus.queued.rawValue]) ?? 1
             let job = Job(
                 id: UUID(), collectionID: collectionID, mode: mode, request: request,
                 batchCount: batchCount, seedPolicy: seedPolicy, status: .queued, position: next
@@ -394,7 +407,8 @@ public actor LibraryStore {
     /// Sets a job's status only if it is currently one of `allowed`. Returns false and changes nothing otherwise, so a
     /// status decided earlier cannot overwrite one written since (for example a cancel racing the executor's start).
     @discardableResult
-    public func transitionJob(_ jobID: UUID, from allowed: Set<JobStatus>, to status: JobStatus, failure: JobFailure? = nil) throws -> Bool {
+    public func transitionJob(_ jobID: UUID, from allowed: Set<JobStatus>, to status: JobStatus, failure: JobFailure? = nil) throws -> Bool
+    {
         let hook = statusHook
         return try dbQueue.write { db in
             try hook?(status)
@@ -423,7 +437,8 @@ public actor LibraryStore {
     /// step never reorders jobs the queue strip hides.
     public func moveQueuedJob(_ jobID: UUID, by offset: Int) throws {
         try dbQueue.write { db in
-            let queued = try JobRow
+            let queued =
+                try JobRow
                 .filter(Column("status") == JobStatus.queued.rawValue)
                 .order(Column("position"))
                 .fetchAll(db)

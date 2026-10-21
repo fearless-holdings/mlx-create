@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import MCModels
 
 /// Pure planning, sidecar validity and path policy. No network, no processes.
@@ -91,10 +92,13 @@ import Testing
 
     // MARK: Path policy
 
-    private func plan(files: [String], repo: String = "org/model",
-                      revision: String = String(repeating: "a", count: 40)) -> InstallPlan {
-        InstallPlan(modelID: "m", repo: repo, revision: revision,
-                    files: files.map { InstallPlan.File(path: $0, size: 10, sha256: String(repeating: "b", count: 64)) })
+    private func plan(
+        files: [String], repo: String = "org/model",
+        revision: String = String(repeating: "a", count: 40)
+    ) -> InstallPlan {
+        InstallPlan(
+            modelID: "m", repo: repo, revision: revision,
+            files: files.map { InstallPlan.File(path: $0, size: 10, sha256: String(repeating: "b", count: 64)) })
     }
 
     @Test func weightPolicyAllowsOnlyTheSafeFileTypes() throws {
@@ -137,8 +141,9 @@ import Testing
     @Test func zeroByteAndMalformedHashFilesAreRejected() throws {
         let hash = String(repeating: "b", count: 64)
         func plan(size: Int64, sha256: String) -> InstallPlan {
-            InstallPlan(modelID: "m", repo: "org/model", revision: String(repeating: "a", count: 40),
-                        files: [InstallPlan.File(path: "a.json", size: size, sha256: sha256)])
+            InstallPlan(
+                modelID: "m", repo: "org/model", revision: String(repeating: "a", count: 40),
+                files: [InstallPlan.File(path: "a.json", size: size, sha256: sha256)])
         }
         try InstallStaging.validate(plan(size: 10, sha256: hash))
         #expect(throws: InstallError.self) { try InstallStaging.validate(plan(size: 0, sha256: hash)) }

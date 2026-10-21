@@ -1,6 +1,7 @@
 import Foundation
 import ImageIO
 import Testing
+
 @testable import MCLibrary
 
 @Suite struct ThumbnailTests {

@@ -1,6 +1,7 @@
 import Foundation
 import GRDB
 import Testing
+
 @testable import MCLibrary
 
 @Suite struct GalleryFilterTests {
@@ -25,8 +26,10 @@ import Testing
         var settings = LibraryStoreTests.settings(prompt: prompt)
         settings.modelID = model
         settings.loras = loras
-        return try await f.store.saveImage(NewImage(
-            collectionID: collection ?? f.collection.id, jobID: nil, pngData: try TestPNG.make(width: 16, height: 16), settings: settings))
+        return try await f.store.saveImage(
+            NewImage(
+                collectionID: collection ?? f.collection.id, jobID: nil, pngData: try TestPNG.make(width: 16, height: 16),
+                settings: settings))
     }
 
     static func ids(_ images: [LibraryImage]) -> Set<UUID> { Set(images.map(\.id)) }
@@ -37,7 +40,9 @@ import Testing
         let root = try LibraryStoreTests.tempRoot()
         let paths = LibraryPaths(root: root, modelsRoot: root.appending(path: "Models"))
         let collectionID = UUID()
-        let withLoRAs = UUID(), without = UUID(), broken = UUID()
+        let withLoRAs = UUID()
+        let without = UUID()
+        let broken = UUID()
         do {
             let queue = try DatabaseQueue(path: paths.database.path)
             try LibraryStore.migrator.migrate(queue, upTo: "v6-collection")
@@ -46,9 +51,12 @@ import Testing
             let styledJSON = try JSONCoding.encode(styled)
             let plainJSON = try JSONCoding.encode(LibraryStoreTests.settings(prompt: "a blue fox"))
             try await queue.write { db in
-                try db.execute(sql: "INSERT INTO collection (id, name, is_default, created_at) VALUES (?, 'Default', 1, ?)",
-                               arguments: [collectionID.uuidString, Date()])
-                for (id, json, prompt) in [(withLoRAs, styledJSON, "a red fox"), (without, plainJSON, "a blue fox"), (broken, "not json{", "a green fox")] {
+                try db.execute(
+                    sql: "INSERT INTO collection (id, name, is_default, created_at) VALUES (?, 'Default', 1, ?)",
+                    arguments: [collectionID.uuidString, Date()])
+                for (id, json, prompt) in [
+                    (withLoRAs, styledJSON, "a red fox"), (without, plainJSON, "a blue fox"), (broken, "not json{", "a green fox"),
+                ] {
                     try db.execute(
                         sql: """
                             INSERT INTO image (id, collection_id, media_type, file_path, thumb_path, width, height, seed, settings, prompt, created_at)

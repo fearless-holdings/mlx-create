@@ -95,9 +95,10 @@ struct LoRAExecutorTests {
         try Data("x".utf8).write(to: outside)
         let tampered = LoRAStackEntry(
             id: lora.id, name: lora.name, sha256: lora.sha256, weight: 0.8, relativePath: "LoRAs/../../escape.safetensors")
-        let job = try await harness.insertQueuedJobSkippingChecks(JobRequest(
-            modelID: kreaModel, family: "krea-2", prompt: "a lighthouse at dusk", width: 512, height: 512, steps: 4,
-            loras: [tampered]))
+        let job = try await harness.insertQueuedJobSkippingChecks(
+            JobRequest(
+                modelID: kreaModel, family: "krea-2", prompt: "a lighthouse at dusk", width: 512, height: 512, steps: 4,
+                loras: [tampered]))
 
         try await harness.executor.drain()
 

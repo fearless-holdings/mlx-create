@@ -29,8 +29,9 @@ final class CompletingTransport: ModelTransport, @unchecked Sendable {
                 }
                 continuation.yield(InstallEvent(phase: .installed, bytesDone: plan.totalBytes, bytesTotal: plan.totalBytes))
             } catch {
-                continuation.yield(InstallEvent(
-                    phase: .failed(.staging(reason: error.localizedDescription)), bytesDone: 0, bytesTotal: plan.totalBytes))
+                continuation.yield(
+                    InstallEvent(
+                        phase: .failed(.staging(reason: error.localizedDescription)), bytesDone: 0, bytesTotal: plan.totalBytes))
             }
             continuation.finish()
         }
@@ -156,12 +157,14 @@ enum CoordinatorFixture {
 
         let plan = InstallCoordinator.plan(for: model)
 
-        #expect(plan == InstallPlan(
-            modelID: CoordinatorFixture.modelID, repo: "org/krea-2-turbo", revision: CoordinatorFixture.revision,
-            files: [
-                .init(path: "config.json", size: 1024, sha256: CoordinatorFixture.hash),
-                .init(path: "model.safetensors", size: 2048, sha256: CoordinatorFixture.hash),
-            ]))
+        #expect(
+            plan
+                == InstallPlan(
+                    modelID: CoordinatorFixture.modelID, repo: "org/krea-2-turbo", revision: CoordinatorFixture.revision,
+                    files: [
+                        .init(path: "config.json", size: 1024, sha256: CoordinatorFixture.hash),
+                        .init(path: "model.safetensors", size: 2048, sha256: CoordinatorFixture.hash),
+                    ]))
     }
 
     @Test func installWithoutTheCurrentLicenseVersionMakesNoRequest() async throws {
@@ -187,7 +190,8 @@ enum CoordinatorFixture {
         let root = CoordinatorFixture.scratchRoot()
         let transport = CompletingTransport(modelsRoot: root.appending(path: "Models"))
         let coordinator = InstallCoordinator(
-            catalog: CoordinatorFixture.catalog(), store: try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models")), transport: transport, rescan: {})
+            catalog: CoordinatorFixture.catalog(), store: try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models")),
+            transport: transport, rescan: {})
 
         let error = await caught {
             try await coordinator.install(modelID: "not-in-catalog", acceptance: CoordinatorFixture.acceptance())
@@ -216,10 +220,11 @@ enum CoordinatorFixture {
         #expect(row.repo == "org/krea-2-turbo")
         #expect(row.revision == CoordinatorFixture.revision)
         #expect(row.catalogSequence == 7)
-        #expect(row.files == [
-            .init(path: "config.json", size: 1024, sha256: CoordinatorFixture.hash),
-            .init(path: "model.safetensors", size: 2048, sha256: CoordinatorFixture.hash),
-        ])
+        #expect(
+            row.files == [
+                .init(path: "config.json", size: 1024, sha256: CoordinatorFixture.hash),
+                .init(path: "model.safetensors", size: 2048, sha256: CoordinatorFixture.hash),
+            ])
         #expect(row.licenseID == "krea-2-community-license")
         #expect(row.licenseVersion == "1 (June 22, 2026)")
         #expect(row.acceptedAt == CoordinatorFixture.acceptedAt)
@@ -301,8 +306,9 @@ enum CoordinatorFixture {
         }
         try await eventually { transport.requests.count == 1 }
 
-        await coordinator.replaceCatalog(Catalog(
-            schemaVersion: 1, sequence: 8, issuedAt: CoordinatorFixture.issuedAt, models: []))
+        await coordinator.replaceCatalog(
+            Catalog(
+                schemaVersion: 1, sequence: 8, issuedAt: CoordinatorFixture.issuedAt, models: []))
         try transport.finish(try #require(transport.requests.first))
         let outcome = try await install.value
 

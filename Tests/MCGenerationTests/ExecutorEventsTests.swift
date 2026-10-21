@@ -89,12 +89,13 @@ private func collect(_ stream: AsyncStream<ExecutorEvent>, into log: EventLog) -
         try await harness.queue.recoverAfterRelaunch()
 
         try await eventually { await log.events.count == 4 }
-        #expect(await log.events == [
-            .jobChanged(jobID: first.id),
-            .jobChanged(jobID: second.id),
-            .jobChanged(jobID: first.id),
-            .jobChanged(jobID: second.id),
-        ])
+        #expect(
+            await log.events == [
+                .jobChanged(jobID: first.id),
+                .jobChanged(jobID: second.id),
+                .jobChanged(jobID: first.id),
+                .jobChanged(jobID: second.id),
+            ])
         subscription.cancel()
     }
 

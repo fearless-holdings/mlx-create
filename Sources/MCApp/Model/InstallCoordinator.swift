@@ -33,12 +33,13 @@ public actor InstallCoordinator {
             transport: transport,
             isRecorded: { id in try await store.installedModel(id: id) != nil },
             record: { record in
-                try await store.recordInstalledModel(InstalledModelRecord(
-                    modelID: record.plan.modelID, family: record.provenance.family, repo: record.plan.repo,
-                    revision: record.plan.revision, catalogSequence: record.provenance.catalogSequence,
-                    files: record.plan.files.map { .init(path: $0.path, size: $0.size, sha256: $0.sha256) },
-                    licenseID: record.acceptance.licenseID, licenseVersion: record.acceptance.licenseVersion,
-                    acceptedAt: record.acceptance.acceptedAt, installedAt: record.installedAt))
+                try await store.recordInstalledModel(
+                    InstalledModelRecord(
+                        modelID: record.plan.modelID, family: record.provenance.family, repo: record.plan.repo,
+                        revision: record.plan.revision, catalogSequence: record.provenance.catalogSequence,
+                        files: record.plan.files.map { .init(path: $0.path, size: $0.size, sha256: $0.sha256) },
+                        licenseID: record.acceptance.licenseID, licenseVersion: record.acceptance.licenseVersion,
+                        acceptedAt: record.acceptance.acceptedAt, installedAt: record.installedAt))
             },
             onInstalled: rescan)
     }
@@ -61,7 +62,7 @@ public actor InstallCoordinator {
     public func install(modelID: String, acceptance: LicenseAcceptance?) async throws -> InstallOutcome {
         let (model, sequence) = try await catalogEntry(modelID)
         guard let acceptance, acceptance.licenseID == model.license.id,
-              acceptance.licenseVersion == model.license.version
+            acceptance.licenseVersion == model.license.version
         else {
             throw ModelInstallError.licenseNotAccepted(modelID: modelID)
         }

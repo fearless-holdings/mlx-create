@@ -32,11 +32,12 @@ import Testing
         "a\u{0}b.json",
     ])
     func unsafeOrDisallowedFilePathRejectsWholeCatalog(path: String) throws {
-        let bytes = try CatalogFixture.catalogJSON(edit: CatalogFixture.editModel { model in
-            var files = model["files"] as? [[String: Any]] ?? []
-            files[0]["path"] = path
-            model["files"] = files
-        })
+        let bytes = try CatalogFixture.catalogJSON(
+            edit: CatalogFixture.editModel { model in
+                var files = model["files"] as? [[String: Any]] ?? []
+                files[0]["path"] = path
+                model["files"] = files
+            })
         do {
             _ = try Catalog.decodeValidated(bytes)
             Issue.record("path \(path) was accepted")
@@ -49,11 +50,12 @@ import Testing
     }
 
     @Test func allowedNestedWeightAndTokenizerPathsAreAccepted() throws {
-        let bytes = try CatalogFixture.catalogJSON(edit: CatalogFixture.editModel { model in
-            var files = model["files"] as? [[String: Any]] ?? []
-            files[1]["path"] = "tokenizer/chat_template.jinja"
-            model["files"] = files
-        })
+        let bytes = try CatalogFixture.catalogJSON(
+            edit: CatalogFixture.editModel { model in
+                var files = model["files"] as? [[String: Any]] ?? []
+                files[1]["path"] = "tokenizer/chat_template.jinja"
+                model["files"] = files
+            })
         _ = try Catalog.decodeValidated(bytes)
     }
 
@@ -95,11 +97,12 @@ import Testing
     }
 
     @Test func badFileHashRejectsWholeCatalog() throws {
-        let bytes = try CatalogFixture.catalogJSON(edit: CatalogFixture.editModel { model in
-            var files = model["files"] as? [[String: Any]] ?? []
-            files[0]["sha256"] = "ABC"
-            model["files"] = files
-        })
+        let bytes = try CatalogFixture.catalogJSON(
+            edit: CatalogFixture.editModel { model in
+                var files = model["files"] as? [[String: Any]] ?? []
+                files[0]["sha256"] = "ABC"
+                model["files"] = files
+            })
         do {
             _ = try Catalog.decodeValidated(bytes)
             Issue.record("short hash was accepted")
@@ -125,11 +128,12 @@ import Testing
     }
 
     @Test func duplicateFilePathRejectsWholeCatalog() throws {
-        let bytes = try CatalogFixture.catalogJSON(edit: CatalogFixture.editModel { model in
-            var files = model["files"] as? [[String: Any]] ?? []
-            files[1]["path"] = files[0]["path"]
-            model["files"] = files
-        })
+        let bytes = try CatalogFixture.catalogJSON(
+            edit: CatalogFixture.editModel { model in
+                var files = model["files"] as? [[String: Any]] ?? []
+                files[1]["path"] = files[0]["path"]
+                model["files"] = files
+            })
         do {
             _ = try Catalog.decodeValidated(bytes)
             Issue.record("duplicate path was accepted")
@@ -150,12 +154,13 @@ import Testing
             ("CAF\u{C9}.JSON", "cafe\u{301}.json"),
         ]
         for (first, second) in pairs {
-            let bytes = try CatalogFixture.catalogJSON(edit: CatalogFixture.editModel { model in
-                var files = model["files"] as? [[String: Any]] ?? []
-                files[0]["path"] = first
-                files[1]["path"] = second
-                model["files"] = files
-            })
+            let bytes = try CatalogFixture.catalogJSON(
+                edit: CatalogFixture.editModel { model in
+                    var files = model["files"] as? [[String: Any]] ?? []
+                    files[0]["path"] = first
+                    files[1]["path"] = second
+                    model["files"] = files
+                })
             expectInvalid(bytes)
         }
     }
@@ -167,22 +172,24 @@ import Testing
             ("a/config.json", "b/config.json"),
         ]
         for (first, second) in pairs {
-            let bytes = try CatalogFixture.catalogJSON(edit: CatalogFixture.editModel { model in
-                var files = model["files"] as? [[String: Any]] ?? []
-                files[0]["path"] = first
-                files[1]["path"] = second
-                model["files"] = files
-            })
+            let bytes = try CatalogFixture.catalogJSON(
+                edit: CatalogFixture.editModel { model in
+                    var files = model["files"] as? [[String: Any]] ?? []
+                    files[0]["path"] = first
+                    files[1]["path"] = second
+                    model["files"] = files
+                })
             _ = try Catalog.decodeValidated(bytes)
         }
     }
 
     @Test func httpLicenseURLRejectsWholeCatalog() throws {
-        let bytes = try CatalogFixture.catalogJSON(edit: CatalogFixture.editModel { model in
-            var license = model["license"] as? [String: Any] ?? [:]
-            license["url"] = "http://example.test/license"
-            model["license"] = license
-        })
+        let bytes = try CatalogFixture.catalogJSON(
+            edit: CatalogFixture.editModel { model in
+                var license = model["license"] as? [String: Any] ?? [:]
+                license["url"] = "http://example.test/license"
+                model["license"] = license
+            })
         expectInvalid(bytes)
     }
 
@@ -229,23 +236,25 @@ import Testing
 
     /// The download total is kept equal to the file sum, so only the size guard can reject this catalog.
     @Test func negativeFileSizeRejectsWholeCatalog() throws {
-        let bytes = try CatalogFixture.catalogJSON(edit: CatalogFixture.editModel { model in
-            var files = model["files"] as? [[String: Any]] ?? []
-            files[0]["size"] = -1
-            model["files"] = files
-            model["download_bytes"] = 5
-        })
+        let bytes = try CatalogFixture.catalogJSON(
+            edit: CatalogFixture.editModel { model in
+                var files = model["files"] as? [[String: Any]] ?? []
+                files[0]["size"] = -1
+                model["files"] = files
+                model["download_bytes"] = 5
+            })
         expectInvalid(bytes)
     }
 
     /// A zero-byte file is not a legitimate catalog entry (user decision, plan 2026-10-16).
     @Test func zeroByteFileRejectsWholeCatalog() throws {
-        let bytes = try CatalogFixture.catalogJSON(edit: CatalogFixture.editModel { model in
-            var files = model["files"] as? [[String: Any]] ?? []
-            files[0]["size"] = 0
-            model["files"] = files
-            model["download_bytes"] = 6
-        })
+        let bytes = try CatalogFixture.catalogJSON(
+            edit: CatalogFixture.editModel { model in
+                var files = model["files"] as? [[String: Any]] ?? []
+                files[0]["size"] = 0
+                model["files"] = files
+                model["download_bytes"] = 6
+            })
         expectInvalid(bytes)
     }
 
@@ -262,10 +271,11 @@ import Testing
     /// Validation never reads the family registry, so a family that names no record validates for every kind.
     @Test(arguments: [CatalogModelKind.image, .enhancer])
     func unknownFamilyValidatesForEveryKind(kind: CatalogModelKind) throws {
-        let bytes = try CatalogFixture.catalogJSON(edit: CatalogFixture.editModel { model in
-            model["family"] = "no-such-family"
-            model["kind"] = kind.rawValue
-        })
+        let bytes = try CatalogFixture.catalogJSON(
+            edit: CatalogFixture.editModel { model in
+                model["family"] = "no-such-family"
+                model["kind"] = kind.rawValue
+            })
         let catalog = try Catalog.decodeValidated(bytes)
         #expect(catalog.models[0].kind == kind)
         #expect(catalog.models[0].family == "no-such-family")
@@ -274,20 +284,22 @@ import Testing
     /// An enhancer gets the same weight-file policy as an image model: pickle and GGUF files are refused.
     @Test(arguments: ["model.gguf", "pytorch_model.bin"])
     func enhancerWithDisallowedWeightFileRejectsWholeCatalog(path: String) throws {
-        let bytes = try CatalogFixture.catalogJSON(edit: CatalogFixture.editModel { model in
-            model["kind"] = "enhancer"
-            var files = model["files"] as? [[String: Any]] ?? []
-            files[1]["path"] = path
-            model["files"] = files
-        })
+        let bytes = try CatalogFixture.catalogJSON(
+            edit: CatalogFixture.editModel { model in
+                model["kind"] = "enhancer"
+                var files = model["files"] as? [[String: Any]] ?? []
+                files[1]["path"] = path
+                model["files"] = files
+            })
         expectInvalid(bytes)
     }
 
     @Test func enhancerDownloadBytesMustEqualSumOfFileSizes() throws {
-        let bytes = try CatalogFixture.catalogJSON(edit: CatalogFixture.editModel { model in
-            model["kind"] = "enhancer"
-            model["download_bytes"] = 999
-        })
+        let bytes = try CatalogFixture.catalogJSON(
+            edit: CatalogFixture.editModel { model in
+                model["kind"] = "enhancer"
+                model["download_bytes"] = 999
+            })
         expectInvalid(bytes)
     }
 

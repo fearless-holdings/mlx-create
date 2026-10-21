@@ -252,12 +252,13 @@ public actor JobExecutor {
             loras: loras.isEmpty ? nil : loras.map { ImageLoRA(name: $0.name, sha256: $0.sha256, weight: $0.weight) },
             originalPrompt: job.request.originalPrompt
         )
-        let image = try await store.saveImage(NewImage(
-            collectionID: job.collectionID,
-            jobID: job.id,
-            pngData: result.png,
-            settings: settings
-        ))
+        let image = try await store.saveImage(
+            NewImage(
+                collectionID: job.collectionID,
+                jobID: job.id,
+                pngData: result.png,
+                settings: settings
+            ))
         hub.send(.imageSaved(jobID: job.id, imageID: image.id))
     }
 
@@ -266,9 +267,9 @@ public actor JobExecutor {
     /// Only the recorded size is compared, so no file is hashed when a job starts.
     private func loraFile(for entry: LoRAStackEntry, modelID: String) async throws -> URL {
         guard let file = LibraryPaths.loraURL(relativePath: entry.relativePath, modelsRoot: modelsRoot),
-              let record = try await store.loraRecord(id: entry.id),
-              record.relativePath == entry.relativePath,
-              FileManager.default.fileExists(atPath: file.path)
+            let record = try await store.loraRecord(id: entry.id),
+            record.relativePath == entry.relativePath,
+            FileManager.default.fileExists(atPath: file.path)
         else { throw ExecutorError.loraMissing(name: entry.name, modelID: modelID) }
         let size = (try? FileManager.default.attributesOfItem(atPath: file.path)[.size] as? NSNumber)?.int64Value
         guard record.sha256 == entry.sha256, size == record.sizeBytes else {

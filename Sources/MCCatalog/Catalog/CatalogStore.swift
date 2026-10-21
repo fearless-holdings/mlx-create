@@ -147,11 +147,11 @@ public actor CatalogStore {
         let cached = readCachedCatalog()
         let bundledCandidate = try? verifyCandidate(bytes: bundled.bytes, signature: bundled.signature, source: .bundled)
         switch (cached, bundledCandidate) {
-        case let (cached?, bundled?):
+        case (let cached?, let bundled?):
             return bundled.catalog.sequence > cached.catalog.sequence ? bundled : cached
-        case let (cached?, nil):
+        case (let cached?, nil):
             return cached
-        case let (nil, bundled?):
+        case (nil, let bundled?):
             return bundled
         case (nil, nil):
             throw CatalogError.noValidCatalog

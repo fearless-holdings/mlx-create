@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import MCCatalog
 @testable import MCLibrary
 
@@ -15,7 +16,8 @@ import Testing
         let root = FileManager.default.temporaryDirectory.appending(path: "lora-lib-\(UUID().uuidString)", directoryHint: .isDirectory)
         let models = root.appending(path: "Models", directoryHint: .isDirectory)
         let store = try LibraryStore(libraryRoot: root.appending(path: "Library", directoryHint: .isDirectory), modelsRoot: models)
-        return Fixture(store: store, models: models, sources: root.appending(path: "Sources", directoryHint: .isDirectory), registry: registry())
+        return Fixture(
+            store: store, models: models, sources: root.appending(path: "Sources", directoryHint: .isDirectory), registry: registry())
     }
 
     /// Writes a minimal safetensors file with one F16 tensor whose data range matches its shape. `fill` varies the
@@ -42,16 +44,20 @@ import Testing
 
     static func registry() -> FamilyRegistry {
         FamilyRegistry(families: [
-            family("alpha", fingerprint: LoRAFingerprint(
-                tensorPatterns: [
-                    TensorNamePattern(kind: .prefix, text: "lora_unet_double_"),
+            family(
+                "alpha",
+                fingerprint: LoRAFingerprint(
+                    tensorPatterns: [
+                        TensorNamePattern(kind: .prefix, text: "lora_unet_double_"),
+                        TensorNamePattern(kind: .suffix, text: ".lora_down.weight"),
+                    ],
+                    shapeHints: [LoRAShapeHint(pattern: TensorNamePattern(kind: .contains, text: "img_attn"), dimension: 1, size: 3072)])),
+            family(
+                "beta",
+                fingerprint: LoRAFingerprint(tensorPatterns: [
+                    TensorNamePattern(kind: .prefix, text: "lora_te1_"),
                     TensorNamePattern(kind: .suffix, text: ".lora_down.weight"),
-                ],
-                shapeHints: [LoRAShapeHint(pattern: TensorNamePattern(kind: .contains, text: "img_attn"), dimension: 1, size: 3072)])),
-            family("beta", fingerprint: LoRAFingerprint(tensorPatterns: [
-                TensorNamePattern(kind: .prefix, text: "lora_te1_"),
-                TensorNamePattern(kind: .suffix, text: ".lora_down.weight"),
-            ])),
+                ])),
         ])
     }
 
@@ -77,7 +83,10 @@ import Testing
     }
 
     static func caughtError(_ body: () async throws -> Void) async -> Error? {
-        do { try await body(); return nil } catch { return error }
+        do {
+            try await body()
+            return nil
+        } catch { return error }
     }
 
     /// Imports an alpha LoRA and returns its record.
@@ -125,8 +134,9 @@ import Testing
     @Test func nameClashAutoSuffixesTheNewLoRA() async throws {
         let fixture = try Self.makeFixture()
         let first = try await Self.importedAlpha(fixture, fill: 3, name: "Pixel")
-        let second = try Self.addedRecord(try await fixture.store.importLoRA(
-            from: try Self.alphaFile(fixture, "other/Pixel.safetensors", fill: 4), registry: fixture.registry))
+        let second = try Self.addedRecord(
+            try await fixture.store.importLoRA(
+                from: try Self.alphaFile(fixture, "other/Pixel.safetensors", fill: 4), registry: fixture.registry))
 
         #expect(first.name == "Pixel")
         #expect(second.name == "Pixel 2")
@@ -210,8 +220,11 @@ import Testing
         let collection = try await fixture.store.defaultCollection()
         try await fixture.store.dbQueue.write { db in
             try db.execute(
-                sql: "INSERT INTO job (id, collection_id, mode, request, batch_count, seed_policy, status, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                arguments: [UUID().uuidString, collection.id.uuidString, Job.textToImageMode, "{not json", 1, "fixed", JobStatus.queued.rawValue, 1])
+                sql:
+                    "INSERT INTO job (id, collection_id, mode, request, batch_count, seed_policy, status, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                arguments: [
+                    UUID().uuidString, collection.id.uuidString, Job.textToImageMode, "{not json", 1, "fixed", JobStatus.queued.rawValue, 1,
+                ])
         }
 
         #expect(try await fixture.store.loraBlockingJobs(id: record.id) == 1)
@@ -278,8 +291,9 @@ import Testing
         let settings = ImageSettings(
             prompt: "fox", modelID: "alpha-model", requestedWidth: 64, requestedHeight: 64, seed: 1, width: 64, height: 64,
             loras: [ImageLoRA(name: record.name, sha256: record.sha256, weight: 1)])
-        try await fixture.store.saveImage(NewImage(
-            collectionID: collection.id, jobID: nil, pngData: try TestPNG.make(width: 64, height: 64), settings: settings))
+        try await fixture.store.saveImage(
+            NewImage(
+                collectionID: collection.id, jobID: nil, pngData: try TestPNG.make(width: 64, height: 64), settings: settings))
         #expect(try await fixture.store.loraUsageCount(id: record.id) == 1)
 
         #expect(try await fixture.store.deleteLoRA(id: record.id) == 1)
@@ -317,8 +331,9 @@ import Testing
     @Test func enqueueWithAMissingLoRAThrowsAndInsertsNothing() async throws {
         let fixture = try Self.makeFixture()
         let collection = try await fixture.store.defaultCollection()
-        let ghost = LoRAStackEntry(id: "ghost", name: "Ghost", sha256: String(repeating: "c", count: 64), weight: 1,
-                                   relativePath: "LoRAs/alpha/cccccccccc-ghost.safetensors")
+        let ghost = LoRAStackEntry(
+            id: "ghost", name: "Ghost", sha256: String(repeating: "c", count: 64), weight: 1,
+            relativePath: "LoRAs/alpha/cccccccccc-ghost.safetensors")
         let request = JobRequest(modelID: "alpha-model", family: "alpha", prompt: "fox", width: 512, height: 512, loras: [ghost])
 
         let error = await Self.caughtError {
@@ -573,7 +588,8 @@ import Testing
         let fixture = try Self.makeFixture()
         let file = try Self.staged(fixture, fill: 36)
         try await fixture.store.dbQueue.write { db in
-            try db.execute(sql: "CREATE TRIGGER refuse_source_insert BEFORE INSERT ON lora_source BEGIN SELECT RAISE(ABORT, 'refused'); END")
+            try db.execute(
+                sql: "CREATE TRIGGER refuse_source_insert BEFORE INSERT ON lora_source BEGIN SELECT RAISE(ABORT, 'refused'); END")
         }
 
         let error = await Self.caughtError { _ = try await Self.commitStaged(fixture, file, name: "Pixel") }
@@ -590,12 +606,16 @@ import Testing
         let source = fixture.sources.appending(path: "klein.safetensors")
         try Self.writeSafetensors(
             source, tensor: "lora_unet_single_blocks.0.linear1.lora_down.weight", shape: [1, 3072], fill: 37)
-        let registry = FamilyRegistry(families: [Self.family("klein", fingerprint: LoRAFingerprint(
-            tensorPatterns: [
-                TensorNamePattern(kind: .prefix, text: "lora_unet_single_"),
-                TensorNamePattern(kind: .suffix, text: ".lora_down.weight"),
-            ],
-            variant: "4b"))])
+        let registry = FamilyRegistry(families: [
+            Self.family(
+                "klein",
+                fingerprint: LoRAFingerprint(
+                    tensorPatterns: [
+                        TensorNamePattern(kind: .prefix, text: "lora_unet_single_"),
+                        TensorNamePattern(kind: .suffix, text: ".lora_down.weight"),
+                    ],
+                    variant: "4b"))
+        ])
 
         let record = try Self.addedRecord(try await fixture.store.importLoRA(from: source, registry: registry))
 

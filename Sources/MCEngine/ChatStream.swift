@@ -91,7 +91,7 @@ enum ChatStreamParser {
         let payload = line.dropFirst("data:".count).drop(while: { $0 == " " })
         if payload == "[DONE]" { return .done }
         guard let data = payload.data(using: .utf8),
-              let frame = try? JSONDecoder().decode(Frame.self, from: data)
+            let frame = try? JSONDecoder().decode(Frame.self, from: data)
         else {
             return .failed(.malformedResponse(detail: "unreadable chat SSE data line"))
         }

@@ -90,7 +90,8 @@ public enum ModelInstallError: Error, Sendable, Equatable, LocalizedError {
         case .installInProgress(let activeModelID):
             return "\(activeModelID) is installing now. Wait for it to finish or cancel it, then try again."
         case .unverifiedFiles(let path):
-            return "Unverified local files are already at \(path). mlx-create does not overwrite them. Move or delete that folder, then install again."
+            return
+                "Unverified local files are already at \(path). mlx-create does not overwrite them. Move or delete that folder, then install again."
         case .recordFailed(let reason):
             return "The model's files are in place, but mlx-create could not record them in the library: \(reason)."
         }
@@ -251,8 +252,9 @@ public actor ModelInstaller {
 
         // The folder is published, so its row and the rescan follow whether or not the caller was cancelled.
         do {
-            try await record(InstallRecord(
-                plan: plan, acceptance: acceptance, provenance: provenance, installedAt: Date()))
+            try await record(
+                InstallRecord(
+                    plan: plan, acceptance: acceptance, provenance: provenance, installedAt: Date()))
         } catch {
             throw ModelInstallError.recordFailed(reason: error.localizedDescription)
         }

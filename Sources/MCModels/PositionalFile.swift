@@ -53,7 +53,8 @@ final class PositionalFile: @unchecked Sendable {
     deinit { close() }
 
     static func posixError(_ code: Int32 = errno) -> NSError {
-        NSError(domain: NSPOSIXErrorDomain, code: Int(code),
-                userInfo: [NSLocalizedDescriptionKey: String(cString: strerror(code))])
+        NSError(
+            domain: NSPOSIXErrorDomain, code: Int(code),
+            userInfo: [NSLocalizedDescriptionKey: String(cString: strerror(code))])
     }
 }

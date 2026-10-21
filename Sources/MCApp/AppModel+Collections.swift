@@ -19,8 +19,9 @@ extension AppModel {
             let summaries = try await store.collections()
             guard !collectionResolved else { return }
             let stored = defaults.string(forKey: Self.currentCollectionDefaultsKey).flatMap(UUID.init(uuidString:))
-            guard let chosen = summaries.first(where: { $0.id == stored })
-                ?? summaries.first(where: { $0.collection.isDefault })
+            guard
+                let chosen = summaries.first(where: { $0.id == stored })
+                    ?? summaries.first(where: { $0.collection.isDefault })
             else { return }
             collections = summaries
             currentCollection = chosen.collection
@@ -143,7 +144,7 @@ extension AppModel {
     func applyCollectionDefaults(_ saved: CollectionDefaults?) {
         guard let saved else { return }
         if let modelID = saved.modelID,
-           let model = models.first(where: { $0.id == modelID }), ModelSelection.isSelectable(model)
+            let model = models.first(where: { $0.id == modelID }), ModelSelection.isSelectable(model)
         {
             selectedModelID = modelID
         }

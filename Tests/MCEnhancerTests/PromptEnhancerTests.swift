@@ -80,8 +80,10 @@ private func systemText(_ request: EnhancementRequest) -> String {
 
     @Test func theRequestCarriesTheEnhancerModelStreamedAsPlainTextAndThePromptItself() throws {
         let krea = try bundledFamily("krea-2-turbo")
-        let request = try #require(readyRequest(PromptEnhancer.request(
-            prompt: "  a fox in snow  ", family: krea, enhancerModelID: enhancerModel)))
+        let request = try #require(
+            readyRequest(
+                PromptEnhancer.request(
+                    prompt: "  a fox in snow  ", family: krea, enhancerModelID: enhancerModel)))
         #expect(request.chat.model == enhancerModel)
         #expect(request.chat.messages.map(\.role) == [.system, .user])
         #expect(userText(request).contains("a fox in snow"))
@@ -93,9 +95,11 @@ private func systemText(_ request: EnhancementRequest) -> String {
         let unsupported = try bundledFamilies().filter { !$0.supportsNegativePrompt }
         #expect(!unsupported.isEmpty)
         for family in unsupported {
-            let request = try #require(readyRequest(PromptEnhancer.request(
-                prompt: "a fox in snow", family: family, negativePrompt: "blurry, extra fingers",
-                enhancerModelID: enhancerModel)))
+            let request = try #require(
+                readyRequest(
+                    PromptEnhancer.request(
+                        prompt: "a fox in snow", family: family, negativePrompt: "blurry, extra fingers",
+                        enhancerModelID: enhancerModel)))
             #expect(!request.expectsNegativePrompt, "\(family.id) must not ask for a negative rewrite")
             #expect(!userText(request).contains("blurry, extra fingers"))
         }
@@ -103,13 +107,17 @@ private func systemText(_ request: EnhancementRequest) -> String {
 
     @Test func aFamilyThatTakesANegativePromptAsksForItOnlyWhenOneIsWritten() throws {
         let family = copy(of: try bundledFamily("krea-2-turbo"), supportsNegativePrompt: true)
-        let withNegative = try #require(readyRequest(PromptEnhancer.request(
-            prompt: "a fox", family: family, negativePrompt: "blurry", enhancerModelID: enhancerModel)))
+        let withNegative = try #require(
+            readyRequest(
+                PromptEnhancer.request(
+                    prompt: "a fox", family: family, negativePrompt: "blurry", enhancerModelID: enhancerModel)))
         #expect(withNegative.expectsNegativePrompt)
         #expect(userText(withNegative).contains("blurry"))
 
-        let withoutNegative = try #require(readyRequest(PromptEnhancer.request(
-            prompt: "a fox", family: family, negativePrompt: "  ", enhancerModelID: enhancerModel)))
+        let withoutNegative = try #require(
+            readyRequest(
+                PromptEnhancer.request(
+                    prompt: "a fox", family: family, negativePrompt: "  ", enhancerModelID: enhancerModel)))
         #expect(!withoutNegative.expectsNegativePrompt)
     }
 
@@ -120,8 +128,10 @@ private func systemText(_ request: EnhancementRequest) -> String {
                 name: "Style \(lora)", triggerWords: ["style\(lora)tag"],
                 examplePrompts: (1...5).map { "lora \(lora) example \($0)" })
         }
-        let request = try #require(readyRequest(PromptEnhancer.request(
-            prompt: "a fox", family: krea, loras: loras, enhancerModelID: enhancerModel)))
+        let request = try #require(
+            readyRequest(
+                PromptEnhancer.request(
+                    prompt: "a fox", family: krea, loras: loras, enhancerModelID: enhancerModel)))
         let user = userText(request)
         for lora in 1...3 {
             #expect(user.contains("lora \(lora) example 3"))
@@ -139,8 +149,10 @@ private func systemText(_ request: EnhancementRequest) -> String {
                 name: "Style \(lora)", triggerWords: ["style\(lora)tag"],
                 examplePrompts: (1...5).map { "lora \(lora) example \($0) \(padding)" })
         }
-        let request = try #require(readyRequest(PromptEnhancer.request(
-            prompt: "a fox", family: krea, loras: loras, enhancerModelID: enhancerModel)))
+        let request = try #require(
+            readyRequest(
+                PromptEnhancer.request(
+                    prompt: "a fox", family: krea, loras: loras, enhancerModelID: enhancerModel)))
         let user = userText(request)
         #expect(user.count <= PromptEnhancer.userMessageLimit)
         for lora in 1...3 {
@@ -163,12 +175,16 @@ private func systemText(_ request: EnhancementRequest) -> String {
 
     @Test func theSystemTextIsByteIdenticalAcrossBuildsAndDoesNotDependOnThePromptOrLoRAs() throws {
         let krea = try bundledFamily("krea-2-turbo")
-        let first = try #require(readyRequest(PromptEnhancer.request(
-            prompt: "a fox", family: krea,
-            loras: [EnhancementLoRA(name: "Pixel", triggerWords: ["pxl"], examplePrompts: ["pixels"])],
-            enhancerModelID: enhancerModel)))
-        let second = try #require(readyRequest(PromptEnhancer.request(
-            prompt: "a castle at night", family: krea, enhancerModelID: enhancerModel)))
+        let first = try #require(
+            readyRequest(
+                PromptEnhancer.request(
+                    prompt: "a fox", family: krea,
+                    loras: [EnhancementLoRA(name: "Pixel", triggerWords: ["pxl"], examplePrompts: ["pixels"])],
+                    enhancerModelID: enhancerModel)))
+        let second = try #require(
+            readyRequest(
+                PromptEnhancer.request(
+                    prompt: "a castle at night", family: krea, enhancerModelID: enhancerModel)))
         let system = systemText(first)
         #expect(!system.isEmpty)
         #expect(system.utf8.elementsEqual(systemText(second).utf8))

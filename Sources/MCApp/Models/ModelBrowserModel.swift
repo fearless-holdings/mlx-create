@@ -379,7 +379,8 @@ final class ModelBrowserModel {
 
     private static func fitWarning(needGB: Double, usableGB: Double?) -> String? {
         guard let usableGB else { return nil }
-        return "Needs about \(String(format: "%.1f", needGB)) GB, more than the \(String(format: "%.1f", usableGB)) GB this Mac can use. It may not run."
+        return
+            "Needs about \(String(format: "%.1f", needGB)) GB, more than the \(String(format: "%.1f", usableGB)) GB this Mac can use. It may not run."
     }
 
     /// The last path component of a repo id, which is the folder name a flat model folder uses.
@@ -391,8 +392,9 @@ final class ModelBrowserModel {
     /// flat catalog model is a model folder, not an org, so its subfolders are not listed as models.
     private static func localFolders(in root: URL, flatFolderNames: Set<String>) -> [String] {
         func directories(_ url: URL) -> [URL] {
-            let children = (try? FileManager.default.contentsOfDirectory(
-                at: url, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])) ?? []
+            let children =
+                (try? FileManager.default.contentsOfDirectory(
+                    at: url, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])) ?? []
             return children.filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
         }
         return directories(root).filter { !flatFolderNames.contains($0.lastPathComponent) }.flatMap { org in

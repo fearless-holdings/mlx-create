@@ -250,7 +250,7 @@ actor StubCatalogTransport: CatalogTransport {
         let cached = try writeCache(dir, sequence: 2)
         try writeRefreshState(dir, etag: "\"kept\"", checkedAt: CatalogFixture.now.addingTimeInterval(-90_000))
         let transport = StubCatalogTransport(replies: [
-            "catalog.json": .response(remoteResponse(Data(), status: 304)),
+            "catalog.json": .response(remoteResponse(Data(), status: 304))
         ])
         let outcome = try await store(cache: dir, transport: transport).refresh()
         #expect(outcome == .notModified)

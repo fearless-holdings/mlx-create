@@ -15,9 +15,11 @@ import Testing
         await model.refreshModels()
 
         let family = try #require(try FamilyRegistry.bundled().family(forArchitecture: "krea2_turbo"))
-        #expect(model.controls == SettingsControls(
-            sizes: family.sizePresets, steps: family.steps, stepsAreFixed: false,
-            guidance: nil, showsNegativePrompt: false))
+        #expect(
+            model.controls
+                == SettingsControls(
+                    sizes: family.sizePresets, steps: family.steps, stepsAreFixed: false,
+                    guidance: nil, showsNegativePrompt: false))
     }
 
     @Test func noControlsWithoutASelectableModel() async throws {
@@ -143,8 +145,11 @@ import Testing
         await model.start()
         try await eventually { model.banner == nil }
 
-        harness.states.yield(.restarting(after: .seconds(1), cause: EngineCrash(
-            kind: .unknown, message: "The engine stopped.", detail: "exit", exit: .code(1))))
+        harness.states.yield(
+            .restarting(
+                after: .seconds(1),
+                cause: EngineCrash(
+                    kind: .unknown, message: "The engine stopped.", detail: "exit", exit: .code(1))))
         try await eventually { model.banner == .restarting }
     }
 

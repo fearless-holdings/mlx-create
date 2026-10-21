@@ -89,14 +89,17 @@ public actor CivitaiDownloader {
                 transfer.discardPartial()
                 phase = transfer.terminal(for: error)
             }
-            continuation.yield(CivitaiDownloadEvent(
-                phase: phase, bytesDone: control.bytesDone, bytesTotal: request.advertisedSize))
+            continuation.yield(
+                CivitaiDownloadEvent(
+                    phase: phase, bytesDone: control.bytesDone, bytesTotal: request.advertisedSize))
             continuation.finish()
         }
-        return CivitaiDownloadRun(events: events, cancel: {
-            control.cancel()
-            task.cancel()
-        })
+        return CivitaiDownloadRun(
+            events: events,
+            cancel: {
+                control.cancel()
+                task.cancel()
+            })
     }
 }
 
@@ -243,15 +246,17 @@ private struct CivitaiTransfer: Sendable {
         switch response.status {
         case 206:
             guard let range = response.headers["content-range"], let parsed = Self.parseContentRange(range),
-                  parsed.start == start else {
+                parsed.start == start
+            else {
                 throw CivitaiDownloadError.network(reason: "the server answered the header range out of place")
             }
             let bytes = try await readPrefix(response.body, count: wanted)
             guard bytes.count == wanted else {
                 throw CivitaiDownloadError.network(reason: "the header was cut short")
             }
-            return RangeReply(status: 206, headers: response.headers, url: response.url, keySent: keySent,
-                              bytes: bytes, total: parsed.total)
+            return RangeReply(
+                status: 206, headers: response.headers, url: response.url, keySent: keySent,
+                bytes: bytes, total: parsed.total)
         case 200:
             guard let length = response.headers["content-length"].flatMap({ UInt64($0) }) else {
                 throw CivitaiDownloadError.network(reason: "the server did not report the file size")
@@ -260,11 +265,13 @@ private struct CivitaiTransfer: Sendable {
             guard prefix.count == end + 1 else {
                 throw CivitaiDownloadError.network(reason: "the header was cut short")
             }
-            return RangeReply(status: 200, headers: response.headers, url: response.url, keySent: keySent,
-                              bytes: Data(prefix[start...end]), total: length)
+            return RangeReply(
+                status: 200, headers: response.headers, url: response.url, keySent: keySent,
+                bytes: Data(prefix[start...end]), total: length)
         default:
-            return RangeReply(status: response.status, headers: response.headers, url: response.url,
-                              keySent: keySent, bytes: Data(), total: 0)
+            return RangeReply(
+                status: response.status, headers: response.headers, url: response.url,
+                keySent: keySent, bytes: Data(), total: 0)
         }
     }
 
@@ -450,7 +457,8 @@ private struct CivitaiTransfer: Sendable {
         guard value.hasPrefix("bytes "), let slash = value.lastIndex(of: "/") else { return nil }
         let span = value[value.index(value.startIndex, offsetBy: 6)..<slash]
         guard let start = span.split(separator: "-").first.flatMap({ Int($0) }),
-              let total = UInt64(value[value.index(after: slash)...]) else { return nil }
+            let total = UInt64(value[value.index(after: slash)...])
+        else { return nil }
         return (start, total)
     }
 }

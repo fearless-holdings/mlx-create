@@ -1,5 +1,5 @@
-import SwiftUI
 import MCLibrary
+import SwiftUI
 
 /// Queue strip (HLD §10): the queue header and one cell per job, under the canvas. Jobs only; finished images live in the gallery.
 struct QueueStripView: View {

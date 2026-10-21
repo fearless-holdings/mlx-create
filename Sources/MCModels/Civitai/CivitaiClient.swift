@@ -64,8 +64,8 @@ final class CivitaiRedirectGuard: NSObject, URLSessionTaskDelegate, @unchecked S
     ) {
         let carriesKey = task.currentRequest?.value(forHTTPHeaderField: "Authorization") != nil
         guard let from = task.currentRequest?.url ?? response.url, let to = request.url,
-              case .follow(let keepKey) = policy.redirect(from: from, to: to, carriesKey: carriesKey),
-              to.host?.lowercased() == policy.apiHost
+            case .follow(let keepKey) = policy.redirect(from: from, to: to, carriesKey: carriesKey),
+            to.host?.lowercased() == policy.apiHost
         else {
             completionHandler(nil)
             return

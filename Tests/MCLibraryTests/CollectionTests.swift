@@ -1,6 +1,7 @@
 import Foundation
 import GRDB
 import Testing
+
 @testable import MCLibrary
 
 @Suite struct CollectionTests {
@@ -137,9 +138,10 @@ import Testing
         #expect(defaultError as? LibraryError == .defaultCollectionCannotBeDeleted)
 
         let shots = try await store.createCollection(name: "Shots")
-        _ = try await store.saveImage(NewImage(
-            collectionID: shots.id, jobID: nil, pngData: try TestPNG.make(width: 16, height: 16),
-            settings: LibraryStoreTests.settings()))
+        _ = try await store.saveImage(
+            NewImage(
+                collectionID: shots.id, jobID: nil, pngData: try TestPNG.make(width: 16, height: 16),
+                settings: LibraryStoreTests.settings()))
         let imageError = await Self.caughtError { try await store.deleteCollection(id: shots.id) }
         #expect(imageError as? LibraryError == .collectionHasImages(count: 1))
 
@@ -164,7 +166,8 @@ import Testing
         let other = try await store.createCollection(name: "Other")
         func enqueue(_ collectionID: UUID) async throws -> UUID {
             try await store.enqueueJob(
-                collectionID: collectionID, request: LibraryStoreTests.request(), batchCount: 1, seedPolicy: "random").id
+                collectionID: collectionID, request: LibraryStoreTests.request(), batchCount: 1, seedPolicy: "random"
+            ).id
         }
         let a1 = try await enqueue(home.id)
         let b1 = try await enqueue(other.id)
@@ -183,9 +186,10 @@ import Testing
         let store = try Self.open(try Self.root())
         let home = try await store.defaultCollection()
         let source = try await store.createCollection(name: "Source")
-        let saved = try await store.saveImage(NewImage(
-            collectionID: source.id, jobID: nil, pngData: try TestPNG.make(width: 16, height: 16),
-            settings: LibraryStoreTests.settings()))
+        let saved = try await store.saveImage(
+            NewImage(
+                collectionID: source.id, jobID: nil, pngData: try TestPNG.make(width: 16, height: 16),
+                settings: LibraryStoreTests.settings()))
 
         try await store.moveImages(ids: [saved.id], toCollection: home.id)
         #expect(try await Self.summary(store, source.id)?.imageCount == 0)

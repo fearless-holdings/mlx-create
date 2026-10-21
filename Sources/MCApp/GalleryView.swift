@@ -1,5 +1,5 @@
-import SwiftUI
 import MCLibrary
+import SwiftUI
 
 /// Gallery (HLD §10): every finished image of the collection that matches the search and filters, newest first, as a
 /// scrolling grid. Pages load as the user nears the end. The grid itself is an `NSCollectionView` bridge
@@ -243,10 +243,10 @@ struct ImageCell: View {
                     }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 3)
-            )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 3)
+                )
         }
         .buttonStyle(.plain)
         // A sibling of the button, not part of its label, so using the menu does not select the tile.

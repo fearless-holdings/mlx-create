@@ -63,12 +63,15 @@ public enum PromptEnhancer {
             return .unavailable(
                 reason: "This prompt is longer than \(userMessageLimit) characters, so Enhance can't take it. Shorten it and try again.")
         }
-        let chat = ChatRequest(model: enhancerModelID, messages: [
-            ChatMessage(role: .system, content: systemMessage(pack: pack, expectsNegativePrompt: negative != nil)),
-            ChatMessage(role: .user, content: user),
-        ])
-        return .ready(EnhancementRequest(
-            chat: chat, triggerWords: contexts.flatMap(\.triggerWords), expectsNegativePrompt: negative != nil))
+        let chat = ChatRequest(
+            model: enhancerModelID,
+            messages: [
+                ChatMessage(role: .system, content: systemMessage(pack: pack, expectsNegativePrompt: negative != nil)),
+                ChatMessage(role: .user, content: user),
+            ])
+        return .ready(
+            EnhancementRequest(
+                chat: chat, triggerWords: contexts.flatMap(\.triggerWords), expectsNegativePrompt: negative != nil))
     }
 
     /// The fixed system text for a pack. It depends only on the pack and on whether a negative line is asked for, never
@@ -108,7 +111,7 @@ public enum PromptEnhancer {
         }
         if !contexts.isEmpty {
             var lines = [
-                "Active LoRAs. Include each trigger word verbatim. Example prompts show the style only: never copy them into the prompt.",
+                "Active LoRAs. Include each trigger word verbatim. Example prompts show the style only: never copy them into the prompt."
             ]
             for context in contexts {
                 let words = context.triggerWords.isEmpty ? "none" : context.triggerWords.joined(separator: ", ")
