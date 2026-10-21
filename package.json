@@ -1,0 +1,14 @@
+{
+  "private": true,
+  "scripts": {
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*": "node scripts/check-file-size.mjs"
+  },
+  "devDependencies": {
+    "husky": "9.1.7",
+    "linguist-languages": "9.5.0",
+    "lint-staged": "17.6.0"
+  }
+}

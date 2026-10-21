@@ -34,6 +34,12 @@ swift run mc-catalog verify Sources/MCCatalog/Resources/catalog.json
 
 `MLXC_ENGINE_BIN` enables the real-engine tests.
 
+## File size budget
+
+A pre-commit hook (`scripts/check-file-size.mjs`, run by lint-staged through husky) refuses a source file over 8,000 tokens (bytes / 4), unless the file was already over budget and did not grow. Split by concept instead. A file that only reads whole may opt out with `@ratchet-files-ignore: <why>` in a comment within its first 10 lines. Run `node scripts/check-file-size.mjs --help` for the rules and `--all` for the backlog.
+
+A clone needs `npm install` once, which installs the hook (Node 18.3+).
+
 ## Gotchas
 
 - The app is single-instance (`Engine/app.lock`).
