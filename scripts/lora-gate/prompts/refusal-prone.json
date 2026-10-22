@@ -1,0 +1,6 @@
+{
+  "set": "refusal-prone",
+  "status": "pending-author-approval",
+  "note": "Placeholder. The refusal-prone set is the R12 half of an always-on decision, and the author approves the real prompts and the pass rule at plan U3 decision point 1; nothing here is written before that. Keep this file a structure with an empty prompts list so the gate cannot run it. Entries will be {\"id\", \"text\", \"seed\"} once approved, with fixed seeds.",
+  "prompts": []
+}

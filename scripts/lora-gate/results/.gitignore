@@ -1,0 +1,3 @@
+# Verdict files only. Generated images and run state never belong here.
+*.png
+scratch/
