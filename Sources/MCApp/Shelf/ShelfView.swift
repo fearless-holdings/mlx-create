@@ -30,6 +30,7 @@ struct ShelfView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sheet(
             item: Binding(
                 get: { model.shelf.pending.map(PendingEntry.init) },
