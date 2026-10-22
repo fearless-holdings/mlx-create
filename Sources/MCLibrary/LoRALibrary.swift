@@ -155,6 +155,26 @@ extension LibraryStore {
                 triggerWords: triggerWords, source: source, preview: preview))
     }
 
+    /// Stores a finished Hugging Face download (R19, KTD6). Mirrors
+    /// ``commitStagedLoRA(staged:sha256:sizeBytes:family:variant:name:triggerWords:source:previewImage:)``: the caller has
+    /// verified the SHA-256 and classified the file, and the source row carries the pinned origin and the license text
+    /// instead of Civitai's ids. The duplicate, restore and name-clash rules, and the move into `LoRAs/<family>/`, are the
+    /// ones both paths share.
+    public func commitHuggingFaceLoRA(
+        staged: URL, sha256: String, sizeBytes: Int64, family: String, variant: String?, name: String,
+        triggerWords: [String], origin: HuggingFaceLoRAOrigin, acceptedAt: Date = Date()
+    ) async throws -> LoRAImportOutcome {
+        let typed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !typed.isEmpty else {
+            try? FileManager.default.removeItem(at: staged)
+            throw LibraryError.invalidName
+        }
+        return try await commitLoRA(
+            LoRACommit(
+                staged: staged, sha256: sha256, sizeBytes: sizeBytes, family: family, variant: variant, baseName: typed,
+                triggerWords: triggerWords, source: LoRASource(huggingFace: origin, acceptedAt: acceptedAt), preview: nil))
+    }
+
     /// The commit both import paths share (KTD4): the duplicate, restore and name-clash rules, the move into
     /// `LoRAs/<family>/`, the optional preview, and the row inserts, all in one write. Consumes `commit.staged`.
     func commitLoRA(_ commit: LoRACommit) async throws -> LoRAImportOutcome {

@@ -218,7 +218,8 @@ struct LoRALibraryView: View {
     }
 
     private func isJustAdded(_ source: LoRASource?) -> Bool {
-        source.map { justAddedModelIDs.contains($0.civitaiModelID) } ?? false
+        guard let modelID = source?.civitaiModelID else { return false }
+        return justAddedModelIDs.contains(modelID)
     }
 
     // MARK: Import feedback

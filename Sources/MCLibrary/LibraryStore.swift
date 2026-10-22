@@ -192,6 +192,7 @@ public actor LibraryStore {
                     """)
         }
         migrator.registerMigration("v8-prompt-history", migrate: Self.createPromptHistoryTable)
+        migrator.registerMigration("v9-lora-source-kind", migrate: Self.migrateLoRASourceKind)
         return migrator
     }
 
