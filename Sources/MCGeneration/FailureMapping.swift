@@ -10,6 +10,8 @@ public enum ExecutorError: Error, Equatable {
     case loraMissing(name: String, modelID: String)
     /// A LoRA frozen into the job is in the folder but is no longer the file that was imported (its size changed). Not retryable.
     case loraChanged(name: String, modelID: String)
+    /// The job carries more LoRAs than the family allows once its always-on LoRAs take their share of the engine's cap (R10).
+    case loraLimitExceeded(count: Int, limit: Int, modelID: String)
 }
 
 /// Maps an error from a generation attempt to the failure stored on a `failed` job (KTD6).
@@ -35,6 +37,11 @@ public enum FailureMapping {
                 return JobFailure(
                     message:
                         "LoRA \"\(name)\" changed after it was imported, so \(modelID) can't use it. Remove it or replace it, then queue the job again.",
+                    detail: nil, retryable: false)
+            case .loraLimitExceeded(let count, let limit, let modelID):
+                return JobFailure(
+                    message:
+                        "\(modelID) can use at most \(limit) LoRAs, and this job carries \(count). Remove some from the stack, then queue the job again.",
                     detail: nil, retryable: false)
             }
         }

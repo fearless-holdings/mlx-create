@@ -236,15 +236,24 @@ extension AppModel {
 
     // MARK: Stack
 
-    /// Adds a library LoRA to the stack, enabled at weight 1.0. A LoRA already in the stack is ignored; the ninth row is
-    /// refused with a notice (R10).
-    public func addToLoRAStack(id: String) {
+    /// The most stack rows the selected family may hold: the engine's cap minus the family's always-on LoRAs (R10).
+    /// With no selectable model there is no family, so no always-on LoRA applies.
+    private var loraCapacity: Int {
+        GenerationComposer.maxLoRAs(alwaysOnCount: loraFamily.map { alwaysOnLoRACount($0.id) } ?? 0)
+    }
+
+    /// Adds a library LoRA to the stack, enabled at `weight` (1.0 unless a shelf item supplies its tested scale). A LoRA
+    /// already in the stack is ignored; an add past the family's cap is refused with a notice that states the cap (R10).
+    public func addToLoRAStack(id: String, weight: Double = 1.0) {
         guard loraRecords.contains(where: { $0.id == id }), !loraSlots.contains(where: { $0.id == id }) else { return }
-        guard loraSlots.count < GenerationComposer.maxLoRAs else {
-            loraNotice = "A job can use up to \(GenerationComposer.maxLoRAs) LoRAs. Remove one to add another."
+        let capacity = loraCapacity
+        guard loraSlots.count < capacity else {
+            loraNotice = "A job can use up to \(capacity) LoRAs. Remove one to add another."
             return
         }
-        loraSlots.append(LoRAStackSlot(id: id, weight: 1.0, isEnabled: true, wideRange: false))
+        let wide = abs(weight) > LoRAStackRules.narrowRange.upperBound
+        loraSlots.append(
+            LoRAStackSlot(id: id, weight: LoRAStackRules.clamped(weight, wide: wide), isEnabled: true, wideRange: wide))
         loraNotice = nil
     }
 
@@ -342,8 +351,8 @@ extension AppModel {
         let matches: (LoRARecord) -> Bool
     }
 
-    /// Builds the slots for `entries` in order. Duplicate records are dropped, weights clamp to their range, and an entry
-    /// with no library record is named in the notice.
+    /// Builds the slots for `entries` in order. Duplicate records are dropped, weights clamp to their range, entries past
+    /// the family's cap are left out, and an entry with no library record is named in the notice.
     private func setLoRAStack(_ entries: [LoRARestoreEntry]) {
         var slots: [LoRAStackSlot] = []
         var missing: [String] = []
@@ -358,7 +367,16 @@ extension AppModel {
                 LoRAStackSlot(
                     id: record.id, weight: LoRAStackRules.clamped(entry.weight, wide: wide), isEnabled: true, wideRange: wide))
         }
+        var notes: [String] = []
+        let capacity = loraCapacity
+        if slots.count > capacity {
+            slots.removeLast(slots.count - capacity)
+            notes.append("Only \(capacity) LoRAs fit this model, so the rest were left out.")
+        }
+        if !missing.isEmpty {
+            notes.append("Not installed: \(missing.joined(separator: ", ")) — left out.")
+        }
         loraSlots = slots
-        loraNotice = missing.isEmpty ? nil : "Not installed: \(missing.joined(separator: ", ")) — left out."
+        loraNotice = notes.isEmpty ? nil : notes.joined(separator: " ")
     }
 }

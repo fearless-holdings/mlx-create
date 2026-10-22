@@ -107,4 +107,22 @@ struct LoRAExecutorTests {
         #expect(failed.failure?.retryable == true)
         #expect(harness.requests(to: "v1/images/generations").isEmpty)
     }
+
+    @Test func aJobCarryingMoreLoRAsThanTheFamilysCapFailsBeforeTheEngineIsAsked() async throws {
+        let harness = try await Harness.make(alwaysOnLoRACount: { _ in 1 }, script: Self.fakeImage)
+        var entries: [LoRAStackEntry] = []
+        for number in 1...8 {
+            entries.append(try await harness.installLoRA(name: "Style \(number)"))
+        }
+        let job = try await harness.enqueue(batch: 1, loras: entries)
+
+        try await harness.executor.drain()
+
+        let failed = try #require(try await harness.store.jobs(status: .failed).first)
+        #expect(failed.id == job.id)
+        let failure = try #require(failed.failure)
+        #expect(failure.message.contains("7"))
+        #expect(failure.retryable == false)
+        #expect(harness.requests(to: "v1/images/generations").isEmpty)
+    }
 }

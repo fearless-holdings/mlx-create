@@ -22,7 +22,7 @@ extension AppModel {
         case LibraryError.loraUnavailable(let name):
             "\"\(name)\" is missing from the library or its file is gone. Remove it from the stack or re-import it."
         case LoRAStackError.tooMany:
-            "A job can use up to \(GenerationComposer.maxLoRAs) LoRAs. Remove one to generate."
+            "A job can use up to \(GenerationComposer.engineLoRAMax) LoRAs. Remove one to generate."
         case LibraryError.invalidName: "Enter a name for the collection."
         case LibraryError.duplicateCollectionName: "Another collection already has that name. Choose a different name."
         case LibraryError.defaultCollectionCannotBeDeleted: "The default collection cannot be deleted."

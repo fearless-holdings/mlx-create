@@ -139,6 +139,9 @@ public final class AppModel {
     var loraMissingFileIDs: Set<String> = []
     /// The tier the LoRA memory hint reads. The app keeps the current tier; tests set another.
     var loraMemoryTier = MemoryTier.current
+    /// How many always-on LoRAs a family applies to every generation, which lowers that family's stack cap (R10).
+    /// Injected so tests can set it; it answers 0 until the library supplies the real count (U8).
+    @ObservationIgnored var alwaysOnLoRACount: @MainActor (String) -> Int = { _ in 0 }
     /// A neutral one-line note about the stack, for example LoRAs a reuse left out.
     var loraNotice: String?
     var isLoRALibraryPresented = false

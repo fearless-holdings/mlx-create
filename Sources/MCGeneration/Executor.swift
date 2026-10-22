@@ -18,6 +18,8 @@ public actor JobExecutor {
     private let hub: ExecutorEventHub
     private let crashKind: @Sendable () async -> EngineCrash?
     private let engineVersion: String?
+    /// How many always-on LoRAs a family applies, which lowers its per-request cap (R10).
+    private let alwaysOnLoRACount: @Sendable (String) -> Int
     private var rng = SystemRandomNumberGenerator()
     var currentJobID: UUID?
     /// Held by an Enhance lease (KTD5). While it is set, `drain` claims no job and model switches wait for its release.
@@ -43,6 +45,8 @@ public actor JobExecutor {
     /// `engineVersion` is the pinned engine's version, written into each saved image's settings.
     /// `modelsRoot` is the Models root that each job's LoRA paths resolve against (KTD6).
     /// `memoryTier` decides how an Enhance lease shares engine residency with the image model (KTD5).
+    /// `alwaysOnLoRACount` answers how many LoRAs a family applies on the app's behalf, which the engine counts against its
+    /// per-request limit (R10). It answers 0 until always-on supply ships (U8).
     public init(
         store: LibraryStore,
         modelsRoot: URL,
@@ -50,7 +54,8 @@ public actor JobExecutor {
         queue: JobQueue,
         crashKind: @escaping @Sendable () async -> EngineCrash? = { nil },
         engineVersion: String? = nil,
-        memoryTier: MemoryTier = .current
+        memoryTier: MemoryTier = .current,
+        alwaysOnLoRACount: @escaping @Sendable (String) -> Int = { _ in 0 }
     ) {
         self.store = store
         self.modelsRoot = modelsRoot
@@ -60,6 +65,7 @@ public actor JobExecutor {
         self.crashKind = crashKind
         self.engineVersion = engineVersion
         self.memoryTier = memoryTier
+        self.alwaysOnLoRACount = alwaysOnLoRACount
     }
 
     /// Starts draining the queue in the background. Calling it while a drain is running does nothing, so
@@ -194,6 +200,12 @@ public actor JobExecutor {
         let seed = policy.seed(savedCount: savedCount, using: &rng)
         // KTD6: every LoRA frozen into the job must still be the file that was imported, or the job fails before the engine is asked.
         let loras = job.request.loras ?? []
+        // R10: the family's always-on LoRAs share the engine's limit with the stack, so an over-cap job fails here rather
+        // than sending the engine more LoRAs than it accepts.
+        let loraLimit = GenerationComposer.maxLoRAs(alwaysOnCount: alwaysOnLoRACount(job.request.family))
+        guard loras.count <= loraLimit else {
+            throw ExecutorError.loraLimitExceeded(count: loras.count, limit: loraLimit, modelID: job.request.modelID)
+        }
         var loraFiles: [URL] = []
         for entry in loras {
             loraFiles.append(try await loraFile(for: entry, modelID: job.request.modelID))

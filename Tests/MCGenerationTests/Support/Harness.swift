@@ -95,6 +95,7 @@ struct Harness {
         refusedLoads: Set<String> = [],
         engineVersion: String? = nil,
         memoryTier: MemoryTier = MemoryTier(physicalMemoryBytes: 16 << 30),
+        alwaysOnLoRACount: @escaping @Sendable (String) -> Int = { _ in 0 },
         script: @escaping @Sendable (Int, EngineStubProtocol.Recorded) -> EngineStubProtocol.Reply
     ) async throws -> Harness {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("gen-\(UUID().uuidString)")
@@ -110,7 +111,7 @@ struct Harness {
         let queue = JobQueue(store: store)
         let executor = JobExecutor(
             store: store, modelsRoot: modelsRoot, client: client, queue: queue, engineVersion: engineVersion,
-            memoryTier: memoryTier)
+            memoryTier: memoryTier, alwaysOnLoRACount: alwaysOnLoRACount)
         let collection = try await store.defaultCollection()
         return Harness(
             store: store, queue: queue, executor: executor, endpoint: endpoint, collectionID: collection.id,
