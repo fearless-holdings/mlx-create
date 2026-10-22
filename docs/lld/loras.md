@@ -98,9 +98,20 @@ Status: built per `docs/plans/2026-10-19-1605-feat-civitai-lora-browse-download-
 - Local imports write no `lora_source` row. Civitai's `trainedWords` fill the LoRA's trigger words.
 - Previews: one image per download, fetched once from Civitai's image CDN, re-encoded to HEIC with `Thumbnails`, and stored under the library's preview directory outside `Models/LoRAs/`. Deleting the LoRA removes the file. A preview failure never fails the download.
 
+### Curated shelf and always-on LoRAs
+
+Implements HLD D43 to D47. Plan: `docs/plans/2026-10-22-1149-feat-curated-lora-supply-plan.md`.
+
+- **Catalog data.** The signed catalog gains an optional top-level `lora_shelf` array, omitted from the encoding when empty so existing catalog bytes are unchanged. An entry carries family, role, `nsfw`, source kind (Civitai or Hugging Face) and identifiers, filename, SHA-256, size, license text, trigger words, tested scale, community rating, `tested_engine` and `always_on`. A family without `loraFingerprints` accepts no shelf entry.
+- **Shelf.** A Shelf section in the LoRA library, filtered by the selected family and `civitaiIncludeNSFW`. Picking an entry runs the license sheet, downloads (SHA-256 verified), adds the LoRA to the stack at its tested scale, and its trigger words reach the enhancer through `enhancementLoRAs()`. An entry whose fetch returns not-found shows "no longer available". An empty role renders nothing.
+- **Provenance.** `lora_source` generalizes with a source kind and nullable Civitai ids through a new table-rebuilding migration. `v5-lora-source` is not edited. `civitai.red` URLs resolve by id through `civitai.com`.
+- **Cap.** The per-request cap is 8 minus the family's always-on count, enforced in `addToLoRAStack` and `setLoRAStack`. The refused-add message states the cap.
+- **Always-on.** A hidden `lora` row, applied by `JobExecutor.generateNext` after `freezeLoRAs` and never stored in the request or the image record. Filtered from the library list, picker, facets, `enhancementLoRAs()` and failure copy. `deleteLoRA` refuses it. One `loraRejected` retry without the always-on set, then the user-LoRA failure copy.
+- **Krea 2 refusal-reduction file.** Its keys sit under `diffusion_model.txtfusion.layerwise_blocks.*`, not the `lora_A`/`lora_B` layout. It needs its own `loraFingerprints` entry from a real header before the app classifies it. Always-on for Krea 2 is blocked until that entry and the curation verdicts exist.
+
 ### Deferred and unverified
 
-- Deferred: CivArchive, fetch by pasted link or hash, drop-a-PNG fetch, update checks, a curated Civitai shelf, and parallel downloads.
+- Deferred: CivArchive, fetch by pasted link or hash, drop-a-PNG fetch, update checks, and parallel downloads. The curated shelf is no longer deferred; see "Curated shelf and always-on LoRAs".
 - Not verified: see "Not run" below.
 
 ### Observed
