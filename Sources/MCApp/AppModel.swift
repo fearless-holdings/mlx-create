@@ -131,6 +131,9 @@ public final class AppModel {
     @ObservationIgnored var revealFiles: @MainActor ([URL]) -> Void = AppModel.systemReveal
     @ObservationIgnored var chooseExportTarget: @MainActor (ExportRequest) -> URL? = AppModel.exportPanel
 
+    /// The curated LoRA shelf (D43), read from the signed catalog.
+    let shelf: ShelfModel
+
     /// LoRA state (U6). The stack is plain state: rows derive from it, so a model switch never edits it.
     var loraSlots: [LoRAStackSlot] = []
     /// The LoRA library as last read from the store.
@@ -225,13 +228,22 @@ public final class AppModel {
         let civitaiClient = CivitaiClient(
             transport: civitaiTransport ?? URLSessionCivitaiTransport(userAgent: "mlx-create"),
             savedKey: { try? civitaiKeychain.read() })
+        let civitaiDownloader = CivitaiDownloader(transport: civitaiFileTransport ?? URLSessionCivitaiFileTransport())
         civitai = CivitaiBrowseModel(
             client: civitaiClient,
-            downloader: CivitaiDownloader(transport: civitaiFileTransport ?? URLSessionCivitaiFileTransport()),
+            downloader: civitaiDownloader,
             keychain: civitaiKeychain, store: store, registry: registry,
             stagingDirectory: libraryPaths.civitaiStagingDirectory, defaults: defaults,
             nsfwDefaultsKey: Self.civitaiIncludeNSFWKey,
             previewFetch: civitaiPreviewFetch ?? CivitaiPreviewFetch.fetch)
+        shelf = ShelfModel(
+            fetcher: LiveShelfFetcher(
+                client: civitaiClient, civitaiDownloader: civitaiDownloader,
+                huggingFace: HuggingFaceLoRADownloader(
+                    configuration: .init(stagingDirectory: libraryPaths.civitaiStagingDirectory, userAgent: "mlx-create")),
+                keychain: civitaiKeychain, stagingDirectory: libraryPaths.civitaiStagingDirectory),
+            store: store, registry: registry)
+        shelf.setEntries(catalog?.loraShelf ?? [])
         installs = makeInstalls(catalog: catalog, transport: transport)
         browser = ModelBrowserModel(
             catalog: catalog, installs: installs,
@@ -242,6 +254,11 @@ public final class AppModel {
             libraryChanged: { [weak self] in
                 if let self { await self.refreshLoRALibrary() }
             })
+        shelf.connect { [weak self] id, scale in
+            guard let self else { return }
+            await self.refreshLoRALibrary()
+            self.addToLoRAStack(id: id, weight: scale)
+        }
         alwaysOnLoRACount = { [weak self] family in self?.alwaysOnCounts[family] ?? 0 }
     }
 
@@ -340,6 +357,7 @@ public final class AppModel {
         } else {
             installs = makeInstalls(catalog: catalog, transport: installTransport)
         }
+        shelf.setEntries(catalog.loraShelf)
         await browser.replaceCatalog(catalog, installs: installs)
     }
 

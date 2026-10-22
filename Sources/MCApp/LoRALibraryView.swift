@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 /// The sections of the LoRA sheet.
 private enum LoRASheetTab: String, CaseIterable, Identifiable {
     case installed = "Installed"
+    case shelf = "Shelf"
     case browse = "Browse Civitai"
 
     var id: Self { self }
@@ -59,7 +60,7 @@ struct LoRALibraryView: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .frame(width: 280)
+                .frame(width: 380)
                 Spacer()
                 Button("Done") {
                     dismiss()
@@ -71,6 +72,8 @@ struct LoRALibraryView: View {
             switch tab {
             case .installed:
                 installedContent
+            case .shelf:
+                ShelfView(model: model)
             case .browse:
                 CivitaiBrowseView(model: model)
             }

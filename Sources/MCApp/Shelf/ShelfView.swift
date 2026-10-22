@@ -1,0 +1,131 @@
+import MCCatalog
+import SwiftUI
+
+/// The Shelf tab of the LoRA sheet (D43): the vouched LoRAs for the selected model, grouped by role. Picking one opens its
+/// license, then downloads it and puts it on the stack at the scale it was tested at.
+struct ShelfView: View {
+    @Bindable var model: AppModel
+
+    private var familyID: String? {
+        guard let selected = model.selectedModel, ModelSelection.isSelectable(selected) else { return nil }
+        return selected.family?.id
+    }
+
+    private var rows: [ShelfModel.Row] {
+        model.shelf.rows(family: familyID, includeNSFW: model.civitai.includeNSFW)
+    }
+
+    var body: some View {
+        Group {
+            if familyID == nil {
+                ContentUnavailableView(
+                    "No model selected", systemImage: "square.stack.3d.up",
+                    description: Text("Pick a model to see the LoRAs vouched for it."))
+            } else if rows.isEmpty {
+                ContentUnavailableView(
+                    "Nothing on the shelf yet", systemImage: "square.stack.3d.up",
+                    description: Text("There are no vouched LoRAs for this model."))
+            } else {
+                List(rows) { row in
+                    ShelfRowView(model: model, row: row)
+                }
+            }
+        }
+        .sheet(
+            item: Binding(
+                get: { model.shelf.pending.map(PendingEntry.init) },
+                set: { if $0 == nil { model.shelf.dismissPending() } })
+        ) { pending in
+            ShelfLicenseSheet(model: model, entry: pending.entry)
+        }
+    }
+
+    private struct PendingEntry: Identifiable {
+        let entry: LoRAShelfEntry
+        var id: String { entry.sha256 }
+    }
+}
+
+private struct ShelfRowView: View {
+    let model: AppModel
+    let row: ShelfModel.Row
+
+    private var inStack: Bool {
+        model.loraRecords.contains { record in
+            record.sha256 == row.entry.sha256 && model.loraSlots.contains { $0.id == record.id }
+        }
+    }
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(row.entry.role.capitalized).font(.headline)
+                Text(row.entry.filename.replacingOccurrences(of: ".safetensors", with: ""))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                if !row.entry.triggerWords.isEmpty {
+                    Text("Trigger words: " + row.entry.triggerWords.joined(separator: ", "))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer(minLength: 12)
+            trailing
+        }
+        .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private var trailing: some View {
+        switch row.status {
+        case .available:
+            if inStack {
+                Label("In stack", systemImage: "checkmark")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            } else {
+                Button("Add to stack") { Task { await model.shelf.pick(row.entry) } }
+                    .disabled(!model.loraAddEnabled)
+            }
+        case .downloading(let fraction):
+            ProgressView(value: fraction).frame(width: 120)
+        case .unavailable:
+            Text("No longer available").font(.callout).foregroundStyle(.secondary)
+        case .failed(let message):
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(message).font(.caption).foregroundStyle(.red).lineLimit(2)
+                Button("Try again") { Task { await model.shelf.pick(row.entry) } }
+            }
+        }
+    }
+}
+
+/// The license sheet for a shelf LoRA (D20): the license as the source publishes it, accepted before anything downloads.
+private struct ShelfLicenseSheet: View {
+    let model: AppModel
+    let entry: LoRAShelfEntry
+    @State private var accepted = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(entry.filename.replacingOccurrences(of: ".safetensors", with: "")).font(.title3.bold())
+            ScrollView {
+                Text(entry.license)
+                    .font(.callout)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(minHeight: 120, maxHeight: 280)
+            Toggle("I have read and accept this license", isOn: $accepted)
+            HStack {
+                Spacer()
+                Button("Cancel") { model.shelf.dismissPending() }
+                    .keyboardShortcut(.cancelAction)
+                Button("Download and add") { Task { await model.shelf.acceptPending() } }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!accepted)
+            }
+        }
+        .padding(20)
+        .frame(width: 520)
+    }
+}
