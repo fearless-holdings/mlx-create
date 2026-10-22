@@ -294,7 +294,7 @@ public actor JobExecutor {
     /// Only the recorded size is compared, so no file is hashed when a job starts.
     private func loraFile(for entry: LoRAStackEntry, modelID: String) async throws -> URL {
         guard let file = LibraryPaths.loraURL(relativePath: entry.relativePath, modelsRoot: modelsRoot),
-            let record = try await store.loraRecord(id: entry.id),
+            let record = try await store.loraRecord(id: entry.id), record.alwaysOnScale == nil,
             record.relativePath == entry.relativePath,
             FileManager.default.fileExists(atPath: file.path)
         else { throw ExecutorError.loraMissing(name: entry.name, modelID: modelID) }

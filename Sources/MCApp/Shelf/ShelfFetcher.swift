@@ -10,7 +10,7 @@ struct ShelfFetched: Sendable, Equatable {
     let sizeBytes: Int64
 }
 
-/// Why a shelf file could not be fetched. `notFound` marks the one entry "no longer available" (AE3).
+/// Why a shelf file could not be fetched. `notFound` marks the one entry "no longer available" (AE7).
 enum ShelfFetchError: Error, Equatable, LocalizedError {
     case notFound
     /// The source now lists a different file than the catalog pinned, so nothing was downloaded.

@@ -10,7 +10,7 @@ public enum ExecutorError: Error, Equatable {
     case loraMissing(name: String, modelID: String)
     /// A LoRA frozen into the job is in the folder but is no longer the file that was imported (its size changed). Not retryable.
     case loraChanged(name: String, modelID: String)
-    /// The job carries more LoRAs than the family allows once its always-on LoRAs take their share of the engine's cap (R10).
+    /// The job carries more LoRAs than the engine accepts. The limit is the engine's own, never reduced by always-on LoRAs.
     case loraLimitExceeded(count: Int, limit: Int, modelID: String)
 }
 

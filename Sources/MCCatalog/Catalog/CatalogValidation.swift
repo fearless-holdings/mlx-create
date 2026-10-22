@@ -87,6 +87,9 @@ extension Catalog {
             guard entry.sizeBytes > 0 else {
                 throw CatalogError.invalid("shelf entry \(entry.family)/\(entry.role) needs a positive size_bytes")
             }
+            guard entry.filename.hasSuffix(".safetensors"), entry.filename.count > ".safetensors".count else {
+                throw CatalogError.invalid("shelf entry \(entry.family)/\(entry.role) needs a .safetensors filename")
+            }
             try Self.validate(source: entry.source, of: entry)
             guard entry.testedScale > 0, entry.testedScale <= 20 else {
                 throw CatalogError.invalid("tested_scale for shelf entry \(entry.family)/\(entry.role) must be in 0...20")

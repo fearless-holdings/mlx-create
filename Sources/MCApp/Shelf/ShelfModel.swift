@@ -12,7 +12,7 @@ final class ShelfModel {
     enum Status: Equatable {
         case available
         case downloading(Double)
-        /// The source no longer lists the file (AE3). Other entries are unaffected.
+        /// The source no longer lists the file (AE7). Other entries are unaffected.
         case unavailable
         case failed(String)
     }
