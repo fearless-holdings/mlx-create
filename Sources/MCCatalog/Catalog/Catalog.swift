@@ -9,12 +9,19 @@ public struct Catalog: Sendable, Codable, Equatable {
     public let sequence: Int
     public let issuedAt: Date
     public let models: [CatalogModel]
+    /// The vouched LoRA shelf (D43, D44). Optional on the wire: absent means no shelf, so a catalog signed before the
+    /// shelf existed decodes unchanged.
+    public let loraShelf: [LoRAShelfEntry]
 
-    public init(schemaVersion: Int, sequence: Int, issuedAt: Date, models: [CatalogModel]) {
+    public init(
+        schemaVersion: Int, sequence: Int, issuedAt: Date, models: [CatalogModel],
+        loraShelf: [LoRAShelfEntry] = []
+    ) {
         self.schemaVersion = schemaVersion
         self.sequence = sequence
         self.issuedAt = issuedAt
         self.models = models
+        self.loraShelf = loraShelf
     }
 
     enum CodingKeys: String, CodingKey {
@@ -22,6 +29,27 @@ public struct Catalog: Sendable, Codable, Equatable {
         case sequence
         case issuedAt = "issued_at"
         case models
+        case loraShelf = "lora_shelf"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try c.decode(Int.self, forKey: .schemaVersion)
+        sequence = try c.decode(Int.self, forKey: .sequence)
+        issuedAt = try c.decode(Date.self, forKey: .issuedAt)
+        models = try c.decode([CatalogModel].self, forKey: .models)
+        loraShelf = try c.decodeIfPresent([LoRAShelfEntry].self, forKey: .loraShelf) ?? []
+    }
+
+    /// `lora_shelf` is written only when non-empty, so re-encoding a catalog signed before the shelf existed produces
+    /// the same bytes and its signature still matches.
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(schemaVersion, forKey: .schemaVersion)
+        try c.encode(sequence, forKey: .sequence)
+        try c.encode(issuedAt, forKey: .issuedAt)
+        try c.encode(models, forKey: .models)
+        if !loraShelf.isEmpty { try c.encode(loraShelf, forKey: .loraShelf) }
     }
 }
 
@@ -151,5 +179,96 @@ public struct CatalogLicense: Sendable, Codable, Equatable {
     enum CodingKeys: String, CodingKey {
         case id, name, url, version, summary
         case commercialUse = "commercial_use"
+    }
+}
+
+/// One vouched LoRA on a family's shelf (D43, D44). The catalog carries no weights: `source` names where the file
+/// comes from and `sha256` pins what must arrive (R18, R19).
+public struct LoRAShelfEntry: Sendable, Codable, Equatable {
+    /// Matches a `FamilyRegistry` record id whose record has at least one `loraFingerprints` entry.
+    public let family: String
+    /// The job the entry fills, e.g. `anatomy`. One entry per family and role; always-on entries are exempt.
+    public let role: String
+    /// An explicit role is offered only while the NSFW opt-in is on (D43).
+    public let nsfw: Bool
+    public let source: LoRAShelfSource
+    public let filename: String
+    /// The SHA-256 of the file as downloaded.
+    public let sha256: String
+    public let sizeBytes: Int64
+    /// The license text the sheet shows, as the source publishes it.
+    public let license: String
+    public let triggerWords: [String]
+    /// The weight the entry was tested at; the stack slot it creates starts there (KTD7).
+    public let testedScale: Double
+    /// The source's community rating, when it publishes one.
+    public let communityRating: Double?
+    /// The engine version the entry was vouched on (KTD10). An engine bump re-runs the harness before this changes.
+    public let testedEngine: String
+    /// `true` when the app applies the entry invisibly to every generation of its family (D44).
+    public let alwaysOn: Bool
+
+    public init(
+        family: String, role: String, nsfw: Bool, source: LoRAShelfSource, filename: String, sha256: String,
+        sizeBytes: Int64, license: String, triggerWords: [String], testedScale: Double,
+        communityRating: Double? = nil, testedEngine: String, alwaysOn: Bool
+    ) {
+        self.family = family
+        self.role = role
+        self.nsfw = nsfw
+        self.source = source
+        self.filename = filename
+        self.sha256 = sha256
+        self.sizeBytes = sizeBytes
+        self.license = license
+        self.triggerWords = triggerWords
+        self.testedScale = testedScale
+        self.communityRating = communityRating
+        self.testedEngine = testedEngine
+        self.alwaysOn = alwaysOn
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case family, role, nsfw, source, filename, sha256, license
+        case sizeBytes = "size_bytes"
+        case triggerWords = "trigger_words"
+        case testedScale = "tested_scale"
+        case communityRating = "community_rating"
+        case testedEngine = "tested_engine"
+        case alwaysOn = "always_on"
+    }
+}
+
+/// Where a shelf entry's weights come from (R19). A Civitai entry names `model_id` and `version_id`; a Hugging Face
+/// entry names `repo`, the `revision` commit and the `file` inside it. The other keys are absent.
+public struct LoRAShelfSource: Sendable, Codable, Equatable {
+    public enum Kind: String, Sendable, Codable, Equatable {
+        case civitai
+        case huggingface
+    }
+
+    public let kind: Kind
+    public let modelID: Int?
+    public let versionID: Int?
+    public let repo: String?
+    public let revision: String?
+    public let file: String?
+
+    public init(
+        kind: Kind, modelID: Int? = nil, versionID: Int? = nil, repo: String? = nil, revision: String? = nil,
+        file: String? = nil
+    ) {
+        self.kind = kind
+        self.modelID = modelID
+        self.versionID = versionID
+        self.repo = repo
+        self.revision = revision
+        self.file = file
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case kind, repo, revision, file
+        case modelID = "model_id"
+        case versionID = "version_id"
     }
 }

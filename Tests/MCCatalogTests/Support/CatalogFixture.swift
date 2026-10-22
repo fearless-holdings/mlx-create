@@ -34,6 +34,34 @@ enum CatalogFixture {
         }
     }
 
+    /// A complete shelf entry as it appears in `catalog.json` (D43). The family has fingerprints in the bundled
+    /// registry, so it passes validation unless a test changes it.
+    static func shelfEntry(
+        family: String = "flux2-klein", role: String = "anatomy", nsfw: Bool = false,
+        sha256: String = String(repeating: "a", count: 64), testedScale: Double = 0.85, alwaysOn: Bool = false
+    ) -> [String: Any] {
+        [
+            "family": family,
+            "role": role,
+            "nsfw": nsfw,
+            "source": ["kind": "civitai", "model_id": 2_775_340, "version_id": 3_359_022] as [String: Any],
+            "filename": "klein-anatomy.safetensors",
+            "sha256": sha256,
+            "size_bytes": 11_571_232,
+            "license": "Civitai model license",
+            "trigger_words": ["anatomy"],
+            "tested_scale": testedScale,
+            "community_rating": 4.6,
+            "tested_engine": "26.10.3-pre-release.1",
+            "always_on": alwaysOn,
+        ]
+    }
+
+    /// The base fixture with its `lora_shelf` replaced by `shelf`.
+    static func catalogJSON(shelf: [[String: Any]], sequence: Int = 1) throws -> Data {
+        try catalogJSON(sequence: sequence) { $0["lora_shelf"] = shelf }
+    }
+
     static func signature(of bytes: Data, with key: Curve25519.Signing.PrivateKey = signingKey) throws -> Data {
         try CatalogSignature.sign(bytes, with: key)
     }
