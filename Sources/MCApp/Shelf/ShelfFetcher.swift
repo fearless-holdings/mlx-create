@@ -77,7 +77,7 @@ struct LiveShelfFetcher: ShelfFetching {
         guard let file = version.safetensorsFile, let url = file.downloadURL, let sha256 = file.sha256, let size = file.sizeBytes else {
             throw ShelfFetchError.notFound
         }
-        guard sha256 == entry.sha256.lowercased() else { throw ShelfFetchError.changed }
+        guard sha256 == entry.sha256 else { throw ShelfFetchError.changed }
         let apiKey: String?
         do {
             apiKey = try keychain.read()
@@ -86,7 +86,7 @@ struct LiveShelfFetcher: ShelfFetching {
         }
         let request = CivitaiDownloadRequest(
             versionID: versionID, downloadURL: url, apiHost: CivitaiClient.apiHost, apiKey: apiKey,
-            expectedSHA256: entry.sha256.lowercased(), advertisedSize: size, classify: { _, _ in },
+            expectedSHA256: entry.sha256, advertisedSize: size, classify: { _, _ in },
             stagingDirectory: stagingDirectory)
         let run = await civitaiDownloader.start(request)
         for await event in run.events {

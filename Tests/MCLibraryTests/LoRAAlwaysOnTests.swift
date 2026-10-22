@@ -24,4 +24,22 @@ import Testing
         let reopened = try LibraryStore(libraryRoot: libraryRoot, modelsRoot: fixture.models)
         #expect(reopened.loraFileExists(hidden))
     }
+
+    /// Importing the very file an always-on row names must not show that row's name, attach it, or rename the user's LoRA.
+    @Test func importingAnAlwaysOnFileSaysNothingAboutTheHiddenRow() async throws {
+        let fixture = try LoRALibraryTests.makeFixture()
+        let hidden = try await LoRALibraryTests.importedAlpha(fixture, fill: 17, name: "Secret name")
+        try await fixture.store.setAlwaysOn(id: hidden.id, scale: 0.6)
+
+        let url = try LoRALibraryTests.alphaFile(fixture, "again.safetensors", fill: 17)
+        let error = await #expect(throws: LoRAImportError.self) {
+            _ = try await fixture.store.importLoRA(from: url, registry: fixture.registry, name: "Mine")
+        }
+        #expect(String(describing: error).contains("Secret name") == false)
+        #expect(try await fixture.store.loras().isEmpty)
+
+        // A user LoRA named like the hidden one keeps its own name.
+        let other = try await LoRALibraryTests.importedAlpha(fixture, fill: 18, name: "Secret name")
+        #expect(other.name == "Secret name")
+    }
 }

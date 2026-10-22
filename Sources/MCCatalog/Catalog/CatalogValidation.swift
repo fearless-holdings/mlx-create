@@ -76,12 +76,20 @@ extension Catalog {
     /// classify a file, so it cannot vouch for one. One entry per family and role, except always-on entries.
     private func validateShelf(loraFamilies: FamilyRegistry?) throws {
         var roles = Set<String>()
+        var hashes = Set<String>()
         for entry in loraShelf {
-            guard !entry.sha256.isEmpty else {
-                throw CatalogError.invalid("shelf entry \(entry.family)/\(entry.role) has an empty sha256")
+            guard CatalogModel.isHex(entry.sha256, length: 64) else {
+                throw CatalogError.invalid("shelf entry \(entry.family)/\(entry.role) needs a 64-character lowercase hex sha256")
             }
-            guard entry.testedScale > 0 else {
-                throw CatalogError.invalid("tested_scale for shelf entry \(entry.family)/\(entry.role) must be positive")
+            guard hashes.insert(entry.sha256).inserted else {
+                throw CatalogError.invalid("shelf entry \(entry.family)/\(entry.role) repeats another entry's sha256")
+            }
+            guard entry.sizeBytes > 0 else {
+                throw CatalogError.invalid("shelf entry \(entry.family)/\(entry.role) needs a positive size_bytes")
+            }
+            try Self.validate(source: entry.source, of: entry)
+            guard entry.testedScale > 0, entry.testedScale <= 20 else {
+                throw CatalogError.invalid("tested_scale for shelf entry \(entry.family)/\(entry.role) must be in 0...20")
             }
             if let loraFamilies {
                 guard let family = loraFamilies.families.first(where: { $0.id == entry.family }) else {
@@ -94,6 +102,24 @@ extension Catalog {
             guard !entry.alwaysOn else { continue }
             guard roles.insert("\(entry.family)\u{0}\(entry.role)").inserted else {
                 throw CatalogError.invalid("duplicate shelf entry for \(entry.family) role \(entry.role)")
+            }
+        }
+    }
+
+    /// A Hugging Face entry pins a commit and a safe file path in a well-formed repo, and a Civitai entry names its model and
+    /// version, because both go straight into a download URL.
+    private static func validate(source: LoRAShelfSource, of entry: LoRAShelfEntry) throws {
+        switch source.kind {
+        case .civitai:
+            guard source.modelID != nil, source.versionID != nil else {
+                throw CatalogError.invalid("shelf entry \(entry.family)/\(entry.role) needs a Civitai model and version id")
+            }
+        case .huggingface:
+            guard let repo = source.repo, CatalogModel.isRepo(repo), let revision = source.revision,
+                CatalogModel.isHex(revision, length: 40), let file = source.file, CatalogPath.isSafe(file)
+            else {
+                throw CatalogError.invalid(
+                    "shelf entry \(entry.family)/\(entry.role) needs an org/name repo, a 40-character commit and a safe file path")
             }
         }
     }

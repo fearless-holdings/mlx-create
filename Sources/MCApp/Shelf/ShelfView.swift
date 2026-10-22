@@ -7,8 +7,7 @@ struct ShelfView: View {
     @Bindable var model: AppModel
 
     private var familyID: String? {
-        guard let selected = model.selectedModel, ModelSelection.isSelectable(selected) else { return nil }
-        return selected.family?.id
+        model.loraFamily?.id
     }
 
     private var rows: [ShelfModel.Row] {
@@ -60,7 +59,7 @@ private struct ShelfRowView: View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(row.entry.role.capitalized).font(.headline)
-                Text(row.entry.filename.replacingOccurrences(of: ".safetensors", with: ""))
+                Text(row.entry.displayName)
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 if !row.entry.triggerWords.isEmpty {
@@ -108,7 +107,7 @@ private struct ShelfLicenseSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(entry.filename.replacingOccurrences(of: ".safetensors", with: "")).font(.title3.bold())
+            Text(entry.displayName).font(.title3.bold())
             ScrollView {
                 Text(entry.license)
                     .font(.callout)

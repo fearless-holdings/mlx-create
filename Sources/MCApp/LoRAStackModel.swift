@@ -155,6 +155,14 @@ struct LoRAStackSlot: Equatable, Sendable {
     var wideRange: Bool
 }
 
+extension LoRAStackSlot {
+    /// An enabled slot at `weight`, on the wide range when the weight needs it, so a restored or shelf weight is never lost.
+    init(id: String, requestedWeight weight: Double) {
+        let wide = abs(weight) > LoRAStackRules.narrowRange.upperBound
+        self.init(id: id, weight: LoRAStackRules.clamped(weight, wide: wide), isEnabled: true, wideRange: wide)
+    }
+}
+
 /// Pure rules for the LoRA stack: weight ranges and fit (R10-R12). Trigger-word matching lives in `TriggerWordMatcher`.
 enum LoRAStackRules {
     static let narrowRange: ClosedRange<Double> = -2...2

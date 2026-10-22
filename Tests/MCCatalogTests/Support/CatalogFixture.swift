@@ -38,7 +38,8 @@ enum CatalogFixture {
     /// registry, so it passes validation unless a test changes it.
     static func shelfEntry(
         family: String = "flux2-klein", role: String = "anatomy", nsfw: Bool = false,
-        sha256: String = String(repeating: "a", count: 64), testedScale: Double = 0.85, alwaysOn: Bool = false
+        sha256: String = String(repeating: "a", count: 64), testedScale: Double = 0.85, alwaysOn: Bool = false,
+        sizeBytes: Int = 11_571_232
     ) -> [String: Any] {
         [
             "family": family,
@@ -47,7 +48,7 @@ enum CatalogFixture {
             "source": ["kind": "civitai", "model_id": 2_775_340, "version_id": 3_359_022] as [String: Any],
             "filename": "klein-anatomy.safetensors",
             "sha256": sha256,
-            "size_bytes": 11_571_232,
+            "size_bytes": sizeBytes,
             "license": "Civitai model license",
             "trigger_words": ["anatomy"],
             "tested_scale": testedScale,

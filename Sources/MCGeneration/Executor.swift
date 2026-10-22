@@ -196,13 +196,14 @@ public actor JobExecutor {
         let loras = job.request.loras ?? []
         // D44: the family's always-on LoRAs join the engine request here and nowhere else. They never enter the job's request or
         // the saved settings below, so nothing about them reaches the PNG, the gallery or drop-to-restore.
-        let alwaysOn = try await alwaysOnFiles(family: job.request.family)
-        // R10: the always-on LoRAs share the engine's limit with the stack, so an over-cap job fails here rather than sending
-        // the engine more LoRAs than it accepts.
-        let loraLimit = GenerationComposer.maxLoRAs(alwaysOnCount: alwaysOn.count)
-        guard loras.count <= loraLimit else {
-            throw ExecutorError.loraLimitExceeded(count: loras.count, limit: loraLimit, modelID: job.request.modelID)
+        // R10, R13: they share the engine's limit with the stack and yield to it. A stack the engine itself would refuse fails
+        // with the plain limit, so the message never reveals how many always-on LoRAs a family has.
+        guard loras.count <= GenerationComposer.engineLoRAMax else {
+            throw ExecutorError.loraLimitExceeded(
+                count: loras.count, limit: GenerationComposer.engineLoRAMax, modelID: job.request.modelID)
         }
+        let room = GenerationComposer.engineLoRAMax - loras.count
+        let alwaysOn = Array(try await alwaysOnFiles(family: job.request.family).prefix(room))
         var loraFiles: [URL] = []
         for entry in loras {
             loraFiles.append(try await loraFile(for: entry, modelID: job.request.modelID))
@@ -251,9 +252,9 @@ public actor JobExecutor {
             do {
                 return try await stream(fullRequest)
             } catch EngineError.loraRejected where carriesAlwaysOn {
-                // R13: an always-on LoRA the engine cannot apply must never block an image. Retry once without them. A second
-                // rejection is the user's own LoRA and fails the job with its usual copy. The log names nothing.
-                Self.log.notice("engine rejected the LoRA set; retrying once without the always-on LoRAs")
+                // R13: a LoRA the engine cannot apply must never block an image. Retry once with the stack as the user built it.
+                // A second rejection is the user's own LoRA and fails the job with its usual copy. The log names nothing.
+                Self.log.notice("engine rejected the LoRA set; retrying once with the stack's LoRAs only")
                 return try await stream(userRequest)
             }
         }
@@ -297,7 +298,7 @@ public actor JobExecutor {
             record.relativePath == entry.relativePath,
             FileManager.default.fileExists(atPath: file.path)
         else { throw ExecutorError.loraMissing(name: entry.name, modelID: modelID) }
-        let size = (try? FileManager.default.attributesOfItem(atPath: file.path)[.size] as? NSNumber)?.int64Value
+        let size = Self.onDiskSize(file)
         guard record.sha256 == entry.sha256, size == record.sizeBytes else {
             throw ExecutorError.loraChanged(name: entry.name, modelID: modelID)
         }
@@ -311,12 +312,16 @@ public actor JobExecutor {
         for record in try await store.alwaysOnLoRAs(family: family) {
             guard let scale = record.alwaysOnScale,
                 let file = LibraryPaths.loraURL(relativePath: record.relativePath, modelsRoot: modelsRoot),
-                FileManager.default.fileExists(atPath: file.path),
-                (try? FileManager.default.attributesOfItem(atPath: file.path)[.size] as? NSNumber)?.int64Value == record.sizeBytes
+                Self.onDiskSize(file) == record.sizeBytes
             else { continue }
             files.append((file, scale))
         }
         return files
+    }
+
+    /// The size of the file at `url`, or nil when it cannot be read. Only the size is read, never the contents.
+    private static func onDiskSize(_ url: URL) -> Int64? {
+        (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.int64Value
     }
 
     /// Makes the job's model resident before its stream starts, unless the job was cancelled first. It uses `switchModel`,

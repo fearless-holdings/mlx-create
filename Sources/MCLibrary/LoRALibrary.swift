@@ -186,6 +186,11 @@ extension LibraryStore {
             return try await dbQueue.write { (db: Database) throws -> LoRAImportOutcome in
                 let fm = FileManager.default
                 if let existing = try LoRARecord.filter(Column("sha256") == commit.sha256).fetchOne(db) {
+                    // D44: a file an always-on row names must neither show that row's name nor attach it. The row keeps its
+                    // file, so the commit stops with copy that says nothing about why.
+                    guard existing.alwaysOnScale == nil else {
+                        throw LoRAImportError.copyFailed(reason: "this file cannot be added to the library")
+                    }
                     guard let existingFile = paths.loraURL(relativePath: existing.relativePath) else {
                         throw LoRAImportError.copyFailed(reason: "the record for \(existing.name) has an invalid path")
                     }
@@ -207,7 +212,7 @@ extension LibraryStore {
                 guard Self.isSafeFolderName(commit.family) else {
                     throw LoRAImportError.copyFailed(reason: "\"\(commit.family)\" is not a family folder")
                 }
-                let taken = try Set(String.fetchAll(db, sql: "SELECT name FROM lora"))
+                let taken = try Set(String.fetchAll(db, sql: "SELECT name FROM lora WHERE always_on_scale IS NULL"))
                 let finalName = Self.uniqueName(base: commit.baseName, taken: taken)
                 let fileName = "\(commit.sha256.prefix(10))-\(Self.fileSlug(finalName)).safetensors"
                 let relativePath = paths.loraRelativePath(family: commit.family, fileName: fileName)
@@ -393,6 +398,13 @@ extension LibraryStore {
     /// The `lora` row with this id, or nil when it was deleted.
     public func loraRecord(id: String) throws -> LoRARecord? {
         try dbQueue.read { (db: Database) throws -> LoRARecord? in try LoRARecord.fetchOne(db, key: id) }
+    }
+
+    /// The user-visible `lora` row with this SHA-256, or nil. Always-on rows never match.
+    public func loraRecord(sha256: String) throws -> LoRARecord? {
+        try dbQueue.read { (db: Database) throws -> LoRARecord? in
+            try LoRARecord.filter(Column("sha256") == sha256 && Column("always_on_scale") == nil).fetchOne(db)
+        }
     }
 
     /// Total bytes of every user-visible LoRA row.

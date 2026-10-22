@@ -85,8 +85,8 @@ final class ShelfModel {
     }
 
     private func installedRecord(for entry: LoRAShelfEntry) async -> LoRARecord? {
-        guard let records = try? await store.loras() else { return nil }
-        return records.first { $0.sha256 == entry.sha256.lowercased() && store.loraFileExists($0) }
+        guard let record = try? await store.loraRecord(sha256: entry.sha256), store.loraFileExists(record) else { return nil }
+        return record
     }
 
     private func install(_ entry: LoRAShelfEntry) async {
@@ -94,8 +94,11 @@ final class ShelfModel {
         statuses[key] = .downloading(0)
         do {
             let fetched = try await fetcher.fetch(entry) { [weak self] fraction in
+                // Each update is its own task and they may run out of order, so the bar only moves forward.
                 Task { @MainActor in
-                    if case .downloading = self?.statuses[key] { self?.statuses[key] = .downloading(fraction) }
+                    if case .downloading(let shown) = self?.statuses[key], fraction > shown {
+                        self?.statuses[key] = .downloading(fraction)
+                    }
                 }
             }
             let record = try await commit(entry, fetched: fetched)
@@ -114,7 +117,7 @@ final class ShelfModel {
     private func commit(_ entry: LoRAShelfEntry, fetched: ShelfFetched) async throws -> LoRARecord {
         let variant: String?
         do {
-            switch registry.classifyLoRA(tensors: try Self.headerShapes(of: fetched.stagedURL)) {
+            switch registry.classifyLoRA(tensors: try SafetensorsHeader.readContents(of: fetched.stagedURL).shapes) {
             case .family(let id, let matched) where id == entry.family: variant = matched
             default: throw ShelfFetchError.failed("This file does not fit the \(entry.family) models, so it was not added.")
             }
@@ -122,7 +125,7 @@ final class ShelfModel {
             try? FileManager.default.removeItem(at: fetched.stagedURL)
             throw error
         }
-        let name = entry.filename.replacingOccurrences(of: ".safetensors", with: "")
+        let name = entry.displayName
         let outcome: LoRAImportOutcome
         switch entry.source.kind {
         case .civitai:
@@ -146,20 +149,11 @@ final class ShelfModel {
         case .added(let record), .restored(let record), .duplicate(let record): return record
         }
     }
+}
 
-    /// The tensor shapes of a staged file, read from its prefix without trusting the `.partial` extension.
-    private static func headerShapes(of url: URL) throws -> [String: [Int]] {
-        let handle = try FileHandle(forReadingFrom: url)
-        defer { try? handle.close() }
-        let total = try handle.seekToEnd()
-        try handle.seek(toOffset: 0)
-        guard let prefix = try handle.read(upToCount: 8), prefix.count == 8 else {
-            throw ShelfFetchError.failed("The downloaded file is not a LoRA.")
-        }
-        let declared = prefix.enumerated().reduce(UInt64(0)) { $0 | UInt64($1.element) << UInt64(8 * $1.offset) }
-        guard declared <= SafetensorsHeader.maxHeaderLength, declared <= total - 8,
-            let header = try handle.read(upToCount: Int(declared))
-        else { throw ShelfFetchError.failed("The downloaded file is not a LoRA.") }
-        return try SafetensorsHeader.read(prefixAndHeader: prefix + header, totalFileSize: total).shapes
+extension LoRAShelfEntry {
+    /// The file name without its extension, which is what the library shows for the LoRA.
+    var displayName: String {
+        (filename as NSString).deletingPathExtension
     }
 }

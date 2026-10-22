@@ -75,7 +75,7 @@ public actor HuggingFaceLoRADownloader {
             endpoint: configuration.endpoint, connections: configuration.connections,
             minChunkBytes: configuration.minChunkBytes, stallTimeout: configuration.stallTimeout,
             maxStalls: configuration.maxStalls)
-        let session = Self.makeSession(userAgent: configuration.userAgent)
+        let session = ModelDownloader.makeSession(userAgent: configuration.userAgent)
         self.session = session
         files = FileDownloader(session: session, configuration: transfer)
     }
@@ -86,11 +86,8 @@ public actor HuggingFaceLoRADownloader {
 
     /// The resolve URL for `request`: `<endpoint>/<repo>/resolve/<revision>/<file>`.
     public nonisolated func resolveURL(for request: Request) -> URL {
-        var url = configuration.endpoint
-        for part in request.repo.split(separator: "/") { url = url.appending(path: String(part)) }
-        url = url.appending(path: "resolve").appending(path: request.revision)
-        for part in request.file.split(separator: "/") { url = url.appending(path: String(part)) }
-        return url
+        ModelDownloader.resolveURL(
+            endpoint: configuration.endpoint, repo: request.repo, revision: request.revision, path: request.file)
     }
 
     /// Downloads `request` into the staging folder, verifies its SHA-256 and returns the staged file's URL.
@@ -114,10 +111,10 @@ public actor HuggingFaceLoRADownloader {
         // appears under a staged name, so the commit that would write its row is never reached.
         let actual: String
         do {
-            actual = try Sha256File.hex(of: partial)
+            actual = try ModelDownloader.sha256(partial)
         } catch {
             FileAttempt.discard(partial)
-            throw InstallError.staging(reason: "reading \(name) failed: \(error.localizedDescription)")
+            throw error
         }
         guard actual == request.sha256.lowercased() else {
             FileAttempt.discard(partial)
@@ -142,18 +139,4 @@ public actor HuggingFaceLoRADownloader {
         return "\(request.sha256.lowercased().prefix(10))-\(name)"
     }
 
-    /// Ephemeral session: no cookies, no cache, one fixed user agent (KTD20).
-    private static func makeSession(userAgent: String) -> URLSession {
-        let config = URLSessionConfiguration.ephemeral
-        config.httpCookieStorage = nil
-        config.httpShouldSetCookies = false
-        config.httpCookieAcceptPolicy = .never
-        config.urlCache = nil
-        config.requestCachePolicy = .reloadIgnoringLocalCacheData
-        config.httpAdditionalHeaders = ["User-Agent": userAgent]
-        config.timeoutIntervalForRequest = 60
-        config.timeoutIntervalForResource = 7200
-        config.httpMaximumConnectionsPerHost = Chunking.maxConnections + 4
-        return URLSession(configuration: config)
-    }
 }

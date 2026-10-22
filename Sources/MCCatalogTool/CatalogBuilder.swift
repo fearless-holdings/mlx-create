@@ -184,10 +184,11 @@ enum CatalogDiff {
         return lines + shelfLines(previous: previous, next: next)
     }
 
-    /// An entry is identified by family, role and whether it is always-on, so flipping `always_on` reads as a
-    /// removal plus an addition rather than a silent edit.
+    /// An entry is identified by family, role and whether it is always-on, so flipping `always_on` reads as a removal plus an
+    /// addition rather than a silent edit. A family may carry several always-on entries under one role, so their hash is
+    /// part of the identity: changing or dropping one then reads as its own removal and addition, never as another's edit.
     private static func shelfKey(_ entry: LoRAShelfEntry) -> String {
-        "\(entry.family)\u{0}\(entry.role)\u{0}\(entry.alwaysOn)"
+        "\(entry.family)\u{0}\(entry.role)\u{0}\(entry.alwaysOn)" + (entry.alwaysOn ? "\u{0}\(entry.sha256)" : "")
     }
 
     private static func shelfName(_ entry: LoRAShelfEntry) -> String {

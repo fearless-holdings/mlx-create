@@ -189,6 +189,26 @@ enum BuildFixture {
         #expect(lines == ["~ shelf flux2-klein/anatomy tested_scale 0.85 -> 0.7"])
     }
 
+    /// Two always-on entries share a family and role. Changing one reads as its own removal and addition, and dropping one
+    /// is never hidden behind its sibling (the diff is the only gate before signing).
+    @Test func alwaysOnEntriesOfOneRoleAreDiffedByHash() async throws {
+        func entry(_ hash: Character) -> String {
+            BuildFixture.shelfEntryJSON
+                .replacingOccurrences(of: "\"always_on\": false", with: "\"always_on\": true")
+                .replacingOccurrences(
+                    of: String(repeating: "a", count: 64), with: String(repeating: hash, count: 64))
+        }
+        let before = try await CatalogBuilder(hub: BuildFixture.hub())
+            .build(source: try BuildFixture.sourceWithShelf(entry: "\(entry("a")), \(entry("b"))"), previous: nil)
+        let after = try await CatalogBuilder(hub: BuildFixture.hub())
+            .build(source: try BuildFixture.sourceWithShelf(entry: "\(entry("a")), \(entry("c"))"), previous: before.catalog)
+        let lines = CatalogDiff.lines(previous: before.catalog, next: after.catalog)
+        #expect(
+            lines.contains { $0.hasPrefix("+ shelf flux2-klein/anatomy (always-on)") && $0.hasSuffix(String(repeating: "c", count: 64)) })
+        #expect(lines.contains("- shelf flux2-klein/anatomy (always-on)"))
+        #expect(lines.contains { $0.hasPrefix("~") && $0.contains("shelf") } == false)
+    }
+
     @Test func downloadedSizeMismatchFails() async throws {
         let builder = CatalogBuilder(hub: try BuildFixture.hub(config: Data("{}}".utf8)))
         do {

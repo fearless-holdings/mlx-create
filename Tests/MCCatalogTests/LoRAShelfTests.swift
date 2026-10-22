@@ -110,14 +110,18 @@ import Testing
     }
 
     @Test func duplicateShelfEntryForOneRoleIsRejected() throws {
-        expectInvalid(try CatalogFixture.catalogJSON(shelf: [CatalogFixture.shelfEntry(), CatalogFixture.shelfEntry()]))
+        let shelf = [
+            CatalogFixture.shelfEntry(),
+            CatalogFixture.shelfEntry(sha256: String(repeating: "b", count: 64)),
+        ]
+        expectInvalid(try CatalogFixture.catalogJSON(shelf: shelf))
     }
 
     /// Several always-on entries of one family are allowed past the one-per-role rule.
     @Test func alwaysOnEntriesAreExemptFromTheRoleRule() throws {
         let shelf = [
-            CatalogFixture.shelfEntry(role: "refusal", alwaysOn: true),
-            CatalogFixture.shelfEntry(role: "refusal", alwaysOn: true),
+            CatalogFixture.shelfEntry(role: "refusal", sha256: String(repeating: "a", count: 64), alwaysOn: true),
+            CatalogFixture.shelfEntry(role: "refusal", sha256: String(repeating: "b", count: 64), alwaysOn: true),
         ]
         let catalog = try Catalog.decodeValidated(CatalogFixture.catalogJSON(shelf: shelf))
         #expect(catalog.loraShelf.allSatisfy { $0.alwaysOn })
@@ -127,9 +131,23 @@ import Testing
         expectInvalid(try CatalogFixture.catalogJSON(shelf: [CatalogFixture.shelfEntry(sha256: "")]))
     }
 
-    @Test(arguments: [0.0, -0.85])
-    func nonPositiveTestedScaleIsRejected(scale: Double) throws {
+    @Test(arguments: [0.0, -0.85, 20.5])
+    func aTestedScaleOutsideTheEnginesRangeIsRejected(scale: Double) throws {
         expectInvalid(try CatalogFixture.catalogJSON(shelf: [CatalogFixture.shelfEntry(testedScale: scale)]))
+    }
+
+    @Test(arguments: [0, -1])
+    func aNonPositiveSizeIsRejected(size: Int) throws {
+        expectInvalid(try CatalogFixture.catalogJSON(shelf: [CatalogFixture.shelfEntry(sizeBytes: size)]))
+    }
+
+    /// The shelf keys its rows and downloads on the hash, so one hash cannot stand for two entries.
+    @Test func twoEntriesWithOneHashAreRejected() throws {
+        let shelf = [
+            CatalogFixture.shelfEntry(role: "anatomy"),
+            CatalogFixture.shelfEntry(role: "style"),
+        ]
+        expectInvalid(try CatalogFixture.catalogJSON(shelf: shelf))
     }
 
     // MARK: Helpers

@@ -41,7 +41,6 @@ KEY_ENV = "MLXC_ENGINE_KEY"
 NO_MODULES = "no modules matching"
 # The order the verdict lists its checks in, and the order a reason is chosen from.
 CHECK_ORDER = ["header_fit", "engine_load", "reproducible", "strength_zero"]
-TRAILING_PUNCTUATION = ".,;:!?)\"'"
 
 
 def free_port():
@@ -72,12 +71,11 @@ def stable_id(candidate, sha):
     return f"sha256-{sha[:12]}"
 
 
-def _scrub_token(token):
-    """An absolute path becomes its last component; its trailing punctuation survives."""
-    core = token.rstrip(TRAILING_PUNCTUATION)
-    if not core.startswith("/"):
-        return token
-    return os.path.basename(core) + token[len(core) :]
+# An absolute path, with or without `file://`, up to and including its last directory separator, so only the file name is
+# left. Directory names may hold spaces and the path may sit inside quotes or after `key=`, so the match runs to the
+# nearest quote, bracket or line end. A URL is left alone: its `//` and `:` are not a path start. Over-scrubbing free
+# text that happens to hold a slash is the safe error here.
+ABSOLUTE_PATH = re.compile(r"(?<![\w./:])(?:file://)?/(?:[^/'\"<>()\n]+/)*")
 
 
 def scrub(value):
@@ -87,7 +85,7 @@ def scrub(value):
     if isinstance(value, list):
         return [scrub(item) for item in value]
     if isinstance(value, str):
-        return " ".join(_scrub_token(token) for token in value.split(" "))
+        return ABSOLUTE_PATH.sub("", value)
     return value
 
 
@@ -573,6 +571,15 @@ def self_check():
     assert cleaned["path"] == "personal-name.safetensors", cleaned["path"]
     assert cleaned["checks"]["engine_load"]["reason"] == "rejected model.safetensors: no modules matching"
     assert cleaned["scratch"] == ["x.png"]
+    for text, kept in [
+        ("failed '/Users/someone/x/lora.safetensors'", "failed 'lora.safetensors'"),
+        ("path=/Users/someone/x/lora.safetensors", "path=lora.safetensors"),
+        ("(/Applications/Data/Models/lora.safetensors)", "(lora.safetensors)"),
+        ("file:///Users/someone/x/lora.safetensors", "lora.safetensors"),
+        ("/Users/someone/My Models/lora.safetensors", "lora.safetensors"),
+        ("see https://civitai.com/api/v1/models/1", "see https://civitai.com/api/v1/models/1"),
+    ]:
+        assert scrub(text) == kept, (text, scrub(text))
     assert stable_id({"public": {"model_id": 2775340, "version_id": 3359022}}, "ab" * 32) == "civitai-2775340-3359022"
     assert stable_id({"public": {"repo": "org/name", "file": "a/b.safetensors"}}, "ab" * 32) == "hf-org-name-a-b-safetensors"
     assert stable_id({"public": {}}, "abcdef0123456789" + "0" * 48) == "sha256-abcdef012345"

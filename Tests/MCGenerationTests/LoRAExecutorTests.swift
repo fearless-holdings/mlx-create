@@ -108,7 +108,32 @@ struct LoRAExecutorTests {
         #expect(harness.requests(to: "v1/images/generations").isEmpty)
     }
 
-    @Test func aJobCarryingMoreLoRAsThanTheFamilysCapFailsBeforeTheEngineIsAsked() async throws {
+    /// A stack the engine itself would refuse fails with the plain limit, which says nothing about always-on LoRAs.
+    @Test func aJobCarryingMoreLoRAsThanTheEngineAcceptsFailsBeforeTheEngineIsAsked() async throws {
+        let harness = try await Harness.make(script: Self.fakeImage)
+        let alwaysOn = try await harness.installLoRA(name: "Always on")
+        try await harness.store.setAlwaysOn(id: alwaysOn.id, scale: 0.6)
+        var entries: [LoRAStackEntry] = []
+        for number in 1...9 {
+            entries.append(try await harness.installLoRA(name: "Style \(number)"))
+        }
+        let job = try await harness.insertQueuedJobSkippingChecks(
+            JobRequest(
+                modelID: kreaModel, family: "krea-2", prompt: "a lighthouse at dusk", width: 512, height: 512, steps: 4,
+                loras: entries))
+
+        try await harness.executor.drain()
+
+        let failed = try #require(try await harness.store.jobs(status: .failed).first)
+        #expect(failed.id == job.id)
+        let failure = try #require(failed.failure)
+        #expect(failure.message.contains("at most 8"))
+        #expect(failure.retryable == false)
+        #expect(harness.requests(to: "v1/images/generations").isEmpty)
+    }
+
+    /// R13: an always-on LoRA never blocks a job. A full stack, queued before the always-on row existed, runs without it.
+    @Test func aFullStackRunsWithoutTheAlwaysOnLoRAThatNoLongerFits() async throws {
         let harness = try await Harness.make(script: Self.fakeImage)
         let alwaysOn = try await harness.installLoRA(name: "Always on")
         try await harness.store.setAlwaysOn(id: alwaysOn.id, scale: 0.6)
@@ -123,12 +148,10 @@ struct LoRAExecutorTests {
 
         try await harness.executor.drain()
 
-        let failed = try #require(try await harness.store.jobs(status: .failed).first)
-        #expect(failed.id == job.id)
-        let failure = try #require(failed.failure)
-        #expect(failure.message.contains("7"))
-        #expect(failure.retryable == false)
-        #expect(harness.requests(to: "v1/images/generations").isEmpty)
+        #expect(try await harness.store.savedImageCount(jobID: job.id) == 1)
+        let body = try #require(harness.requests(to: "v1/images/generations").first?.body)
+        let sent = try #require(try JSONSerialization.jsonObject(with: Data(body.utf8)) as? [String: Any])
+        #expect((sent["lora_paths"] as? [String])?.count == 8)
     }
 
     /// D44: the engine gets the always-on file and scale, and nothing in the saved image names it.
@@ -157,7 +180,11 @@ struct LoRAExecutorTests {
         #expect(try await harness.store.savedImageCount(jobID: job.id) == 1)
         let png = try Data(contentsOf: await harness.store.paths.url(relativePath: image.filePath))
         let text = String(decoding: png, as: UTF8.self)
-        #expect(text.contains(hidden.sha256) == false)
+        // The user's LoRA is in the PNG, so the absence of the hidden one proves something. The A1111 field carries the
+        // first ten hex digits of a hash, not the whole hash.
+        #expect(text.contains("Pixel art"))
+        #expect(text.contains(String(user.sha256.prefix(10))))
+        #expect(text.contains(String(hidden.sha256.prefix(10))) == false)
         #expect(text.contains("Hidden one") == false)
     }
 

@@ -10,7 +10,7 @@ extension AppModel {
     // MARK: Derived state
 
     /// The selected model's family, when the selected model can drive generations.
-    private var loraFamily: ModelFamily? {
+    var loraFamily: ModelFamily? {
         guard let model = selectedModel, ModelSelection.isSelectable(model) else { return nil }
         return model.family
     }
@@ -252,9 +252,7 @@ extension AppModel {
             loraNotice = "A job can use up to \(capacity) LoRAs. Remove one to add another."
             return
         }
-        let wide = abs(weight) > LoRAStackRules.narrowRange.upperBound
-        loraSlots.append(
-            LoRAStackSlot(id: id, weight: LoRAStackRules.clamped(weight, wide: wide), isEnabled: true, wideRange: wide))
+        loraSlots.append(LoRAStackSlot(id: id, requestedWeight: weight))
         loraNotice = nil
     }
 
@@ -363,10 +361,7 @@ extension AppModel {
                 continue
             }
             guard !slots.contains(where: { $0.id == record.id }) else { continue }
-            let wide = abs(entry.weight) > LoRAStackRules.narrowRange.upperBound
-            slots.append(
-                LoRAStackSlot(
-                    id: record.id, weight: LoRAStackRules.clamped(entry.weight, wide: wide), isEnabled: true, wideRange: wide))
+            slots.append(LoRAStackSlot(id: record.id, requestedWeight: entry.weight))
         }
         var notes: [String] = []
         let capacity = loraCapacity
