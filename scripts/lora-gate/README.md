@@ -102,6 +102,12 @@ Every string is passed through `scrub`, which turns any absolute path into its l
 
 `contact_sheet.py --plan PLAN.json ...` renders the evidence for decision points 2 to 4: prompts down, variants across, as images plus an `index.html` in the scratch directory. A sheet with two variants and `"blind": true` hides the labels behind A and B, shuffles the order per prompt, and writes the answer to `key.json` beside it, for the refusal-drop and no-regression checks (R12). The plan names local paths, so keep it outside the repo. Images already rendered are kept, so an interrupted run resumes. Scratch output is the author's to look at and never goes in the repo (R23).
 
+What makes a sheet worth judging (learned from the first round, where generic prompts and low scales showed nothing):
+
+- **Prompts the LoRA was made for.** A sheet may carry its own `"prompts": [{"id", "text", "seed"}]` instead of `prompt_set`. Take them from the LoRA's most-reacted gallery images (`images?modelVersionId=ID&sort=Most Reactions&withMeta=true`; without `withMeta` the API returns no prompts), strip `<lora:...>` tags, and drop anything that is not unambiguously adult. They are scratch data: never commit them.
+- **Trigger words.** A variant's `"prefix"` is prepended to the prompt for that variant only, the way the app sends a LoRA's trigger words. Read `trainedWords` from the version record and the description for the rest. Baseline gets no prefix.
+- **The author's own scale range.** Read the description for recommended weights before choosing a sweep. They vary from 0.3 to 20 (sliders), and a sweep at 0.5 to 1.0 shows nothing for most of them. Use four scales spanning the stated range, plus a negative one for sliders.
+
 ## Self-check
 
 `python3 scripts/lora-gate/run_gate.py --self-check` runs the offline checks on `scrub` and the id rules. It starts no engine and reads no files.

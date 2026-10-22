@@ -32,13 +32,16 @@ import run_gate  # noqa: E402  (shares the engine launch and the request shape w
 
 
 def prompts_for(sheet):
+    """A sheet names prompts inline (`prompts`: id, text, seed) or picks ids from a prompt set file."""
+    if sheet.get("prompts"):
+        return sheet["prompts"]
     with open(os.path.join(HERE, "prompts", sheet["prompt_set"] + ".json")) as handle:
         entries = {entry["id"]: entry for entry in json.load(handle)["prompts"]}
     return [entries[prompt_id] for prompt_id in sheet["prompt_ids"]]
 
 
 def image_name(prompt, offset, variant):
-    digest = hashlib.sha256(json.dumps(variant["loras"], sort_keys=True).encode()).hexdigest()[:10]
+    digest = hashlib.sha256(json.dumps([variant["loras"], variant.get("prefix", "")], sort_keys=True).encode()).hexdigest()[:10]
     return f"{prompt['id']}-s{offset}-{digest}.png"
 
 
@@ -55,10 +58,11 @@ def render(sheet, context, directory):
                 if os.path.exists(path):
                     continue
                 loras = variant["loras"]
+                prompt_text = (variant.get("prefix", "") + " " + prompt["text"]).strip()
                 png = run_gate.generate(
                     context["port"],
                     context["key"],
-                    prompt["text"],
+                    prompt_text,
                     dict(context, seed=int(prompt["seed"]) + offset),
                     [entry["path"] for entry in loras] or None,
                     [float(entry["scale"]) for entry in loras] or None,
