@@ -50,6 +50,8 @@ Free memory first: the engine's preflight rejects a request when the model does 
 
 **InvokeAI PNGs** (`--png-dir`) are read for one thing: the `invokeai_metadata` tEXt chunk's `loras[].model.name`, counted per name. The name and the count stay harness-internal; the verdict carries the number only (R23).
 
+InvokeAI records the label you gave a LoRA, not its Civitai name, and a blake3 hash that no Civitai tool publishes, so usage matches by name only when the label equals the Civitai `ModelName` (case aside). Treat `usage_count` as a lower bound and fill the gaps from your own history when you judge. PNGs are found in any subfolder. A sibling `.cm-info.json` is read with its keys in any case (`ModelId` and `modelId` both work).
+
 ## Checks
 
 | Check | Passes when | Fails when |
@@ -92,9 +94,13 @@ Every string is passed through `scrub`, which turns any absolute path into its l
 
 ## Not in this harness
 
-- Human judging, contact sheets and shelf entries. U3 prepares that evidence and the author records the decision.
+- Human judging and shelf entries. The author records the decision. `contact_sheet.py` prepares the evidence (below).
 - Downloads. Candidates are files obtained beforehand; the app's own download path is a separate unit (U5).
-- The R12 before/after comparison. `prompts/refusal-prone.json` is a placeholder that stays empty until the author approves the real set at U3 decision point 1.
+- The R12 scoring. `prompts/refusal-prone.json` holds the draft prompt set; the author rates the blind pairs.
+
+## Contact sheets
+
+`contact_sheet.py --plan PLAN.json ...` renders the evidence for decision points 2 to 4: prompts down, variants across, as images plus an `index.html` in the scratch directory. A sheet with two variants and `"blind": true` hides the labels behind A and B, shuffles the order per prompt, and writes the answer to `key.json` beside it, for the refusal-drop and no-regression checks (R12). The plan names local paths, so keep it outside the repo. Images already rendered are kept, so an interrupted run resumes. Scratch output is the author's to look at and never goes in the repo (R23).
 
 ## Self-check
 

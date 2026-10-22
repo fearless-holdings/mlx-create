@@ -106,9 +106,11 @@ def candidate_from_entry(entry):
 
 
 def first_key(mapping, *keys):
+    """The first non-empty value under any of `keys`, ignoring case: Civitai tools write `ModelId`, others `modelId`."""
+    lowered = {str(key).lower(): value for key, value in mapping.items()}
     for key in keys:
-        if mapping.get(key):
-            return mapping[key]
+        if lowered.get(key.lower()):
+            return lowered[key.lower()]
     return None
 
 
@@ -176,10 +178,14 @@ def usage_counts(png_dir):
     counts = {}
     if not png_dir or not os.path.isdir(png_dir):
         return counts
-    for name in sorted(os.listdir(png_dir)):
-        if not name.lower().endswith(".png"):
-            continue
-        for keyword, text in png_text_chunks(os.path.join(png_dir, name)):
+    pngs = sorted(
+        os.path.join(root, name)
+        for root, _, names in os.walk(png_dir)
+        for name in names
+        if name.lower().endswith(".png")
+    )
+    for path in pngs:
+        for keyword, text in png_text_chunks(path):
             if keyword != "invokeai_metadata":
                 continue
             try:
