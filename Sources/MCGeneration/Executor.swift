@@ -18,8 +18,6 @@ public actor JobExecutor {
     private let hub: ExecutorEventHub
     private let crashKind: @Sendable () async -> EngineCrash?
     private let engineVersion: String?
-    /// How many always-on LoRAs a family applies, which lowers its per-request cap (R10).
-    private let alwaysOnLoRACount: @Sendable (String) -> Int
     private var rng = SystemRandomNumberGenerator()
     var currentJobID: UUID?
     /// Held by an Enhance lease (KTD5). While it is set, `drain` claims no job and model switches wait for its release.
@@ -45,8 +43,6 @@ public actor JobExecutor {
     /// `engineVersion` is the pinned engine's version, written into each saved image's settings.
     /// `modelsRoot` is the Models root that each job's LoRA paths resolve against (KTD6).
     /// `memoryTier` decides how an Enhance lease shares engine residency with the image model (KTD5).
-    /// `alwaysOnLoRACount` answers how many LoRAs a family applies on the app's behalf, which the engine counts against its
-    /// per-request limit (R10). It answers 0 until always-on supply ships (U8).
     public init(
         store: LibraryStore,
         modelsRoot: URL,
@@ -54,8 +50,7 @@ public actor JobExecutor {
         queue: JobQueue,
         crashKind: @escaping @Sendable () async -> EngineCrash? = { nil },
         engineVersion: String? = nil,
-        memoryTier: MemoryTier = .current,
-        alwaysOnLoRACount: @escaping @Sendable (String) -> Int = { _ in 0 }
+        memoryTier: MemoryTier = .current
     ) {
         self.store = store
         self.modelsRoot = modelsRoot
@@ -65,7 +60,6 @@ public actor JobExecutor {
         self.crashKind = crashKind
         self.engineVersion = engineVersion
         self.memoryTier = memoryTier
-        self.alwaysOnLoRACount = alwaysOnLoRACount
     }
 
     /// Starts draining the queue in the background. Calling it while a drain is running does nothing, so
@@ -200,9 +194,12 @@ public actor JobExecutor {
         let seed = policy.seed(savedCount: savedCount, using: &rng)
         // KTD6: every LoRA frozen into the job must still be the file that was imported, or the job fails before the engine is asked.
         let loras = job.request.loras ?? []
-        // R10: the family's always-on LoRAs share the engine's limit with the stack, so an over-cap job fails here rather
-        // than sending the engine more LoRAs than it accepts.
-        let loraLimit = GenerationComposer.maxLoRAs(alwaysOnCount: alwaysOnLoRACount(job.request.family))
+        // D44: the family's always-on LoRAs join the engine request here and nowhere else. They never enter the job's request or
+        // the saved settings below, so nothing about them reaches the PNG, the gallery or drop-to-restore.
+        let alwaysOn = try await alwaysOnFiles(family: job.request.family)
+        // R10: the always-on LoRAs share the engine's limit with the stack, so an over-cap job fails here rather than sending
+        // the engine more LoRAs than it accepts.
+        let loraLimit = GenerationComposer.maxLoRAs(alwaysOnCount: alwaysOn.count)
         guard loras.count <= loraLimit else {
             throw ExecutorError.loraLimitExceeded(count: loras.count, limit: loraLimit, modelID: job.request.modelID)
         }
@@ -210,7 +207,7 @@ public actor JobExecutor {
         for entry in loras {
             loraFiles.append(try await loraFile(for: entry, modelID: job.request.modelID))
         }
-        let request = ImageRequest(
+        let userRequest = ImageRequest(
             model: job.request.modelID,
             prompt: job.request.prompt,
             negativePrompt: job.request.negativePrompt,
@@ -222,26 +219,43 @@ public actor JobExecutor {
             loraPaths: loras.isEmpty ? nil : loraFiles.map(\.path),
             loraScales: loras.isEmpty ? nil : loras.map(\.weight)
         )
+        var combined = userRequest
+        if !alwaysOn.isEmpty {
+            combined.loraPaths = loraFiles.map(\.path) + alwaysOn.map(\.file.path)
+            combined.loraScales = loras.map(\.weight) + alwaysOn.map(\.scale)
+        }
+        let fullRequest = combined
         let client = client
         let hub = hub
         let jobID = job.id
         let modelID = job.request.modelID
+        let carriesAlwaysOn = !alwaysOn.isEmpty
         // The model switch and the stream share one task, so `cancel(_:)` also reaches a wait for the engine or a load.
         let task = Task { () throws -> (png: Data, total: Int?) in
             try await self.makeResident(modelID, for: jobID)
-            var png: Data?
-            var total: Int?
-            for try await event in client.generateImage(request) {
-                switch event {
-                case .progress(let step, let stepTotal, _):
-                    total = stepTotal
-                    hub.send(.progress(jobID: jobID, step: step, total: stepTotal))
-                case .completed(let data):
-                    png = data
+            func stream(_ request: ImageRequest) async throws -> (png: Data, total: Int?) {
+                var png: Data?
+                var total: Int?
+                for try await event in client.generateImage(request) {
+                    switch event {
+                    case .progress(let step, let stepTotal, _):
+                        total = stepTotal
+                        hub.send(.progress(jobID: jobID, step: step, total: stepTotal))
+                    case .completed(let data):
+                        png = data
+                    }
                 }
+                guard let png else { throw EngineError.streamEndedWithoutComplete }
+                return (png, total)
             }
-            guard let png else { throw EngineError.streamEndedWithoutComplete }
-            return (png, total)
+            do {
+                return try await stream(fullRequest)
+            } catch EngineError.loraRejected where carriesAlwaysOn {
+                // R13: an always-on LoRA the engine cannot apply must never block an image. Retry once without them. A second
+                // rejection is the user's own LoRA and fails the job with its usual copy. The log names nothing.
+                Self.log.notice("engine rejected the LoRA set; retrying once without the always-on LoRAs")
+                return try await stream(userRequest)
+            }
         }
         active = task
         defer { active = nil }
@@ -288,6 +302,21 @@ public actor JobExecutor {
             throw ExecutorError.loraChanged(name: entry.name, modelID: modelID)
         }
         return file
+    }
+
+    /// The files and scales of `family`'s always-on LoRAs that are on disk and unchanged in size. A row whose file is missing
+    /// or changed is skipped, because an always-on LoRA never blocks a job (R13).
+    private func alwaysOnFiles(family: String) async throws -> [(file: URL, scale: Double)] {
+        var files: [(file: URL, scale: Double)] = []
+        for record in try await store.alwaysOnLoRAs(family: family) {
+            guard let scale = record.alwaysOnScale,
+                let file = LibraryPaths.loraURL(relativePath: record.relativePath, modelsRoot: modelsRoot),
+                FileManager.default.fileExists(atPath: file.path),
+                (try? FileManager.default.attributesOfItem(atPath: file.path)[.size] as? NSNumber)?.int64Value == record.sizeBytes
+            else { continue }
+            files.append((file, scale))
+        }
+        return files
     }
 
     /// Makes the job's model resident before its stream starts, unless the job was cancelled first. It uses `switchModel`,

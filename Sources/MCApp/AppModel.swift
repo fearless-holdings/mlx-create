@@ -139,9 +139,11 @@ public final class AppModel {
     var loraMissingFileIDs: Set<String> = []
     /// The tier the LoRA memory hint reads. The app keeps the current tier; tests set another.
     var loraMemoryTier = MemoryTier.current
-    /// How many always-on LoRAs a family applies to every generation, which lowers that family's stack cap (R10).
-    /// Injected so tests can set it; it answers 0 until the library supplies the real count (U8).
+    /// How many always-on LoRAs a family applies to every generation, which lowers that family's stack cap (R10). It reads
+    /// the counts `refreshLoRALibrary` caches from the library; tests replace it.
     @ObservationIgnored var alwaysOnLoRACount: @MainActor (String) -> Int = { _ in 0 }
+    /// The library's always-on row count per family, refreshed with the LoRA library.
+    @ObservationIgnored var alwaysOnCounts: [String: Int] = [:]
     /// A neutral one-line note about the stack, for example LoRAs a reuse left out.
     var loraNotice: String?
     var isLoRALibraryPresented = false
@@ -240,6 +242,7 @@ public final class AppModel {
             libraryChanged: { [weak self] in
                 if let self { await self.refreshLoRALibrary() }
             })
+        alwaysOnLoRACount = { [weak self] family in self?.alwaysOnCounts[family] ?? 0 }
     }
 
     /// The production app: the bundled engine, the library and queue in Application Support, and the bundled registry.

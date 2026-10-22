@@ -344,10 +344,37 @@ extension LibraryStore {
 
     // MARK: Listing and paths
 
-    /// Every LoRA row, by name. A row whose file is missing is still listed; check ``loraFileExists(_:)``.
+    /// Every user-visible LoRA row, by name. Always-on rows (D44) are never listed. A row whose file is missing is still
+    /// listed; check ``loraFileExists(_:)``.
     public func loras() throws -> [LoRARecord] {
         try dbQueue.read { (db: Database) throws -> [LoRARecord] in
-            try LoRARecord.order(Column("name"), Column("id")).fetchAll(db)
+            try LoRARecord.filter(Column("always_on_scale") == nil).order(Column("name"), Column("id")).fetchAll(db)
+        }
+    }
+
+    /// The always-on rows of `family`, oldest first. Only the executor and the app's cap arithmetic read these.
+    public func alwaysOnLoRAs(family: String) throws -> [LoRARecord] {
+        try dbQueue.read { (db: Database) throws -> [LoRARecord] in
+            try LoRARecord.filter(Column("always_on_scale") != nil && Column("family") == family)
+                .order(Column("created_at"), Column("id")).fetchAll(db)
+        }
+    }
+
+    /// How many always-on rows each family has.
+    public func alwaysOnLoRACounts() throws -> [String: Int] {
+        try dbQueue.read { (db: Database) throws -> [String: Int] in
+            let rows = try Row.fetchAll(
+                db, sql: "SELECT family, COUNT(*) AS n FROM lora WHERE always_on_scale IS NOT NULL GROUP BY family")
+            return Dictionary(uniqueKeysWithValues: rows.map { ($0["family"] as String, $0["n"] as Int) })
+        }
+    }
+
+    /// Marks a LoRA always-on at `scale`, or makes it an ordinary LoRA again with nil. An always-on row leaves every list.
+    public func setAlwaysOn(id: String, scale: Double?) throws {
+        try dbQueue.write { (db: Database) throws -> Void in
+            guard var row = try LoRARecord.fetchOne(db, key: id) else { throw LibraryError.notFound }
+            row.alwaysOnScale = scale
+            try row.update(db)
         }
     }
 
@@ -368,10 +395,10 @@ extension LibraryStore {
         try dbQueue.read { (db: Database) throws -> LoRARecord? in try LoRARecord.fetchOne(db, key: id) }
     }
 
-    /// Total bytes of every LoRA row.
+    /// Total bytes of every user-visible LoRA row.
     public func loraTotalBytes() throws -> Int64 {
         try dbQueue.read { (db: Database) throws -> Int64 in
-            try Int64.fetchOne(db, sql: "SELECT COALESCE(SUM(size_bytes), 0) FROM lora") ?? 0
+            try Int64.fetchOne(db, sql: "SELECT COALESCE(SUM(size_bytes), 0) FROM lora WHERE always_on_scale IS NULL") ?? 0
         }
     }
 
@@ -425,7 +452,7 @@ extension LibraryStore {
     /// still name the LoRA; those images keep their settings, and reuse drops the LoRA with a notice.
     public func deleteLoRA(id: String) throws -> Int {
         try dbQueue.write { (db: Database) throws -> Int in
-            guard let row = try LoRARecord.fetchOne(db, key: id) else { throw LibraryError.notFound }
+            guard let row = try LoRARecord.fetchOne(db, key: id), row.alwaysOnScale == nil else { throw LibraryError.notFound }
             let blocking = try Self.blockingJobCount(id: id, db: db)
             guard blocking == 0 else { throw LoRADeleteError.inUseByJob(count: blocking) }
             let usage = try Self.imageCount(sha256: row.sha256, db: db)

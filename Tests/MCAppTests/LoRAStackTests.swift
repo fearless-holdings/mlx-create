@@ -386,6 +386,28 @@ private func saveLoRAImage(_ harness: AppHarness, prompt: String, loras: [ImageL
         #expect(model.loraNotice?.contains("7") == true)
     }
 
+    /// D44: a library row marked always-on leaves the library list and lowers the family's cap, with no injected count.
+    @Test func anAlwaysOnLibraryRowIsHiddenFromTheListAndLowersTheCap() async throws {
+        let harness = try await AppHarness.make()
+        let model = await readyModel(harness)
+        let hidden = try await importLoRA(harness, .krea, name: "Hidden one")
+        try await harness.store.setAlwaysOn(id: hidden.id, scale: 0.6)
+        var records: [LoRARecord] = []
+        for number in 1...8 {
+            records.append(try await importLoRA(harness, .krea, name: "Style \(number)"))
+        }
+        await model.refreshLoRALibrary()
+
+        #expect(model.loraLibrary.contains { $0.id == hidden.id } == false)
+        #expect(model.loraLibrary.count == 8)
+        for record in records[0..<7] {
+            model.addToLoRAStack(id: record.id)
+        }
+        model.addToLoRAStack(id: records[7].id)
+        #expect(model.loraStack.count == 7)
+        #expect(model.loraNotice?.contains("7") == true)
+    }
+
     @Test func reuseWithMoreLoRAsThanTheCapKeepsTheFirstOnesAndSaysSo() async throws {
         let harness = try await AppHarness.make()
         let model = await readyModel(harness)

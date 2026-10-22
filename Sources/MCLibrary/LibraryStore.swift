@@ -193,6 +193,11 @@ public actor LibraryStore {
         }
         migrator.registerMigration("v8-prompt-history", migrate: Self.createPromptHistoryTable)
         migrator.registerMigration("v9-lora-source-kind", migrate: Self.migrateLoRASourceKind)
+        migrator.registerMigration("v10-lora-always-on") { db in
+            try db.alter(table: "lora") { t in
+                t.add(column: "always_on_scale", .double)
+            }
+        }
         return migrator
     }
 
