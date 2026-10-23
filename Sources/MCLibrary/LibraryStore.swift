@@ -198,6 +198,7 @@ public actor LibraryStore {
                 t.add(column: "always_on_scale", .double)
             }
         }
+        migrator.registerMigration("v11-timing", migrate: Self.createTimingTables)
         return migrator
     }
 
