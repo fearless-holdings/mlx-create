@@ -355,4 +355,85 @@ import Testing
             Issue.record("expected CatalogError, got \(error)", sourceLocation: sourceLocation)
         }
     }
+
+    /// Rebuilds the first base model with `timing` and `kind`. JSON cannot carry NaN or infinity, so the value-level
+    /// cases are built directly rather than decoded.
+    private func baseModel(
+        referenceTiming timing: ReferenceTiming?, kind: CatalogModelKind = .image
+    ) throws -> CatalogModel {
+        let model = try Catalog.decodeValidated(CatalogFixture.catalogJSON()).models[0]
+        return CatalogModel(
+            id: model.id, family: model.family, name: model.name, quantization: model.quantization,
+            repo: model.repo, revision: model.revision, downloadBytes: model.downloadBytes, ramGB: model.ramGB,
+            license: model.license, files: model.files, kind: kind, recommendRank: model.recommendRank,
+            referenceTiming: timing)
+    }
+
+    private func expectInvalidModel(_ model: CatalogModel, sourceLocation: SourceLocation = #_sourceLocation) {
+        do {
+            try model.validate()
+            Issue.record("model was accepted", sourceLocation: sourceLocation)
+        } catch let error as CatalogError {
+            guard case .invalid = error else {
+                Issue.record("expected invalid, got \(error)", sourceLocation: sourceLocation)
+                return
+            }
+        } catch {
+            Issue.record("expected CatalogError, got \(error)", sourceLocation: sourceLocation)
+        }
+    }
+
+    /// A reference timing decodes from `reference_timing` and survives a re-encode.
+    @Test func referenceTimingRoundTrips() throws {
+        let bytes = try CatalogFixture.catalogJSON(
+            edit: CatalogFixture.editModel { model in
+                model["recommend_rank"] = 2
+                model["reference_timing"] = ["width": 1024, "height": 1024, "steps": 4, "seconds": 9.5]
+            })
+        let catalog = try Catalog.decodeValidated(bytes)
+        let timing = try #require(catalog.models[0].referenceTiming)
+        #expect(timing == ReferenceTiming(width: 1024, height: 1024, steps: 4, seconds: 9.5))
+        let encoded = try JSONEncoder().encode(catalog.models[0])
+        let again = try JSONDecoder().decode(CatalogModel.self, from: encoded)
+        #expect(again.referenceTiming == timing)
+    }
+
+    /// A model without a timing writes no `reference_timing` key, so existing signed catalogs keep their bytes.
+    @Test func modelWithoutReferenceTimingWritesNoKey() throws {
+        let catalog = try Catalog.decodeValidated(CatalogFixture.catalogJSON())
+        #expect(catalog.models[0].referenceTiming == nil)
+        let encoded = try JSONEncoder().encode(catalog.models[0])
+        let object = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        #expect(object["reference_timing"] == nil)
+    }
+
+    @Test func validReferenceTimingIsAccepted() throws {
+        try baseModel(referenceTiming: ReferenceTiming(width: 1024, height: 1024, steps: 4, seconds: 9)).validate()
+    }
+
+    @Test func referenceTimingRejectsNonPositiveDimensionsAndSteps() throws {
+        let timings = [
+            ReferenceTiming(width: 0, height: 1024, steps: 4, seconds: 9),
+            ReferenceTiming(width: 1024, height: -1, steps: 4, seconds: 9),
+            ReferenceTiming(width: 1024, height: 1024, steps: 0, seconds: 9),
+        ]
+        for timing in timings {
+            expectInvalidModel(try baseModel(referenceTiming: timing))
+        }
+    }
+
+    @Test func referenceTimingRejectsNonPositiveAndNonFiniteSeconds() throws {
+        let seconds = [0, -1, Double.nan, Double.infinity, -Double.infinity]
+        for value in seconds {
+            expectInvalidModel(
+                try baseModel(referenceTiming: ReferenceTiming(width: 1024, height: 1024, steps: 4, seconds: value)))
+        }
+    }
+
+    /// Enhancers never carry a reference timing; the same enhancer without one is accepted.
+    @Test func referenceTimingRejectedOnEnhancerEntries() throws {
+        let timing = ReferenceTiming(width: 1024, height: 1024, steps: 4, seconds: 9)
+        expectInvalidModel(try baseModel(referenceTiming: timing, kind: .enhancer))
+        try baseModel(referenceTiming: nil, kind: .enhancer).validate()
+    }
 }

@@ -142,6 +142,17 @@ extension CatalogModel {
         if let recommendRank, recommendRank < 1 {
             throw CatalogError.invalid("recommend_rank for \(id) must be a positive integer")
         }
+        if let referenceTiming {
+            guard kind == .image else {
+                throw CatalogError.invalid("reference_timing for \(id) is allowed on image models only")
+            }
+            guard referenceTiming.width > 0, referenceTiming.height > 0, referenceTiming.steps > 0 else {
+                throw CatalogError.invalid("reference_timing for \(id) needs positive width, height and steps")
+            }
+            guard referenceTiming.seconds.isFinite, referenceTiming.seconds > 0 else {
+                throw CatalogError.invalid("reference_timing seconds for \(id) must be finite and positive")
+            }
+        }
 
         var seen = Set<String>()
         var total: Int64 = 0
