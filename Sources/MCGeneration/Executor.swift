@@ -18,9 +18,9 @@ public actor JobExecutor {
     private let modelsRoot: URL
     let client: EngineClient
     private let queue: JobQueue
-    private let hub: ExecutorEventHub
+    let hub: ExecutorEventHub
     private let crashKind: @Sendable () async -> EngineCrash?
-    private let engineVersion: String?
+    let engineVersion: String?
     private var rng = SystemRandomNumberGenerator()
     var currentJobID: UUID?
     /// Held by an Enhance lease (KTD5). While it is set, `drain` claims no job and model switches wait for its release.
@@ -36,6 +36,14 @@ public actor JobExecutor {
     private var drainTask: Task<Void, Never>?
     /// The most recent model switch. Each new switch waits for it, so unloads and loads never interleave.
     private var selectionTail: Task<Void, Error>?
+    /// Supplies the calibration targets (KTD9). The first is the calibration model; an empty list means none is due.
+    let calibrationTargets: @Sendable () async -> [CalibrationTarget]
+    /// The wait before the calibrator retries an out-of-memory load refusal (KTD3). Tests shorten it.
+    let calibrationRetryDelay: Duration
+    /// Set once this launch has tried calibration, whatever the outcome, so a failed run waits for the next launch (AE7).
+    var calibrationTriedThisLaunch = false
+    /// Set when `start()` runs during a drain, so the drain runs once more before it ends.
+    var pendingKick = false
 
     /// Each access returns a new stream of progress, saved-image and job-status events, including the
     /// status changes `JobQueue` makes.
@@ -46,6 +54,8 @@ public actor JobExecutor {
     /// `engineVersion` is the pinned engine's version, written into each saved image's settings.
     /// `modelsRoot` is the Models root that each job's LoRA paths resolve against (KTD6).
     /// `memoryTier` decides how an Enhance lease shares engine residency with the image model (KTD5).
+    /// `calibrationTargets` lists the models a calibration may time; the first is used (KTD9). `calibrationRetryDelay` is the
+    /// wait between out-of-memory load retries.
     public init(
         store: LibraryStore,
         modelsRoot: URL,
@@ -53,7 +63,9 @@ public actor JobExecutor {
         queue: JobQueue,
         crashKind: @escaping @Sendable () async -> EngineCrash? = { nil },
         engineVersion: String? = nil,
-        memoryTier: MemoryTier = .current
+        memoryTier: MemoryTier = .current,
+        calibrationTargets: @escaping @Sendable () async -> [CalibrationTarget] = { [] },
+        calibrationRetryDelay: Duration = .seconds(30)
     ) {
         self.store = store
         self.modelsRoot = modelsRoot
@@ -63,18 +75,27 @@ public actor JobExecutor {
         self.crashKind = crashKind
         self.engineVersion = engineVersion
         self.memoryTier = memoryTier
+        self.calibrationTargets = calibrationTargets
+        self.calibrationRetryDelay = calibrationRetryDelay
     }
 
     /// Starts draining the queue in the background. Calling it while a drain is running does nothing, so
     /// two generations never run at once. A drain that ends (queue empty or paused) can be started again.
+    /// A call during a drain makes that drain run once more before it ends, so work that arrived meanwhile waits no longer.
     public func start() {
-        guard drainTask == nil else { return }
+        guard drainTask == nil else {
+            pendingKick = true
+            return
+        }
         drainTask = Task {
-            do {
-                try await self.drain()
-            } catch {
-                Self.log.error("Queue drain stopped: \(String(describing: error))")
-            }
+            repeat {
+                pendingKick = false
+                do {
+                    try await self.drain()
+                } catch {
+                    Self.log.error("Queue drain stopped: \(String(describing: error))")
+                }
+            } while pendingKick
             self.drainTask = nil
         }
     }
@@ -85,7 +106,14 @@ public actor JobExecutor {
     public func drain() async throws {
         while true {
             try await waitWhileLeaseHeld()
-            guard await !queue.isPauseRequested, let job = try await store.nextQueuedJob() else { return }
+            let paused = await queue.isPauseRequested
+            guard let job = try await store.nextQueuedJob() else {
+                // Nothing queued: a due calibration runs now, and a pause does not stop it (R3).
+                guard try await calibrateIfDue() else { return }
+                continue
+            }
+            // A paused queue keeps its queued jobs and ends the drain without calibrating.
+            guard !paused else { return }
             do {
                 try await run(job)
             } catch {

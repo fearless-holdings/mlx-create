@@ -56,6 +56,8 @@ public final class AppModel {
 
     public private(set) var engineState: EngineState = .stopped
     public private(set) var models: [InstalledModel] = []
+    /// True while an on-device calibration renders (U6). The executor's calibration events set it.
+    var isCalibrating = false
     private var modelsLoaded = false
     /// The collection the gallery, queue strip and new jobs use (D35). Set by `ensureCurrentCollection()` and `switchCollection(to:)`.
     var currentCollection = ImageCollection(name: "Untitled", isDefault: true)
@@ -217,9 +219,11 @@ public final class AppModel {
         self.memoryTier = memoryTier
         let queue = JobQueue(store: store)
         self.queue = queue
+        let targetSource = CalibrationTargetSource()
         self.executor = JobExecutor(
             store: store, modelsRoot: libraryPaths.modelsRoot, client: client, queue: queue,
-            crashKind: { await gate.currentCrash() }, engineVersion: engineVersion, memoryTier: memoryTier)
+            crashKind: { await gate.currentCrash() }, engineVersion: engineVersion, memoryTier: memoryTier,
+            calibrationTargets: { await targetSource.targets() })
         self.composer = GenerationComposer(registry: registry, store: store)
         self.libraryPaths = libraryPaths
         self.selectedModelID = defaults.string(forKey: Self.lastUsedModelKey)
@@ -260,6 +264,7 @@ public final class AppModel {
             self.addToLoRAStack(id: id, weight: scale)
         }
         alwaysOnLoRACount = { [weak self] family in self?.alwaysOnCounts[family] ?? 0 }
+        targetSource.model = self
     }
 
     /// The production app: the bundled engine, the library and queue in Application Support, and the bundled registry.
@@ -532,6 +537,7 @@ public final class AppModel {
             modelsLoaded = true
             chooseSelection()
             scheduleAlwaysOnProvisioning()
+            await startDraining()
         } catch is CancellationError {
             return
         } catch {

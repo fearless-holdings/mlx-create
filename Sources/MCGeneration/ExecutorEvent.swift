@@ -10,6 +10,8 @@ public enum ExecutorEvent: Sendable, Equatable {
     case imageSaved(jobID: UUID, imageID: UUID)
     /// The job's status changed, or the queue moved it.
     case jobChanged(jobID: UUID)
+    /// A calibration run started (true) or finished (false). It creates no job and no image.
+    case calibrationChanged(Bool)
 }
 
 /// Fans every event out to all current subscribers. `JobQueue` owns the hub so that queue operations and

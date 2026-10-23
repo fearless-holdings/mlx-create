@@ -20,6 +20,8 @@ extension AppModel {
             await prependImage(jobID: jobID, id: imageID)
             await reloadQueue()
             await refreshCollections()
+        case .calibrationChanged(let running):
+            isCalibrating = running
         case .jobChanged:
             await reload()
         }
