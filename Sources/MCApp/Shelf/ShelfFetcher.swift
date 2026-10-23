@@ -29,6 +29,13 @@ enum ShelfFetchError: Error, Equatable, LocalizedError {
 /// Fetches one catalog shelf entry into staging. The catalog's SHA-256 is the only thing a file must match.
 protocol ShelfFetching: Sendable {
     func fetch(_ entry: LoRAShelfEntry, progress: @escaping @Sendable (Double) -> Void) async throws -> ShelfFetched
+    /// Whether the entry's source can be reached at all. A request that cannot succeed is never made, so an unattended
+    /// caller (the always-on provisioner) checks this first.
+    func canFetch(_ entry: LoRAShelfEntry) -> Bool
+}
+
+extension ShelfFetching {
+    func canFetch(_ entry: LoRAShelfEntry) -> Bool { true }
 }
 
 /// The real fetcher: Civitai entries resolve by version id through `civitai.com` (D47) and download with the saved key
@@ -40,6 +47,14 @@ struct LiveShelfFetcher: ShelfFetching {
     let keychain: any CivitaiKeyStore
     /// Shared with Civitai downloads: a staged file is moved out or swept at every open.
     let stagingDirectory: URL
+
+    /// A Civitai download needs the user's saved key; a Hugging Face file needs nothing.
+    func canFetch(_ entry: LoRAShelfEntry) -> Bool {
+        switch entry.source.kind {
+        case .civitai: ((try? keychain.read()) ?? nil) != nil
+        case .huggingface: true
+        }
+    }
 
     func fetch(_ entry: LoRAShelfEntry, progress: @escaping @Sendable (Double) -> Void) async throws -> ShelfFetched {
         switch entry.source.kind {

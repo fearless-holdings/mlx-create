@@ -31,7 +31,14 @@ struct LicenseSheet: View {
                 Link("Read the full license", destination: url)
                     .font(.callout)
             }
-            Toggle("I have read and accept the \(pending.content.licenseName).", isOn: $license.accepted)
+            if !pending.notices.isEmpty {
+                notices
+            }
+            Toggle(
+                pending.notices.isEmpty
+                    ? "I have read and accept the \(pending.content.licenseName)."
+                    : "I have read and accept the \(pending.content.licenseName) and the notices above.",
+                isOn: $license.accepted)
             HStack {
                 Spacer()
                 Button("Cancel") {
@@ -47,5 +54,32 @@ struct LicenseSheet: View {
         }
         .padding(24)
         .frame(width: 500)
+    }
+
+    /// The measures mlx-create takes for this model's family, with the license of each file it uses (D45). This screen and
+    /// `NOTICE` are the only places that name them (D46).
+    private var notices: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Refusal reduction and quality improvement")
+                .font(.callout.bold())
+            Text(
+                "mlx-create takes these measures for \(pending.model.name), using the files below under the licenses their authors published."
+            )
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(pending.notices, id: \.name) { notice in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(notice.name).font(.caption.bold())
+                            Text(notice.license).font(.caption)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .textSelection(.enabled)
+            }
+            .frame(maxHeight: 110)
+        }
     }
 }

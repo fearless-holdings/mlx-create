@@ -32,6 +32,8 @@ final class ShelfModel {
     @ObservationIgnored private let store: LibraryStore
     @ObservationIgnored private let registry: FamilyRegistry
     @ObservationIgnored private let now: @Sendable () -> Date
+    /// Installs the always-on entries quietly (D44); they never reach `entries` or `rows`.
+    @ObservationIgnored let alwaysOn: AlwaysOnProvisioner
     /// Called with the library id of an installed shelf LoRA and the scale it was tested at, so the app can put it on the stack.
     @ObservationIgnored private var attach: (String, Double) async -> Void = { _, _ in }
 
@@ -43,6 +45,7 @@ final class ShelfModel {
         self.store = store
         self.registry = registry
         self.now = now
+        alwaysOn = AlwaysOnProvisioner(fetcher: fetcher, store: store, registry: registry, now: now)
     }
 
     func connect(attach: @escaping (String, Double) async -> Void) {
@@ -51,6 +54,7 @@ final class ShelfModel {
 
     func setEntries(_ entries: [LoRAShelfEntry]) {
         self.entries = entries
+        alwaysOn.setEntries(entries)
     }
 
     /// The shelf for `family`, in role order. An explicit entry shows only while the NSFW opt-in is on, an always-on entry
@@ -115,45 +119,13 @@ final class ShelfModel {
 
     /// Checks the arrived file against the entry's family, then hands it to the library with its source and trigger words.
     private func commit(_ entry: LoRAShelfEntry, fetched: ShelfFetched) async throws -> LoRARecord {
-        let variant: String?
-        do {
-            switch registry.classifyLoRA(tensors: try SafetensorsHeader.readContents(of: fetched.stagedURL).shapes) {
-            case .family(let id, let matched) where id == entry.family: variant = matched
-            default: throw ShelfFetchError.failed("This file does not fit the \(entry.family) models, so it was not added.")
-            }
-        } catch {
-            try? FileManager.default.removeItem(at: fetched.stagedURL)
-            throw error
-        }
-        let name = entry.displayName
-        let outcome: LoRAImportOutcome
-        switch entry.source.kind {
-        case .civitai:
-            let source = LoRASource(
-                civitaiModelID: entry.source.modelID ?? 0, civitaiVersionID: entry.source.versionID ?? 0,
-                pageURL:
-                    "https://\(CivitaiClient.apiHost)/models/\(entry.source.modelID ?? 0)?modelVersionId=\(entry.source.versionID ?? 0)",
-                license: CivitaiLicenseFlags(), acceptedAt: now())
-            outcome = try await store.commitStagedLoRA(
-                staged: fetched.stagedURL, sha256: fetched.sha256, sizeBytes: fetched.sizeBytes, family: entry.family,
-                variant: variant, name: name, triggerWords: entry.triggerWords, source: source, previewImage: nil)
-        case .huggingface:
-            let origin = HuggingFaceLoRAOrigin(
-                repo: entry.source.repo ?? "", revision: entry.source.revision ?? "", file: entry.source.file ?? "",
-                pageURL: "https://huggingface.co/\(entry.source.repo ?? "")", licenseText: entry.license)
-            outcome = try await store.commitHuggingFaceLoRA(
-                staged: fetched.stagedURL, sha256: fetched.sha256, sizeBytes: fetched.sizeBytes, family: entry.family,
-                variant: variant, name: name, triggerWords: entry.triggerWords, origin: origin, acceptedAt: now())
-        }
+        let variant = try entry.verifiedVariant(of: fetched.stagedURL, registry: registry)
+        let outcome = try await store.commitStagedLoRA(
+            staged: fetched.stagedURL, sha256: fetched.sha256, sizeBytes: fetched.sizeBytes, family: entry.family,
+            variant: variant, name: entry.displayName, triggerWords: entry.triggerWords,
+            source: entry.loraSource(acceptedAt: now()), previewImage: nil)
         switch outcome {
         case .added(let record), .restored(let record), .duplicate(let record): return record
         }
-    }
-}
-
-extension LoRAShelfEntry {
-    /// The file name without its extension, which is what the library shows for the LoRA.
-    var displayName: String {
-        (filename as NSString).deletingPathExtension
     }
 }

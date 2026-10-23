@@ -157,4 +157,61 @@ private func entry(
             return
         }
     }
+
+    // MARK: Always-on provisioning (D44)
+
+    @Test func provisioningInstallsAnAlwaysOnFileOnceAndLeavesTheLibraryListEmpty() async throws {
+        let harness = try await AppHarness.make()
+        let hidden = entry("hidden", alwaysOn: true, scale: 0.9)
+        let (shelf, fetcher, _) = try make(harness, entries: [hidden], results: [hidden.sha256: .file(.krea)])
+
+        let first = await shelf.alwaysOn.ensure(families: ["krea-2-turbo"])
+        let second = await shelf.alwaysOn.ensure(families: ["krea-2-turbo"])
+
+        #expect(first)
+        #expect(second == false)
+        #expect(fetcher.fetchCount == 1)
+        #expect(try await harness.store.loras().isEmpty)
+        #expect(try await harness.store.alwaysOnLoRA(sha256: hidden.sha256)?.alwaysOnScale == 0.9)
+        #expect(shelf.rows(family: "krea-2-turbo", includeNSFW: true).isEmpty)
+    }
+
+    @Test func provisioningSkipsFamiliesTheUserHasNoModelFor() async throws {
+        let harness = try await AppHarness.make()
+        let hidden = entry("hidden", alwaysOn: true)
+        let (shelf, fetcher, _) = try make(harness, entries: [hidden], results: [hidden.sha256: .file(.krea)])
+
+        let changed = await shelf.alwaysOn.ensure(families: ["flux2-klein"])
+
+        #expect(changed == false)
+        #expect(fetcher.fetchCount == 0)
+    }
+
+    /// A file that cannot arrive is not retried on every refresh, and the family just generates without it (R13).
+    @Test func aFailedAlwaysOnFetchIsNotRetriedStraightAway() async throws {
+        let harness = try await AppHarness.make()
+        let hidden = entry("hidden", alwaysOn: true)
+        let (shelf, fetcher, _) = try make(harness, entries: [hidden], results: [hidden.sha256: .notFound])
+
+        #expect(await shelf.alwaysOn.ensure(families: ["krea-2-turbo"]) == false)
+        #expect(await shelf.alwaysOn.ensure(families: ["krea-2-turbo"]) == false)
+
+        #expect(fetcher.fetchCount == 1)
+        #expect(try await harness.store.alwaysOnLoRA(sha256: hidden.sha256) == nil)
+    }
+
+    @Test func aDeletedAlwaysOnFileIsFetchedAgain() async throws {
+        let harness = try await AppHarness.make()
+        let hidden = entry("hidden", alwaysOn: true)
+        let (shelf, fetcher, _) = try make(harness, entries: [hidden], results: [hidden.sha256: .file(.krea)])
+        _ = await shelf.alwaysOn.ensure(families: ["krea-2-turbo"])
+        let row = try #require(try await harness.store.alwaysOnLoRA(sha256: hidden.sha256))
+        try FileManager.default.removeItem(at: harness.store.loraAbsoluteURL(of: row))
+
+        let changed = await shelf.alwaysOn.ensure(families: ["krea-2-turbo"])
+
+        #expect(changed)
+        #expect(fetcher.fetchCount == 2)
+        #expect(harness.store.loraFileExists(try #require(try await harness.store.alwaysOnLoRA(sha256: hidden.sha256))))
+    }
 }

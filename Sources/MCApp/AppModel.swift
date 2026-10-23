@@ -531,6 +531,7 @@ public final class AppModel {
             await browser.refresh()
             modelsLoaded = true
             chooseSelection()
+            scheduleAlwaysOnProvisioning()
         } catch is CancellationError {
             return
         } catch {
@@ -580,6 +581,7 @@ public final class AppModel {
             return
         }
         guard canGenerate, let model = selectedModel else { return }
+        scheduleAlwaysOnProvisioning()
         guard let seedPolicy = currentSeedPolicy() else {
             lastError = "Seed must be a whole number from 0 to 4294967295."
             return

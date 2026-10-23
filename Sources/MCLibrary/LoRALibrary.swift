@@ -68,6 +68,8 @@ struct LoRACommit: Sendable {
     let source: LoRASource?
     /// The encoded HEIC preview, or nil when there is none.
     let preview: Data?
+    /// Non-nil makes the row always-on (D44) at this scale, in the same write that inserts it.
+    var alwaysOnScale: Double? = nil
 }
 
 /// Where a commit moved the LoRA file and wrote its preview, for its failure path.
@@ -186,9 +188,10 @@ extension LibraryStore {
             return try await dbQueue.write { (db: Database) throws -> LoRAImportOutcome in
                 let fm = FileManager.default
                 if let existing = try LoRARecord.filter(Column("sha256") == commit.sha256).fetchOne(db) {
-                    // D44: a file an always-on row names must neither show that row's name nor attach it. The row keeps its
-                    // file, so the commit stops with copy that says nothing about why.
-                    guard existing.alwaysOnScale == nil else {
+                    // D44: a file an always-on row names must neither show that row's name nor attach it, and an always-on
+                    // commit must never take over a row the user can see. The row keeps its file and the commit stops with
+                    // copy that says nothing about why.
+                    guard (existing.alwaysOnScale == nil) == (commit.alwaysOnScale == nil) else {
                         throw LoRAImportError.copyFailed(reason: "this file cannot be added to the library")
                     }
                     guard let existingFile = paths.loraURL(relativePath: existing.relativePath) else {
@@ -250,7 +253,7 @@ extension LibraryStore {
                 let record = LoRARecord(
                     id: loraID, name: finalName, family: commit.family, sha256: commit.sha256,
                     relativePath: relativePath, sizeBytes: commit.sizeBytes, triggerWords: commit.triggerWords,
-                    notes: nil, createdAt: Date(), variant: commit.variant)
+                    notes: nil, createdAt: Date(), variant: commit.variant, alwaysOnScale: commit.alwaysOnScale)
                 do {
                     try record.insert(db)
                     if let stored { try LoRASourceRow(loraID: loraID, source: stored).insert(db) }
