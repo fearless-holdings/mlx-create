@@ -24,6 +24,18 @@ import Testing
         }
     }
 
+    /// A shelf entry is inside the signed bytes, so changing its tested scale after signing is refused.
+    @Test func tamperingAShelfEntryIsRejected() throws {
+        let bytes = try CatalogFixture.catalogJSON(shelf: [CatalogFixture.shelfEntry()])
+        let signature = try CatalogFixture.signature(of: bytes)
+        var tampered = bytes
+        let key = try #require(tampered.firstRange(of: Data("\"tested_scale\":".utf8)))
+        tampered[key.upperBound] ^= 0x01
+        CatalogFixture.expectThrows(.badSignature) {
+            _ = try CatalogSignature.verify(catalogBytes: tampered, signatureBytes: signature, keys: CatalogFixture.pinned)
+        }
+    }
+
     @Test func signatureNamingUnknownKeyIdIsRejected() throws {
         let bytes = try CatalogFixture.catalogJSON()
         let signature = try CatalogFixture.signature(of: bytes, with: CatalogFixture.otherKey)

@@ -194,11 +194,21 @@ public actor JobExecutor {
         let seed = policy.seed(savedCount: savedCount, using: &rng)
         // KTD6: every LoRA frozen into the job must still be the file that was imported, or the job fails before the engine is asked.
         let loras = job.request.loras ?? []
+        // D44: the family's always-on LoRAs join the engine request here and nowhere else. They never enter the job's request or
+        // the saved settings below, so nothing about them reaches the PNG, the gallery or drop-to-restore.
+        // R10, R13: they share the engine's limit with the stack and yield to it. A stack the engine itself would refuse fails
+        // with the plain limit, so the message never reveals how many always-on LoRAs a family has.
+        guard loras.count <= GenerationComposer.engineLoRAMax else {
+            throw ExecutorError.loraLimitExceeded(
+                count: loras.count, limit: GenerationComposer.engineLoRAMax, modelID: job.request.modelID)
+        }
+        let room = GenerationComposer.engineLoRAMax - loras.count
+        let alwaysOn = Array(try await alwaysOnFiles(family: job.request.family).prefix(room))
         var loraFiles: [URL] = []
         for entry in loras {
             loraFiles.append(try await loraFile(for: entry, modelID: job.request.modelID))
         }
-        let request = ImageRequest(
+        let userRequest = ImageRequest(
             model: job.request.modelID,
             prompt: job.request.prompt,
             negativePrompt: job.request.negativePrompt,
@@ -210,26 +220,43 @@ public actor JobExecutor {
             loraPaths: loras.isEmpty ? nil : loraFiles.map(\.path),
             loraScales: loras.isEmpty ? nil : loras.map(\.weight)
         )
+        var combined = userRequest
+        if !alwaysOn.isEmpty {
+            combined.loraPaths = loraFiles.map(\.path) + alwaysOn.map(\.file.path)
+            combined.loraScales = loras.map(\.weight) + alwaysOn.map(\.scale)
+        }
+        let fullRequest = combined
         let client = client
         let hub = hub
         let jobID = job.id
         let modelID = job.request.modelID
+        let carriesAlwaysOn = !alwaysOn.isEmpty
         // The model switch and the stream share one task, so `cancel(_:)` also reaches a wait for the engine or a load.
         let task = Task { () throws -> (png: Data, total: Int?) in
             try await self.makeResident(modelID, for: jobID)
-            var png: Data?
-            var total: Int?
-            for try await event in client.generateImage(request) {
-                switch event {
-                case .progress(let step, let stepTotal, _):
-                    total = stepTotal
-                    hub.send(.progress(jobID: jobID, step: step, total: stepTotal))
-                case .completed(let data):
-                    png = data
+            func stream(_ request: ImageRequest) async throws -> (png: Data, total: Int?) {
+                var png: Data?
+                var total: Int?
+                for try await event in client.generateImage(request) {
+                    switch event {
+                    case .progress(let step, let stepTotal, _):
+                        total = stepTotal
+                        hub.send(.progress(jobID: jobID, step: step, total: stepTotal))
+                    case .completed(let data):
+                        png = data
+                    }
                 }
+                guard let png else { throw EngineError.streamEndedWithoutComplete }
+                return (png, total)
             }
-            guard let png else { throw EngineError.streamEndedWithoutComplete }
-            return (png, total)
+            do {
+                return try await stream(fullRequest)
+            } catch EngineError.loraRejected where carriesAlwaysOn {
+                // R13: a LoRA the engine cannot apply must never block an image. Retry once with the stack as the user built it.
+                // A second rejection is the user's own LoRA and fails the job with its usual copy. The log names nothing.
+                Self.log.notice("engine rejected the LoRA set; retrying once with the stack's LoRAs only")
+                return try await stream(userRequest)
+            }
         }
         active = task
         defer { active = nil }
@@ -267,15 +294,34 @@ public actor JobExecutor {
     /// Only the recorded size is compared, so no file is hashed when a job starts.
     private func loraFile(for entry: LoRAStackEntry, modelID: String) async throws -> URL {
         guard let file = LibraryPaths.loraURL(relativePath: entry.relativePath, modelsRoot: modelsRoot),
-            let record = try await store.loraRecord(id: entry.id),
+            let record = try await store.loraRecord(id: entry.id), record.alwaysOnScale == nil,
             record.relativePath == entry.relativePath,
             FileManager.default.fileExists(atPath: file.path)
         else { throw ExecutorError.loraMissing(name: entry.name, modelID: modelID) }
-        let size = (try? FileManager.default.attributesOfItem(atPath: file.path)[.size] as? NSNumber)?.int64Value
+        let size = Self.onDiskSize(file)
         guard record.sha256 == entry.sha256, size == record.sizeBytes else {
             throw ExecutorError.loraChanged(name: entry.name, modelID: modelID)
         }
         return file
+    }
+
+    /// The files and scales of `family`'s always-on LoRAs that are on disk and unchanged in size. A row whose file is missing
+    /// or changed is skipped, because an always-on LoRA never blocks a job (R13).
+    private func alwaysOnFiles(family: String) async throws -> [(file: URL, scale: Double)] {
+        var files: [(file: URL, scale: Double)] = []
+        for record in try await store.alwaysOnLoRAs(family: family) {
+            guard let scale = record.alwaysOnScale,
+                let file = LibraryPaths.loraURL(relativePath: record.relativePath, modelsRoot: modelsRoot),
+                Self.onDiskSize(file) == record.sizeBytes
+            else { continue }
+            files.append((file, scale))
+        }
+        return files
+    }
+
+    /// The size of the file at `url`, or nil when it cannot be read. Only the size is read, never the contents.
+    private static func onDiskSize(_ url: URL) -> Int64? {
+        (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.int64Value
     }
 
     /// Makes the job's model resident before its stream starts, unless the job was cancelled first. It uses `switchModel`,

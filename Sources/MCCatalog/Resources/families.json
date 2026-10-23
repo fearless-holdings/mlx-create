@@ -36,6 +36,20 @@
             { "pattern": { "kind": "contains", "text": ".attn.to_gate" }, "dimension": 1, "size": 6144 }
           ],
           "blockCounts": [{ "family": "transformer_blocks", "blockCount": 28 }]
+        },
+        {
+          "tensorPatterns": [
+            { "kind": "prefix", "text": "txtfusion." },
+            { "kind": "contains", "text": ".layerwise_blocks." },
+            { "kind": "suffix", "text": ".lora_down.weight" }
+          ],
+          "shapeHints": [
+            { "pattern": { "kind": "contains", "text": ".attn.wq" }, "dimension": 1, "size": 2560 }
+          ],
+          "blockCounts": [
+            { "family": "txtfusion.layerwise_blocks", "blockCount": 2 },
+            { "family": "txtfusion.refiner_blocks", "blockCount": 2 }
+          ]
         }
       ],
       "civitaiBaseModels": [{ "label": "Krea 2" }]

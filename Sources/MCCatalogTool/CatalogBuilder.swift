@@ -6,10 +6,20 @@ import MCCatalog
 struct SourceCatalog: Decodable, Equatable {
     let issuedAt: Date
     let models: [SourceModel]
+    /// Absent means no shelf (D43). The entries are copied into the built catalog unchanged.
+    let loraShelf: [LoRAShelfEntry]
 
     enum CodingKeys: String, CodingKey {
         case issuedAt = "issued_at"
         case models
+        case loraShelf = "lora_shelf"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        issuedAt = try c.decode(Date.self, forKey: .issuedAt)
+        models = try c.decode([SourceModel].self, forKey: .models)
+        loraShelf = try c.decodeIfPresent([LoRAShelfEntry].self, forKey: .loraShelf) ?? []
     }
 
     static func load(_ data: Data) throws -> SourceCatalog {
@@ -72,7 +82,8 @@ struct CatalogBuilder: Sendable {
             schemaVersion: Catalog.supportedSchemaVersion,
             sequence: (previous?.sequence ?? 0) + 1,
             issuedAt: source.issuedAt,
-            models: models)
+            models: models,
+            loraShelf: source.loraShelf)
         try catalog.validate()
         return CatalogBuild(catalog: catalog, bytes: try CatalogEncoder.encode(catalog), skipped: skipped)
     }
@@ -137,7 +148,8 @@ enum CatalogEncoder {
     }
 }
 
-/// Lines a reviewer reads before `sign --acknowledge-diff`: added, removed and re-hashed files, and revision moves.
+/// Lines a reviewer reads before `sign --acknowledge-diff`: added, removed and re-hashed files, revision moves, and
+/// shelf additions, removals and changes.
 enum CatalogDiff {
     static func lines(previous: Catalog?, next: Catalog) -> [String] {
         let previousModels = Dictionary(
@@ -168,6 +180,47 @@ enum CatalogDiff {
         let newIDs = Set(next.models.map(\.id))
         for old in previous?.models ?? [] where !newIDs.contains(old.id) {
             lines.append("- model \(old.id)")
+        }
+        return lines + shelfLines(previous: previous, next: next)
+    }
+
+    /// An entry is identified by family, role and whether it is always-on, so flipping `always_on` reads as a removal plus an
+    /// addition rather than a silent edit. A family may carry several always-on entries under one role, so their hash is
+    /// part of the identity: changing or dropping one then reads as its own removal and addition, never as another's edit.
+    private static func shelfKey(_ entry: LoRAShelfEntry) -> String {
+        "\(entry.family)\u{0}\(entry.role)\u{0}\(entry.alwaysOn)" + (entry.alwaysOn ? "\u{0}\(entry.sha256)" : "")
+    }
+
+    private static func shelfName(_ entry: LoRAShelfEntry) -> String {
+        "shelf \(entry.family)/\(entry.role)" + (entry.alwaysOn ? " (always-on)" : "")
+    }
+
+    private static func shelfLines(previous: Catalog?, next: Catalog) -> [String] {
+        let previousEntries = Dictionary(
+            (previous?.loraShelf ?? []).map { (shelfKey($0), $0) }, uniquingKeysWith: { first, _ in first })
+        let nextKeys = Set(next.loraShelf.map(shelfKey))
+        var lines: [String] = []
+        for entry in next.loraShelf {
+            let name = shelfName(entry)
+            guard let old = previousEntries[shelfKey(entry)] else {
+                lines.append("+ \(name) \(entry.filename) sha256 \(entry.sha256)")
+                continue
+            }
+            if old.sha256 != entry.sha256 {
+                lines.append("~ \(name) sha256 \(old.sha256) -> \(entry.sha256)")
+            }
+            if old.testedScale != entry.testedScale {
+                lines.append("~ \(name) tested_scale \(old.testedScale) -> \(entry.testedScale)")
+            }
+            let detailsChanged =
+                old.source != entry.source || old.filename != entry.filename || old.sizeBytes != entry.sizeBytes
+                || old.license != entry.license || old.triggerWords != entry.triggerWords
+                || old.communityRating != entry.communityRating || old.testedEngine != entry.testedEngine
+                || old.nsfw != entry.nsfw
+            if detailsChanged { lines.append("~ \(name) details changed") }
+        }
+        for entry in previous?.loraShelf ?? [] where !nextKeys.contains(shelfKey(entry)) {
+            lines.append("- \(shelfName(entry))")
         }
         return lines
     }

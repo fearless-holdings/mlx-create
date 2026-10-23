@@ -19,10 +19,13 @@ public struct LoRARecord: Codable, FetchableRecord, PersistableRecord, Equatable
     public var triggerWords: [String]
     public var notes: String?
     public var createdAt: Date
+    /// Non-nil marks an always-on row (D44): hidden from every list and applied at this scale on each generation of its
+    /// family. A user-visible LoRA has nil.
+    public var alwaysOnScale: Double?
 
     public init(
         id: String, name: String, family: String, sha256: String, relativePath: String, sizeBytes: Int64,
-        triggerWords: [String], notes: String?, createdAt: Date, variant: String? = nil
+        triggerWords: [String], notes: String?, createdAt: Date, variant: String? = nil, alwaysOnScale: Double? = nil
     ) {
         self.id = id
         self.name = name
@@ -34,6 +37,7 @@ public struct LoRARecord: Codable, FetchableRecord, PersistableRecord, Equatable
         self.triggerWords = triggerWords
         self.notes = notes
         self.createdAt = createdAt
+        self.alwaysOnScale = alwaysOnScale
     }
 
     public init(from decoder: Decoder) throws {
@@ -53,6 +57,7 @@ public struct LoRARecord: Codable, FetchableRecord, PersistableRecord, Equatable
         triggerWords = parsed
         notes = try c.decodeIfPresent(String.self, forKey: .notes)
         createdAt = try c.decode(Date.self, forKey: .createdAt)
+        alwaysOnScale = try c.decodeIfPresent(Double.self, forKey: .alwaysOnScale)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -67,6 +72,7 @@ public struct LoRARecord: Codable, FetchableRecord, PersistableRecord, Equatable
         try c.encode(try JSONCoding.encode(triggerWords), forKey: .triggerWords)
         try c.encode(notes, forKey: .notes)
         try c.encode(createdAt, forKey: .createdAt)
+        try c.encode(alwaysOnScale, forKey: .alwaysOnScale)
     }
 
     public enum CodingKeys: String, CodingKey {
@@ -75,5 +81,6 @@ public struct LoRARecord: Codable, FetchableRecord, PersistableRecord, Equatable
         case sizeBytes = "size_bytes"
         case triggerWords = "trigger_words"
         case createdAt = "created_at"
+        case alwaysOnScale = "always_on_scale"
     }
 }

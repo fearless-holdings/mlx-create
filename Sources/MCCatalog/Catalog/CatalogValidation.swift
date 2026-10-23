@@ -42,6 +42,22 @@ extension Catalog {
     }
 
     public func validate() throws {
+        guard !loraShelf.isEmpty else {
+            try validate(loraFamilies: nil)
+            return
+        }
+        let families: FamilyRegistry
+        do {
+            families = try FamilyRegistry.bundled()
+        } catch {
+            throw CatalogError.invalid("the family registry is unavailable, so the shelf cannot be checked: \(error)")
+        }
+        try validate(loraFamilies: families)
+    }
+
+    /// - Parameter loraFamilies: the registry shelf entries are checked against. `nil` skips those checks and is only
+    ///   correct for a catalog with an empty shelf; the loader always passes the bundled registry.
+    func validate(loraFamilies: FamilyRegistry?) throws {
         guard sequence >= 0 else { throw CatalogError.invalid("sequence must not be negative") }
         guard !models.isEmpty else { throw CatalogError.invalid("catalog lists no models") }
         var ids = Set<String>()
@@ -52,6 +68,62 @@ extension Catalog {
                 throw CatalogError.invalid("repo \(model.repo) collides with another model's repo")
             }
             try model.validate()
+        }
+        try validateShelf(loraFamilies: loraFamilies)
+    }
+
+    /// Shelf entries are usable only for a family that accepts LoRAs: a family without `loraFingerprints` cannot
+    /// classify a file, so it cannot vouch for one. One entry per family and role, except always-on entries.
+    private func validateShelf(loraFamilies: FamilyRegistry?) throws {
+        var roles = Set<String>()
+        var hashes = Set<String>()
+        for entry in loraShelf {
+            guard CatalogModel.isHex(entry.sha256, length: 64) else {
+                throw CatalogError.invalid("shelf entry \(entry.family)/\(entry.role) needs a 64-character lowercase hex sha256")
+            }
+            guard hashes.insert(entry.sha256).inserted else {
+                throw CatalogError.invalid("shelf entry \(entry.family)/\(entry.role) repeats another entry's sha256")
+            }
+            guard entry.sizeBytes > 0 else {
+                throw CatalogError.invalid("shelf entry \(entry.family)/\(entry.role) needs a positive size_bytes")
+            }
+            guard entry.filename.hasSuffix(".safetensors"), entry.filename.count > ".safetensors".count else {
+                throw CatalogError.invalid("shelf entry \(entry.family)/\(entry.role) needs a .safetensors filename")
+            }
+            try Self.validate(source: entry.source, of: entry)
+            guard entry.testedScale > 0, entry.testedScale <= 20 else {
+                throw CatalogError.invalid("tested_scale for shelf entry \(entry.family)/\(entry.role) must be in 0...20")
+            }
+            if let loraFamilies {
+                guard let family = loraFamilies.families.first(where: { $0.id == entry.family }) else {
+                    throw CatalogError.invalid("shelf entry names unknown family \(entry.family)")
+                }
+                guard family.acceptsLoRAs else {
+                    throw CatalogError.invalid("shelf entry names family \(entry.family), which accepts no LoRAs")
+                }
+            }
+            guard !entry.alwaysOn else { continue }
+            guard roles.insert("\(entry.family)\u{0}\(entry.role)").inserted else {
+                throw CatalogError.invalid("duplicate shelf entry for \(entry.family) role \(entry.role)")
+            }
+        }
+    }
+
+    /// A Hugging Face entry pins a commit and a safe file path in a well-formed repo, and a Civitai entry names its model and
+    /// version, because both go straight into a download URL.
+    private static func validate(source: LoRAShelfSource, of entry: LoRAShelfEntry) throws {
+        switch source.kind {
+        case .civitai:
+            guard source.modelID != nil, source.versionID != nil else {
+                throw CatalogError.invalid("shelf entry \(entry.family)/\(entry.role) needs a Civitai model and version id")
+            }
+        case .huggingface:
+            guard let repo = source.repo, CatalogModel.isRepo(repo), let revision = source.revision,
+                CatalogModel.isHex(revision, length: 40), let file = source.file, CatalogPath.isSafe(file)
+            else {
+                throw CatalogError.invalid(
+                    "shelf entry \(entry.family)/\(entry.role) needs an org/name repo, a 40-character commit and a safe file path")
+            }
         }
     }
 }

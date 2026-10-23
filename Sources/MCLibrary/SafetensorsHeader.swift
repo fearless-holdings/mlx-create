@@ -69,6 +69,12 @@ public struct SafetensorsHeader: Sendable, Equatable {
         guard ext.lowercased() == "safetensors" else {
             throw SafetensorsError.notSafetensorsExtension(found: ext)
         }
+        return try readContents(of: url)
+    }
+
+    /// Reads and validates the header of the file at `url` whatever its name, for a staged download that still carries its
+    /// `.partial` extension. ``read(from:)`` is the entry point for a file the user chose.
+    public static func readContents(of url: URL) throws -> SafetensorsHeader {
         let handle: FileHandle
         do {
             handle = try FileHandle(forReadingFrom: url)

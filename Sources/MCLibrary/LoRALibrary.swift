@@ -68,6 +68,8 @@ struct LoRACommit: Sendable {
     let source: LoRASource?
     /// The encoded HEIC preview, or nil when there is none.
     let preview: Data?
+    /// Non-nil makes the row always-on (D44) at this scale, in the same write that inserts it.
+    var alwaysOnScale: Double? = nil
 }
 
 /// Where a commit moved the LoRA file and wrote its preview, for its failure path.
@@ -155,6 +157,26 @@ extension LibraryStore {
                 triggerWords: triggerWords, source: source, preview: preview))
     }
 
+    /// Stores a finished Hugging Face download (R19, KTD6). Mirrors
+    /// ``commitStagedLoRA(staged:sha256:sizeBytes:family:variant:name:triggerWords:source:previewImage:)``: the caller has
+    /// verified the SHA-256 and classified the file, and the source row carries the pinned origin and the license text
+    /// instead of Civitai's ids. The duplicate, restore and name-clash rules, and the move into `LoRAs/<family>/`, are the
+    /// ones both paths share.
+    public func commitHuggingFaceLoRA(
+        staged: URL, sha256: String, sizeBytes: Int64, family: String, variant: String?, name: String,
+        triggerWords: [String], origin: HuggingFaceLoRAOrigin, acceptedAt: Date = Date()
+    ) async throws -> LoRAImportOutcome {
+        let typed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !typed.isEmpty else {
+            try? FileManager.default.removeItem(at: staged)
+            throw LibraryError.invalidName
+        }
+        return try await commitLoRA(
+            LoRACommit(
+                staged: staged, sha256: sha256, sizeBytes: sizeBytes, family: family, variant: variant, baseName: typed,
+                triggerWords: triggerWords, source: LoRASource(huggingFace: origin, acceptedAt: acceptedAt), preview: nil))
+    }
+
     /// The commit both import paths share (KTD4): the duplicate, restore and name-clash rules, the move into
     /// `LoRAs/<family>/`, the optional preview, and the row inserts, all in one write. Consumes `commit.staged`.
     func commitLoRA(_ commit: LoRACommit) async throws -> LoRAImportOutcome {
@@ -166,6 +188,12 @@ extension LibraryStore {
             return try await dbQueue.write { (db: Database) throws -> LoRAImportOutcome in
                 let fm = FileManager.default
                 if let existing = try LoRARecord.filter(Column("sha256") == commit.sha256).fetchOne(db) {
+                    // D44: a file an always-on row names must neither show that row's name nor attach it, and an always-on
+                    // commit must never take over a row the user can see. The row keeps its file and the commit stops with
+                    // copy that says nothing about why.
+                    guard (existing.alwaysOnScale == nil) == (commit.alwaysOnScale == nil) else {
+                        throw LoRAImportError.copyFailed(reason: "this file cannot be added to the library")
+                    }
                     guard let existingFile = paths.loraURL(relativePath: existing.relativePath) else {
                         throw LoRAImportError.copyFailed(reason: "the record for \(existing.name) has an invalid path")
                     }
@@ -187,7 +215,7 @@ extension LibraryStore {
                 guard Self.isSafeFolderName(commit.family) else {
                     throw LoRAImportError.copyFailed(reason: "\"\(commit.family)\" is not a family folder")
                 }
-                let taken = try Set(String.fetchAll(db, sql: "SELECT name FROM lora"))
+                let taken = try Set(String.fetchAll(db, sql: "SELECT name FROM lora WHERE always_on_scale IS NULL"))
                 let finalName = Self.uniqueName(base: commit.baseName, taken: taken)
                 let fileName = "\(commit.sha256.prefix(10))-\(Self.fileSlug(finalName)).safetensors"
                 let relativePath = paths.loraRelativePath(family: commit.family, fileName: fileName)
@@ -225,7 +253,7 @@ extension LibraryStore {
                 let record = LoRARecord(
                     id: loraID, name: finalName, family: commit.family, sha256: commit.sha256,
                     relativePath: relativePath, sizeBytes: commit.sizeBytes, triggerWords: commit.triggerWords,
-                    notes: nil, createdAt: Date(), variant: commit.variant)
+                    notes: nil, createdAt: Date(), variant: commit.variant, alwaysOnScale: commit.alwaysOnScale)
                 do {
                     try record.insert(db)
                     if let stored { try LoRASourceRow(loraID: loraID, source: stored).insert(db) }
@@ -324,10 +352,37 @@ extension LibraryStore {
 
     // MARK: Listing and paths
 
-    /// Every LoRA row, by name. A row whose file is missing is still listed; check ``loraFileExists(_:)``.
+    /// Every user-visible LoRA row, by name. Always-on rows (D44) are never listed. A row whose file is missing is still
+    /// listed; check ``loraFileExists(_:)``.
     public func loras() throws -> [LoRARecord] {
         try dbQueue.read { (db: Database) throws -> [LoRARecord] in
-            try LoRARecord.order(Column("name"), Column("id")).fetchAll(db)
+            try LoRARecord.filter(Column("always_on_scale") == nil).order(Column("name"), Column("id")).fetchAll(db)
+        }
+    }
+
+    /// The always-on rows of `family`, oldest first. Only the executor and the app's cap arithmetic read these.
+    public func alwaysOnLoRAs(family: String) throws -> [LoRARecord] {
+        try dbQueue.read { (db: Database) throws -> [LoRARecord] in
+            try LoRARecord.filter(Column("always_on_scale") != nil && Column("family") == family)
+                .order(Column("created_at"), Column("id")).fetchAll(db)
+        }
+    }
+
+    /// How many always-on rows each family has.
+    public func alwaysOnLoRACounts() throws -> [String: Int] {
+        try dbQueue.read { (db: Database) throws -> [String: Int] in
+            let rows = try Row.fetchAll(
+                db, sql: "SELECT family, COUNT(*) AS n FROM lora WHERE always_on_scale IS NOT NULL GROUP BY family")
+            return Dictionary(uniqueKeysWithValues: rows.map { ($0["family"] as String, $0["n"] as Int) })
+        }
+    }
+
+    /// Marks a LoRA always-on at `scale`, or makes it an ordinary LoRA again with nil. An always-on row leaves every list.
+    public func setAlwaysOn(id: String, scale: Double?) throws {
+        try dbQueue.write { (db: Database) throws -> Void in
+            guard var row = try LoRARecord.fetchOne(db, key: id) else { throw LibraryError.notFound }
+            row.alwaysOnScale = scale
+            try row.update(db)
         }
     }
 
@@ -348,10 +403,17 @@ extension LibraryStore {
         try dbQueue.read { (db: Database) throws -> LoRARecord? in try LoRARecord.fetchOne(db, key: id) }
     }
 
-    /// Total bytes of every LoRA row.
+    /// The user-visible `lora` row with this SHA-256, or nil. Always-on rows never match.
+    public func loraRecord(sha256: String) throws -> LoRARecord? {
+        try dbQueue.read { (db: Database) throws -> LoRARecord? in
+            try LoRARecord.filter(Column("sha256") == sha256 && Column("always_on_scale") == nil).fetchOne(db)
+        }
+    }
+
+    /// Total bytes of every user-visible LoRA row.
     public func loraTotalBytes() throws -> Int64 {
         try dbQueue.read { (db: Database) throws -> Int64 in
-            try Int64.fetchOne(db, sql: "SELECT COALESCE(SUM(size_bytes), 0) FROM lora") ?? 0
+            try Int64.fetchOne(db, sql: "SELECT COALESCE(SUM(size_bytes), 0) FROM lora WHERE always_on_scale IS NULL") ?? 0
         }
     }
 
@@ -405,7 +467,7 @@ extension LibraryStore {
     /// still name the LoRA; those images keep their settings, and reuse drops the LoRA with a notice.
     public func deleteLoRA(id: String) throws -> Int {
         try dbQueue.write { (db: Database) throws -> Int in
-            guard let row = try LoRARecord.fetchOne(db, key: id) else { throw LibraryError.notFound }
+            guard let row = try LoRARecord.fetchOne(db, key: id), row.alwaysOnScale == nil else { throw LibraryError.notFound }
             let blocking = try Self.blockingJobCount(id: id, db: db)
             guard blocking == 0 else { throw LoRADeleteError.inUseByJob(count: blocking) }
             let usage = try Self.imageCount(sha256: row.sha256, db: db)

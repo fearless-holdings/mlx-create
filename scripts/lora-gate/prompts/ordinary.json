@@ -1,0 +1,13 @@
+{
+  "set": "ordinary",
+  "status": "proposed-awaiting-author-approval",
+  "note": "Ordinary, non-explicit prompts for the LoRA gate's baseline and strength-0 checks (plan U2). The author approves or edits this set at plan U3 decision point 1, together with the R12 pass rule. Seeds are fixed so a re-run on a new engine tag compares like with like (R17). One prompt per run: the first entry unless --prompt-id names another.",
+  "prompts": [
+    { "id": "o01", "text": "a lighthouse on a cliff at dusk, film grain", "seed": 7 },
+    { "id": "o02", "text": "portrait of an old fisherman, weathered face, soft window light", "seed": 11 },
+    { "id": "o03", "text": "street market at golden hour, crowds and awnings", "seed": 23 },
+    { "id": "o04", "text": "red fox in fresh snow, shallow depth of field", "seed": 31 },
+    { "id": "o05", "text": "a cat sleeping on a stack of vinyl records, warm lamp light", "seed": 47 },
+    { "id": "o06", "text": "mountain cabin in a thunderstorm, long exposure", "seed": 59 }
+  ]
+}

@@ -54,6 +54,33 @@ enum BuildFixture {
         try SourceCatalog.load(Data(sourceJSON.utf8))
     }
 
+    /// A reviewed shelf entry (D43) whose family has fingerprints in the bundled registry.
+    static let shelfEntryJSON = """
+        {
+          "family": "flux2-klein",
+          "role": "anatomy",
+          "nsfw": false,
+          "source": { "kind": "civitai", "model_id": 2775340, "version_id": 3359022 },
+          "filename": "klein-anatomy.safetensors",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "size_bytes": 11571232,
+          "license": "Civitai model license",
+          "trigger_words": ["anatomy"],
+          "tested_scale": 0.85,
+          "community_rating": 4.6,
+          "tested_engine": "26.10.3-pre-release.1",
+          "always_on": false
+        }
+        """
+
+    /// The fixture source with one `lora_shelf` entry.
+    static func sourceWithShelf(entry: String = BuildFixture.shelfEntryJSON) throws -> SourceCatalog {
+        let json = sourceJSON.replacingOccurrences(
+            of: "\"models\": [",
+            with: "\"lora_shelf\": [\(entry)],\n\"models\": [")
+        return try SourceCatalog.load(Data(json.utf8))
+    }
+
     static func treeEntries() throws -> [HubTreeEntry] {
         let url = try #require(Bundle.module.url(forResource: "hub-tree", withExtension: "json", subdirectory: "Fixtures"))
         return try JSONDecoder().decode([HubTreeEntry].self, from: Data(contentsOf: url))
@@ -123,6 +150,63 @@ enum BuildFixture {
         let lines = CatalogDiff.lines(previous: first.catalog, next: changed.catalog)
         let prefix = "~ demo-model config.json sha256 \(SHA256.hash(data: BuildFixture.configBytes).hex) -> "
         #expect(lines.contains { $0.hasPrefix(prefix) })
+    }
+
+    /// The reviewed shelf arrives in the built catalog unchanged and survives the decode the app performs (R18).
+    @Test func sourceShelfIsCarriedIntoTheBuiltCatalog() async throws {
+        let source = try BuildFixture.sourceWithShelf()
+        let build = try await CatalogBuilder(hub: BuildFixture.hub()).build(source: source, previous: nil)
+        #expect(build.catalog.loraShelf == source.loraShelf)
+        let entry = try #require(build.catalog.loraShelf.first)
+        #expect(entry.family == "flux2-klein")
+        #expect(entry.role == "anatomy")
+        #expect(entry.source == LoRAShelfSource(kind: .civitai, modelID: 2_775_340, versionID: 3_359_022))
+        #expect(entry.testedScale == 0.85)
+        #expect(entry.testedEngine == "26.10.3-pre-release.1")
+        #expect(try Catalog.decodeValidated(build.bytes).loraShelf == source.loraShelf)
+    }
+
+    /// A shelf-only change shows up in the diff a reviewer reads before signing.
+    @Test func shelfOnlyChangeAppearsInTheDiff() async throws {
+        let before = try await CatalogBuilder(hub: BuildFixture.hub()).build(source: BuildFixture.source(), previous: nil)
+        let after = try await CatalogBuilder(hub: BuildFixture.hub())
+            .build(source: try BuildFixture.sourceWithShelf(), previous: before.catalog)
+        #expect(before.catalog.loraShelf.isEmpty)
+        let lines = CatalogDiff.lines(previous: before.catalog, next: after.catalog)
+        #expect(lines.count == 1)
+        #expect(lines[0].hasPrefix("+ shelf flux2-klein/anatomy klein-anatomy.safetensors sha256 "))
+    }
+
+    /// A changed tested scale is named in the diff rather than hidden behind a generic line.
+    @Test func changedShelfScaleAppearsInTheDiff() async throws {
+        let before = try await CatalogBuilder(hub: BuildFixture.hub())
+            .build(source: try BuildFixture.sourceWithShelf(), previous: nil)
+        let rescaled = BuildFixture.shelfEntryJSON.replacingOccurrences(
+            of: "\"tested_scale\": 0.85", with: "\"tested_scale\": 0.7")
+        let after = try await CatalogBuilder(hub: BuildFixture.hub())
+            .build(source: try BuildFixture.sourceWithShelf(entry: rescaled), previous: before.catalog)
+        let lines = CatalogDiff.lines(previous: before.catalog, next: after.catalog)
+        #expect(lines == ["~ shelf flux2-klein/anatomy tested_scale 0.85 -> 0.7"])
+    }
+
+    /// Two always-on entries share a family and role. Changing one reads as its own removal and addition, and dropping one
+    /// is never hidden behind its sibling (the diff is the only gate before signing).
+    @Test func alwaysOnEntriesOfOneRoleAreDiffedByHash() async throws {
+        func entry(_ hash: Character) -> String {
+            BuildFixture.shelfEntryJSON
+                .replacingOccurrences(of: "\"always_on\": false", with: "\"always_on\": true")
+                .replacingOccurrences(
+                    of: String(repeating: "a", count: 64), with: String(repeating: hash, count: 64))
+        }
+        let before = try await CatalogBuilder(hub: BuildFixture.hub())
+            .build(source: try BuildFixture.sourceWithShelf(entry: "\(entry("a")), \(entry("b"))"), previous: nil)
+        let after = try await CatalogBuilder(hub: BuildFixture.hub())
+            .build(source: try BuildFixture.sourceWithShelf(entry: "\(entry("a")), \(entry("c"))"), previous: before.catalog)
+        let lines = CatalogDiff.lines(previous: before.catalog, next: after.catalog)
+        #expect(
+            lines.contains { $0.hasPrefix("+ shelf flux2-klein/anatomy (always-on)") && $0.hasSuffix(String(repeating: "c", count: 64)) })
+        #expect(lines.contains("- shelf flux2-klein/anatomy (always-on)"))
+        #expect(lines.contains { $0.hasPrefix("~") && $0.contains("shelf") } == false)
     }
 
     @Test func downloadedSizeMismatchFails() async throws {
@@ -211,6 +295,55 @@ enum BuildFixture {
         }
     }
 
+    /// A shelf-only change is a catalog change: signing refuses it until the diff is acknowledged, then succeeds.
+    @Test func signGatesAShelfOnlyChangeOnTheAcknowledgedDiff() async throws {
+        let before = try await CatalogBuilder(hub: BuildFixture.hub()).build(source: BuildFixture.source(), previous: nil)
+        let after = try await CatalogBuilder(hub: BuildFixture.hub())
+            .build(source: try BuildFixture.sourceWithShelf(), previous: before.catalog)
+        #expect(!CatalogDiff.lines(previous: before.catalog, next: after.catalog).isEmpty)
+        let dir = try temp()
+        let url = dir.appending(path: "catalog.json")
+        try after.bytes.write(to: url)
+        let signer = try key(3)
+        do {
+            _ = try CatalogSigner.sign(catalogAt: url, with: signer, pinned: pin(signer), acknowledgedDiff: false)
+            Issue.record("sign ran on a shelf-only change without acknowledging the diff")
+        } catch let error as CatalogToolError {
+            #expect(error == .diffNotAcknowledged)
+        }
+        _ = try CatalogSigner.sign(catalogAt: url, with: signer, pinned: pin(signer), acknowledgedDiff: true)
+        let result = try CatalogVerifier.verify(catalogAt: url, pinned: pin(signer), release: false, catalogURL: "")
+        #expect(result.sequence == after.catalog.sequence)
+    }
+
+    /// `verify` runs the validator, so a correctly signed catalog whose shelf names an unknown family is refused.
+    @Test func verifyRefusesAShelfEntryForAnUnknownFamily() async throws {
+        let build = try await CatalogBuilder(hub: BuildFixture.hub()).build(source: BuildFixture.source(), previous: nil)
+        let entry = LoRAShelfEntry(
+            family: "no-such-family", role: "anatomy", nsfw: false,
+            source: LoRAShelfSource(kind: .civitai, modelID: 1, versionID: 2), filename: "lora.safetensors",
+            sha256: String(repeating: "a", count: 64), sizeBytes: 1024, license: "License text",
+            triggerWords: [], testedScale: 1, testedEngine: "26.10.3-pre-release.1", alwaysOn: false)
+        let catalog = Catalog(
+            schemaVersion: Catalog.supportedSchemaVersion, sequence: build.catalog.sequence,
+            issuedAt: build.catalog.issuedAt, models: build.catalog.models, loraShelf: [entry])
+        let bytes = try CatalogEncoder.encode(catalog)
+        let dir = try temp()
+        let url = dir.appending(path: "catalog.json")
+        try bytes.write(to: url)
+        let signer = try key(3)
+        try CatalogSignature.sign(bytes, with: signer).write(to: url.appendingPathExtension("sig"))
+        do {
+            _ = try CatalogVerifier.verify(catalogAt: url, pinned: pin(signer), release: false, catalogURL: "")
+            Issue.record("verify accepted a shelf entry for an unknown family")
+        } catch let error as CatalogError {
+            guard case .invalid = error else {
+                Issue.record("expected invalid, got \(error)")
+                return
+            }
+        }
+    }
+
     @Test func signRefusesKeyThatIsNotPinned() async throws {
         let url = try await writeBuiltCatalog(to: try temp())
         do {
@@ -282,6 +415,14 @@ enum BuildFixture {
         #expect(ranks["krea-2-turbo-mixed-4-8"] == 2)
         #expect(ranks["flux2-klein-4b-mflux-4bit"] == 3)
         #expect(ranks["gemma-4-e4b-heretic-4bit"] == .some(nil))
+    }
+
+    /// `lora_shelf` is omitted when empty, so re-encoding the bundled catalog produces the exact bytes it was signed
+    /// with, shelf or no shelf.
+    @Test func bundledCatalogReencodesToTheSameBytes() throws {
+        let bundled = try BundledCatalog.fromBundle()
+        let catalog = try Catalog.decodeValidated(bundled.bytes)
+        #expect(try CatalogEncoder.encode(catalog) == bundled.bytes)
     }
 
     @Test func bundledCatalogPassesTheReleaseGateWithNoCatalogURL() throws {

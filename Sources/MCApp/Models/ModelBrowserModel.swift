@@ -72,8 +72,16 @@ struct PendingLicense: Equatable {
         }
     }
 
+    /// An always-on LoRA the app applies to this model's family, with the license its author published (D45). Shown on
+    /// this screen only (D46).
+    struct Notice: Equatable {
+        let name: String
+        let license: String
+    }
+
     let model: CatalogModel
     let content: Content
+    let notices: [Notice]
 }
 
 /// The license prompt the model browser and the generation panel share (U8). `AppModel` owns the one instance, so an
@@ -272,7 +280,7 @@ final class ModelBrowserModel {
     /// Install on a row: opens the license sheet. The install starts only when the license is accepted.
     func beginInstall(_ modelID: String) {
         guard let model = startableModel(modelID), row(for: model).action == .install else { return }
-        license.present(PendingLicense(model: model, content: .init(model.license)))
+        license.present(pendingLicense(for: model))
     }
 
     /// Resume or Retry on a row. Skips the sheet when the license version was accepted this session.
@@ -281,8 +289,16 @@ final class ModelBrowserModel {
         if let acceptedAt = acceptances[Self.licenseKey(model)] {
             start(model, acceptedAt: acceptedAt)
         } else {
-            license.present(PendingLicense(model: model, content: .init(model.license)))
+            license.present(pendingLicense(for: model))
         }
+    }
+
+    /// The license screen for `model`, with the always-on LoRAs the app applies to its family (D45).
+    private func pendingLicense(for model: CatalogModel) -> PendingLicense {
+        let notices = (catalog?.loraShelf ?? [])
+            .filter { $0.alwaysOn && $0.family == model.family }
+            .map { PendingLicense.Notice(name: $0.displayName, license: $0.license) }
+        return PendingLicense(model: model, content: .init(model.license), notices: notices)
     }
 
     /// Confirm on the license sheet. Does nothing until the checkbox is set; then starts the install once.

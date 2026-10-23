@@ -73,5 +73,105 @@
         "summary": "Apache License 2.0, as declared on the model card (an abliterated community conversion of Gemma 4 E4B). Commercial use is allowed. Keep the license and any notices when you redistribute the model. The model is uncensored, so what it writes is your responsibility."
       }
     }
+  ],
+  "lora_shelf": [
+    {
+      "family": "flux2-klein",
+      "role": "realism",
+      "nsfw": false,
+      "source": { "kind": "civitai", "model_id": 2233658, "version_id": 2666766 },
+      "filename": "amateur_selfie_4b.safetensors",
+      "sha256": "c56975005c4baae39cb51f43577c5653fa92eddde4543652926c35d1db28d9f3",
+      "size_bytes": 92426704,
+      "license": "Civitai license as published by the creator. Commercial use: RentCivit, Image. Derivatives: not allowed. Credit: not required.",
+      "trigger_words": [],
+      "tested_scale": 0.75,
+      "tested_engine": "v26.10.3-pre-release.1",
+      "always_on": false
+    },
+    {
+      "family": "flux2-klein",
+      "role": "explicit",
+      "nsfw": true,
+      "source": { "kind": "civitai", "model_id": 2432232, "version_id": 2734784 },
+      "filename": "ExcellentFullNude_F2K4B_1.safetensors",
+      "sha256": "9b64a07fe6907fa2883d7e7498accc78248b3a10da383b4300ac973f79fd8042",
+      "size_bytes": 92426712,
+      "license": "Civitai license as published by the creator. Commercial use: Image, RentCivit, Rent. Derivatives: not allowed. Credit: required.",
+      "trigger_words": ["Excellent_Full_Nude, A RAW Pro Ultra HiRes erotic photo of a stark naked, fully nude female model"],
+      "tested_scale": 0.9,
+      "tested_engine": "v26.10.3-pre-release.1",
+      "always_on": false
+    },
+    {
+      "family": "krea-2-turbo",
+      "role": "explicit",
+      "nsfw": true,
+      "source": { "kind": "civitai", "model_id": 2725430, "version_id": 3147117 },
+      "filename": "KNP_000003000.safetensors",
+      "sha256": "6ec564e04eed317ae24093b4907004ac59a7c528d19d025bb41b4d719c4d16ec",
+      "size_bytes": 457111960,
+      "license": "Civitai license as published by the creator. Commercial use: Image, RentCivit, Rent, Sell, SellMerge. Derivatives: allowed. Credit: not required.",
+      "trigger_words": [],
+      "tested_scale": 1.2,
+      "tested_engine": "v26.10.3-pre-release.1",
+      "always_on": false
+    },
+    {
+      "family": "krea-2-turbo",
+      "role": "body",
+      "nsfw": true,
+      "source": { "kind": "civitai", "model_id": 2540187, "version_id": 3131773 },
+      "filename": "breast_size_v2_krea2_loraholic.safetensors",
+      "sha256": "24c2acd5d3bf88920a084984099928c85ed17c985d914b8ceb19a1731aafd07f",
+      "size_bytes": 35769968,
+      "license": "Civitai license as published by the creator. Commercial use: Image, RentCivit. Derivatives: not allowed. Credit: required.",
+      "trigger_words": [],
+      "tested_scale": 4.0,
+      "tested_engine": "v26.10.3-pre-release.1",
+      "always_on": false
+    },
+    {
+      "family": "qwen-image-2.1-turbo",
+      "role": "realism",
+      "nsfw": false,
+      "source": { "kind": "civitai", "model_id": 1662740, "version_id": 3349565 },
+      "filename": "lenovo_qwen21.safetensors",
+      "sha256": "7f1e95c3ec1e9c7cea197f7b6f80f601af8e6b479f6ead78ab16df542f447c0e",
+      "size_bytes": 79743896,
+      "license": "Civitai license as published by the creator. Commercial use: RentCivit, Rent, Sell, Image, SellMerge. Derivatives: not allowed. Credit: required.",
+      "trigger_words": [],
+      "tested_scale": 1.2,
+      "tested_engine": "v26.10.3-pre-release.1",
+      "always_on": false
+    },
+    {
+      "family": "qwen-image-2.1-turbo",
+      "role": "body",
+      "nsfw": true,
+      "source": { "kind": "civitai", "model_id": 764250, "version_id": 3357878 },
+      "filename": "breasts_slider_qwen-inage2.1_v1.safetensors",
+      "sha256": "0aa6f38c3ded6bc813617abd02be376887b964e8c21afcf71c4caf01b7ea0a10",
+      "size_bytes": 79767752,
+      "license": "Civitai license as published by the creator. Commercial use: Image, RentCivit, Rent, Sell, SellMerge. Derivatives: allowed. Credit: not required.",
+      "trigger_words": [],
+      "tested_scale": 0.5,
+      "tested_engine": "v26.10.3-pre-release.1",
+      "always_on": false
+    },
+    {
+      "family": "krea-2-turbo",
+      "role": "base",
+      "nsfw": false,
+      "source": { "kind": "civitai", "model_id": 3008549, "version_id": 3416242 },
+      "filename": "krea-2-base-1.safetensors",
+      "sha256": "999c6bc160d6c323309395a6abea416883074b0cf429511ee33cba28ce9a8d89",
+      "size_bytes": 2603651944,
+      "license": "Civitai license as published by the creator. Commercial use: RentCivit, Rent. Derivatives: not allowed. Credit: not required.",
+      "trigger_words": [],
+      "tested_scale": 1.0,
+      "tested_engine": "v26.10.3-pre-release.1",
+      "always_on": true
+    }
   ]
 }

@@ -130,6 +130,37 @@ public enum CivitaiSort: String, CaseIterable, Sendable {
     case newest = "Newest"
 }
 
+/// A Civitai model link reduced to the ids the API resolves (D47, R20). The page may be on `civitai.com` or
+/// `civitai.red`, with or without `www.`; the model and version are then resolved through the API host, so the key rule
+/// is the one the client already keeps.
+public struct CivitaiModelLink: Sendable, Equatable {
+    /// Hosts a model page is published on. Both serve the same database, so the ids mean the same thing.
+    static let pageHosts: Set<String> = [
+        CivitaiClient.apiHost, "www.\(CivitaiClient.apiHost)", "civitai.red", "www.civitai.red",
+    ]
+
+    public let modelID: Int
+    /// The `modelVersionId` the link names, or nil when it names only the model.
+    public let versionID: Int?
+
+    /// Parses `https://civitai.com/models/<modelID>?modelVersionId=<versionID>` and its `civitai.red` form. Nil for
+    /// another host, a non-https scheme, a port, or a path that names no model.
+    public init?(urlString: String) {
+        let trimmed = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: trimmed), url.scheme?.lowercased() == "https", url.port == nil,
+            let host = url.host?.lowercased(), Self.pageHosts.contains(host)
+        else { return nil }
+        let parts = url.path.split(separator: "/")
+        guard parts.count >= 2, parts[0] == "models", let modelID = Int(parts[1]) else { return nil }
+        self.modelID = modelID
+        versionID = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?
+            .first { $0.name == "modelVersionId" }?
+            .value
+            .flatMap { Int($0) }
+    }
+}
+
 /// Civitai's public LoRA API: search, version detail and lookup by file hash (HLD §8.7). Anonymous unless a key is saved.
 public actor CivitaiClient {
     /// The API host. Only this host, over https on the default port, may receive the key.

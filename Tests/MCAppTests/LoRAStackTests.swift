@@ -365,4 +365,76 @@ private func saveLoRAImage(_ harness: AppHarness, prompt: String, loras: [ImageL
         model.moveLoRA(id: second.id, by: -1)
         #expect(model.loraStack.map(\.name) == ["Second", "Third", "First"])
     }
+
+    @Test func anAlwaysOnLoRALowersTheCapAndTheRefusalStatesIt() async throws {
+        let harness = try await AppHarness.make()
+        let model = await readyModel(harness)
+        model.alwaysOnLoRACount = { _ in 1 }
+        var records: [LoRARecord] = []
+        for number in 1...8 {
+            records.append(try await importLoRA(harness, .krea, name: "Style \(number)"))
+        }
+
+        for record in records[0..<7] {
+            model.addToLoRAStack(id: record.id)
+        }
+        #expect(model.loraStack.count == 7)
+        #expect(model.loraNotice == nil)
+
+        model.addToLoRAStack(id: records[7].id)
+        #expect(model.loraStack.count == 7)
+        #expect(model.loraNotice?.contains("7") == true)
+    }
+
+    /// D44: a library row marked always-on leaves the library list and lowers the family's cap, with no injected count.
+    @Test func anAlwaysOnLibraryRowIsHiddenFromTheListAndLowersTheCap() async throws {
+        let harness = try await AppHarness.make()
+        let model = await readyModel(harness)
+        let hidden = try await importLoRA(harness, .krea, name: "Hidden one")
+        try await harness.store.setAlwaysOn(id: hidden.id, scale: 0.6)
+        var records: [LoRARecord] = []
+        for number in 1...8 {
+            records.append(try await importLoRA(harness, .krea, name: "Style \(number)"))
+        }
+        await model.refreshLoRALibrary()
+
+        #expect(model.loraLibrary.contains { $0.id == hidden.id } == false)
+        #expect(model.loraLibrary.count == 8)
+        for record in records[0..<7] {
+            model.addToLoRAStack(id: record.id)
+        }
+        model.addToLoRAStack(id: records[7].id)
+        #expect(model.loraStack.count == 7)
+        #expect(model.loraNotice?.contains("7") == true)
+    }
+
+    @Test func reuseWithMoreLoRAsThanTheCapKeepsTheFirstOnesAndSaysSo() async throws {
+        let harness = try await AppHarness.make()
+        let model = await readyModel(harness)
+        var records: [LoRARecord] = []
+        for number in 1...8 {
+            records.append(try await importLoRA(harness, .krea, name: "Style \(number)"))
+        }
+        let image = try await saveLoRAImage(
+            harness, prompt: "a fox in snow",
+            loras: records.map { ImageLoRA(name: $0.name, sha256: $0.sha256, weight: 1) })
+
+        model.alwaysOnLoRACount = { _ in 1 }
+        model.reuseSettings(of: image)
+
+        #expect(model.loraStack.map(\.name) == records[0..<7].map(\.name))
+        #expect(model.loraNotice?.contains("7") == true)
+    }
+
+    @Test func aSlotAddedWithAnExplicitWeightKeepsItAndAManualAddGetsOne() async throws {
+        let harness = try await AppHarness.make()
+        let model = await readyModel(harness)
+        let tested = try await importLoRA(harness, .krea, name: "Tested Scale")
+        let manual = try await importLoRA(harness, .krea, name: "Manual")
+
+        model.addToLoRAStack(id: tested.id, weight: 0.6)
+        model.addToLoRAStack(id: manual.id)
+
+        #expect(model.loraStack.map(\.weight) == [0.6, 1])
+    }
 }

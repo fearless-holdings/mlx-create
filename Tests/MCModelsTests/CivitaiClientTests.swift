@@ -126,6 +126,42 @@ private let testKey = "civitai-test-key-7f3a"
                 == "/api/v1/model-versions/by-hash/33BDD0ED92EBCB493F79818864850AF379A80E495D7B60AAC7FB06022A616C36")
     }
 
+    // MARK: civitai.red (D47)
+
+    @Test func aCivitaiRedModelLinkGivesTheSameIdsAndResolvesOnTheAPIHost() async throws {
+        let com = try #require(CivitaiModelLink(urlString: "https://civitai.com/models/2416150?modelVersionId=2797480"))
+        let red = try #require(CivitaiModelLink(urlString: "https://civitai.red/models/2416150?modelVersionId=2797480"))
+        let redWWW = try #require(
+            CivitaiModelLink(urlString: "  https://www.civitai.red/models/2416150?modelVersionId=2797480  "))
+
+        #expect(red == com)
+        #expect(redWWW == com)
+        #expect(com.modelID == 2_416_150)
+        #expect(com.versionID == 2_797_480)
+
+        let transport = CivitaiScriptedTransport([try ok("version-2797480")])
+        let client = CivitaiClient(transport: transport, savedKey: { testKey })
+
+        let version = try await client.versionDetail(id: try #require(red.versionID))
+
+        #expect(version.id == 2_797_480)
+        let request = try #require(transport.requests.first)
+        #expect(request.url?.host == "civitai.com", "the red page resolves through the API host")
+        #expect(request.url?.scheme == "https")
+        #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer \(testKey)")
+    }
+
+    @Test func aModelLinkWithoutAVersionOrOffTheCivitaiHostsNamesNoIDs() throws {
+        let bare = try #require(CivitaiModelLink(urlString: "https://civitai.red/models/2416150"))
+        #expect(bare.modelID == 2_416_150)
+        #expect(bare.versionID == nil)
+
+        #expect(CivitaiModelLink(urlString: "https://example.com/models/2416150") == nil)
+        #expect(CivitaiModelLink(urlString: "http://civitai.red/models/2416150") == nil)
+        #expect(CivitaiModelLink(urlString: "https://civitai.red:8443/models/2416150") == nil)
+        #expect(CivitaiModelLink(urlString: "https://civitai.red/user/someone") == nil)
+    }
+
     // MARK: Synthetic shapes
 
     @Test func versionWithSeveralFilesOffersOnlyThePrimarySafetensors() async throws {

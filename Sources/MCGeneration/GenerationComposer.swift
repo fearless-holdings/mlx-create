@@ -11,7 +11,7 @@ public enum GenerationError: Error, Equatable {
 
 /// Why a LoRA stack cannot be frozen into a job.
 public enum LoRAStackError: Error, Equatable {
-    /// More LoRAs remain enabled and fitting than the engine accepts (`GenerationComposer.maxLoRAs`).
+    /// More LoRAs remain enabled and fitting than the engine accepts (`GenerationComposer.engineLoRAMax`).
     case tooMany(count: Int)
 }
 
@@ -72,8 +72,14 @@ public struct GenerationDraft: Sendable, Equatable {
 
 /// Validates a ``GenerationDraft`` against its family's capabilities and enqueues it as a queued job.
 public struct GenerationComposer: Sendable {
-    /// The most LoRAs one image may use: the engine's own cap (`lora_paths`, max 8).
-    public static let maxLoRAs = 8
+    /// The most LoRAs one request may carry: the engine's own cap (`lora_paths`, max 8).
+    public static let engineLoRAMax = 8
+
+    /// The most user LoRAs one image on a family may use: the engine's cap minus the family's always-on LoRAs, which the
+    /// engine counts but the stack does not show (R10). Never negative.
+    public static func maxLoRAs(alwaysOnCount: Int) -> Int {
+        max(engineLoRAMax - alwaysOnCount, 0)
+    }
 
     public let registry: FamilyRegistry
     public let store: LibraryStore
@@ -84,10 +90,10 @@ public struct GenerationComposer: Sendable {
     }
 
     /// Freezes the composer's LoRA stack into the list a job carries. Disabled, non-fitting and weight-0 rows are
-    /// dropped and the order of the rest is kept. Throws when more than ``maxLoRAs`` rows remain.
+    /// dropped and the order of the rest is kept. Throws when more than ``engineLoRAMax`` rows remain.
     public static func freezeLoRAs(_ rows: [LoRADraftRow]) throws -> [LoRAStackEntry] {
         let kept = rows.filter { $0.isEnabled && $0.fits && $0.entry.weight != 0 }.map(\.entry)
-        guard kept.count <= maxLoRAs else { throw LoRAStackError.tooMany(count: kept.count) }
+        guard kept.count <= engineLoRAMax else { throw LoRAStackError.tooMany(count: kept.count) }
         return kept
     }
 

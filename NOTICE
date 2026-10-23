@@ -54,3 +54,20 @@ release, not a fork. Its license texts and third-party notices ship in the
 application bundle at Contents/Resources/ThirdParty/mlx-serve/ (LICENSE,
 LICENSE-APACHE-2.0 and NOTICE). scripts/embed-engine.sh copies them there
 from the release tarball, listed in engine.lock under "notices".
+
+================================================================================
+Refusal reduction and quality improvement files
+================================================================================
+
+For some model families, mlx-create applies refusal reduction and quality
+improvement measures. They use the files below, which it downloads on the user's
+behalf the first time a model of that family is installed, under the licenses
+their authors published on Civitai. The same text appears on the license screen
+the user accepts before a model of that family is downloaded.
+
+    Krea 2 family (krea-2-turbo)
+        File: krea-2-base-1.safetensors
+        Source: Civitai model 3008549, version 3416242 (https://civitai.com/models/3008549)
+        License: Civitai license as published by the creator. Commercial use:
+        RentCivit, Rent. Derivatives: not allowed. Credit: not required.
+        The file is applied as downloaded and is never modified or redistributed.

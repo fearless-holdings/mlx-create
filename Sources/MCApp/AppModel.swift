@@ -131,6 +131,9 @@ public final class AppModel {
     @ObservationIgnored var revealFiles: @MainActor ([URL]) -> Void = AppModel.systemReveal
     @ObservationIgnored var chooseExportTarget: @MainActor (ExportRequest) -> URL? = AppModel.exportPanel
 
+    /// The curated LoRA shelf (D43), read from the signed catalog.
+    let shelf: ShelfModel
+
     /// LoRA state (U6). The stack is plain state: rows derive from it, so a model switch never edits it.
     var loraSlots: [LoRAStackSlot] = []
     /// The LoRA library as last read from the store.
@@ -139,6 +142,11 @@ public final class AppModel {
     var loraMissingFileIDs: Set<String> = []
     /// The tier the LoRA memory hint reads. The app keeps the current tier; tests set another.
     var loraMemoryTier = MemoryTier.current
+    /// How many always-on LoRAs a family applies to every generation, which lowers that family's stack cap (R10). It reads
+    /// the counts `refreshLoRALibrary` caches from the library; tests replace it.
+    @ObservationIgnored var alwaysOnLoRACount: @MainActor (String) -> Int = { _ in 0 }
+    /// The library's always-on row count per family, refreshed with the LoRA library.
+    @ObservationIgnored var alwaysOnCounts: [String: Int] = [:]
     /// A neutral one-line note about the stack, for example LoRAs a reuse left out.
     var loraNotice: String?
     var isLoRALibraryPresented = false
@@ -220,13 +228,22 @@ public final class AppModel {
         let civitaiClient = CivitaiClient(
             transport: civitaiTransport ?? URLSessionCivitaiTransport(userAgent: "mlx-create"),
             savedKey: { try? civitaiKeychain.read() })
+        let civitaiDownloader = CivitaiDownloader(transport: civitaiFileTransport ?? URLSessionCivitaiFileTransport())
         civitai = CivitaiBrowseModel(
             client: civitaiClient,
-            downloader: CivitaiDownloader(transport: civitaiFileTransport ?? URLSessionCivitaiFileTransport()),
+            downloader: civitaiDownloader,
             keychain: civitaiKeychain, store: store, registry: registry,
             stagingDirectory: libraryPaths.civitaiStagingDirectory, defaults: defaults,
             nsfwDefaultsKey: Self.civitaiIncludeNSFWKey,
             previewFetch: civitaiPreviewFetch ?? CivitaiPreviewFetch.fetch)
+        shelf = ShelfModel(
+            fetcher: LiveShelfFetcher(
+                client: civitaiClient, civitaiDownloader: civitaiDownloader,
+                huggingFace: HuggingFaceLoRADownloader(
+                    configuration: .init(stagingDirectory: libraryPaths.civitaiStagingDirectory, userAgent: "mlx-create")),
+                keychain: civitaiKeychain, stagingDirectory: libraryPaths.civitaiStagingDirectory),
+            store: store, registry: registry)
+        shelf.setEntries(catalog?.loraShelf ?? [])
         installs = makeInstalls(catalog: catalog, transport: transport)
         browser = ModelBrowserModel(
             catalog: catalog, installs: installs,
@@ -237,6 +254,12 @@ public final class AppModel {
             libraryChanged: { [weak self] in
                 if let self { await self.refreshLoRALibrary() }
             })
+        shelf.connect { [weak self] id, scale in
+            guard let self else { return }
+            await self.refreshLoRALibrary()
+            self.addToLoRAStack(id: id, weight: scale)
+        }
+        alwaysOnLoRACount = { [weak self] family in self?.alwaysOnCounts[family] ?? 0 }
     }
 
     /// The production app: the bundled engine, the library and queue in Application Support, and the bundled registry.
@@ -334,6 +357,7 @@ public final class AppModel {
         } else {
             installs = makeInstalls(catalog: catalog, transport: installTransport)
         }
+        shelf.setEntries(catalog.loraShelf)
         await browser.replaceCatalog(catalog, installs: installs)
     }
 
@@ -507,6 +531,7 @@ public final class AppModel {
             await browser.refresh()
             modelsLoaded = true
             chooseSelection()
+            scheduleAlwaysOnProvisioning()
         } catch is CancellationError {
             return
         } catch {
@@ -556,6 +581,7 @@ public final class AppModel {
             return
         }
         guard canGenerate, let model = selectedModel else { return }
+        scheduleAlwaysOnProvisioning()
         guard let seedPolicy = currentSeedPolicy() else {
             lastError = "Seed must be a whole number from 0 to 4294967295."
             return

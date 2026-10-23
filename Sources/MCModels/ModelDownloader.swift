@@ -56,7 +56,7 @@ public actor ModelDownloader {
 
     public init(configuration: Configuration) {
         self.configuration = configuration
-        self.session = Self.makeSession(configuration)
+        self.session = Self.makeSession(userAgent: configuration.userAgent)
         self.files = FileDownloader(session: session, configuration: configuration)
     }
 
@@ -244,14 +244,19 @@ public actor ModelDownloader {
     }
 
     private func resolveURL(_ plan: InstallPlan, _ file: InstallPlan.File) -> URL {
-        var url = configuration.endpoint
-        for part in plan.repo.split(separator: "/") { url = url.appending(path: String(part)) }
-        url = url.appending(path: "resolve").appending(path: plan.revision)
-        for part in file.path.split(separator: "/") { url = url.appending(path: String(part)) }
+        Self.resolveURL(endpoint: configuration.endpoint, repo: plan.repo, revision: plan.revision, path: file.path)
+    }
+
+    /// `<endpoint>/<repo>/resolve/<revision>/<path>`, one path component at a time so no segment is reinterpreted.
+    static func resolveURL(endpoint: URL, repo: String, revision: String, path: String) -> URL {
+        var url = endpoint
+        for part in repo.split(separator: "/") { url = url.appending(path: String(part)) }
+        url = url.appending(path: "resolve").appending(path: revision)
+        for part in path.split(separator: "/") { url = url.appending(path: String(part)) }
         return url
     }
 
-    private static func sha256(_ url: URL) throws -> String {
+    static func sha256(_ url: URL) throws -> String {
         do {
             return try Sha256File.hex(of: url)
         } catch {
@@ -260,14 +265,14 @@ public actor ModelDownloader {
     }
 
     /// Ephemeral session: no cookies, no cache, one fixed user agent (KTD20).
-    private static func makeSession(_ configuration: Configuration) -> URLSession {
+    static func makeSession(userAgent: String) -> URLSession {
         let config = URLSessionConfiguration.ephemeral
         config.httpCookieStorage = nil
         config.httpShouldSetCookies = false
         config.httpCookieAcceptPolicy = .never
         config.urlCache = nil
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
-        config.httpAdditionalHeaders = ["User-Agent": configuration.userAgent]
+        config.httpAdditionalHeaders = ["User-Agent": userAgent]
         config.timeoutIntervalForRequest = 60
         config.timeoutIntervalForResource = 7200
         // URLSession's default of 6 per host would queue chunks beyond six.
