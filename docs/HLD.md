@@ -56,7 +56,7 @@ Settled during the design interview. Later documents cite these IDs.
 | D13 | v1 power tools: **batch count + seed controls, persistent queue, live step previews** | X/Y plot, wildcards and styles are out of v1 |
 | D14 | **No sampler picker**; curated per-family defaults | Distilled and turbo flow models degrade with off-schedule samplers |
 | D15 | Civitai: **anonymous by default, optional API key** (Keychain, sent only to `civitai.com`); NSFW results hidden and previews blurred until opt-in, in the model browser and the LoRA library's Browse tab (D34) | |
-| D16 | Recommendations = **signed remote catalog + on-device calibration** | Real seconds-per-image estimates on every Mac |
+| D16 | Recommendations = **signed remote catalog + on-device calibration** (calibration part **superseded by D48**) | Real seconds-per-image estimates on every Mac |
 | D17 | Storage is **fully separate** from other tools (own Application Support root, relocatable) | Achieved by launching the engine with `HOME` pointed at our root (§7.4); no engine change |
 | D18 | ~~**Canvas-first** main window; the gallery is a separate mode~~ **Superseded by D33** for the layout. Whether a separate Gallery mode still ships is an open question (§10) | |
 | D19 | **Sparkle** updates + **opt-in anonymous analytics** | |
@@ -88,6 +88,7 @@ Settled during the design interview. Later documents cite these IDs.
 | D45 | **Always-on LoRA licenses are disclosed in the base model's license and notices screen and in `NOTICE`, not in the stack or the library.** Every LoRA's license is disclosed and no candidate is excluded for its license. Where the app, not the user, applies the LoRA, the exposure is more likely ours; this is a known risk, not a gate. Refines D20 | D20 requires showing and accepting licenses at download; the always-on download is part of the family install, so the family's notices carry its text |
 | D46 | **Public wording (approved 2026-10-23): always-on LoRAs are described as "refusal reduction" and "quality improvement" measures taken by mlx-create.** The measures are the always-on LoRAs, and the wording may appear only where D45 puts the disclosure: the base model's license and notices screen and `NOTICE`. Never in the stack, the library, exported metadata, store or marketing copy. Checked against D3 and the payment-processor risk row in §14 | Positioning must stay neutral (D3). The author decided the wording (plan U3, decision point 5) |
 | D47 | **`civitai.red` and `civitai.com` are one source.** A `civitai.red` model URL is resolved by model and version id through the `civitai.com` API. The Civitai API key is sent only over https to `civitai.com`, unchanged from D34 | The two hosts return the same model record; one API host keeps the key rule simple |
+| D48 | **Calibration is one reference timing per model, measured on one Mac, and runs on an empty engine behind the queue.** Supersedes the calibration part of D16 and these §8.5 clauses: reference timings per chip class, the onboarding calibration run, and the recommender's latency clause. (a) A signed catalog model may carry an optional `reference_timing {width, height, steps, seconds}` on image models, written only when set; `schema_version` stays 1 (`docs/lld/models.md` §2). (b) Calibration is a step of the executor's drain, not a job. It runs when no generation is queued and no Enhance lease is held. A paused queue that holds nothing does not hold it, and downloads and installs do not hold it. It repeats for each bundled engine version and has no user control. (c) The Recommender's pick rule is unchanged (D42), so the "meets the tier latency target" clause is removed. | One reference per model keeps the signed catalog small. Calibration on an empty engine is the only way to get a comparable number, because the user's own queue or Enhance load would skew it. The measurement and its limits are in `docs/lld/calibration.md`. |
 
 **Amendment (2026-10-19, D34):** Civitai LoRA browsing and download move from "separate work" into scope. The browser is a tab in the LoRA library sheet, not a Models-window tab. A finished download goes to the library only and is not attached to the generation stack. Design and open items: `docs/lld/loras.md`, section "Civitai browse and download".
 
@@ -147,7 +148,7 @@ flowchart TB
     prompt["Generation panel<br/>(prompt + inline settings)"]
     gallery["Gallery panel"]
     models["Models window<br/>(Installed / Browse)"]
-    onboarding["Onboarding + calibration"]
+    onboarding["Onboarding (D48: calibration runs on the executor)"]
   end
 
   subgraph Domain["Domain services (Swift, @Observable, actors)"]
@@ -158,7 +159,7 @@ flowchart TB
     meta["MetadataCodec"]
     families["FamilyRegistry"]
     catalog["CatalogService"]
-    recommender["Recommender + Calibrator"]
+    recommender["Recommender + Calibrator (D48)"]
     modelmgr["ModelManager"]
     sources["Sources: Civitai, CivArchive, HF"]
     downloads["ModelDownloader"]
@@ -359,7 +360,7 @@ Families and their mappings are meant to come from the signed catalog (§8.5), s
 
 **Catalog** (signed JSON on our CDN, fetched daily, with a bundled fallback copy):
 
-- **Models:** id, family (matches §8.4), source repo (HF), pinned 40-hex commit revision, per-file path, size and SHA-256 (D27), quantization, download bytes, approximate RAM, license (id, name, URL, commercial-use flag, version and a plain-language summary), per-tier default settings, reference timings per chip class.
+- **Models:** id, family (matches §8.4), source repo (HF), pinned 40-hex commit revision, per-file path, size and SHA-256 (D27), quantization, download bytes, approximate RAM, license (id, name, URL, commercial-use flag, version and a plain-language summary), per-tier default settings, and for image models an optional `reference_timing`, one per model measured on one Mac (D48).
 - **Enhancer models** per RAM tier.
 - **Families** (§8.4) and prompt pack versions.
 - **Signature and rollback:** Ed25519 via CryptoKit over the exact bytes of `catalog.json`, detached in `catalog.json.sig`, which names a key id from the pinned key list. Each catalog carries `schema_version` and a monotonic `sequence`. The loader takes the highest valid sequence among bundled and cached copies, and rejects a remote copy whose sequence is lower than the cache's (`docs/lld/models.md`).
@@ -377,13 +378,13 @@ Families and their mappings are meant to come from the signed catalog (§8.5), s
 **Recommender:**
 
 - Classifies each model as comfortable, tight or exceeds against the usable working set. This reuses mlx-serve's fit bands and its **warn, don't block** policy (`MediaModelPicks.swift:11-14`).
-- Per capability, picks the best-ranked model that is comfortable on the usable working set, actionable (not installed, not an unverified local folder, installs coordinator present) and meets the tier latency target where calibration exists, plus the matching enhancer. Rank is the catalog's optional `recommend_rank` (lowest first, D42). An unranked model is never recommended, and the pick is not "largest comfortable".
+- Per capability, picks the best-ranked model that is comfortable on the usable working set, actionable (not installed, not an unverified local folder, installs coordinator present), plus the matching enhancer. Timing does not enter the pick (D48). Rank is the catalog's optional `recommend_rank` (lowest first, D42). An unranked model is never recommended, and the pick is not "largest comfortable".
 - The seed-tier table below is guidance on which families suit each tier. It is not the pick rule.
 
-**Calibrator (two levels):**
+**Calibrator (two levels, D48):**
 
-1. **Onboarding:** after the starter model downloads, run fixed calibration renders (e.g. 512² and 1024², fixed seed and steps). Compare them to the catalog's reference timings to get a machine speed factor, and use that factor to estimate seconds per image for every catalog model, downloaded or not.
-2. **Continuous:** every real generation records seconds-per-step by (model, resolution, LoRA count) and refines the estimates. Estimates are invalidated when the engine version changes.
+1. **Calibration on an empty engine (D48):** once an image model with a reference timing is installed and no baseline exists for the bundled engine version, the executor's drain renders that model's reference size and default steps twice on an empty engine, discards the first render and times the second. The resulting machine speed factor estimates seconds per image for every catalog model with a reference timing. The step waits behind queued generation and a held Enhance lease, but not behind a paused queue that holds nothing, and not behind downloads or installs. It repeats for each engine version and has no user control.
+2. **Continuous:** every completed real generation records its wall-clock seconds by engine version, model, width, height, steps and LoRA count. The newest five samples per key refine the estimate once that key has three (D48, `docs/lld/calibration.md`).
 
 Seed tiers, taken from mlx-serve's presets in `Services/MediaGen.swift` and finalized by catalog data and calibration:
 
@@ -500,7 +501,8 @@ erDiagram
   JOB ||--o{ IMAGE : produces
   INSTALLED_MODEL ||--o{ IMAGE : "checkpoint used"
   IMAGE }o--o{ LORA : "LoRAs used (by sha256)"
-  INSTALLED_MODEL ||--o{ CALIBRATION : measured
+  INSTALLED_MODEL ||--o{ CALIBRATION_BASELINE : "measured once per engine version (D48)"
+  INSTALLED_MODEL ||--o{ GENERATION_TIMING : "timed per generation (D48)"
 
   COLLECTION {
     uuid id
@@ -540,7 +542,7 @@ erDiagram
     string prompt
     string negative_prompt
     string enhanced_from
-    int duration_ms
+    %% D48: generation time is kept in GENERATION_TIMING, not on the image row
     string engine_version
     datetime created_at
   }
@@ -571,13 +573,27 @@ erDiagram
     string notes
     datetime created_at
   }
-  CALIBRATION {
+  %% D48: one baseline per engine version, written only after a successful measured render
+  CALIBRATION_BASELINE {
+    string engine_version PK
     string model_id
-    string resolution
-    int lora_count
-    float sec_per_step
-    string engine_version
+    int width
+    int height
+    int steps
+    float seconds
+    float reference_seconds
     datetime measured_at
+  }
+  %% D48: one row per real generation; the estimator reads the newest five per key
+  GENERATION_TIMING {
+    string engine_version
+    string model_id
+    int width
+    int height
+    int steps
+    int lora_count
+    float seconds
+    datetime created_at
   }
 ```
 
@@ -643,7 +659,7 @@ Nothing is written to `~/.mlx-serve`, and other tools' model folders are not sca
   1. Hardware scan.
   2. Recommended starter set with license acceptance.
   3. Starter downloads.
-  4. Calibration render.
+  4. Calibration is not part of onboarding; the executor runs it on an empty engine (D48).
   5. Analytics opt-in.
   6. First collection.
 - **Keyboard first:** ⌘↩ generate, ⌘E enhance, ⌘. cancel, ⌘1/⌘2 Canvas/Gallery (open question, see Gallery mode above), ⌘R reuse settings of the selected image.
@@ -673,7 +689,7 @@ Nothing is written to `~/.mlx-serve`, and other tools' model folders are not sca
 
 | Phase | Scope | Backend work |
 |---|---|---|
-| **v1.0** | Text→image on FLUX.2-klein 4B/9B, Qwen-Image 2.1 (+Turbo), Krea-2 Turbo, Mage-Flow. Civitai LoRA browse and download (D34); CivArchive LoRAs deferred. Enhancer with packs + LoRA context. Collections (D35) + gallery + prompt search. Persistent queue, batch and seed policies. Step progress (live previews when F1 lands). A1111 metadata and drop-to-restore. Catalog + calibration. Sparkle, opt-in analytics, Entitlements seam | F1 upstream PR |
+| **v1.0** | Text→image on FLUX.2-klein 4B/9B, Qwen-Image 2.1 (+Turbo), Krea-2 Turbo, Mage-Flow. Civitai LoRA browse and download (D34); CivArchive LoRAs deferred. Enhancer with packs + LoRA context. Collections (D35) + gallery + prompt search. Persistent queue, batch and seed policies. Step progress (live previews when F1 lands). A1111 metadata and drop-to-restore. Catalog + calibration (D48). Sparkle, opt-in analytics, Entitlements seam | F1 upstream PR |
 | **v1.x** | Img2img variation (`strength`), instruction edit (`mode:edit`, `ref_images`, Qwen / Mage-Flow Edit), transparent PNG | None, already in the engine. F3 optional |
 | **v2.0** | Text/image→video (LTX, MiniMax-H3) with AVFoundation mux, video in collections and gallery, video prompt packs | None, already in the engine |
 | **v2.x** | Inpaint/outpaint (mask canvas), upscale + hires-fix, community fine-tune import | F4, F5. Upscaler approach decided in the LLD |
@@ -715,7 +731,7 @@ The app code is tightly coupled to the menu-bar app (`ImageGenService` is `@Main
 | `Services/ImageGenService.swift` (`requestJson`, `decodePngB64`) | `MCEngine` request builders | Pure functions, reused nearly verbatim |
 | `Services/ChunkedDownload.swift`, `Services/DownloadManager.swift` | `MCModels.ModelDownloader` (actor) and `MCModels.FileDownloader` | Civitai bearer auth, redirect handling, SHA-256 verification |
 | `Services/HFSearchService.swift` | `MCCatalogTool.HubClient` | Catalog-driven repo resolution only |
-| `Models/SystemMemoryInfo.swift`, `Services/SystemMetrics.swift`, `Models/MediaModelPicks.swift`, `Services/MediaBundle.swift` | `MCCatalog.HardwareProfile` / `Recommender` | Add chip class, GPU cores, calibration |
+| `Models/SystemMemoryInfo.swift`, `Services/SystemMetrics.swift`, `Models/MediaModelPicks.swift`, `Services/MediaBundle.swift` | `MCCatalog.HardwareProfile` / `Recommender` | Add chip class and GPU cores; the calibrator is an executor step (D48) |
 | `Services/MediaGen.swift` (`ImageModelPreset`, quality profiles) | Seed data for the catalog | Moved from Swift literals into signed JSON |
 | `Services/PromptRewriter.swift` | Seed content for prompt packs | Moved into per-family pack JSON |
 | `Services/VideoGenService.swift` (`writeMP4`) | Phase 3 video muxer | Reused for rgb8 + PCM → MP4 |
