@@ -81,14 +81,14 @@ def write_index(sheet, names, directory):
     key, rows = {}, []
     for prompt in prompts_for(sheet):
         for offset in sheet.get("seeds") or [0]:
-            order = [0, 1] if not blind else random.Random(f"{sheet['name']}/{prompt['id']}/{offset}").sample([0, 1], 2)
+            order = list(range(len(variants))) if not blind else random.Random(f"{sheet['name']}/{prompt['id']}/{offset}").sample([0, 1], 2)
             cells = []
             for slot, variant_index in enumerate(order):
                 label = "AB"[slot] if blind else variants[variant_index]["label"]
                 note = "" if blind else variants[variant_index].get("note", "")
                 src = names[(prompt["id"], offset, variant_index)]
                 cells.append(
-                    f'<td><img src="{html.escape(src)}" width="300"><br><b>{html.escape(label)}</b>'
+                    f'<td><img src="{html.escape(src)}" width="260"><br><b>{html.escape(label)}</b>'
                     f"<br><small>{html.escape(note)}</small></td>"
                 )
             if blind:
