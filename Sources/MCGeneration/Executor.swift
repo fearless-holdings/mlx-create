@@ -3,6 +3,9 @@ import MCEngine
 import MCLibrary
 import OSLog
 
+/// One finished image: its PNG, the step total the stream reported, the stream's seconds and the LoRA files the engine got.
+private typealias GenerationRendering = (png: Data, total: Int?, seconds: Double, loraCount: Int)
+
 /// Runs queued jobs one image at a time against the engine. Named `JobExecutor` to avoid shadowing
 /// `_Concurrency.Executor`.
 public actor JobExecutor {
@@ -28,7 +31,7 @@ public actor JobExecutor {
     var selectionsWaiting = 0
     /// Decides whether a lease swaps the image model out (tier 1, below 24 GiB) or keeps it resident.
     let memoryTier: MemoryTier
-    private var active: Task<(png: Data, total: Int?), Error>?
+    private var active: Task<GenerationRendering, Error>?
     private var cancelRequested: Set<UUID> = []
     private var drainTask: Task<Void, Never>?
     /// The most recent model switch. Each new switch waits for it, so unloads and loads never interleave.
@@ -232,11 +235,13 @@ public actor JobExecutor {
         let modelID = job.request.modelID
         let carriesAlwaysOn = !alwaysOn.isEmpty
         // The model switch and the stream share one task, so `cancel(_:)` also reaches a wait for the engine or a load.
-        let task = Task { () throws -> (png: Data, total: Int?) in
+        let task = Task { () throws -> GenerationRendering in
             try await self.makeResident(modelID, for: jobID)
-            func stream(_ request: ImageRequest) async throws -> (png: Data, total: Int?) {
+            func stream(_ request: ImageRequest) async throws -> GenerationRendering {
                 var png: Data?
                 var total: Int?
+                var seconds: Double?
+                let started = ContinuousClock.now
                 for try await event in client.generateImage(request) {
                     switch event {
                     case .progress(let step, let stepTotal, _):
@@ -244,10 +249,11 @@ public actor JobExecutor {
                         hub.send(.progress(jobID: jobID, step: step, total: stepTotal))
                     case .completed(let data):
                         png = data
+                        seconds = started.duration(to: ContinuousClock.now) / Duration.seconds(1)
                     }
                 }
-                guard let png else { throw EngineError.streamEndedWithoutComplete }
-                return (png, total)
+                guard let png, let seconds else { throw EngineError.streamEndedWithoutComplete }
+                return (png, total, seconds, request.loraPaths?.count ?? 0)
             }
             do {
                 return try await stream(fullRequest)
@@ -286,6 +292,13 @@ public actor JobExecutor {
                 pngData: result.png,
                 settings: settings
             ))
+        if let engineVersion, let steps = result.total {
+            let key = TimingSampleKey(
+                engineVersion: engineVersion, modelID: job.request.modelID, width: job.request.width,
+                height: job.request.height, steps: steps, loraCount: result.loraCount)
+            // KTD7: best-effort. A failed write never fails a job whose image is already saved.
+            try? await store.recordTimingSample(key: key, seconds: result.seconds, at: Date())
+        }
         hub.send(.imageSaved(jobID: job.id, imageID: image.id))
     }
 
