@@ -7,8 +7,15 @@ import MCLibrary
 extension AppModel {
     /// The estimate for `setup` on a model, or nil without an engine version, a baseline or a reference timing.
     func speedEstimate(modelID: String, reference: ReferenceTiming?, setup: TimingSetup) async -> SpeedEstimate? {
-        guard let engineVersion, let reference else { return nil }
+        guard let engineVersion, reference != nil else { return nil }
         let baseline = try? await store.baseline(engineVersion: engineVersion)
+        return await speedEstimate(modelID: modelID, reference: reference, setup: setup, baseline: baseline)
+    }
+
+    private func speedEstimate(
+        modelID: String, reference: ReferenceTiming?, setup: TimingSetup, baseline: CalibrationBaseline?
+    ) async -> SpeedEstimate? {
+        guard let engineVersion, let reference else { return nil }
         let key = TimingSampleKey(
             engineVersion: engineVersion, modelID: modelID, width: setup.width, height: setup.height,
             steps: setup.steps, loraCount: setup.loraCount)
@@ -18,7 +25,7 @@ extension AppModel {
     }
 
     /// The reference timing of the catalog entry for an installed model.
-    private func referenceTiming(for modelID: String) -> ReferenceTiming? {
+    func referenceTiming(for modelID: String) -> ReferenceTiming? {
         browser.rows.first { $0.model?.repo == modelID }?.model?.referenceTiming
     }
 
@@ -35,21 +42,35 @@ extension AppModel {
         return await speedEstimate(modelID: model.id, reference: referenceTiming(for: model.id), setup: setup)
     }
 
-    /// Rebuilds the browser's per-model estimates and tells views to re-read the composer's.
+    /// Rebuilds the browser's per-model estimates and tells views to re-read the composer's. Overlapping calls
+    /// coalesce into one more pass, so an older, slower pass never overwrites a newer result.
     func refreshEstimates() async {
-        guard engineVersion != nil else { return }
-        var result: [String: SpeedEstimate] = [:]
-        for row in browser.rows {
-            guard let model = row.model, model.kind == .image, model.referenceTiming != nil,
-                let family = registry.families.first(where: { $0.id == model.family })
-            else { continue }
-            let setup = TimingSetup(
-                width: family.defaultSize.width, height: family.defaultSize.height, steps: family.steps.defaultSteps, loraCount: 0)
-            if let estimate = await speedEstimate(modelID: model.repo, reference: model.referenceTiming, setup: setup) {
-                result[model.repo] = estimate
-            }
+        guard let engineVersion else { return }
+        if browser.estimatesRefreshing {
+            browser.estimatesRefreshPending = true
+            return
         }
-        browser.estimates = result
-        estimateRevision += 1
+        browser.estimatesRefreshing = true
+        defer { browser.estimatesRefreshing = false }
+        repeat {
+            browser.estimatesRefreshPending = false
+            let baseline = try? await store.baseline(engineVersion: engineVersion)
+            var result: [String: SpeedEstimate] = [:]
+            for row in browser.rows {
+                guard let model = row.model, model.kind == .image, model.referenceTiming != nil,
+                    let family = registry.families.first(where: { $0.id == model.family })
+                else { continue }
+                let setup = TimingSetup(
+                    width: family.defaultSize.width, height: family.defaultSize.height, steps: family.steps.defaultSteps,
+                    loraCount: 0)
+                if let estimate = await speedEstimate(
+                    modelID: model.repo, reference: model.referenceTiming, setup: setup, baseline: baseline)
+                {
+                    result[model.repo] = estimate
+                }
+            }
+            browser.estimates = result
+            estimateRevision += 1
+        } while browser.estimatesRefreshPending
     }
 }

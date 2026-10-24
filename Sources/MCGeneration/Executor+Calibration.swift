@@ -11,8 +11,8 @@ extension JobExecutor {
     /// already tried, or the version already has a baseline.
     private func dueCalibration() async throws -> (version: String, target: CalibrationTarget)? {
         guard !calibrationTriedThisLaunch, let engineVersion else { return nil }
-        guard let target = await calibrationTargets().first else { return nil }
         guard try await store.baseline(engineVersion: engineVersion) == nil else { return nil }
+        guard let target = await calibrationTargets().first else { return nil }
         return (engineVersion, target)
     }
 

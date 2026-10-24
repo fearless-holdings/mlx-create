@@ -24,9 +24,7 @@ extension AppModel {
             installed.filter { $0.family?.id == family.id && $0.id != selectedModelID }
         }
         return (selected + others).compactMap { model -> CalibrationTarget? in
-            guard let family = model.family,
-                let reference = browser.rows.first(where: { $0.model?.repo == model.id })?.model?.referenceTiming
-            else { return nil }
+            guard let family = model.family, let reference = referenceTiming(for: model.id) else { return nil }
             return CalibrationTarget(modelID: model.id, family: family, reference: reference)
         }
     }

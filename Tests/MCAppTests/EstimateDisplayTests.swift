@@ -51,7 +51,7 @@ final class EstimateDisplayTests {
         let family = try #require(model.selectedModel?.family)
         let small = family.sizePresets.min { $0.width * $0.height < $1.width * $1.height }!
         let large = family.sizePresets.max { $0.width * $0.height < $1.width * $1.height }!
-        guard small != large else { return }
+        try #require(small != large, "the family needs two size presets for this check")
         model.size = small
         let low = try #require(seconds(await model.composerEstimate()))
         model.size = large
