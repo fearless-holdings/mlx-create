@@ -55,6 +55,7 @@ extension AppModel {
         repeat {
             browser.estimatesRefreshPending = false
             let baseline = try? await store.baseline(engineVersion: engineVersion)
+            let alwaysOn = (try? await store.alwaysOnLoRACounts()) ?? [:]
             var result: [String: SpeedEstimate] = [:]
             for row in browser.rows {
                 guard let model = row.model, model.kind == .image, model.referenceTiming != nil,
@@ -62,7 +63,7 @@ extension AppModel {
                 else { continue }
                 let setup = TimingSetup(
                     width: family.defaultSize.width, height: family.defaultSize.height, steps: family.steps.defaultSteps,
-                    loraCount: 0)
+                    loraCount: min(alwaysOn[family.id] ?? 0, GenerationComposer.engineLoRAMax))
                 if let estimate = await speedEstimate(
                     modelID: model.repo, reference: model.referenceTiming, setup: setup, baseline: baseline)
                 {

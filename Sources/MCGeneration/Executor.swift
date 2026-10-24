@@ -107,9 +107,10 @@ public actor JobExecutor {
         while true {
             try await waitWhileLeaseHeld()
             let paused = await queue.isPauseRequested
+            let due = try await dueCalibration()
             guard let job = try await store.nextQueuedJob() else {
                 // Nothing queued: a due calibration runs now, and a pause does not stop it (R3).
-                guard try await calibrateIfDue() else { return }
+                guard try await calibrateIfDue(due) else { return }
                 continue
             }
             // A paused queue keeps its queued jobs and ends the drain without calibrating.

@@ -369,6 +369,8 @@ public final class AppModel {
         }
         shelf.setEntries(catalog.loraShelf)
         await browser.replaceCatalog(catalog, installs: installs)
+        await refreshEstimates()
+        await executor.kickIfCalibrationDue()
     }
 
     // MARK: Derived state

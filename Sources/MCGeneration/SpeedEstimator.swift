@@ -59,8 +59,8 @@ public struct SpeedEstimator: Sendable {
             return .measured(Self.median(window))
         }
         let factor = baseline.seconds / baseline.referenceSeconds
-        let pixels = Double(setup.width * setup.height)
-        let referencePixels = Double(reference.width * reference.height)
+        let pixels = Double(setup.width) * Double(setup.height)
+        let referencePixels = Double(reference.width) * Double(reference.height)
         let seconds =
             reference.seconds * factor * (pixels / referencePixels) * (Double(setup.steps) / Double(reference.steps))
         return .estimated(seconds)

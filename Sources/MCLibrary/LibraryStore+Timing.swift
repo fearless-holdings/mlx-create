@@ -142,13 +142,14 @@ extension LibraryStore {
                 sql: """
                     DELETE FROM generation_timing WHERE \(Self.timingKeyMatch) AND rowid NOT IN (
                         SELECT rowid FROM generation_timing WHERE \(Self.timingKeyMatch)
-                        ORDER BY created_at DESC, rowid DESC LIMIT ?)
+                        ORDER BY rowid DESC LIMIT ?)
                     """,
                 arguments: trim)
         }
     }
 
-    /// The newest ``timingSampleLimit`` seconds recorded under the key, newest first. Ties on the timestamp break by rowid.
+    /// The newest ``timingSampleLimit`` seconds recorded under the key, newest first. Insertion order decides, so a
+    /// clock that steps backwards never drops the sample just written.
     public func recentTimings(key: TimingSampleKey) throws -> [Double] {
         try dbQueue.read { db in
             var args = Self.keyArguments(key)
@@ -157,7 +158,7 @@ extension LibraryStore {
                 db,
                 sql: """
                     SELECT seconds FROM generation_timing WHERE \(Self.timingKeyMatch)
-                    ORDER BY created_at DESC, rowid DESC LIMIT ?
+                    ORDER BY rowid DESC LIMIT ?
                     """,
                 arguments: args)
         }

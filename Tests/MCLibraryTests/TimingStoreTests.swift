@@ -78,6 +78,18 @@ import Testing
         #expect(try await store.recentTimings(key: base) == [3])
     }
 
+    @Test func aSampleWithAnOlderTimestampStillCountsAsTheNewest() async throws {
+        let store = try Self.makeStore()
+        let key = Self.key()
+        for index in 1...5 {
+            try await store.recordTimingSample(key: key, seconds: Double(index), at: Date(timeIntervalSince1970: Double(1000 + index)))
+        }
+        // The clock stepped backwards: the newest sample carries the oldest timestamp.
+        try await store.recordTimingSample(key: key, seconds: 6, at: Date(timeIntervalSince1970: 1))
+
+        #expect(try await store.recentTimings(key: key) == [6, 5, 4, 3, 2])
+    }
+
     @Test func aSampleOfOneKeyDoesNotTrimAnotherKey() async throws {
         let store = try Self.makeStore()
         let busy = Self.key()

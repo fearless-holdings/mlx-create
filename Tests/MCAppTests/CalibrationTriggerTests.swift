@@ -41,6 +41,7 @@ final class CalibrationTriggerTests {
             catalog: BrowserFixture.catalog, engineVersion: "1.0")
         await harness.model.start()
         await harness.model.refreshModels()
+        #expect(harness.model.calibrationTargets().isEmpty)
         _ = try await harness.enqueue(model: BrowserFixture.alpha.repo, batch: 1)
         await harness.model.startDraining()
 

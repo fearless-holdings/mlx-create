@@ -1,18 +1,18 @@
 import Foundation
 import MCCatalog
 import MCGeneration
-import MCLibrary
 import Testing
 
 @testable import MCApp
+@testable import MCLibrary
 
 /// Speed estimates for the browser rows and the composer (plan U7, KTD6).
 @MainActor
 final class EstimateDisplayTests {
-    private func harness(withBaseline: Bool = true) async throws -> AppHarness {
+    private func harness(withBaseline: Bool = true, holdLoads: Set<String> = []) async throws -> AppHarness {
         let harness = try await AppHarness.make(
             models: CalibrationTriggerTests.timedModels, script: CalibrationTriggerTests.succeeds,
-            catalog: CalibrationTriggerTests.timedCatalog, engineVersion: "1.0")
+            catalog: CalibrationTriggerTests.timedCatalog, holdLoads: holdLoads, engineVersion: "1.0")
         if withBaseline {
             try await harness.store.saveBaseline(
                 CalibrationBaseline(
@@ -38,10 +38,35 @@ final class EstimateDisplayTests {
     }
 
     @Test func noBaselineMeansNoEstimate() async throws {
-        let harness = try await harness(withBaseline: false)
+        // Hold the engine load so the first-launch calibration cannot write a baseline while the rows load.
+        let harness = try await harness(withBaseline: false, holdLoads: [CalibrationTriggerTests.timed.repo])
+        await harness.model.refreshModels()
+        try #require(harness.model.browser.rows.contains { $0.model?.referenceTiming != nil })
         await harness.model.refreshEstimates()
         #expect(harness.model.browser.estimates.isEmpty)
         #expect(await harness.model.composerEstimate() == nil)
+        EngineStubProtocol.finishHeld(harness.endpoint)
+    }
+
+    @Test func aRowEstimateCountsTheFamilysAlwaysOnLoRAs() async throws {
+        let harness = try await harness()
+        await harness.model.refreshModels()
+        let model = harness.model
+        let family = try #require(model.selectedModel?.family)
+        let record = LoRARecord(
+            id: "always-on-1", name: "Hidden", family: family.id, sha256: String(repeating: "a", count: 64),
+            relativePath: "x.safetensors", sizeBytes: 1, triggerWords: [], notes: nil, createdAt: Date(), alwaysOnScale: 1)
+        try await harness.store.dbQueue.write { db in try record.insert(db) }
+        let key = TimingSampleKey(
+            engineVersion: "1.0", modelID: CalibrationTriggerTests.timed.repo, width: family.defaultSize.width,
+            height: family.defaultSize.height, steps: family.steps.defaultSteps, loraCount: 1)
+        for index in 0..<3 {
+            try await harness.store.recordTimingSample(key: key, seconds: 7, at: Date(timeIntervalSince1970: Double(index)))
+        }
+
+        await model.refreshEstimates()
+
+        #expect(model.browser.estimates[CalibrationTriggerTests.timed.repo] == .measured(7))
     }
 
     @Test func theComposerEstimateGrowsWithPixelsAndSteps() async throws {

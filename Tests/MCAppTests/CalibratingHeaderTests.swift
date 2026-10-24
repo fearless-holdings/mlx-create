@@ -15,6 +15,8 @@ final class CalibratingHeaderTests {
         await harness.model.refreshModels()
 
         try await eventually { harness.model.queueHeader == .calibrating }
+        // On a fresh library nothing is queued or in the gallery, yet the window must show the strip for this state.
+        #expect(harness.model.canvasMode == .emptyHint)
         #expect(!harness.model.queueHeader.offersPause)
         #expect(!harness.model.queueHeader.offersResume)
 
