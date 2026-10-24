@@ -119,6 +119,7 @@ HLD Appendix A lists the files worth reusing. The rules:
 - `swift test` takes about 40 s here. Past 2 minutes it is hung: `pkill -f swiftpm-testing-helper; pkill -f swift-test`, then bisect with `--filter` per suite.
 - App project: `xcodegen generate` (needs XcodeGen 2.46+, `brew install xcodegen`), then `xcodebuild -project MLXCreate.xcodeproj -scheme MLXCreate -configuration Debug -derivedDataPath build build`. The generated `MLXCreate.xcodeproj` and `build/` are git-ignored.
 - Engine embed runs as a post-compile script from `project.yml` (`scripts/embed-engine.sh`, pinned by `engine.lock`).
+- Calibration (D48, `docs/lld/calibration.md`): the app times two empty-engine renders per engine version and stores a baseline in `calibration_baseline`; estimates scale each catalog model's `reference_timing` by it. To measure a new `reference_timing`, extract the pinned engine, point `MLXC_ENGINE_BIN`, `MLXC_MEASURE_MODEL_DIR` (a directory of model folders or symlinks) and `MLXC_MEASURE_MODEL_ID` at it, and run `swift test --filter ReferenceTimingMeasurementTests` from an Eval cell. It prints one `REFERENCE_TIMING` line to copy into `catalog/models.src.json`, then rebuild and sign the catalog. Measure on one Mac, with no other engine loaded. To watch a calibration live, launch the app with a throwaway home (`CFFIXED_USER_HOME`, see `docs/solutions/developer-experience/launch-app-with-empty-library-for-first-run-testing.md`) holding a symlinked model under `Models/Weights/`, then read `calibration_baseline` from `Library/library.sqlite`.
 
 ## Verification
 
