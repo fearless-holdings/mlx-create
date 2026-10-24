@@ -12,6 +12,13 @@ enum QueuePresentation {
         return String(collapsed.prefix(promptSnippetLength)) + "…"
     }
 
+    /// Calibration never overlaps a job, so a running job keeps its header. Otherwise calibration takes precedence over
+    /// idle and paused, and the queue's own state returns when it ends.
+    static func header(isRunning: Bool, pauseRequested: Bool, isCalibrating: Bool = false) -> QueueHeader {
+        if isCalibrating, !isRunning { return .calibrating }
+        return header(isRunning: isRunning, pauseRequested: pauseRequested)
+    }
+
     /// Running with a pause requested is "pausing": the current image finishes, then nothing new starts.
     static func header(isRunning: Bool, pauseRequested: Bool) -> QueueHeader {
         switch (isRunning, pauseRequested) {

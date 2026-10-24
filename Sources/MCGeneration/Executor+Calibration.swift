@@ -50,7 +50,7 @@ extension JobExecutor {
 
     /// Starts the drain when a calibration is due. Called when an Enhance lease releases, so a calibration that waited
     /// behind the lease is not left until the next queue event.
-    func kickIfCalibrationDue() async {
+    public func kickIfCalibrationDue() async {
         do {
             if try await dueCalibration() != nil { start() }
         } catch {

@@ -90,10 +90,17 @@ public struct JobItem: Equatable, Sendable, Identifiable {
     }
 }
 
-/// Queue header state (U8 step 4).
+/// Queue header state (U8 step 4). `calibrating` is the on-device speed measurement (R8): no Pause or Resume, and no job runs.
 public enum QueueHeader: Equatable, Sendable {
     case idle
     case running
     case pausing
     case paused
+    case calibrating
+
+    /// Only a running queue offers Pause; a pausing or calibrating header never does.
+    public var offersPause: Bool { self == .running }
+
+    /// Only a paused queue offers Resume.
+    public var offersResume: Bool { self == .paused }
 }

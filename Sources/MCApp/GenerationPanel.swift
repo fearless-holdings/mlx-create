@@ -1,4 +1,5 @@
 import MCCatalog
+import MCGeneration
 import SwiftUI
 
 /// The left panel of the three-panel layout (HLD §10): the multi-line prompt, the settings inline, and a pinned bottom
@@ -7,6 +8,12 @@ import SwiftUI
 struct GenerationPanel: View {
     @Bindable var model: AppModel
     @State private var isLoRADropTargeted = false
+    @State private var estimate: SpeedEstimate?
+
+    /// Changes whenever the composer's estimate may change, so `.task` recomputes it.
+    private var estimateTaskID: String {
+        "\(model.estimateRevision) \(model.size.width)x\(model.size.height) \(model.steps ?? 0) \(model.selectedModelID ?? "") \(model.loraStack.map(\.isUsed))"
+    }
 
     /// The prompt editor never gets shorter than this. When the window is too short for the settings beside it, the
     /// whole top area scrolls instead of squeezing the prompt.
@@ -267,6 +274,11 @@ struct GenerationPanel: View {
                 .accessibilityLabel("Batch count")
                 .accessibilityValue("\(model.batchCount)")
 
+                if let estimate {
+                    Text(SpeedEstimate.scaled(estimate, by: model.batchCount).label)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Spacer(minLength: 0)
 
                 Button("Generate") {
@@ -275,6 +287,9 @@ struct GenerationPanel: View {
                 .keyboardShortcut(.return, modifiers: .command)
                 .disabled(!model.canGenerate)
                 .buttonStyle(.borderedProminent)
+            }
+            .task(id: estimateTaskID) {
+                estimate = await model.composerEstimate()
             }
             if let error = model.lastError {
                 Text(error)

@@ -20,8 +20,11 @@ extension AppModel {
             await prependImage(jobID: jobID, id: imageID)
             await reloadQueue()
             await refreshCollections()
+            Task { await refreshEstimates() }
         case .calibrationChanged(let running):
             isCalibrating = running
+            if !running { Task { await refreshEstimates() } }
+            await reloadQueue()
         case .jobChanged:
             await reload()
         }
@@ -73,7 +76,9 @@ extension AppModel {
                 guard collectionID == currentCollection.id else { return }
                 guard revision == galleryRevision else { continue }
                 queueJobs = items
-                queueHeader = QueuePresentation.header(isRunning: snapshot.running != nil, pauseRequested: snapshot.isPauseRequested)
+                queueHeader = QueuePresentation.header(
+                    isRunning: snapshot.running != nil, pauseRequested: snapshot.isPauseRequested,
+                    isCalibrating: isCalibrating)
                 if runningProgress?.jobID != running?.id {
                     runningProgress = nil
                 }

@@ -75,6 +75,16 @@ public struct SpeedEstimator: Sendable {
 }
 
 extension SpeedEstimate {
+    /// The time for `count` images at the same setup.
+    public static func scaled(_ estimate: SpeedEstimate, by count: Int) -> SpeedEstimate {
+        switch estimate {
+        case .measured(let seconds): .measured(seconds * Double(count))
+        case .estimated(let seconds): .estimated(seconds * Double(count))
+        }
+    }
+}
+
+extension SpeedEstimate {
     /// The wording a user sees for a time: "about 12 s" when measured, "1 min 20 s (estimate)" when estimated.
     /// All speed wording lives here.
     public var label: String {

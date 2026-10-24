@@ -58,6 +58,10 @@ public final class AppModel {
     public private(set) var models: [InstalledModel] = []
     /// True while an on-device calibration renders (U6). The executor's calibration events set it.
     var isCalibrating = false
+    /// The pinned engine's version, nil under tests that do not run an engine. Speed estimates need it (KTD5).
+    let engineVersion: String?
+    /// Bumped whenever the speed estimates may have changed, so views re-read them.
+    var estimateRevision = 0
     private var modelsLoaded = false
     /// The collection the gallery, queue strip and new jobs use (D35). Set by `ensureCurrentCollection()` and `switchCollection(to:)`.
     var currentCollection = ImageCollection(name: "Untitled", isDefault: true)
@@ -213,6 +217,7 @@ public final class AppModel {
         self.states = states
         self.weightsPath = weightsPath
         self.supervisor = supervisor
+        self.engineVersion = engineVersion
         self.defaults = defaults
         self.installTransport = transport
         self.catalogStore = catalogStore
@@ -537,29 +542,13 @@ public final class AppModel {
             modelsLoaded = true
             chooseSelection()
             scheduleAlwaysOnProvisioning()
-            await startDraining()
+            await refreshEstimates()
+            await executor.kickIfCalibrationDue()
         } catch is CancellationError {
             return
         } catch {
             if !engineFailed { lastError = message(for: error) }
         }
-    }
-
-    /// Keeps the selection when it is still selectable; otherwise the first selectable model in registry order.
-    private func chooseSelection() {
-        if let selectedModelID, models.contains(where: { $0.id == selectedModelID && ModelSelection.isSelectable($0) }) {
-            return
-        }
-        selectedModelID = ModelSelection.defaultModelID(in: models, registry: registry)
-    }
-
-    func fitComposerToSelectedFamily() {
-        guard let model = selectedModel, ModelSelection.isSelectable(model), let family = model.family else { return }
-        let fitted = ModelSelection.fit(size: size, steps: steps, guidance: guidance, to: family)
-        size = fitted.size
-        steps = fitted.steps
-        guidance = fitted.guidance
-        if !family.supportsNegativePrompt { negativePrompt = "" }
     }
 
     /// Makes `modelID` the resident model. Skipped while a job runs, since loading would unload the model in use;

@@ -42,6 +42,7 @@ final class CalibrationTriggerTests {
         await harness.model.start()
         await harness.model.refreshModels()
         _ = try await harness.enqueue(model: BrowserFixture.alpha.repo, batch: 1)
+        await harness.model.startDraining()
 
         try await eventually { try await harness.store.jobs(status: .done).count == 1 }
         #expect(try await harness.store.baseline(engineVersion: "1.0") == nil)
@@ -87,6 +88,7 @@ final class CalibrationTriggerTests {
         await second.model.start()
         await second.model.refreshModels()
         _ = try await second.enqueue(model: Self.timed.repo, batch: 1)
+        await second.model.startDraining()
         try await eventually { try await second.store.jobs(status: .done).count == 1 }
 
         #expect(try await second.store.baseline(engineVersion: "1.0")?.measuredAt == measuredAt)
