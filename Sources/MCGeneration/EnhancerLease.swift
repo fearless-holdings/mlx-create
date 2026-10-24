@@ -45,6 +45,7 @@ extension JobExecutor {
         } else {
             enhancerLeaseHeld = false
             notifyStateChanged()
+            await kickIfCalibrationDue()
         }
         return try outcome.get()
     }
@@ -108,6 +109,7 @@ extension JobExecutor {
         for id in ids { try? await client.load(model: id) }
         enhancerLeaseHeld = false
         notifyStateChanged()
+        await kickIfCalibrationDue()
     }
 
     /// Whether no job is queued. A failed store read counts as not empty, so nothing is re-warmed on a guess.

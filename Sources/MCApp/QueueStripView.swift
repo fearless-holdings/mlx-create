@@ -22,7 +22,8 @@ struct QueueStripView: View {
     }
 }
 
-/// Queue header: Running with Pause, Pausing… while the current generation finishes, Paused with Resume.
+/// Queue header: Running with Pause, Pausing… while the current generation finishes, Paused with Resume, and
+/// Measuring this Mac's speed… during calibration (no controls).
 struct QueueHeaderView: View {
     let model: AppModel
 
@@ -34,16 +35,24 @@ struct QueueHeaderView: View {
                     .foregroundStyle(.secondary)
             case .running:
                 Label("Running", systemImage: "circle.dotted")
-                Button("Pause") {
-                    Task { await model.pauseQueue() }
-                }
-                .buttonStyle(.link)
             case .pausing:
                 ProgressView()
                     .controlSize(.small)
                 Text("Pausing…")
             case .paused:
                 Label("Paused", systemImage: "pause.circle")
+            case .calibrating:
+                ProgressView()
+                    .controlSize(.small)
+                Text("Measuring this Mac's speed…")
+            }
+            if model.queueHeader.offersPause {
+                Button("Pause") {
+                    Task { await model.pauseQueue() }
+                }
+                .buttonStyle(.link)
+            }
+            if model.queueHeader.offersResume {
                 Button("Resume") {
                     Task { await model.resumeQueue() }
                 }

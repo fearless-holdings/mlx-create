@@ -22,6 +22,7 @@
     {
       "id": "krea-2-turbo-mixed-4-8",
       "recommend_rank": 2,
+      "reference_timing": { "width": 1024, "height": 1024, "steps": 4, "seconds": 20.59 },
       "family": "krea-2-turbo",
       "name": "Krea 2 Turbo",
       "quantization": "mixed 4/8-bit",
@@ -40,6 +41,7 @@
     {
       "id": "qwen-image-2.1-turbo-4bit",
       "recommend_rank": 1,
+      "reference_timing": { "width": 1024, "height": 1024, "steps": 8, "seconds": 25.65 },
       "family": "qwen-image-2.1-turbo",
       "name": "Qwen-Image 2.1 Turbo",
       "quantization": "4-bit",

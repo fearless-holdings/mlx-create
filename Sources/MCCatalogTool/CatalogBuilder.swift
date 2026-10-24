@@ -47,10 +47,13 @@ struct SourceModel: Decodable, Equatable {
     let kind: CatalogModelKind?
     /// Preference order for the automatic recommendation, lowest first. Absent means never recommended (D42).
     let recommendRank: Int?
+    /// Reviewed reference timing for the calibration baseline (KTD8). Absent means none yet.
+    let referenceTiming: ReferenceTiming?
 
     enum CodingKeys: String, CodingKey {
         case id, family, name, quantization, repo, ref, license, kind
         case recommendRank = "recommend_rank"
+        case referenceTiming = "reference_timing"
         case ramGB = "ram_gb"
     }
 }
@@ -108,7 +111,8 @@ struct CatalogBuilder: Sendable {
             id: entry.id, family: entry.family, name: entry.name, quantization: entry.quantization,
             repo: entry.repo, revision: revision,
             downloadBytes: files.reduce(0) { $0 + $1.size }, ramGB: entry.ramGB,
-            license: entry.license, files: files, kind: entry.kind ?? .image, recommendRank: entry.recommendRank)
+            license: entry.license, files: files, kind: entry.kind ?? .image, recommendRank: entry.recommendRank,
+            referenceTiming: entry.referenceTiming)
         try model.validate()
         return (model, dropped)
     }
@@ -162,6 +166,7 @@ enum CatalogDiff {
             } else if old == nil {
                 lines.append("+ model \(model.id) revision \(model.revision)")
             }
+            lines += timingLines(id: model.id, previous: old?.referenceTiming, next: model.referenceTiming)
             let oldFiles = Dictionary((old?.files ?? []).map { ($0.path, $0) }, uniquingKeysWith: { first, _ in first })
             let newPaths = Set(model.files.map(\.path))
             for file in model.files {
@@ -182,6 +187,18 @@ enum CatalogDiff {
             lines.append("- model \(old.id)")
         }
         return lines + shelfLines(previous: previous, next: next)
+    }
+
+    /// A reference timing is compared whole, so a change to its size, steps or seconds is always named.
+    private static func timingLines(id: String, previous: ReferenceTiming?, next: ReferenceTiming?) -> [String] {
+        guard let next else { return previous == nil ? [] : ["- \(id) reference_timing"] }
+        guard let previous else { return ["+ \(id) reference_timing \(timingText(next))"] }
+        guard previous != next else { return [] }
+        return ["~ \(id) reference_timing \(timingText(previous)) -> \(timingText(next))"]
+    }
+
+    private static func timingText(_ timing: ReferenceTiming) -> String {
+        "\(timing.width)x\(timing.height), \(timing.steps) steps, \(timing.seconds) s"
     }
 
     /// An entry is identified by family, role and whether it is always-on, so flipping `always_on` reads as a removal plus an

@@ -19,6 +19,8 @@ final class FakeEngine: @unchecked Sendable {
     /// Model ids whose load stays open until `finishHeld`, whatever `holdLoads` says.
     private let heldLoadModels: Set<String>
     private let refusedLoads: Set<String>
+    /// Refusals left per model id. Each one refuses a load, then the next load of that model succeeds.
+    private var refusalsLeft: [String: Int]
     private let script: @Sendable (Int, EngineStubProtocol.Recorded) -> EngineStubProtocol.Reply
 
     init(
@@ -27,6 +29,7 @@ final class FakeEngine: @unchecked Sendable {
         holdLoads: Bool,
         heldLoadModels: Set<String> = [],
         refusedLoads: Set<String>,
+        refusedLoadCounts: [String: Int] = [:],
         script: @escaping @Sendable (Int, EngineStubProtocol.Recorded) -> EngineStubProtocol.Reply
     ) {
         self.loaded = loaded
@@ -34,6 +37,7 @@ final class FakeEngine: @unchecked Sendable {
         self.holdLoads = holdLoads
         self.heldLoadModels = heldLoadModels
         self.refusedLoads = refusedLoads
+        self.refusalsLeft = refusedLoadCounts
         self.script = script
     }
 
@@ -43,7 +47,7 @@ final class FakeEngine: @unchecked Sendable {
             return .json(modelsJSON())
         case "v1/load-model":
             let id = Self.modelID(request.body)
-            if refusedLoads.contains(id) { return .init(status: 503, body: PNGFixture.oomBody(), tail: nil) }
+            if refusedLoads.contains(id) || consumeRefusal(id) { return .init(status: 503, body: PNGFixture.oomBody(), tail: nil) }
             lock.withLock { _ = loaded.insert(id) }
             // A held load keeps its reply open until the test finishes it or the client cancels the request.
             return (holdLoads || heldLoadModels.contains(id))
@@ -60,6 +64,15 @@ final class FakeEngine: @unchecked Sendable {
             return script(number, request)
         default:
             return .init(status: 404, body: Data(), tail: nil)
+        }
+    }
+
+    /// Takes one counted refusal for `id`, if any is left.
+    private func consumeRefusal(_ id: String) -> Bool {
+        lock.withLock {
+            guard let left = refusalsLeft[id], left > 0 else { return false }
+            refusalsLeft[id] = left - 1
+            return true
         }
     }
 
@@ -93,8 +106,11 @@ struct Harness {
         holdLoads: Bool = false,
         heldLoadModels: Set<String> = [],
         refusedLoads: Set<String> = [],
+        refusedLoadCounts: [String: Int] = [:],
         engineVersion: String? = nil,
         memoryTier: MemoryTier = MemoryTier(physicalMemoryBytes: 16 << 30),
+        calibrationTargets: @escaping @Sendable () async -> [CalibrationTarget] = { [] },
+        calibrationRetryDelay: Duration = .seconds(30),
         script: @escaping @Sendable (Int, EngineStubProtocol.Recorded) -> EngineStubProtocol.Reply
     ) async throws -> Harness {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("gen-\(UUID().uuidString)")
@@ -102,7 +118,7 @@ struct Harness {
         let store = try LibraryStore(libraryRoot: root, modelsRoot: modelsRoot)
         let engine = FakeEngine(
             loaded: loaded, known: known, holdLoads: holdLoads, heldLoadModels: heldLoadModels,
-            refusedLoads: refusedLoads, script: script)
+            refusedLoads: refusedLoads, refusedLoadCounts: refusedLoadCounts, script: script)
         let endpoint = EngineStubProtocol.register(handler: { engine.handle($0) })
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [EngineStubProtocol.self]
@@ -110,7 +126,8 @@ struct Harness {
         let queue = JobQueue(store: store)
         let executor = JobExecutor(
             store: store, modelsRoot: modelsRoot, client: client, queue: queue, engineVersion: engineVersion,
-            memoryTier: memoryTier)
+            memoryTier: memoryTier, calibrationTargets: calibrationTargets,
+            calibrationRetryDelay: calibrationRetryDelay)
         let collection = try await store.defaultCollection()
         return Harness(
             store: store, queue: queue, executor: executor, endpoint: endpoint, collectionID: collection.id,

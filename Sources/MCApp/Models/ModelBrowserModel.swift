@@ -1,5 +1,6 @@
 import Foundation
 import MCCatalog
+import MCGeneration
 import MCModels
 import Metal
 import Observation
@@ -126,6 +127,11 @@ final class ModelBrowserModel {
     private let workingSetGB: Double?
     /// Model ids the engine currently reports. `AppModel` updates it after every models refresh.
     private(set) var engineModelIDs: Set<String>
+    /// Estimated time per model repo for its family's default size and steps. `AppModel` refreshes it (KTD6).
+    var estimates: [String: SpeedEstimate] = [:]
+    /// `AppModel.refreshEstimates` coalescing: one pass runs at a time and a call during it asks for one more.
+    var estimatesRefreshing = false
+    var estimatesRefreshPending = false
 
     private(set) var active: ModelInstaller.Snapshot.Active?
     private(set) var interrupted: [StagedInstall] = []

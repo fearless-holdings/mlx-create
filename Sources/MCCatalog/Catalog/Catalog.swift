@@ -60,6 +60,22 @@ public enum CatalogModelKind: String, Sendable, Codable, Equatable {
     case enhancer
 }
 
+/// One measured reference render for a model: the size and step count the engine was timed at and the seconds it took
+/// on the calibration run (KTD8). Image models only. A reviewer sets it, and every change shows in the build diff.
+public struct ReferenceTiming: Sendable, Codable, Equatable {
+    public let width: Int
+    public let height: Int
+    public let steps: Int
+    public let seconds: Double
+
+    public init(width: Int, height: Int, steps: Int, seconds: Double) {
+        self.width = width
+        self.height = height
+        self.steps = steps
+        self.seconds = seconds
+    }
+}
+
 /// One installable model. `revision` is the pinned 40-hex Hugging Face commit (D27).
 public struct CatalogModel: Sendable, Codable, Equatable, Identifiable {
     public let id: String
@@ -79,11 +95,13 @@ public struct CatalogModel: Sendable, Codable, Equatable, Identifiable {
     public let kind: CatalogModelKind
     /// Preference order for the automatic recommendation, lowest first (D42). Nil means never recommended.
     public let recommendRank: Int?
+    /// The reviewed reference timing for the calibration baseline (KTD8). Nil until a reviewer measures the model.
+    public let referenceTiming: ReferenceTiming?
 
     public init(
         id: String, family: String, name: String, quantization: String, repo: String, revision: String,
         downloadBytes: Int64, ramGB: Double, license: CatalogLicense, files: [CatalogFile],
-        kind: CatalogModelKind = .image, recommendRank: Int? = nil
+        kind: CatalogModelKind = .image, recommendRank: Int? = nil, referenceTiming: ReferenceTiming? = nil
     ) {
         self.id = id
         self.family = family
@@ -97,11 +115,13 @@ public struct CatalogModel: Sendable, Codable, Equatable, Identifiable {
         self.files = files
         self.kind = kind
         self.recommendRank = recommendRank
+        self.referenceTiming = referenceTiming
     }
 
     enum CodingKeys: String, CodingKey {
         case id, family, name, quantization, repo, revision, license, files, kind
         case recommendRank = "recommend_rank"
+        case referenceTiming = "reference_timing"
         case downloadBytes = "download_bytes"
         case ramGB = "ram_gb"
     }
@@ -121,11 +141,12 @@ public struct CatalogModel: Sendable, Codable, Equatable, Identifiable {
         files = try c.decode([CatalogFile].self, forKey: .files)
         kind = try c.decodeIfPresent(CatalogModelKind.self, forKey: .kind) ?? .image
         recommendRank = try c.decodeIfPresent(Int.self, forKey: .recommendRank)
+        referenceTiming = try c.decodeIfPresent(ReferenceTiming.self, forKey: .referenceTiming)
     }
 
     /// Writes the keys in the order the synthesised encoder used. `kind` is written only for an enhancer and
     /// `recommend_rank` only when set, so re-encoding an unranked image model produces the same bytes, and the
-    /// signature over them still matches.
+    /// signature over them still matches. `reference_timing` is written only when set, by the same rule.
     public func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(id, forKey: .id)
@@ -140,6 +161,7 @@ public struct CatalogModel: Sendable, Codable, Equatable, Identifiable {
         try c.encode(files, forKey: .files)
         if kind != .image { try c.encode(kind, forKey: .kind) }
         if let recommendRank { try c.encode(recommendRank, forKey: .recommendRank) }
+        if let referenceTiming { try c.encode(referenceTiming, forKey: .referenceTiming) }
     }
 }
 

@@ -127,7 +127,9 @@ extension AppModel {
     public func refreshLoRALibrary() async {
         do {
             let records = try await store.loras()
-            alwaysOnCounts = try await store.alwaysOnLoRACounts()
+            let counts = try await store.alwaysOnLoRACounts()
+            if counts != alwaysOnCounts { estimateRevision += 1 }
+            alwaysOnCounts = counts
             loraRecords = records
             loraMissingFileIDs = Set(records.filter { !store.loraFileExists($0) }.map(\.id))
             let known = Set(records.map(\.id))

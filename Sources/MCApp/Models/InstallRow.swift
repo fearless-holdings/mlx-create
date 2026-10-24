@@ -1,4 +1,5 @@
 import MCCatalog
+import MCGeneration
 import MCModels
 import SwiftUI
 
@@ -30,6 +31,11 @@ struct InstallRow: View {
                 }
                 if let model = row.model {
                     Text(facts(for: model))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if let model = row.model, let estimate = browser.estimates[model.repo] {
+                    Text(estimate.label)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

@@ -136,6 +136,41 @@ enum BuildFixture {
         #expect(plain.catalog.models.first?.recommendRank == nil)
     }
 
+    /// A reference timing reaches the built catalog, and adding, changing or removing it is named in the diff, so
+    /// `sign --acknowledge-diff` cannot approve a timing change unseen.
+    @Test func referenceTimingIsCarriedAndNamedInTheDiffWhenAddedChangedOrRemoved() async throws {
+        let timed = BuildFixture.sourceJSON.replacingOccurrences(
+            of: "\"id\": \"demo-model\",",
+            with: """
+                "id": "demo-model",
+                "reference_timing": { "width": 1024, "height": 1024, "steps": 4, "seconds": 9.5 },
+                """)
+        let plain = try await CatalogBuilder(hub: BuildFixture.hub()).build(source: BuildFixture.source(), previous: nil)
+        let added = try await CatalogBuilder(hub: BuildFixture.hub())
+            .build(source: try SourceCatalog.load(Data(timed.utf8)), previous: plain.catalog)
+        #expect(
+            added.catalog.models.first?.referenceTiming
+                == ReferenceTiming(width: 1024, height: 1024, steps: 4, seconds: 9.5))
+        let addLines = CatalogDiff.lines(previous: plain.catalog, next: added.catalog)
+        #expect(addLines.contains { $0.contains("demo-model") && $0.contains("reference_timing") })
+
+        let unchanged = try await CatalogBuilder(hub: BuildFixture.hub())
+            .build(source: try SourceCatalog.load(Data(timed.utf8)), previous: added.catalog)
+        let sameLines = CatalogDiff.lines(previous: added.catalog, next: unchanged.catalog)
+        #expect(!sameLines.contains { $0.contains("reference_timing") })
+
+        let rescaled = timed.replacingOccurrences(of: "\"seconds\": 9.5", with: "\"seconds\": 12")
+        let changed = try await CatalogBuilder(hub: BuildFixture.hub())
+            .build(source: try SourceCatalog.load(Data(rescaled.utf8)), previous: added.catalog)
+        let changeLines = CatalogDiff.lines(previous: added.catalog, next: changed.catalog)
+        #expect(changeLines.contains { $0.contains("demo-model") && $0.contains("reference_timing") })
+
+        let removed = try await CatalogBuilder(hub: BuildFixture.hub())
+            .build(source: BuildFixture.source(), previous: changed.catalog)
+        let removeLines = CatalogDiff.lines(previous: changed.catalog, next: removed.catalog)
+        #expect(removeLines.contains { $0.contains("demo-model") && $0.contains("reference_timing") })
+    }
+
     @Test func identicalInputsProduceByteIdenticalOutput() async throws {
         let first = try await CatalogBuilder(hub: BuildFixture.hub()).build(source: BuildFixture.source(), previous: nil)
         let second = try await CatalogBuilder(hub: BuildFixture.hub()).build(source: BuildFixture.source(), previous: nil)

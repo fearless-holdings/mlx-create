@@ -18,12 +18,14 @@ private enum Shape: Equatable {
     case progress(UUID, step: Int, total: Int)
     case saved(UUID)
     case changed(UUID)
+    case calibrating(Bool)
 
     init(_ event: ExecutorEvent) {
         switch event {
         case .progress(let jobID, let step, let total): self = .progress(jobID, step: step, total: total)
         case .imageSaved(let jobID, _): self = .saved(jobID)
         case .jobChanged(let jobID): self = .changed(jobID)
+        case .calibrationChanged(let running): self = .calibrating(running)
         }
     }
 }

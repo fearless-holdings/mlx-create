@@ -3,6 +3,9 @@ import MCEngine
 import MCLibrary
 import OSLog
 
+/// One finished image: its PNG, the step total the stream reported, the stream's seconds and the LoRA files the engine got.
+private typealias GenerationRendering = (png: Data, total: Int?, seconds: Double, loraCount: Int)
+
 /// Runs queued jobs one image at a time against the engine. Named `JobExecutor` to avoid shadowing
 /// `_Concurrency.Executor`.
 public actor JobExecutor {
@@ -15,9 +18,9 @@ public actor JobExecutor {
     private let modelsRoot: URL
     let client: EngineClient
     private let queue: JobQueue
-    private let hub: ExecutorEventHub
+    let hub: ExecutorEventHub
     private let crashKind: @Sendable () async -> EngineCrash?
-    private let engineVersion: String?
+    let engineVersion: String?
     private var rng = SystemRandomNumberGenerator()
     var currentJobID: UUID?
     /// Held by an Enhance lease (KTD5). While it is set, `drain` claims no job and model switches wait for its release.
@@ -28,11 +31,19 @@ public actor JobExecutor {
     var selectionsWaiting = 0
     /// Decides whether a lease swaps the image model out (tier 1, below 24 GiB) or keeps it resident.
     let memoryTier: MemoryTier
-    private var active: Task<(png: Data, total: Int?), Error>?
+    private var active: Task<GenerationRendering, Error>?
     private var cancelRequested: Set<UUID> = []
     private var drainTask: Task<Void, Never>?
     /// The most recent model switch. Each new switch waits for it, so unloads and loads never interleave.
     private var selectionTail: Task<Void, Error>?
+    /// Supplies the calibration targets (KTD9). The first is the calibration model; an empty list means none is due.
+    let calibrationTargets: @Sendable () async -> [CalibrationTarget]
+    /// The wait before the calibrator retries an out-of-memory load refusal (KTD3). Tests shorten it.
+    let calibrationRetryDelay: Duration
+    /// Set once this launch has tried calibration, whatever the outcome, so a failed run waits for the next launch (AE7).
+    var calibrationTriedThisLaunch = false
+    /// Set when `start()` runs during a drain, so the drain runs once more before it ends.
+    var pendingKick = false
 
     /// Each access returns a new stream of progress, saved-image and job-status events, including the
     /// status changes `JobQueue` makes.
@@ -43,6 +54,8 @@ public actor JobExecutor {
     /// `engineVersion` is the pinned engine's version, written into each saved image's settings.
     /// `modelsRoot` is the Models root that each job's LoRA paths resolve against (KTD6).
     /// `memoryTier` decides how an Enhance lease shares engine residency with the image model (KTD5).
+    /// `calibrationTargets` lists the models a calibration may time; the first is used (KTD9). `calibrationRetryDelay` is the
+    /// wait between out-of-memory load retries.
     public init(
         store: LibraryStore,
         modelsRoot: URL,
@@ -50,7 +63,9 @@ public actor JobExecutor {
         queue: JobQueue,
         crashKind: @escaping @Sendable () async -> EngineCrash? = { nil },
         engineVersion: String? = nil,
-        memoryTier: MemoryTier = .current
+        memoryTier: MemoryTier = .current,
+        calibrationTargets: @escaping @Sendable () async -> [CalibrationTarget] = { [] },
+        calibrationRetryDelay: Duration = .seconds(30)
     ) {
         self.store = store
         self.modelsRoot = modelsRoot
@@ -60,18 +75,27 @@ public actor JobExecutor {
         self.crashKind = crashKind
         self.engineVersion = engineVersion
         self.memoryTier = memoryTier
+        self.calibrationTargets = calibrationTargets
+        self.calibrationRetryDelay = calibrationRetryDelay
     }
 
     /// Starts draining the queue in the background. Calling it while a drain is running does nothing, so
     /// two generations never run at once. A drain that ends (queue empty or paused) can be started again.
+    /// A call during a drain makes that drain run once more before it ends, so work that arrived meanwhile waits no longer.
     public func start() {
-        guard drainTask == nil else { return }
+        guard drainTask == nil else {
+            pendingKick = true
+            return
+        }
         drainTask = Task {
-            do {
-                try await self.drain()
-            } catch {
-                Self.log.error("Queue drain stopped: \(String(describing: error))")
-            }
+            repeat {
+                pendingKick = false
+                do {
+                    try await self.drain()
+                } catch {
+                    Self.log.error("Queue drain stopped: \(String(describing: error))")
+                }
+            } while pendingKick
             self.drainTask = nil
         }
     }
@@ -82,7 +106,15 @@ public actor JobExecutor {
     public func drain() async throws {
         while true {
             try await waitWhileLeaseHeld()
-            guard await !queue.isPauseRequested, let job = try await store.nextQueuedJob() else { return }
+            let paused = await queue.isPauseRequested
+            let due = try await dueCalibration()
+            guard let job = try await store.nextQueuedJob() else {
+                // Nothing queued: a due calibration runs now, and a pause does not stop it (R3).
+                guard try await calibrateIfDue(due) else { return }
+                continue
+            }
+            // A paused queue keeps its queued jobs and ends the drain without calibrating.
+            guard !paused else { return }
             do {
                 try await run(job)
             } catch {
@@ -232,11 +264,13 @@ public actor JobExecutor {
         let modelID = job.request.modelID
         let carriesAlwaysOn = !alwaysOn.isEmpty
         // The model switch and the stream share one task, so `cancel(_:)` also reaches a wait for the engine or a load.
-        let task = Task { () throws -> (png: Data, total: Int?) in
+        let task = Task { () throws -> GenerationRendering in
             try await self.makeResident(modelID, for: jobID)
-            func stream(_ request: ImageRequest) async throws -> (png: Data, total: Int?) {
+            func stream(_ request: ImageRequest) async throws -> GenerationRendering {
                 var png: Data?
                 var total: Int?
+                var seconds: Double?
+                let started = ContinuousClock.now
                 for try await event in client.generateImage(request) {
                     switch event {
                     case .progress(let step, let stepTotal, _):
@@ -244,10 +278,11 @@ public actor JobExecutor {
                         hub.send(.progress(jobID: jobID, step: step, total: stepTotal))
                     case .completed(let data):
                         png = data
+                        seconds = started.duration(to: ContinuousClock.now) / Duration.seconds(1)
                     }
                 }
-                guard let png else { throw EngineError.streamEndedWithoutComplete }
-                return (png, total)
+                guard let png, let seconds else { throw EngineError.streamEndedWithoutComplete }
+                return (png, total, seconds, request.loraPaths?.count ?? 0)
             }
             do {
                 return try await stream(fullRequest)
@@ -286,6 +321,13 @@ public actor JobExecutor {
                 pngData: result.png,
                 settings: settings
             ))
+        if let engineVersion, let steps = result.total {
+            let key = TimingSampleKey(
+                engineVersion: engineVersion, modelID: job.request.modelID, width: job.request.width,
+                height: job.request.height, steps: steps, loraCount: result.loraCount)
+            // KTD7: best-effort. A failed write never fails a job whose image is already saved.
+            try? await store.recordTimingSample(key: key, seconds: result.seconds, at: Date())
+        }
         hub.send(.imageSaved(jobID: job.id, imageID: image.id))
     }
 

@@ -297,6 +297,12 @@
       "quantization" : "mixed 4\/8-bit",
       "ram_gb" : 17.6,
       "recommend_rank" : 2,
+      "reference_timing" : {
+        "height" : 1024,
+        "seconds" : 20.59,
+        "steps" : 4,
+        "width" : 1024
+      },
       "repo" : "ddalcu\/Krea-2-Turbo-MLX-Serve-mixed-4-8",
       "revision" : "db7840abe3c7f7c5c5ef4de049f334d16852d19f"
     },
@@ -388,6 +394,12 @@
       "quantization" : "4-bit",
       "ram_gb" : 14.3,
       "recommend_rank" : 1,
+      "reference_timing" : {
+        "height" : 1024,
+        "seconds" : 25.65,
+        "steps" : 8,
+        "width" : 1024
+      },
       "repo" : "ddalcu\/Qwen-Image-2.1-Turbo-MLX-Serve-4bit",
       "revision" : "394f9477a956a0c4fd70ebcbe3a326d74ef0add4"
     },
@@ -449,5 +461,5 @@
     }
   ],
   "schema_version" : 1,
-  "sequence" : 7
+  "sequence" : 8
 }
