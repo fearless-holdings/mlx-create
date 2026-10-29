@@ -9,7 +9,7 @@ Facts marked **[observed]** were checked against upstream release `v26.10.2` (co
 | In scope | Out of scope |
 |---|---|
 | `engine.lock` format | HTTP/SSE request building (`EngineClient`, HLD §8.1) |
-| Build phase: fetch, verify, embed, install-name fix, re-sign | The engine contract suite itself (HLD §7.3); only its gate is described here |
+| Build phase: fetch, verify, embed, install-name fix, re-sign | The engine contract suite itself (`docs/lld/engine-contract.md`, D49); only its gate is described here |
 | `EngineSupervisor`: launch environment, `HOME` override, models symlink, PID file, readiness, crash classification, backoff restart, shutdown | Queue retry policy for failed jobs (owned by the queue; this module only reports) |
 
 ## 2. Upstream artifact [observed]
@@ -57,7 +57,7 @@ The file sits at the repo root and is JSON, so the build script can read it with
     "lib/libsharpyuv.dylib", "lib/libwebp.dylib", "lib/mlx.metallib"
   ],
   "notices": ["LICENSE", "LICENSE-APACHE-2.0", "NOTICE"],
-  "contract_suite": { "result": "smoke-only", "run_at": "2026-10-21" }
+  "contract_suite": { "result": "smoke-only", "run_at": "2026-10-21", "version": "26.10.3-pre-release.1", "probes": 0 }
 }
 ```
 
@@ -68,9 +68,9 @@ The file sits at the repo root and is JSON, so the build script can read it with
 | `url`, `sha256`, `size` | Integrity. The sha256 is the authority. `size` only makes truncated downloads fail with a clear message |
 | `upstream_team_id` | Provenance. The build checks upstream's signature before stripping it, so a change of upstream signer becomes a deliberate bump instead of a silent one |
 | `root`, `executable`, `frameworks`, `notices` | The expected payload, relative to `root`. Every file in the tarball has to appear in exactly one list. Unknown or missing files fail the build, so a new upstream dylib can't ship unsigned or unlinked |
-| `contract_suite` | Written by the bump PR and checked by CI. The `result` must be `pass` before merge (HLD §7.3) |
+| `contract_suite` | Written by `scripts/engine-contract/run_contract.py` after a complete run and checked by CI (D49). `result` is `pass` or `smoke-only`, `run_at` is the run date, `version` is the engine version the suite ran against, and `probes` is the number of probes that ran. CI fails unless `result` is `pass` and `version` equals the lock's `version`. `schema` stays 1: the build script reads no `contract_suite` field |
 
-**Bump procedure:** edit `engine.lock`, run `scripts/embed-engine.sh --refresh-manifest` (fills in `size` and the payload lists from the new tarball, then prints them for review), run the contract suite, set `contract_suite`, and open the PR. Update the pinned-commit note in `AGENTS.md` in the same PR.
+**Bump procedure:** edit `engine.lock`, run `scripts/embed-engine.sh --refresh-manifest` (fills in `size` and the payload lists from the new tarball, then prints them for review), run `scripts/engine-contract/run_contract.py` (it extracts the engine, runs the suite and writes `contract_suite` only for a complete passing run), and open the PR. Update the pinned-commit note in `AGENTS.md` in the same PR. A red run keeps the previous pin.
 
 ## 4. Build phase: `scripts/embed-engine.sh`
 
@@ -357,7 +357,7 @@ Smoke test, against the real engine (`AGENTS.md`):
 5. `kill -9` the app, relaunch, and confirm the orphan is reaped through the PID file.
 6. Enhance one prompt with `gemma-4-e4b-heretic-4bit` installed. While the call runs, `GET /v1/models` must show the enhancer loaded. Below 24 GiB the image model must be unloaded during the call; after release the enhancer must be unloaded and the image model reloaded only when the queue is empty. At 24 GiB and above the enhancer stays loaded after release and the image model is untouched (`EnhancerLease.swift`). Then `pgrep mlx-serve` must show no leftover process.
 
-Engine bumps additionally run the contract suite (HLD §7.3).
+Engine bumps additionally run the contract suite (HLD §7.3, D49, `docs/lld/engine-contract.md`). The real-engine tests are `EngineSupervisorTests` (process lifecycle), `ReferenceTimingMeasurementTests` (timing) and the `MCEngineContractTests` target (everything the app depends on from the engine).
 
 ## 7. Open items
 
