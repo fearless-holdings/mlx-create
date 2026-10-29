@@ -1,0 +1,36 @@
+{
+  "checks": {
+    "engine_load": {
+      "ok": true,
+      "reason": "applied at scale 1.0"
+    },
+    "header_fit": {
+      "ok": true,
+      "reason": "matches the qwen-image-2.1-turbo fingerprint",
+      "result": "matched"
+    },
+    "reproducible": {
+      "ok": true,
+      "reason": "identical bytes at the same seed"
+    },
+    "strength_zero": {
+      "ok": true,
+      "reason": "strength 0 matches the no-LoRA baseline byte for byte"
+    }
+  },
+  "engine": "26.10.3",
+  "family": "qwen-image-2.1-turbo",
+  "id": "sha256-0aa6f38c3ded",
+  "model_id": "ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-4bit",
+  "prompt_id": "o01",
+  "public": {},
+  "reason": "all four checks passed",
+  "seed": 7,
+  "sha256": "0aa6f38c3ded6bc813617abd02be376887b964e8c21afcf71c4caf01b7ea0a10",
+  "size": 512,
+  "source": "local",
+  "steps": 8,
+  "usage_count": 0,
+  "variant": null,
+  "verdict": "pass"
+}

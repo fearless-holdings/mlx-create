@@ -1,0 +1,36 @@
+{
+  "checks": {
+    "engine_load": {
+      "ok": true,
+      "reason": "applied at scale 1.0"
+    },
+    "header_fit": {
+      "ok": true,
+      "reason": "matches the flux2-klein fingerprint",
+      "result": "matched"
+    },
+    "reproducible": {
+      "ok": true,
+      "reason": "identical bytes at the same seed"
+    },
+    "strength_zero": {
+      "ok": true,
+      "reason": "strength 0 matches the no-LoRA baseline byte for byte"
+    }
+  },
+  "engine": "26.10.3",
+  "family": "flux2-klein",
+  "id": "sha256-c56975005c4b",
+  "model_id": "Runpod/FLUX.2-klein-4B-mflux-4bit",
+  "prompt_id": "o01",
+  "public": {},
+  "reason": "all four checks passed",
+  "seed": 7,
+  "sha256": "c56975005c4baae39cb51f43577c5653fa92eddde4543652926c35d1db28d9f3",
+  "size": 512,
+  "source": "local",
+  "steps": 4,
+  "usage_count": 0,
+  "variant": "4b",
+  "verdict": "pass"
+}

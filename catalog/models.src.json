@@ -88,7 +88,7 @@
       "license": "Civitai license as published by the creator. Commercial use: RentCivit, Image. Derivatives: not allowed. Credit: not required.",
       "trigger_words": [],
       "tested_scale": 0.75,
-      "tested_engine": "v26.10.3-pre-release.1",
+      "tested_engine": "v26.10.3",
       "always_on": false
     },
     {
@@ -102,7 +102,7 @@
       "license": "Civitai license as published by the creator. Commercial use: Image, RentCivit, Rent. Derivatives: not allowed. Credit: required.",
       "trigger_words": ["Excellent_Full_Nude, A RAW Pro Ultra HiRes erotic photo of a stark naked, fully nude female model"],
       "tested_scale": 0.9,
-      "tested_engine": "v26.10.3-pre-release.1",
+      "tested_engine": "v26.10.3",
       "always_on": false
     },
     {
@@ -116,7 +116,7 @@
       "license": "Civitai license as published by the creator. Commercial use: Image, RentCivit, Rent, Sell, SellMerge. Derivatives: allowed. Credit: not required.",
       "trigger_words": [],
       "tested_scale": 1.2,
-      "tested_engine": "v26.10.3-pre-release.1",
+      "tested_engine": "v26.10.3",
       "always_on": false
     },
     {
@@ -130,7 +130,7 @@
       "license": "Civitai license as published by the creator. Commercial use: Image, RentCivit. Derivatives: not allowed. Credit: required.",
       "trigger_words": [],
       "tested_scale": 4.0,
-      "tested_engine": "v26.10.3-pre-release.1",
+      "tested_engine": "v26.10.3",
       "always_on": false
     },
     {
@@ -144,7 +144,7 @@
       "license": "Civitai license as published by the creator. Commercial use: RentCivit, Rent, Sell, Image, SellMerge. Derivatives: not allowed. Credit: required.",
       "trigger_words": [],
       "tested_scale": 1.2,
-      "tested_engine": "v26.10.3-pre-release.1",
+      "tested_engine": "v26.10.3",
       "always_on": false
     },
     {
@@ -158,7 +158,7 @@
       "license": "Civitai license as published by the creator. Commercial use: Image, RentCivit, Rent, Sell, SellMerge. Derivatives: allowed. Credit: not required.",
       "trigger_words": [],
       "tested_scale": 0.5,
-      "tested_engine": "v26.10.3-pre-release.1",
+      "tested_engine": "v26.10.3",
       "always_on": false
     },
     {
@@ -172,7 +172,7 @@
       "license": "Civitai license as published by the creator. Commercial use: RentCivit, Rent. Derivatives: not allowed. Credit: not required.",
       "trigger_words": [],
       "tested_scale": 1.0,
-      "tested_engine": "v26.10.3-pre-release.1",
+      "tested_engine": "v26.10.3",
       "always_on": true
     }
   ]

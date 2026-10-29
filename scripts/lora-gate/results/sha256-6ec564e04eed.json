@@ -1,0 +1,36 @@
+{
+  "checks": {
+    "engine_load": {
+      "ok": true,
+      "reason": "applied at scale 1.0"
+    },
+    "header_fit": {
+      "ok": true,
+      "reason": "matches the krea-2-turbo fingerprint",
+      "result": "matched"
+    },
+    "reproducible": {
+      "ok": true,
+      "reason": "identical bytes at the same seed"
+    },
+    "strength_zero": {
+      "ok": true,
+      "reason": "strength 0 matches the no-LoRA baseline byte for byte"
+    }
+  },
+  "engine": "26.10.3",
+  "family": "krea-2-turbo",
+  "id": "sha256-6ec564e04eed",
+  "model_id": "ddalcu/Krea-2-Turbo-MLX-Serve-mixed-4-8",
+  "prompt_id": "o01",
+  "public": {},
+  "reason": "all four checks passed",
+  "seed": 7,
+  "sha256": "6ec564e04eed317ae24093b4907004ac59a7c528d19d025bb41b4d719c4d16ec",
+  "size": 512,
+  "source": "local",
+  "steps": 4,
+  "usage_count": 0,
+  "variant": null,
+  "verdict": "pass"
+}
