@@ -34,6 +34,8 @@ let package = Package(
         .testTarget(name: "MCGenerationTests", dependencies: ["MCGeneration"]),
         .testTarget(name: "MCEnhancerTests", dependencies: ["MCEnhancer", "MCEngine", "MCCatalog"]),
         .testTarget(name: "MCAppTests", dependencies: ["MCApp", "MCModels", "MCCatalog", "MCLibrary"]),
+        .testTarget(
+            name: "MCEngineContractTests", dependencies: ["MCEngine", "MCCatalog", "MCGeneration", "MCLibrary", "MCEnhancer"]),
     ],
     swiftLanguageModes: [.v6]
 )
