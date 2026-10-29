@@ -28,7 +28,7 @@ enum ContractProbe: String, CaseIterable {
     case chatStreamShape = "chat.stream-shape"
     case chatNoThinkingText = "chat.no-thinking-text"
     case chatLengthTruncation = "chat.length-truncation"
-    case chatModelNotInstalled = "chat.model-not-installed"
+    case chatUnknownModelBehavior = "chat.unknown-model-behavior"
     case chatKeyless401 = "chat.keyless-401"
     case logRefusedLoadClassifies = "log.refused-load-classifies"
     case logMissingWeightClassifies = "log.missing-weight-classifies"

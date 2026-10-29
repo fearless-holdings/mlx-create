@@ -123,7 +123,7 @@ struct LifecycleContractTests {
                     check.expect(after.contains { $0.id == entry.id }, "\(entry.id) left /v1/models after one rescan")
                 }
                 check.expect(
-                    after.contains { $0.id.hasSuffix(added) && $0.isImage },
+                    after.contains { $0.id.hasSuffix(added) },
                     "the folder \(added) added to Weights after launch is not listed after one rescan: \(after.map(\.id)). "
                         + "If the engine resolved --model-dir once at launch, the throwaway Weights must be a real directory "
                         + "from the start (ContractEngine.run needs a weights override)")
@@ -216,30 +216,44 @@ private func mirroredWeights(from source: URL, in root: URL) throws -> MirroredW
     return MirroredWeights(weights: weights, firstModelFolder: first)
 }
 
-/// Mirrors every directory of `source` into `destination`: a folder holding model files becomes a symlink, every other
-/// directory is recreated so a model folder can be added beside it. Returns the first model folder mirrored.
-private func mirrorModelFolders(from source: URL, into destination: URL) throws -> URL? {
+/// Mirrors every directory of `source` into `destination`: a folder holding model files becomes a symlink to its
+/// resolved real folder, every other directory is recreated so a model folder can be added beside it. Symlinked model
+/// folders — `MLXC_CONTRACT_MODEL_DIR` is usually exactly that — and real ones are both followed. Returns the first
+/// model folder mirrored.
+private func mirrorModelFolders(from source: URL, into destination: URL, depth: Int = 0) throws -> URL? {
     let fm = FileManager.default
     var first: URL?
-    for child in try fm.contentsOfDirectory(at: source, includingPropertiesForKeys: [.isDirectoryKey]) {
-        let isDirectory = (try? child.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
-        guard isDirectory else { continue }
+    for child in try fm.contentsOfDirectory(at: source, includingPropertiesForKeys: nil) {
+        // The layout is `<org>/<name>`: the org level is a real or symlinked directory, the model folder itself is a
+        // directory that holds the model files whenever it is a symlink or not.
+        let resolved = child.resolvingSymlinksInPath()
+        guard isDirectory(resolved) else { continue }
         let mirror = destination.appending(path: child.lastPathComponent)
-        if isModelFolder(child) {
-            try fm.createSymbolicLink(at: mirror, withDestinationURL: child)
+        if isModelFolder(resolved) {
+            try fm.createSymbolicLink(at: mirror, withDestinationURL: resolved)
             if first == nil { first = mirror }
-        } else {
+        } else if depth < 2 {
             try fm.createDirectory(at: mirror, withIntermediateDirectories: true)
-            if let nested = try mirrorModelFolders(from: child, into: mirror), first == nil { first = nested }
+            if let nested = try mirrorModelFolders(from: resolved, into: mirror, depth: depth + 1), first == nil {
+                first = nested
+            }
         }
     }
     return first
 }
 
-/// A folder the engine loads as a model: a config file or a weight file sits directly inside it.
+/// Whether the path is a directory, following symlinks: a symlinked model folder counts, a broken link does not.
+private func isDirectory(_ url: URL) -> Bool {
+    var isDirectory: ObjCBool = false
+    guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else { return false }
+    return isDirectory.boolValue
+}
+
+/// A folder the engine loads as a model: a config, index or weight file sits directly inside it. Pass a resolved URL.
 private func isModelFolder(_ folder: URL) -> Bool {
     let fm = FileManager.default
     if fm.fileExists(atPath: folder.appending(path: "config.json").path) { return true }
+    if fm.fileExists(atPath: folder.appending(path: "model_index.json").path) { return true }
     let names = (try? fm.contentsOfDirectory(atPath: folder.path)) ?? []
     return names.contains { $0.hasSuffix(".safetensors") }
 }

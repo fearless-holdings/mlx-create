@@ -1,0 +1,14 @@
+name: Engine lock
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  contract-suite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: contract suite record
+        run: sh scripts/engine-contract/check_lock.sh engine.lock

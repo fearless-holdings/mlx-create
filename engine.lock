@@ -15,5 +15,5 @@
     "lib/libsharpyuv.dylib", "lib/libwebp.dylib", "lib/mlx.metallib"
   ],
   "notices": ["LICENSE", "LICENSE-APACHE-2.0", "NOTICE"],
-  "contract_suite": { "result": "smoke-only", "run_at": "2026-10-21" }
+  "contract_suite": { "result": "pass", "run_at": "2026-10-29", "version": "26.10.3-pre-release.1", "probes": 61 }
 }

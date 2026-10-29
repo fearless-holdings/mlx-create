@@ -240,10 +240,12 @@ enum ContractLoRARender {
             guidance: nil, seed: Self.seed, loraPaths: loraPaths, loraScales: loraScales)
     }
 
-    /// Loads the model unless the engine already holds it, as the executor's `makeResident` does before a stream.
+    /// Makes the model resident as `Executor.switchModel` does: unload every other resident model, then load. At the
+    /// single-slot tier the engine will not evict an idle model by itself ("no loaded model can be evicted").
     static func makeResident(_ model: InstalledModelRecord, on engine: ContractEngine) async throws {
-        let entries = try await engine.client.models()
-        guard entries.first(where: { $0.id == model.id })?.loaded != true else { return }
+        let resident = try await engine.client.models().filter(\.loaded).map(\.id)
+        guard !resident.contains(model.id) else { return }
+        for other in resident { try await engine.client.unload(model: other) }
         try await engine.client.load(model: model.id)
     }
 

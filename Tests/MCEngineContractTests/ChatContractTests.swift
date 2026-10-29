@@ -98,23 +98,54 @@ struct ChatContractTests {
         }
     }
 
-    /// `chat.model-not-installed`: a chat request for a model that is not installed maps to the enhancer-not-loaded
-    /// error case, which is what the "install the enhancer" copy hangs on.
-    @Test func chattingWithAModelThatIsNotInstalledMapsToEnhancerModelNotLoaded() async throws {
+    /// `chat.unknown-model-behavior`: measured at the pin, an unknown model id is *not* something the app can read from
+    /// an error. Three observations, in this order (the first needs a fresh engine with nothing loaded):
+    ///
+    /// 1. With nothing resident, an unknown id answers 503, whose body maps to the app's no-model error.
+    /// 2. A registered but unloaded id (the enhancer) answers 200 with text, without a prior `loadModel`: the engine
+    ///    loads it on demand.
+    /// 3. Once any model is resident, an unknown id still answers 200, served by the resident model, and the response
+    ///    echoes the id that was asked for. A missing enhancement model therefore has to be caught by verifying the
+    ///    installation locally; the engine will happily answer from whatever it holds.
+    @Test func anUnknownModelIDIsOnlyAFailureWhileNothingIsLoaded() async throws {
         try await ContractEngine.run { engine in
-            try await runProbe(ContractProbe.chatModelNotInstalled.rawValue, ledger: ContractRun.ledger) { check in
-                let enhancer = try await Self.loadEnhancer(on: engine)
-                var request = enhancer
+            try await runProbe(ContractProbe.chatUnknownModelBehavior.rawValue, ledger: ContractRun.ledger) { check in
+                let enhancer = try ContractModels.enhancerID()
                 // Never installed by this run: the enhancer's own id with a suffix.
-                request.model = enhancer.model + "-contract-absent"
-                do {
-                    for try await text in engine.client.streamChat(request) { _ = text }
-                    check.expect(false, "chatting with the absent model \(request.model) succeeded")
-                } catch EngineError.enhancerModelNotLoaded {
-                    // The mapping the enhancer UI reads (`EngineError.fromChatResponse`).
-                } catch {
-                    check.expect(false, "chatting with the absent model threw \(error), not enhancerModelNotLoaded")
+                let absent = enhancer + "-contract-absent"
+                let loaded = try await engine.client.models().filter(\.loaded).map(\.id)
+                check.expect(loaded.isEmpty, "the fresh engine already holds \(loaded), so the first observation is void")
+                let absentRequest = try Self.enhancementRequest(model: absent)
+                let absentBody = try JSONSerialization.jsonObject(with: try absentRequest.body())
+
+                // (1) Nothing loaded: the unknown id is a 503 that the app maps to its no-model error.
+                let nothingLoaded = try await RawHTTP.send(
+                    "POST", "v1/chat/completions", to: engine.endpoint, key: engine.endpoint.apiKey, json: absentBody)
+                check.expect(nothingLoaded.status == 503, "an unknown id with nothing loaded answered \(nothingLoaded.status)")
+                let mapped = EngineError.fromChatResponse(status: nothingLoaded.status, body: nothingLoaded.body)
+                if case .noModel(let message) = mapped {
+                    check.expect(message?.isEmpty == false, "the no-model mapping carried no engine text")
+                } else {
+                    check.expect(false, "an unknown id with nothing loaded mapped to \(mapped), not noModel")
                 }
+
+                // (2) Registered but not loaded: a chat answers, and the engine makes the model resident on its own.
+                var content = ""
+                let registeredRequest = try Self.enhancementRequest(model: enhancer)
+                for try await text in engine.client.streamChat(registeredRequest) {
+                    content += text
+                }
+                check.expect(!content.isEmpty, "a chat to the registered but unloaded enhancer returned no text")
+                let resident = try await engine.client.models().filter(\.loaded).map(\.id)
+                check.expect(resident.contains(enhancer), "the engine never made the enhancer resident: \(resident)")
+
+                // (3) With a model resident, the same unknown id answers 200 from that model.
+                let fallenBack = try await RawHTTP.send(
+                    "POST", "v1/chat/completions", to: engine.endpoint, key: engine.endpoint.apiKey, json: absentBody)
+                check.expect(fallenBack.status == 200, "an unknown id with a resident model answered \(fallenBack.status)")
+                check.expect(
+                    fallenBack.text.contains(absent),
+                    "the fallback response does not echo the requested id \(absent): \(fallenBack.text.prefix(300))")
             }
         }
     }
@@ -139,13 +170,19 @@ struct ChatContractTests {
 
     // MARK: - Requests
 
-    /// Loads the enhancer and returns the request `PromptEnhancer` builds for the first bundled family that ships a
+    /// Loads the enhancer, then returns the request `PromptEnhancer` builds for the first bundled family that ships a
     /// prompt pack. A memory refusal propagates, so `runProbe` ends the run as inconclusive.
     private static func loadEnhancer(on engine: ContractEngine) async throws -> ChatRequest {
         let enhancer = try ContractModels.enhancerID()
         try await engine.client.load(model: enhancer)
+        return try enhancementRequest(model: enhancer)
+    }
+
+    /// The request `PromptEnhancer` builds, with `model` named instead of the enhancer's own id, so a probe can ask
+    /// for a model the run never installed.
+    private static func enhancementRequest(model: String) throws -> ChatRequest {
         for family in try ContractModels.registry().families {
-            let build = PromptEnhancer.request(prompt: "a lighthouse at dusk", family: family, enhancerModelID: enhancer)
+            let build = PromptEnhancer.request(prompt: "a lighthouse at dusk", family: family, enhancerModelID: model)
             if case .ready(let request) = build { return request.chat }
         }
         throw ContractHarnessError.missing("a prompt pack for any family in the bundled registry")

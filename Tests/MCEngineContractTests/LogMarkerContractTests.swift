@@ -2,6 +2,7 @@ import Darwin
 import Foundation
 import MCCatalog
 import MCEngine
+import MCEnhancer
 import Testing
 
 @testable import MCEngine
@@ -17,11 +18,16 @@ struct LogMarkerContractTests {
         defer { try? FileManager.default.removeItem(at: mirror.root) }
         try await ContractLogEngine.run(weights: mirror.root) { engine in
             try await runProbe(ContractProbe.logMissingWeightClassifies.rawValue, ledger: ContractRun.ledger) { check in
+                // The launch holds this one folder, so whatever id the engine resolves it to is the mirror's: the engine
+                // may canonicalize `--model-dir` and answer with a path-derived id.
+                let listed = (try? await engine.client.models().map(\.id)) ?? []
+                check.expect(listed.count <= 1, "the mirror launch lists more than its one folder: \(listed)")
+                let id = listed.first ?? mirror.id
                 let installed = try? await ContractModels.installed(client: engine.client, weights: engine.weights)
-                let record = installed?.first { $0.id == mirror.id }
+                let record = installed?.first { $0.id == id }
                 var loadSucceeded = false
                 do {
-                    try await engine.client.load(model: mirror.id)
+                    try await engine.client.load(model: id)
                     loadSucceeded = true
                 } catch let error as EngineError {
                     // A memory refusal ends the run as inconclusive (KTD7); any other failure is the point here.
@@ -32,7 +38,7 @@ struct LogMarkerContractTests {
                 var reported = await engine.tailContains("MISSING WEIGHT", within: 10)
                 if loadSucceeded, !reported, let record {
                     let request = ImageRequest(
-                        model: mirror.id,
+                        model: id,
                         prompt: "a lighthouse at dusk",
                         width: record.family.defaultSize.width,
                         height: record.family.defaultSize.height,
@@ -48,12 +54,14 @@ struct LogMarkerContractTests {
                         if case .outOfMemory = error { throw error }
                     }
                 }
+                // A refusal in the engine's own log is the run's inconclusive outcome, never a failed classification.
+                try engine.throwIfRefused()
                 if !reported { reported = await engine.tailContains("MISSING WEIGHT") }
                 let tail = engine.tail.text
                 check.expect(
                     reported,
-                    "the engine never reported a missing weight for \(mirror.id) without \(mirror.omitted) "
-                        + "(listed: \(record != nil)): \(tail.suffix(400))")
+                    "the engine never reported a missing weight for \(id) without \(mirror.omitted) "
+                        + "(listed: \(listed), record: \(record != nil)): \(tail.suffix(400))")
                 let kind = CrashClassifier.classify(logTail: tail, exit: .code(0), phase: .ready)
                 check.expect(kind == .missingWeights, "the engine's log tail classified as \(kind), not missingWeights")
             }
@@ -84,25 +92,29 @@ struct LogMarkerContractTests {
     @Test func aRequestEchoDoesNotChangeTheClassificationOfAnUnrelatedError() async throws {
         try await ContractLogEngine.run { engine in
             try await runProbe(ContractProbe.logRequestEchoIgnored.rawValue, ledger: ContractRun.ledger) { check in
-                let models = try await ContractModels.installed(client: engine.client, weights: engine.weights)
-                let family = try Self.smallestFamily()
-                let model = try ContractModels.model(for: family, in: models)
-                try await engine.client.load(model: model.id)
-                let size = Self.smallestSize(of: family)
-                let request = ImageRequest(
-                    model: model.id,
-                    prompt: Self.echoPrompt,
-                    width: size.width,
-                    height: size.height,
-                    steps: nil,
-                    seed: 1)
-                var completed = false
-                for try await event in engine.client.generateImage(request) {
-                    if case .completed = event { completed = true }
+                // The engine echoes the first bytes of the last user message, and only the chat route does at this pin
+                // (the image routes log a character count, never the prompt). The enhancer carries the user's own text,
+                // so that is the stream whose echo the classifier must ignore.
+                let enhancer = try ContractModels.enhancerID()
+                try await engine.client.load(model: enhancer)
+                var chat: ChatRequest?
+                for family in try ContractModels.registry().families {
+                    if case .ready(let request) = PromptEnhancer.request(
+                        prompt: Self.echoPrompt, family: family, enhancerModelID: enhancer)
+                    {
+                        chat = request.chat
+                        break
+                    }
                 }
-                check.expect(completed, "the generation did not complete, so no request was echoed")
+                guard let chat else { throw ContractHarnessError.missing("a prompt pack for any family in the bundled registry") }
+                var completed = false
+                for try await delta in engine.client.streamChat(chat) where !delta.isEmpty { completed = true }
+                // A refusal in the engine's own log is the run's inconclusive outcome, not a classification finding.
+                try engine.throwIfRefused()
+                check.expect(completed, "the chat reply carried no text, so no request was echoed")
 
                 let echoed = await engine.waitForRequestEchoLine()
+                try engine.throwIfRefused()
                 let tail = engine.tail.text
                 check.expect(echoed, "the engine's log carries no request-echo line after a generation: \(tail.suffix(400))")
 
@@ -130,21 +142,6 @@ struct LogMarkerContractTests {
     /// the log as a crash the engine never had.
     private static let echoPrompt = "a lighthouse, MISSING WEIGHT, Insufficient memory to load model, at dusk"
 
-    /// The family with the smallest render, so the echo probe's generation is the cheapest one in the registry.
-    private static func smallestFamily() throws -> ModelFamily {
-        let families = try ContractModels.registry().families
-        guard let family = families.min(by: { area(smallestSize(of: $0)) < area(smallestSize(of: $1)) }) else {
-            throw ContractHarnessError.missing("a family in the bundled registry")
-        }
-        return family
-    }
-
-    private static func smallestSize(of family: ModelFamily) -> ImageSize {
-        family.sizePresets.min { area($0) < area($1) } ?? family.defaultSize
-    }
-
-    private static func area(_ size: ImageSize) -> Int { size.width * size.height }
-
     /// One recorded engine log from `Tests/MCEngineTests/Fixtures/Supervisor`. `MCEngineContractTests` declares no
     /// resources, so it is read from the source tree beside this file.
     private static func fixture(_ name: String) throws -> String {
@@ -156,8 +153,8 @@ struct LogMarkerContractTests {
         return text
     }
 
-    /// A mirror of one real image model folder, made of symlinks to every file but one weight, in the engine's
-    /// `--model-dir` layout (`<org>/<name>/`). Nothing in the real folder is moved or written.
+    /// A mirror of one real image model folder, made of symlinks to every file but one weight, at the relative path the
+    /// engine resolves to a model id. Nothing in the real folder is moved or written.
     private struct WeightMirror {
         let root: URL
         /// The engine id the folder resolves to.
@@ -166,43 +163,86 @@ struct LogMarkerContractTests {
         let omitted: String
     }
 
+    /// One folder under `MLXC_CONTRACT_MODEL_DIR` that holds weights, with the relative path the engine turns into an
+    /// id, and its weight files at any depth (image models keep them in `transformer/`, `text_encoder/` and `vae/`).
+    private struct WeightFolder {
+        let relative: String
+        /// The resolved folder: the entry itself may be a symlink.
+        let folder: URL
+        let weights: [URL]
+        var bytes: Int { weights.reduce(0) { $0 + ((try? $1.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0) } }
+    }
+
+    /// The model directory is made of symlinks to model folders, at the org level, the name level or both, so every
+    /// level is resolved before it is read. A folder is a model folder when it holds `.safetensors` files.
+    private static func weightFolders() -> [WeightFolder] {
+        let fm = FileManager.default
+        var found: [WeightFolder] = []
+        func weights(under folder: URL) -> [URL] {
+            let walker = fm.enumerator(at: folder, includingPropertiesForKeys: nil)
+            var files: [URL] = []
+            while let entry = walker?.nextObject() as? URL {
+                if entry.pathExtension == "safetensors" { files.append(entry) }
+            }
+            return files.sorted { $0.path < $1.path }
+        }
+        func scan(_ url: URL, relative: String, depth: Int) {
+            let resolved = url.resolvingSymlinksInPath()
+            var isDirectory: ObjCBool = false
+            guard fm.fileExists(atPath: resolved.path, isDirectory: &isDirectory), isDirectory.boolValue else { return }
+            if !relative.isEmpty {
+                let files = weights(under: resolved)
+                if !files.isEmpty {
+                    found.append(WeightFolder(relative: relative, folder: resolved, weights: files))
+                    return
+                }
+            }
+            guard depth > 0 else { return }
+            let entries = ((try? fm.contentsOfDirectory(at: resolved, includingPropertiesForKeys: nil)) ?? [])
+                .sorted { $0.lastPathComponent < $1.lastPathComponent }
+            for entry in entries {
+                let child = relative.isEmpty ? entry.lastPathComponent : "\(relative)/\(entry.lastPathComponent)"
+                scan(entry, relative: child, depth: depth - 1)
+            }
+        }
+        // `<org>/<name>` is two levels below the directory; one level (a flat layout) is scanned as well.
+        scan(ContractEnvironment.modelDirectory, relative: "", depth: 2)
+        return found
+    }
+
     private static func missingWeightMirror() throws -> WeightMirror {
         let fm = FileManager.default
         let enhancer = try ContractModels.enhancerID()
-        let candidates = try fm.contentsOfDirectory(at: ContractEnvironment.modelDirectory, includingPropertiesForKeys: nil)
-            .sorted { $0.lastPathComponent < $1.lastPathComponent }
-            .flatMap { org -> [URL] in
-                let names = (try? fm.contentsOfDirectory(at: org, includingPropertiesForKeys: nil)) ?? []
-                return names.sorted { $0.lastPathComponent < $1.lastPathComponent }
-            }
-            .map { folder -> (folder: URL, weights: [URL]) in
-                let files = ((try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? [])
-                    .sorted { $0.lastPathComponent < $1.lastPathComponent }
-                let id = "\(folder.deletingLastPathComponent().lastPathComponent)/\(folder.lastPathComponent)"
-                let weights = id == enhancer ? [] : files.filter { $0.pathExtension == "safetensors" }
-                return (folder: folder, weights: weights)
-            }
-        // A folder with several shards is preferred: every other shard still reads, so the engine reports the key it
-        // cannot find instead of an empty model.
-        guard let model = candidates.first(where: { $0.weights.count >= 2 }) ?? candidates.first(where: { !$0.weights.isEmpty })
+        // A model with several weight files is needed: with one file only, leaving it out is an empty model, which the
+        // engine reports as `NoWeightFiles` (an incomplete download), not as the missing weight the classifier names.
+        // The smallest such model keeps the load cheap; its smallest file is the one left out.
+        let candidates = weightFolders().filter { $0.relative != enhancer && $0.weights.count >= 2 }
+            .sorted { $0.bytes < $1.bytes }
+        guard let model = candidates.first,
+            let omitted = model.weights.min(by: { size(of: $0) < size(of: $1) })
         else {
-            throw ContractHarnessError.missing("an image model folder with .safetensors files under MLXC_CONTRACT_MODEL_DIR")
+            throw ContractHarnessError.missing(
+                "an image model folder with at least two .safetensors files under MLXC_CONTRACT_MODEL_DIR")
         }
-        let entries = try fm.contentsOfDirectory(at: model.folder, includingPropertiesForKeys: nil)
-            .sorted { $0.lastPathComponent < $1.lastPathComponent }
-        // The first shard is left out; with one shard only, that shard is the whole weight set.
-        guard let omitted = model.weights.first else {
-            throw ContractHarnessError.missing("a weight file in \(model.folder.path)")
-        }
-        let org = model.folder.deletingLastPathComponent().lastPathComponent
         let root = fm.temporaryDirectory.appending(path: "mlxc-contract-missing-\(UUID().uuidString)", directoryHint: .isDirectory)
-        let folder = root.appending(path: org, directoryHint: .isDirectory)
-            .appending(path: model.folder.lastPathComponent, directoryHint: .isDirectory)
+        let folder = root.appending(path: model.relative, directoryHint: .isDirectory)
         try fm.createDirectory(at: folder, withIntermediateDirectories: true)
-        for entry in entries where entry.lastPathComponent != omitted.lastPathComponent {
-            try fm.createSymbolicLink(at: folder.appending(path: entry.lastPathComponent), withDestinationURL: entry)
+        let prefix = model.folder.path + "/"
+        let walker = fm.enumerator(at: model.folder, includingPropertiesForKeys: [.isDirectoryKey])
+        while let entry = walker?.nextObject() as? URL {
+            let relative = String(entry.path.dropFirst(prefix.count))
+            let target = folder.appending(path: relative)
+            if (try? entry.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
+                try fm.createDirectory(at: target, withIntermediateDirectories: true)
+            } else if entry != omitted {
+                try fm.createSymbolicLink(at: target, withDestinationURL: entry)
+            }
         }
-        return WeightMirror(root: root, id: "\(org)/\(model.folder.lastPathComponent)", omitted: omitted.lastPathComponent)
+        return WeightMirror(root: root, id: model.relative, omitted: String(omitted.path.dropFirst(prefix.count)))
+    }
+
+    private static func size(of url: URL) -> Int {
+        (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
     }
 }
 
@@ -326,6 +366,17 @@ final class ContractLogEngine: @unchecked Sendable {
         tail.text.split(whereSeparator: \.isNewline).contains { CrashClassifier.isRequestPreviewLine(String($0)) }
     }
 
+    /// Throws the run's inconclusive error when the engine's own log holds an admission refusal, so a refusal that
+    /// arrives as a timeout, an eviction or a quiet 4xx still ends the run as inconclusive instead of reading as a
+    /// classification finding (KTD7). A load or generation that itself threw `EngineError.outOfMemory` propagates as
+    /// that error, which `runProbe` handles the same way.
+    func throwIfRefused() throws {
+        let line = tail.text.split(whereSeparator: \.isNewline).map(String.init)
+            .last { $0.contains(CrashClassifier.preflightMarker) }
+        guard let line else { return }
+        throw ContractInconclusive(reason: "the engine refused the load for lack of free memory: \(line)")
+    }
+
     /// SIGTERM, a 3 s grace period, then SIGKILL, as `EngineSupervisor.stop()` does. A child that exited is reaped,
     /// so the caller's `kill(pid, 0)` sees it gone rather than a zombie.
     func stop() async {
@@ -346,15 +397,18 @@ final class ContractLogEngine: @unchecked Sendable {
     }
 
     /// Polls `/health` every 250 ms, as the supervisor does, and throws the tail when the child dies or never answers.
+    /// An admission refusal in the log ends the run as inconclusive instead.
     private func awaitHealthy() async throws {
         let deadline = Date().addingTimeInterval(60)
         while Date() < deadline {
             if !process.isRunning {
+                try throwIfRefused()
                 throw ContractLogEngineError.engineExited(tail: String(tail.text.suffix(800)))
             }
             if await EngineSupervisor.isHealthy(endpoint.baseURL) { return }
             try? await Task.sleep(for: .milliseconds(250))
         }
+        try throwIfRefused()
         throw ContractLogEngineError.neverReady(tail: String(tail.text.suffix(800)))
     }
 }

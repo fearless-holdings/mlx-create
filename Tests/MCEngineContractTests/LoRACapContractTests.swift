@@ -43,13 +43,14 @@ struct LoRACapContractTests {
             case .success:
                 check.expect(false, "\(cap + 1) LoRAs were accepted, though the engine caps a request at \(cap)")
             case .failure(let error):
-                if case EngineError.loraRejected(let message) = error {
+                // The app never sends more than `engineLoRAMax` (the composer and executor stop it first), so the
+                // engine's own 400 is the backstop. It names the field and the cap, and is not a `no modules matching`.
+                if case EngineError.badRequest(let message) = error {
                     check.expect(
-                        message?.contains("no modules matching") == true,
-                        "the over-cap rejection lacks 'no modules matching': \(message ?? "no engine message")")
+                        message?.contains("max \(cap)") == true,
+                        "the over-cap rejection does not name the cap of \(cap): \(message ?? "no engine message")")
                 } else {
-                    check.expect(
-                        false, "\(cap + 1) LoRAs must fail as a LoRA rejection the app maps; the client raised \(error)")
+                    check.expect(false, "\(cap + 1) LoRAs must fail as the engine's 400; the client raised \(error)")
                 }
             }
         }

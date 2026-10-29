@@ -63,18 +63,18 @@ Memory: run with the app closed and other heavy apps quit. The Qwen-Image Turbo 
 | `lora.scale-zero.<f>` | R3 | Scale 0 returns bytes identical to no LoRA | Documented "strength 0 turns a LoRA off" (`docs/lld/engine.md` §5.10) |
 | `lora.scale-range.<f>` | R3 | Scale -1 and 5 are accepted | The slider range |
 | `lora.rejects-wrong-family.<f>` | R3 | Another family's LoRA returns 400 whose body contains `no modules matching`, mapped to `loraRejected` | The app's compatibility check treats the engine as final authority |
-| `lora.cap-eight-nine` | R3 | Eight LoRAs succeed and nine return a 400 the app maps to a LoRA rejection | `GenerationComposer.engineLoRAMax` |
+| `lora.cap-eight-nine` | R3 | Eight LoRAs succeed and nine return a 400 naming the cap (`max 8`), mapped to `badRequest` | `GenerationComposer.engineLoRAMax`, which the composer and executor enforce before the engine does |
 | `lora.relative-path-rejected` | R3 | A relative path is rejected, an absolute path outside the model directory loads | The app always passes absolute library paths |
 | `lora.always-on-plus-user` | R3 | The Krea always-on file together with a user LoRA returns a PNG | The executor's always-on append (D44) |
 | `lora.no-rescan-needed` | R3 | A LoRA file placed after launch applies without a rescan | AGENTS.md: "LoRAs need no rescan" |
 | `chat.stream-shape` | R4 | A real enhancer stream decodes through `ChatStreamParser`: content deltas, a `stop` finish, `[DONE]` | The enhancer |
 | `chat.no-thinking-text` | R4 | With `enable_thinking: false` no reasoning text reaches the content | The enhancer shows the content |
 | `chat.length-truncation` | R4 | A small `max_tokens` ends with `finish_reason` `length`, mapped to `chatOutputTruncated` | Truncated enhancements must fail visibly |
-| `chat.model-not-installed` | R4 | A chat request for a model that is not installed maps to `enhancerModelNotLoaded` | Enhancer-not-installed copy |
+| `chat.unknown-model-behavior` | R4 | On a fresh launch with nothing loaded, a chat naming an unknown model is 503 `no_model` (mapped to `noModel`); a chat naming the registered but unloaded enhancer loads it on demand and answers; once a model is resident, a chat naming an unknown id still answers 200 (the engine falls back to the resident model and echoes the requested id) | The engine is no backstop for an uninstalled enhancer, so the app's own `enhancer.isInstalled` guard (`AppModel+Enhance`) is the only check. Measured at 26.10.3-pre-release.1; replaces the first draft, which assumed a 503 `model_not_loaded` for an unknown id |
 | `chat.keyless-401` | R4, R5 | A chat request without the key is 401 | Same key rule on the chat route |
 | `log.refused-load-classifies` | R7 | The engine's refusal log tail classifies as `outOfMemory` | Crash and retry policy. Synthetic fallback: see §5 |
-| `log.missing-weight-classifies` | R7 | The engine's log for a model folder with one weight file left out classifies as `missingWeights` | Same |
-| `log.request-echo-ignored` | R7 | After a generation, an echoed request line does not change the classification of an unrelated error | Echo lines can contain any needle |
+| `log.missing-weight-classifies` | R7 | The engine's log for a multi-shard model folder with one weight file left out classifies as `missingWeights` | Same |
+| `log.request-echo-ignored` | R7 | After an enhancer chat, an echoed request line (the chat route is the only one that echoes) does not change the classification of an unrelated error | Echo lines can contain any needle |
 
 ## 5. Known limits
 
@@ -94,4 +94,18 @@ Memory: run with the app closed and other heavy apps quit. The Qwen-Image Turbo 
 
 Findings from baseline and bump runs, and every contract amendment with its reason, are appended here. Nothing is loosened silently: a probe whose assumption fails on the old engine is fixed in the app, fixed in the probe, or amended here with the reason.
 
-(Empty until the first baseline run.)
+### 2026-10-29: baseline on 26.10.3-pre-release.1 (61 probes, pass)
+
+Run on a 48 GiB Mac with klein 4B, Krea 2 Turbo and Qwen-Image 2.1 Turbo installed. First attempts hit memory refusals (another local job held RAM): those ended inconclusive and wrote nothing, as designed. Findings, each resolved on its own:
+
+| Probe | What the first run showed | Resolution |
+|---|---|---|
+| `chat.unknown-model-behavior` (was `chat.model-not-installed`) | Assumed 503 `model_not_loaded` for an unknown id. Measured: 503 `no_model` only with nothing loaded; a registered but unloaded id loads on demand; with any model resident an unknown id answers 200 using that model and echoes the requested id | Amended (catalog row above). No app change: `AppModel+Enhance` already refuses locally when the enhancer is not installed, and the contract now says the engine will not do it |
+| `lora.cap-eight-nine` | Nine LoRAs return 400 `too many 'lora_paths' (max 8)`, which the app maps to `badRequest`, not `loraRejected` | Amended: the contract is a 400 naming the cap. The app never sends nine (composer and executor stop it), so no app change |
+| `log.missing-weight-classifies` | A folder with a single weight file left out is an empty model: the engine logs `NoWeightFiles` ("incomplete download") and `CrashClassifier` returns `unknown`. A multi-shard model missing one shard logs `[flux] MISSING WEIGHT: …` and classifies `missingWeights` | Probe fixed to leave out one shard of a multi-shard model. **Known gap, not fixed:** the all-weights-missing case (`NoWeightFiles`) is a 500 `model_load_failed` on a live engine, not a crash, and the installer hash-verifies every file, so it needs a hand-damaged folder |
+| `log.request-echo-ignored` | Image routes log only a character count (`[image] generating …: 72 chars`), never the prompt. Only chat logs the `> "…"` echo | Probe fixed to drive the enhancer chat route |
+| `models.rescan-sees-new-folder` | Probe required the added alias to be an image model, but the first folder mirrored is the enhancer | Probe fixed: any listed id counts |
+| `lora.*` per family | At the single-slot tier a LoRA probe's load of the next family was refused ("no loaded model can be evicted") because the previous family stayed resident | Probe fixed to unload every other resident model first, as `Executor.switchModel` does. Engine behaviour recorded: at one slot it does not evict an idle model itself |
+| `log.refused-load-classifies` | No safe refusal flag exists at this pin | Synthetic fallback kept: it reads the recorded refusal tail (`oom-preflight.log`) |
+
+Observed once, not a probe: with about 170–445 MB free, a chat request's prompt admission failed as a 400 (`Prompt (523 tokens) requires ~993MB GPU memory but only …`), which the app maps to `badRequest` (not retryable) instead of `enhancerOutOfMemory`. It could not be forced on a healthy engine, so no probe pins it; if it shows up in the field, map that 400 to `enhancerOutOfMemory` in `EngineError`.
