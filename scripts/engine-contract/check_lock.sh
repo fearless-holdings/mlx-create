@@ -32,6 +32,8 @@ if not isinstance(lock, dict):
 version = lock.get("version")
 suite = lock.get("contract_suite")
 problems = []
+if not isinstance(version, str) or not version:
+    problems.append(f"the lock has no non-empty string 'version' (found {version!r})")
 if not isinstance(suite, dict):
     problems.append("the lock has no contract_suite object")
 else:

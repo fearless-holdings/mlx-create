@@ -64,7 +64,7 @@ The file sits at the repo root and is JSON, so the build script can read it with
 | Field | Purpose |
 |---|---|
 | `schema` | Format version. The script refuses any value it doesn't know |
-| `version`, `tag`, `commit` | `version` must match the first line of `mlx-serve --version` (`mlx-serve 26.10.3-pre-release.1`). `commit` is the ref that HLD and LLD source citations point at |
+| `version`, `tag`, `commit` | `version` must match the first line of `mlx-serve --version` (`mlx-serve 26.10.3`). `commit` is the ref that HLD and LLD source citations point at |
 | `url`, `sha256`, `size` | Integrity. The sha256 is the authority. `size` only makes truncated downloads fail with a clear message |
 | `upstream_team_id` | Provenance. The build checks upstream's signature before stripping it, so a change of upstream signer becomes a deliberate bump instead of a silent one |
 | `root`, `executable`, `frameworks`, `notices` | The expected payload, relative to `root`. Every file in the tarball has to appear in exactly one list. Unknown or missing files fail the build, so a new upstream dylib can't ship unsigned or unlinked |
@@ -340,7 +340,7 @@ The first bump gated by the contract suite (HLD D49, `docs/lld/engine-contract.m
 - **What changed upstream** (pre-release.1 to stable, commit `49bb6be` to `046b647`): the app's HTTP surface is byte-identical. Four behaviour changes: purgeable pages count toward memory admission; a refused load waits about 2 s longer; the eviction planner credits a victim's prefix cache; stacked LoRAs on Qwen-Image round once. `--no-w8a8` is the only switch for the M5 int8 default and is not used (a product decision, deferred).
 - **Artifact:** asset sha256 `d1781c89…956b652b`, size 81326484. `--refresh-manifest` found the same seven frameworks and three notices; `mlx-serve --version` prints `mlx-serve 26.10.3`; `--check` verifies. The refresh script rewrites `engine.lock` as one minified line, so the file was restored to its readable layout by hand.
 - **Contract suite on `v26.10.3`:** 61 probes, no failures, recorded in `engine.lock` (`result: pass`, `version: 26.10.3`).
-- **`swift test` with `MLXC_ENGINE_BIN` set:** passes, including the real-engine `EngineSupervisorTests` (start, 401 without the key, key absent from argv, `kill -9` giving `.restarting` then `.ready` on a new port and key).
+- **`swift test` with `MLXC_ENGINE_BIN` set:** passes, including the real-engine `EngineSupervisorTests` (start and `kill -9` giving `.restarting` then `.ready` on a new port and key). The 401 and argv checks live in the contract suite's launch probes.
 - **Reference timings** (`ReferenceTimingMeasurementTests`, 1024×1024, one Mac, nothing else loaded): Krea 2 Turbo 20.16 s (was 20.59 s), Qwen-Image 2.1 Turbo 26.19 s (was 25.65 s). Both moved by about 2%, under the 10% threshold, so the catalog timings are unchanged.
 - **LoRA re-gate** (`scripts/lora-gate`, 512×512, the catalog's six shelf files plus the Krea always-on file): all seven `pass` on `v26.10.3` (header fit, load, same-seed reproducibility, strength 0). Every `tested_engine` is now `v26.10.3` and the catalog is re-signed at sequence 9; the diff was exactly those seven stamps.
 - **Not done:** the GUI was not exercised, and FLUX.2 klein has no reference timing (unchanged from before).

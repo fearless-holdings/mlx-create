@@ -9,8 +9,6 @@ import MCLibrary
 struct ContractLoRAFile: Sendable, Equatable {
     let url: URL
     let family: String
-    /// The size variant the matching layouts named, or nil when they name none (KTD6).
-    let variant: String?
     let sizeBytes: Int64
 
     /// The absolute path the engine receives in `lora_paths`, outside its model directory as the app's requests are.
@@ -144,10 +142,10 @@ struct ContractLoRAs: Sendable {
         var byFamily: [String: [ContractLoRAFile]] = [:]
         for url in safetensorFiles(in: directory) {
             guard let header = try? SafetensorsHeader.read(from: url) else { continue }
-            guard case .family(let family, let variant) = registry.classifyLoRA(tensors: header.shapes) else { continue }
+            guard case .family(let family, _) = registry.classifyLoRA(tensors: header.shapes) else { continue }
             let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.int64Value ?? 0
             byFamily[family, default: []].append(
-                ContractLoRAFile(url: url, family: family, variant: variant, sizeBytes: size))
+                ContractLoRAFile(url: url, family: family, sizeBytes: size))
         }
         // Names sort the files, so which file a probe sends does not depend on the order the volume lists them in.
         return byFamily.mapValues { files in files.sorted { $0.fileName < $1.fileName } }

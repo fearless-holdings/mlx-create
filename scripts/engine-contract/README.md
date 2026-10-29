@@ -43,7 +43,7 @@ Every other variable is inherited, so `swift test` finds its toolchain. The scra
 The suite writes `result.json` only when every declared probe ran and none failed: `{engine_version, probes_expected, probes_run, failures}`. The runner then checks that `probes_run` equals `probes_expected`, `failures` is empty, the tested `engine_version` equals the lock's `version`, and `swift test` exited 0. Only then, and only with `--write-lock`, it rewrites `engine.lock`'s `contract_suite` to
 
 ```json
-"contract_suite": { "result": "pass", "run_at": "2026-10-29", "version": "26.10.3", "probes": 46 }
+"contract_suite": { "result": "pass", "run_at": "2026-10-29", "version": "26.10.3", "probes": 61 }
 ```
 
 Every other field keeps its exact bytes: the rewrite replaces the field's value in the file's text, so key order and line wrapping survive. Without `--write-lock` a passing run prints what it would record and leaves the lock alone.

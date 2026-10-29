@@ -224,7 +224,7 @@ struct ChatContractTests {
     }
 
     /// Markers a thinking model leaves in its text (deliberation channels and tag pairs).
-    private static let reasoningMarkers = ["", "]", "<|channel>", "</thinking>", "<|think"]
+    private static let reasoningMarkers = ["\u{3C}think>", "\u{3C}/think>", "\u{3C}|channel>", "\u{3C}/thinking>", "\u{3C}|think"]
 
     /// Wire fields a reasoning stream would fill instead of `content`.
     private static let reasoningFields = ["reasoning_content", "reasoning", "thinking"]

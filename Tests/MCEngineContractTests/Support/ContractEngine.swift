@@ -127,7 +127,11 @@ enum ContractHarnessError: Error, CustomStringConvertible {
 /// The ledger of this process, built from the environment and the bundled registry.
 enum ContractRun {
     static let ledger: ContractLedger = {
-        let registry = (try? FamilyRegistry.bundled()) ?? FamilyRegistry(families: [])
+        // A registry that fails to load must stop the run: an empty one would shrink the declared probe set and let
+        // an incomplete run look complete.
+        guard let registry = try? FamilyRegistry.bundled(), !registry.families.isEmpty else {
+            fatalError("the bundled family registry did not load, so the contract probes cannot be declared")
+        }
         let version = (try? engineVersion(of: ContractEnvironment.engineBinary)) ?? "unknown"
         return ContractLedger(
             expected: declaredProbeIDs(registry: registry), engineVersion: version, resultURL: ContractEnvironment.resultURL)

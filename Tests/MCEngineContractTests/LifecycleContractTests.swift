@@ -53,7 +53,9 @@ struct LifecycleContractTests {
                 check.expect(!resident.contains(absent.id), "\(absent.id) is resident, so this run cannot prove the absent case")
                 try await engine.client.unload(model: absent.id)
                 let after = try await loadedIDs(in: engine)
-                check.expect(!after.contains(absent.id), "\(absent.id) is loaded after unloading a model that was not resident")
+                check.expect(
+                    after == resident,
+                    "unloading \(absent.id), which was not resident, changed the resident set from \(resident) to \(after)")
             }
 
             try await runProbe(ContractProbe.modelsLoadUnknownFails.rawValue, ledger: ContractRun.ledger) { check in

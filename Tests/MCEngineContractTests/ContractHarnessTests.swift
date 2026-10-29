@@ -89,7 +89,9 @@ struct ContractHarnessTests {
     @Test func everyDeclaredProbeIsRecordedByATest() throws {
         let directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         let sources = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
-            .filter { $0.pathExtension == "swift" && $0.lastPathComponent != "ContractLedger.swift" }
+            .filter {
+                $0.pathExtension == "swift" && !["ContractLedger.swift", "ContractHarnessTests.swift"].contains($0.lastPathComponent)
+            }
             .map { try String(contentsOf: $0, encoding: .utf8) }
             .joined(separator: "\n")
         for probe in ContractProbe.allCases {

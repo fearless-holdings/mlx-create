@@ -126,7 +126,7 @@ def write_lock(path, lock_text, lock, suite):
         raise SystemExit(f"internal error: the rewritten lock is not valid JSON: {error}") from error
     expected = dict(lock)
     expected["contract_suite"] = suite
-    if data != expected or list(data) != list(lock):
+    if data != expected or list(data) != list(expected):
         raise SystemExit("internal error: the rewrite changed more than contract_suite; engine.lock untouched")
     temporary = path + ".tmp"
     with open(temporary, "w", encoding="utf-8") as handle:
@@ -395,6 +395,28 @@ def self_test():
     else:
         raise AssertionError("a lock with no closing brace must be refused")
 
+    check_lock_gate()
+
+
+def check_lock_gate():
+    """The CI gate (`check_lock.sh`) refuses every lock that does not record a pass for its own version."""
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "check_lock.sh")
+    good = {"version": "26.10.3", "contract_suite": {"result": "pass", "version": "26.10.3", "probes": 61}}
+    cases = [
+        ("a recorded pass for the pinned version", good, 0),
+        ("a smoke-only record", dict(good, contract_suite={"result": "smoke-only", "version": "26.10.3"}), 1),
+        ("a pass recorded for another version", dict(good, contract_suite=dict(good["contract_suite"], version="26.10.2")), 1),
+        ("a lock with no contract_suite", {"version": "26.10.3"}, 1),
+        ("a lock with no version and a suite with none either", {"contract_suite": {"result": "pass"}}, 1),
+    ]
+    with tempfile.TemporaryDirectory() as directory:
+        for name, lock, expected in cases:
+            path = os.path.join(directory, "engine.lock")
+            with open(path, "w", encoding="utf-8") as handle:
+                json.dump(lock, handle)
+            status = subprocess.run(["sh", script, path], capture_output=True, text=True).returncode
+            assert status == expected, f"check_lock.sh exited {status} for {name}, expected {expected}"
+
 
 # --- entry point ------------------------------------------------------------------------------------------------
 
@@ -489,6 +511,10 @@ def main(argv):
         print(f"all checks passed: {result['probes_run']} probes on engine {result['engine_version']}", flush=True)
         print(f"dry run: engine.lock untouched. --write-lock would record {render_suite(suite)}", flush=True)
         return 0
+    # The suite runs for a long time; rewrite the lock as it is now, and only if it still pins the version that was tested.
+    lock_text, lock = read_lock(lock_path)
+    if lock.get("version") != version:
+        raise SystemExit(f"{lock_path} now pins {lock.get('version')}, not the tested {version}; nothing recorded")
     write_lock(lock_path, lock_text, lock, suite)
     print(f"recorded in {lock_path}: {render_suite(suite)}", flush=True)
     return 0
