@@ -89,7 +89,9 @@ private struct SelectedImageView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel("Selected image: \(image.prompt)")
+        .accessibilityAddTraits(.isImage)
     }
 }
 
