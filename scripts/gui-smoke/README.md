@@ -23,9 +23,11 @@ print(r.stdout, r.stderr)
 
 `--models` is a directory holding model folders as `ORG/NAME`; the app's own `~/Library/Application Support/mlx-create/Models/Weights` works. The model is symlinked into a throwaway home, never copied.
 
-Exit codes: `0` passed, `1` a step failed, `2` NOT RUN. NOT RUN is a refusal and never a pass: no model configured, model folder missing or without `config.json`/`model_index.json`, mlx-create already running, or Developer Mode off.
+Exit codes: `0` a test ran to completion and passed; `1` the run started and failed (build, timeout, test failure, or the real library or preferences changed); `2` NOT RUN, never a pass: no model configured, model folder missing or without `config.json`/`model_index.json`, mlx-create already running, Developer Mode off, or a test that skipped itself.
 
-Evidence lands in `build/gui-smoke/<timestamp>/` (`screenshots/NN-<step>.png`, `result.xcresult`, `xcodebuild.log`). The runner prints the failing step and its last screenshot, and per-phase times. Old runs are not pruned.
+Evidence lands in `build/gui-smoke/<timestamp>/`: `screenshots/NN <step>.png` (a failing run adds `NN <step> FAILED.png`), `attachments/` (screen recording, hierarchy dumps), `result.xcresult` and `xcodebuild.log`. The runner prints the failing step and its last screenshot, and per-phase times. Old runs are not pruned.
+
+The runner also restores the real `com.fearless.mlx-create` preferences the app wrote (`UserDefaults.standard` ignores the throwaway home) and fails the run if the real library under `~/Library/Application Support/mlx-create` changed. Pick a smoke model without a catalog `reference_timing`, or the app will run its D48 calibration in the throwaway home first (klein 4B has none).
 
 ## Self-test
 

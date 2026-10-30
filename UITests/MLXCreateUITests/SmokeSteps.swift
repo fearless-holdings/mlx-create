@@ -5,14 +5,14 @@ import XCTest
 @MainActor
 final class SmokeSession {
     let app = XCUIApplication()
-    let modelID: String
     private let testCase: XCTestCase
     private var stepCount = 0
+    private var currentStep = "00 before the first step"
 
     init(testCase: XCTestCase) throws {
         let environment = ProcessInfo.processInfo.environment
         let home = environment["MLXC_SMOKE_HOME"] ?? ""
-        modelID = environment["MLXC_SMOKE_MODEL_ID"] ?? ""
+        let modelID = environment["MLXC_SMOKE_MODEL_ID"] ?? ""
         try XCTSkipIf(
             home.isEmpty || modelID.isEmpty,
             "Run through scripts/gui-smoke/run_smoke.py: it builds the throwaway home and passes the model id")
@@ -22,12 +22,20 @@ final class SmokeSession {
         // persistence flag stops macOS restoring zero windows from an earlier session (docs/lld/gui-smoke.md section 4).
         app.launchEnvironment["CFFIXED_USER_HOME"] = home
         app.launchArguments = ["-ApplePersistenceIgnoreState", "YES", "-MLXCSmokeHome", home]
+        // A failed assertion stops the test before the step can screenshot itself, so the end state is captured here, named
+        // after the step that was running. The runner shows it as the last screenshot.
+        testCase.addTeardownBlock { [self] in
+            if testCase.testRun?.hasSucceeded == false {
+                attachScreenshot(named: "\(currentStep) FAILED")
+            }
+        }
     }
 
     /// Runs `body` as a named activity and attaches a screenshot of the window afterwards.
     func step<T>(_ name: String, _ body: () throws -> T) rethrows -> T {
         stepCount += 1
         let label = String(format: "%02d %@", stepCount, name)
+        currentStep = label
         return try XCTContext.runActivity(named: label) { _ in
             let result = try body()
             attachScreenshot(named: label)

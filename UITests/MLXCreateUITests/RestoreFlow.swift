@@ -32,17 +32,27 @@ extension SmokeSession {
                 return
             }
         }
-        XCTFail("the Size menu offers no size other than \(current)")
         app.typeKey(.escape, modifierFlags: [])
+        XCTFail("the Size menu offers no size other than \(current)")
     }
 
-    /// F2: on the image F1 made, "Reuse prompt" and "Reuse all settings" put the recorded values back in the composer.
+    /// The restore flow: on the image the generate flow made, "Reuse prompt" and "Reuse all settings" put the recorded values back.
+    /// Every readback starts from a composer that differs from the value being restored, so a restore that does nothing fails.
     func runRestoreFlow(_ image: GeneratedImage) {
         let changedPrompt = "restore check, not the original prompt"
+        let changedSeed = "999999"
 
-        step("Change the prompt") {
+        step("Change prompt, seed, seed policy and size") {
             setPrompt(changedPrompt)
             XCTAssertEqual(promptField.value as? String, changedPrompt, "the Prompt field did not take the changed text")
+            seedPolicy("Fixed").click()
+            require(seedField, "the Seed field did not appear after choosing Fixed")
+            setSeed(changedSeed)
+            XCTAssertEqual(seedField.value as? String, changedSeed, "the Seed field did not take the changed seed")
+            chooseAnotherSize()
+            XCTAssertNotEqual(sizePicker.value as? String, image.size, "the size did not change")
+            seedPolicy("Random").click()
+            XCTAssertTrue(isSelected(seedPolicy("Random")), "the seed policy did not switch to Random")
         }
         step("Reuse prompt from the tile menu") {
             require(tile(for: image), "the gallery tile for the generated image is missing")
@@ -51,17 +61,15 @@ extension SmokeSession {
             require(reusePrompt, "the tile menu has no Reuse prompt item")
             reusePrompt.click()
             XCTAssertTrue(eventually { promptField.value as? String == image.prompt }, "Reuse prompt did not restore the original prompt")
-            XCTAssertTrue(isSelected(seedPolicy("Fixed")), "Reuse prompt changed the seed policy, which it must leave alone")
+            XCTAssertTrue(isSelected(seedPolicy("Random")), "Reuse prompt changed the seed policy, which it must leave alone")
+            XCTAssertNotEqual(sizePicker.value as? String, image.size, "Reuse prompt changed the size, which it must leave alone")
         }
-        step("Change prompt, seed policy and size") {
+        step("Change the prompt again") {
             setPrompt(changedPrompt)
-            seedPolicy("Random").click()
-            XCTAssertTrue(isSelected(seedPolicy("Random")), "the seed policy did not switch to Random")
-            chooseAnotherSize()
-            XCTAssertNotEqual(sizePicker.value as? String, image.size, "the size did not change")
+            XCTAssertEqual(promptField.value as? String, changedPrompt, "the Prompt field did not take the changed text")
         }
         step("Reuse all settings") {
-            // ⌘R is bound to a hidden zero-size view (MainWindow.swift); the tile menu item is the fallback (KTD6).
+            // ⌘R is bound to a hidden zero-size view (MainWindow.swift); the tile menu item is the fallback.
             app.typeKey("r", modifierFlags: .command)
             if eventually(within: 5, { promptField.value as? String == image.prompt }) {
                 XCTContext.runActivity(named: "Restored through the ⌘R shortcut") { _ in }

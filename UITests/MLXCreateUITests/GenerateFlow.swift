@@ -33,7 +33,7 @@ extension SmokeSession {
         seedField.typeKey(.return, modifierFlags: [])
     }
 
-    /// F1: launch with the model installed, generate one image with a known prompt and seed, and see it on the canvas and in the gallery.
+    /// The generate flow: launch with the model installed, generate one image with a known prompt and seed, and see it on the canvas and in the gallery.
     func runGenerateFlow() -> GeneratedImage {
         let token = String(UUID().uuidString.prefix(6)).lowercased()
         let prompt = "smoke \(token) a red apple on a wooden table"

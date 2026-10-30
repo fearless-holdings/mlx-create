@@ -80,7 +80,7 @@ No bug has yet escaped `swift test` that only a manual launch caught. This is a 
 - AE1. **Covers R3.** Given no model location is configured, when the smoke command runs, it prints that nothing was run and why, and exits non-zero without launching generation.
 - AE2. **Covers R2.** Given the developer's own app is running, when the smoke command runs, it exits non-zero before building or launching anything, names the running app, and leaves it and its library untouched.
 - AE3. **Covers R5, R8.** Given the engine cannot load the model, when generation never produces an image, the failure names the generate step and points to a screenshot of the window at that moment.
-- AE4. **Covers R6.** Given the generated image is restored, when the composer is read back, its prompt, fixed seed and Size equal the values the image was made with (and Steps too, where the family shows it), after the test changed them in between.
+- AE4. **Covers R6.** Given the generated image is restored, when the composer is read back, its prompt, fixed seed and Size equal the values the image was made with, after the test changed them in between. (Steps is not read back: the review dropped that clause, because the klein 4B family under test sends a fixed step grid and the readback would assert nothing.)
 - AE5. **Covers R4.** Given a run that fails mid-generation, when the command exits, no process started by the run remains and the throwaway home is gone.
 
 ### Key Decisions
@@ -142,7 +142,7 @@ No bug has yet escaped `swift test` that only a manual launch caught. This is a 
 - KTD7. **Existing accessibility labels are the first choice; identifiers are added only for controls the labels cannot pick out uniquely.** The Prompt editor, Generate button, "Generation progress", "Selected image: …", "Image: …" tiles and "Model: …" chip already carry labels, so R9 likely touches few views. One known candidate: the "Seed policy" segmented picker in `Sources/MCApp/GenerationPanel.swift` is `.labelsHidden()` with no explicit accessibility label, and both flows switch it between Random and Fixed. U2 checks whether its segments ("Random", "Fixed") can be queried; if not, U4 gives the picker a label or identifier. Satisfies R9.
 - KTD8. **Screenshots are XCTest attachments exported from the `.xcresult` bundle into `build/gui-smoke/<timestamp>/`.** `build/` is already git-ignored. Each step records a screenshot named by step with `lifetime = .keepAlways`, because XCTest discards attachments from passing tests by default and R7 needs them on a pass. The runner prints the failing step with its exported path. The developer deletes old runs; there is no retention logic. Satisfies R7, R8.
 - KTD9. **Cleanup finds leftovers by the throwaway home path in their command line, not by name.** The engine child carries the home in its `--model-dir` argument and the app carries it as the positional argument from KTD3, so one path match covers both. The engine child can outlive the app (`AGENTS.md`), and a name-based `pkill` would hit other `mlx-serve` processes such as a Gemma server another task may be running. Without the app match, a leftover mlx-create would make the next preflight refuse (KTD4). Satisfies R4, AE5.
-- KTD3/KTD9 correction (U2 spike). The plain positional launch argument is wrong: AppKit treats it as a file to open and the app opens no window. Pass the home as `-MLXCSmokeHome <home>` instead, plus `-ApplePersistenceIgnoreState YES`; the path stays visible in the app's command line for cleanup. The "defaults unchanged" check in U2 cannot hold either, because `UserDefaults.standard` is not redirected by `CFFIXED_USER_HOME`. See `docs/lld/gui-smoke.md` §4.
+- KTD3/KTD9 correction (U2 spike). The plain positional launch argument is wrong: AppKit treats it as a file to open and the app opens no window. Pass the home as `-MLXCSmokeHome <home>` instead, plus `-ApplePersistenceIgnoreState YES`; the path stays visible in the app's command line for cleanup. `UserDefaults.standard` is not redirected by `CFFIXED_USER_HOME`, so "defaults unchanged" cannot hold as written. The runner instead snapshots the real preferences before the run, restores the app-owned keys it changed afterwards, and fingerprints the real library (everything but `Engine/`) before and after, failing the run if it changed. See `docs/lld/gui-smoke.md` §4. Steps is not read back (AE4 and every "and Steps" clause below are dropped).
 
 ### High-Level Technical Design
 
@@ -194,7 +194,7 @@ flowchart TB
 - **Approach:** Check Developer Mode first and stop with a request to the developer if it is off. Add the target via XcodeGen (KTD1). The test reads the home from the environment (KTD3), sets `CFFIXED_USER_HOME` on the app's `launchEnvironment`, passes the home as the positional argument, launches, and waits for the main window. Record, in the LLD, for each of: Developer Mode and any Accessibility grant needed from the agent shell, whether the ad-hoc signed Debug app and test runner launch, whether the throwaway home is honored and the real library and the real `com.fearless.mlx-create` preferences domain are untouched, whether a screenshot attachment exports from the `.xcresult`, whether ⌘R and a context-menu item can be driven. Stop and report if the runner cannot drive the app (Goal Capsule).
 - **Test scenarios:**
   - Launch in a throwaway home with no model: the main window appears and the empty-state canvas is on screen.
-  - The real `Application Support/mlx-create` library is byte-for-byte unchanged by the run, and `defaults read com.fearless.mlx-create` is unchanged.
+  - The real `Application Support/mlx-create` library is unchanged by the run (fingerprinted by the runner, `Engine/` excluded), and the real `com.fearless.mlx-create` preferences are restored to their pre-run values apart from AppKit's own `NS…` window-frame keys.
   - A passing step's screenshot attachment (with `lifetime = .keepAlways`) exports from the `.xcresult`.
 - **Verification:** `xcodebuild test` runs the target to a pass from the agent shell, or the LLD records the exact blocker and the run stops.
 
@@ -218,7 +218,7 @@ flowchart TB
 - **Requirements:** R5, R7, R8, R9.
 - **Dependencies:** U2, U3.
 - **Files:** `UITests/MLXCreateUITests/SmokeSteps.swift` (new: step runner that wraps each step in `XCTContext.runActivity` and attaches a named screenshot), `UITests/MLXCreateUITests/GenerateFlow.swift` (new), `Sources/MCApp/GenerationPanel.swift`, `Sources/MCApp/GalleryView.swift`, `Sources/MCApp/CanvasView.swift` (identifiers only where KTD7 finds a label ambiguous).
-- **Approach:** Launch with the model installed, wait for the "Model: …" chip, type a prompt containing a per-run token, set the seed policy to fixed with a known seed (KTD6), record the composer's Size (and Steps where shown), press Generate, assert "Generation progress" appears, then wait for "Selected image: <prompt>" and the matching "Image: <prompt>" gallery tile. Each stage is a named step whose screenshot uses `.keepAlways` (R8, KTD8).
+- **Approach:** Launch with the model installed, wait for the "Model: …" chip, type a prompt containing a per-run token, set the seed policy to fixed with a known seed (KTD6), record the composer's Size, press Generate, assert "Generation progress" appears, then wait for "Selected image: <prompt>" and the matching "Image: <prompt>" gallery tile. Each stage is a named step whose screenshot uses `.keepAlways` (R8, KTD8).
 - **Test scenarios:**
   - Happy path: the canvas and the gallery both show the image with the run's prompt token.
   - Progress is observed before the image appears.
@@ -232,10 +232,10 @@ flowchart TB
 - **Requirements:** R6, R7, R8.
 - **Dependencies:** U4.
 - **Files:** `UITests/MLXCreateUITests/RestoreFlow.swift` (new); identifiers only where KTD7 requires, in the same views as U4.
-- **Approach:** Continuing the same launch (KTD5): change the prompt, right-click the tile and choose "Reuse prompt", then assert the prompt field is back to the original. Change the prompt again and the Size (and Steps where shown), switch the seed policy back to random, select the tile and trigger "Reuse all settings" (⌘R, or the menu item per KTD6), then assert prompt, Seed field with the known seed, and the recorded Size (and Steps) are back (KTD6).
+- **Approach:** Continuing the same launch (KTD5): change the prompt, seed, seed policy and Size, right-click the tile and choose "Reuse prompt", then assert the prompt is back and the seed policy and Size are still as changed. Change the prompt again, select the tile and trigger "Reuse all settings" (⌘R, or the menu item per KTD6), then assert prompt, seed policy Fixed, the Seed field with the known seed, and the recorded Size are back (KTD6). Every readback starts from a composer that differs from the restored value.
 - **Test scenarios:**
-  - After changing the prompt, "Reuse prompt" from the tile menu puts the original prompt back and leaves the seed policy alone.
-  - After the seed policy is random and Size changed, "Reuse all settings" brings back the Seed field with the known seed, the original prompt and the recorded Size (and Steps where shown) (AE4).
+  - After the prompt, seed, seed policy and Size are changed, "Reuse prompt" from the tile menu puts the original prompt back and leaves the seed policy and Size alone.
+  - After the prompt is changed again, "Reuse all settings" brings back the Fixed policy, the known seed, the original prompt and the recorded Size (AE4).
 - **Verification:** The full ordered run passes live; both restores show in the exported screenshots.
 
 ### U6. Document the command and the setup
@@ -260,7 +260,7 @@ flowchart TB
 | Unit tests unaffected by identifier additions | `swift test` (about 40 s; past 2 minutes it is hung, see `AGENTS.md`) | U4, U5 |
 | Formatting | `git ls-files '*.swift' \| xargs swift format lint --strict --configuration .swift-format` prints nothing | U2, U4, U5 |
 
-After a live run, `pgrep -fl "mlx-serve|mlx-create"` shows nothing the run started.
+After a live run, `pgrep -fl "mlxc-smoke"` shows nothing: every process the run started carried the throwaway home path (other tasks' `mlx-serve` processes are not matched by name and are left alone).
 
 ## Definition of Done
 

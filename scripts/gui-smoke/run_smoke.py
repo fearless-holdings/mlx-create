@@ -6,9 +6,11 @@
 
 `--models` is a directory holding model folders as `ORG/NAME` (the app's `Models/Weights` layout). The model is
 symlinked into a throwaway home, never copied. The UI test runner is sandboxed, so this script owns everything that
-touches the file system: preflight, the home, cleanup and exporting screenshots (`docs/lld/gui-smoke.md`).
+touches the file system: preflight, the home, cleanup, restoring the real preferences and exporting screenshots
+(`docs/lld/gui-smoke.md`).
 
-Exit codes: 0 every step passed; 1 a step failed; 2 NOT RUN (a refusal, never a pass).
+Exit codes: 0 a test ran to completion and passed; 1 the run started and failed (build, hang, test, or the real library
+or preferences changed); 2 NOT RUN (a refusal, or a test that skipped itself), never a pass.
 
 Run it from an Eval cell; see README.md.
 """
@@ -16,6 +18,7 @@ import argparse
 import datetime
 import json
 import os
+import plistlib
 import re
 import shutil
 import signal
@@ -37,6 +40,10 @@ EXIT_PASS, EXIT_FAIL, EXIT_NOT_RUN = 0, 1, 2
 
 class NotRun(Exception):
     """A refusal. The run did not happen, so it must never read as a pass."""
+
+
+class RunFailed(Exception):
+    """The run started and then failed (a build, a hang, a test): exit 1, with the evidence on disk, never NOT RUN."""
 
 
 # --- preflight ---------------------------------------------------------------------------------------------------
@@ -137,6 +144,76 @@ def remove_home(home):
         shutil.rmtree(home, ignore_errors=True)
 
 
+# --- the developer's real state ----------------------------------------------------------------------------------
+# CFFIXED_USER_HOME redirects the library, models and engine, but not UserDefaults.standard, which cfprefsd keys to the real
+# user (docs/lld/gui-smoke.md section 4). So the runner snapshots the real preferences and restores whatever the app wrote,
+# and it fingerprints the real library to prove a run never touched it.
+
+PREFS_DOMAIN = "com.fearless.mlx-create"
+REAL_LIBRARY = os.path.join(os.path.expanduser("~"), "Library", "Application Support", "mlx-create")
+DEFAULTS_FLAGS = {str: "-string", bool: "-bool", int: "-int", float: "-float"}
+
+
+def real_prefs(domain=PREFS_DOMAIN):
+    result = subprocess.run(["defaults", "export", domain, "-"], capture_output=True)
+    if result.returncode != 0 or not result.stdout.strip():
+        return {}
+    try:
+        return plistlib.loads(result.stdout)
+    except Exception:
+        return {}
+
+
+def restore_prefs(before, domain=PREFS_DOMAIN):
+    """Put every app-owned key back as `before` had it. AppKit's own `NS…` keys (window frames) are left alone.
+
+    Returns (restored keys, keys it could not restore). Run it after the app is dead: a live app rewrites its keys."""
+    after = real_prefs(domain)
+    restored, stuck = [], []
+    for key in sorted(set(before) | set(after)):
+        if key.startswith("NS") or ((key in before) == (key in after) and before.get(key) == after.get(key)):
+            continue
+        if key not in before:
+            command = ["defaults", "delete", domain, key]
+        else:
+            value = before[key]
+            flag = DEFAULTS_FLAGS.get(type(value))
+            if flag is None:
+                stuck.append(key)
+                continue
+            text = ("TRUE" if value else "FALSE") if isinstance(value, bool) else str(value)
+            command = ["defaults", "write", domain, key, flag, text]
+        if subprocess.run(command, capture_output=True).returncode == 0:
+            restored.append(key)
+        else:
+            stuck.append(key)
+    return restored, stuck
+
+
+def library_fingerprint(root=REAL_LIBRARY):
+    """{relative path: (size, mtime_ns)} for everything under `root` except Engine/ (a stray engine logs there).
+
+    lstat only: symlinks are never followed, and no file is opened."""
+    entries = {}
+    if not os.path.isdir(root):
+        return entries
+    for directory, dirs, files in os.walk(root):
+        relative = os.path.relpath(directory, root)
+        if relative == ".":
+            dirs[:] = [name for name in dirs if name != "Engine"]
+        for name in files + dirs:
+            try:
+                info = os.lstat(os.path.join(directory, name))
+            except OSError:
+                continue
+            entries[os.path.normpath(os.path.join(relative, name))] = (info.st_size, info.st_mtime_ns)
+    return entries
+
+
+def changed_paths(before, after):
+    return sorted(path for path in set(before) | set(after) if before.get(path) != after.get(path))
+
+
 # --- run ---------------------------------------------------------------------------------------------------------
 
 
@@ -149,43 +226,72 @@ def run_logged(command, log_path, env=None, timeout=None):
         except subprocess.TimeoutExpired:
             os.killpg(process.pid, signal.SIGKILL)
             process.wait()
-            raise NotRun(f"timed out after {timeout}s: {' '.join(command[:3])} …; see {log_path}") from None
+            raise RunFailed(f"timed out after {timeout}s running {' '.join(command[:3])} …; see {log_path}") from None
 
 
 def export_screenshots(result_bundle, out_dir):
-    """Export every attachment from the .xcresult as `NN-<step>.<ext>`. Returns the exported paths in step order."""
+    """Export the attachments from the .xcresult. Step screenshots (PNG) land in screenshots/, named by their step label;
+    everything else (the screen recording, XCTest's own snapshots and hierarchy dumps) lands in attachments/.
+
+    Returns the screenshot paths in time order, or [] when the bundle has nothing to export."""
     raw = os.path.join(out_dir, "raw")
-    subprocess.run(["xcrun", "xcresulttool", "export", "attachments", "--path", result_bundle, "--output-path", raw],
-                   capture_output=True, check=True)
-    with open(os.path.join(raw, "manifest.json"), encoding="utf-8") as handle:
-        manifest = json.load(handle)
+    try:
+        subprocess.run(["xcrun", "xcresulttool", "export", "attachments", "--path", result_bundle, "--output-path", raw],
+                       capture_output=True, check=True)
+        with open(os.path.join(raw, "manifest.json"), encoding="utf-8") as handle:
+            manifest = json.load(handle)
+    except (subprocess.CalledProcessError, OSError, ValueError) as error:
+        print(f"could not export the evidence from {result_bundle}: {error}")
+        return []
     items = [a for test in manifest for a in test.get("attachments", [])]
     items.sort(key=lambda a: a.get("timestamp", 0))
     shots = os.path.join(out_dir, "screenshots")
+    extras = os.path.join(out_dir, "attachments")
     os.makedirs(shots, exist_ok=True)
+    os.makedirs(extras, exist_ok=True)
     exported = []
     for index, item in enumerate(items, 1):
         ext = os.path.splitext(item["exportedFileName"])[1]
         stem = item["suggestedHumanReadableName"].removesuffix(ext)
         stem = re.sub(r"_\d+_[0-9A-Fa-f-]{36}$", "", stem).replace("/", "-")
-        target = os.path.join(shots, f"{index:02d}-{stem}{ext}")
-        shutil.move(os.path.join(raw, item["exportedFileName"]), target)
-        exported.append(target)
+        source = os.path.join(raw, item["exportedFileName"])
+        if ext == ".png" and re.match(r"\d\d ", stem):
+            target = os.path.join(shots, f"{stem}{ext}")
+            exported.append(target)
+        else:
+            target = os.path.join(extras, f"{index:03d}-{stem}{ext}")
+        shutil.move(source, target)
     shutil.rmtree(raw, ignore_errors=True)
     return exported
 
 
-def failures(result_bundle):
-    """(test, text) for every failed test in the result bundle, or [] when it cannot be read."""
+def test_summary(result_bundle):
+    """The result bundle's test summary as a dict, or None when it cannot be read."""
+    if not os.path.isdir(result_bundle):
+        return None
     result = subprocess.run(["xcrun", "xcresulttool", "get", "test-results", "summary", "--path", result_bundle],
                             capture_output=True, text=True)
     if result.returncode != 0:
-        return []
+        return None
     try:
-        summary = json.loads(result.stdout)
+        return json.loads(result.stdout)
     except ValueError:
-        return []
-    return [(f.get("testName", "?"), f.get("failureText", "")) for f in summary.get("testFailures", [])]
+        return None
+
+
+def classify(status, summary):
+    """(exit code, message). The exit status alone is not trusted: XCTest counts a skipped test as a pass, and the UI test
+    skips itself when its TEST_RUNNER_ variables do not arrive. Only a test that ran to completion is a pass."""
+    if status != 0:
+        return EXIT_FAIL, f"xcodebuild exited {status}"
+    if summary is None:
+        return EXIT_FAIL, "xcodebuild exited 0 but its result bundle cannot be read, so no pass can be claimed"
+    passed, failed, skipped = summary.get("passedTests", 0), summary.get("failedTests", 0), summary.get("skippedTests", 0)
+    if failed:
+        return EXIT_FAIL, f"{failed} test(s) failed"
+    if skipped or passed < 1:
+        return EXIT_NOT_RUN, f"no test ran to completion ({passed} passed, {skipped} skipped); the UI test skips itself when it is not started by this runner"
+    return EXIT_PASS, f"{passed} test(s) passed"
 
 
 def fmt_seconds(seconds):
@@ -201,36 +307,43 @@ def run(args):
     log_path = os.path.join(out_dir, "xcodebuild.log")
     result_bundle = os.path.join(out_dir, "result.xcresult")
     phases = {}
+    prefs_before = real_prefs()
+    library_before = library_fingerprint()
     home = make_home(model_folder, args.model_id)
     code = EXIT_FAIL
     try:
-        mark = time.time()
-        if run_logged(["xcodegen", "generate"], log_path, timeout=300) != 0:
-            raise NotRun(f"xcodegen generate failed; see {log_path}")
-        phases["generate"] = time.time() - mark
+        try:
+            mark = time.time()
+            if run_logged(["xcodegen", "generate"], log_path, timeout=300) != 0:
+                raise RunFailed(f"xcodegen generate failed; see {log_path}")
+            phases["generate"] = time.time() - mark
 
-        mark = time.time()
-        env = dict(os.environ, TEST_RUNNER_MLXC_SMOKE_HOME=home, TEST_RUNNER_MLXC_SMOKE_MODEL_ID=args.model_id)
-        status = run_logged(
-            ["xcodebuild", "-project", "MLXCreate.xcodeproj", "-scheme", SCHEME, "-configuration", "Debug", "-derivedDataPath", "build",
-             "-destination", "platform=macOS", "-resultBundlePath", result_bundle, f"-only-testing:{TEST_TARGET}", "test"],
-            log_path, env=env, timeout=args.timeout)
-        phases["build+test"] = time.time() - mark
+            mark = time.time()
+            env = dict(os.environ, TEST_RUNNER_MLXC_SMOKE_HOME=home, TEST_RUNNER_MLXC_SMOKE_MODEL_ID=args.model_id)
+            status = run_logged(
+                ["xcodebuild", "-project", "MLXCreate.xcodeproj", "-scheme", SCHEME, "-configuration", "Debug", "-derivedDataPath", "build",
+                 "-destination", "platform=macOS", "-resultBundlePath", result_bundle, f"-only-testing:{TEST_TARGET}", "test"],
+                log_path, env=env, timeout=args.timeout)
+            phases["build+test"] = time.time() - mark
 
-        mark = time.time()
-        shots = export_screenshots(result_bundle, out_dir) if os.path.isdir(result_bundle) else []
-        phases["export"] = time.time() - mark
+            mark = time.time()
+            shots = export_screenshots(result_bundle, out_dir) if os.path.isdir(result_bundle) else []
+            phases["export"] = time.time() - mark
 
-        code = EXIT_PASS if status == 0 else EXIT_FAIL
-        if code == EXIT_FAIL:
-            report = failures(result_bundle) if os.path.isdir(result_bundle) else []
-            if not report:
-                print(f"FAILED before any test result was recorded (xcodebuild exit {status}); see {log_path}")
-            for test, text in report:
-                print(f"FAILED {test}: {text}")
-            if shots:
-                print(f"last screenshot: {shots[-1]}")
-        print(("PASSED" if code == EXIT_PASS else "FAILED") + f": {len(shots)} screenshots in {os.path.join(out_dir, 'screenshots')}")
+            summary = test_summary(result_bundle)
+            code, message = classify(status, summary)
+            if code == EXIT_FAIL:
+                report = (summary or {}).get("testFailures", [])
+                if not report:
+                    print(f"FAILED before any test result was recorded ({message}); see {log_path}")
+                for failure in report:
+                    print(f"FAILED {failure.get('testName', '?')}: {failure.get('failureText', '')}")
+                if shots:
+                    print(f"last screenshot: {shots[-1]}")
+            print({EXIT_PASS: "PASSED", EXIT_FAIL: "FAILED", EXIT_NOT_RUN: "NOT RUN"}[code] + f": {message}; {len(shots)} screenshots in {os.path.join(out_dir, 'screenshots')}")
+        except RunFailed as error:
+            code = EXIT_FAIL
+            print(f"FAILED: {error}")
     finally:
         mark = time.time()
         killed = kill_processes_mentioning(home)
@@ -238,6 +351,16 @@ def run(args):
         phases["cleanup"] = time.time() - mark
         if killed:
             print(f"cleanup stopped {len(killed)} leftover process(es) that carried {home}")
+        restored, stuck = restore_prefs(prefs_before)
+        if restored:
+            print(f"restored {len(restored)} preference key(s) the run changed in {PREFS_DOMAIN}: {', '.join(restored)}")
+        if stuck:
+            print(f"COULD NOT restore preference key(s) in {PREFS_DOMAIN}: {', '.join(stuck)}")
+            code = EXIT_FAIL
+        touched = changed_paths(library_before, library_fingerprint())
+        if touched:
+            print(f"FAILED: the real library changed during the run ({len(touched)} path(s), first: {', '.join(touched[:5])}); isolation did not hold")
+            code = EXIT_FAIL
         print("phases: " + ", ".join(f"{name} {fmt_seconds(value)}" for name, value in phases.items()) + f"; total {fmt_seconds(time.time() - started)}")
     return code
 
@@ -298,6 +421,48 @@ def self_test():
         check("home is removed", not os.path.exists(home))
         check("removing the home leaves the model in place", os.path.isfile(os.path.join(folder, "config.json")))
         check("remove_home ignores a path outside the throwaway prefix", (remove_home(scratch), os.path.isdir(scratch))[1])
+
+        summary = {"passedTests": 1, "failedTests": 0, "skippedTests": 0}
+        check("a passed test is a pass", classify(0, summary)[0] == EXIT_PASS)
+        check("a skipped-only run is NOT RUN, never a pass", classify(0, {"passedTests": 0, "failedTests": 0, "skippedTests": 1})[0] == EXIT_NOT_RUN)
+        check("a run with no test is NOT RUN", classify(0, {"passedTests": 0, "failedTests": 0, "skippedTests": 0})[0] == EXIT_NOT_RUN)
+        check("a failed test is a failure", classify(0, {"passedTests": 0, "failedTests": 1, "skippedTests": 0})[0] == EXIT_FAIL)
+        check("a non-zero xcodebuild is a failure", classify(65, summary)[0] == EXIT_FAIL)
+        check("an unreadable result bundle is never a pass", classify(0, None)[0] == EXIT_FAIL)
+
+        fresh = os.path.join(scratch, "library")
+        os.makedirs(os.path.join(fresh, "Images"))
+        os.makedirs(os.path.join(fresh, "Engine"))
+        with open(os.path.join(fresh, "Images", "a.png"), "wb") as handle:
+            handle.write(b"a")
+        snapshot = library_fingerprint(fresh)
+        check("an untouched library fingerprints the same", changed_paths(snapshot, library_fingerprint(fresh)) == [])
+        with open(os.path.join(fresh, "Engine", "log.txt"), "w", encoding="utf-8") as handle:
+            handle.write("engine log")
+        check("Engine/ is not fingerprinted", changed_paths(snapshot, library_fingerprint(fresh)) == [])
+        with open(os.path.join(fresh, "Images", "b.png"), "wb") as handle:
+            handle.write(b"b")
+        check("a new library file is detected", changed_paths(snapshot, library_fingerprint(fresh)) == ["Images", "Images/b.png"])
+
+        domain = f"com.fearless.mlxc-smoke-selftest-{os.getpid()}"
+        try:
+            subprocess.run(["defaults", "write", domain, "lastUsedModelID", "-string", "Org/Name"], check=True)
+            subprocess.run(["defaults", "write", domain, "queuePaused", "-bool", "TRUE"], check=True)
+            prefs = real_prefs(domain)
+            subprocess.run(["defaults", "write", domain, "lastUsedModelID", "-string", "Org/Other"], check=True)
+            subprocess.run(["defaults", "delete", domain, "queuePaused"], check=True)
+            subprocess.run(["defaults", "write", domain, "currentCollectionID", "-string", "ABC"], check=True)
+            subprocess.run(["defaults", "write", domain, "NSWindow Frame x", "-string", "1 2 3 4"], check=True)
+            restored, stuck = restore_prefs(prefs, domain)
+            now = real_prefs(domain)
+            check("preferences the app changed or added are restored", now.get("lastUsedModelID") == "Org/Name" and now.get("queuePaused") is True
+                  and "currentCollectionID" not in now and not stuck and len(restored) == 3)
+            check("AppKit's own NS keys are left alone", now.get("NSWindow Frame x") == "1 2 3 4")
+        finally:
+            subprocess.run(["defaults", "delete", domain], capture_output=True)
+
+        refused = subprocess.run([sys.executable, os.path.abspath(__file__)], capture_output=True, text=True)
+        check("the command exits 2 with NOT RUN when no model is configured", refused.returncode == EXIT_NOT_RUN and "NOT RUN" in refused.stdout)
     return 1 if failures_ else 0
 
 
