@@ -1,0 +1,65 @@
+AXApplication title="mlx-create" @0,0 0x0
+  AXWindow/AXStandardWindow title="mlx-create" id=SwiftUI.WindowGroup<SwiftUI._ConditionalContent<SwiftUI._ConditionalContent<mlx_create.(unknown context at $106e49308).LaunchLoadingView, MCApp.MainWindow>, mlx_create.(unknown context at $106e49330).LaunchFailureView>>-1-AppWindow-1 [focused] @2238,200 1100x692 acts=AXRaise
+    AXGroup/AXHostingView @2238,200 1100x692
+      AXSplitGroup @2238,200 1100x692
+        AXGroup/AXHostingView @2238,200 320x692
+          AXScrollArea @2238,252 320x591 acts=AXScrollLeftByPage,AXScrollRightByPage,AXScrollUpByPage,AXScrollDownByPage
+            AXScrollArea @2256,270 267x108 acts=AXScrollLeftByPage,AXScrollRightByPage,AXScrollUpByPage,AXScrollDownByPage
+              AXTextArea desc="Prompt" @2249,263 280x121
+              AXScrollBar value="0" [disabled] @2505,269 19x110
+            AXButton desc="Recent prompts" help="Recent prompts" id=clock.arrow.circlepath @2405,397 40x23 acts=AXPress
+            AXButton desc="Enhance" help="Rewrites the prompt for the selected model and LoRAs. Accept keeps the result." [disabled] @2453,396 76x24 acts=AXPress
+            AXButton desc="Model: FLUX.2 klein" help="Choose the image model" @2250,432 279x24 acts=AXPress
+            AXScrollArea @2250,468 279x300 acts=AXScrollLeftByPage,AXScrollRightByPage,AXScrollUpByPage,AXScrollDownByPage
+              AXHeading desc="Seed" @2280,488 32x16
+              AXGroup @2270,514 239x44
+                AXRadioGroup desc="Seed policy" @2280,524 219x24
+                  AXRadioButton/AXSegment desc="Random" value="1" @2280,524 74x24 acts=AXPress
+                  AXRadioButton/AXSegment desc="Fixed" value="0" @2354,524 60x24 acts=AXPress
+                  AXRadioButton/AXSegment desc="Increment" value="0" @2414,524 85x24 acts=AXPress
+              AXHeading desc="Size" @2280,588 27x16
+              AXGroup @2270,614 239x38
+                AXStaticText value="Size" @2280,624 26x16
+                AXPopUpButton value="1.024 × 1.024" @2370,621 129x24 acts=AXPress
+              AXHeading desc="Steps" @2280,681 37x16
+              AXGroup @2270,708 239x40
+                AXStaticText value="Steps" @2280,717 35x16
+                AXStaticText value="Default" @2427,717 44x16
+                  AXStaticText value="Default" @2427,717 44x16
+                AXIncrementor desc="Steps" value="4" @2479,714 20x24 acts=AXIncrement,AXDecrement,AXIncrement,AXDecrement
+                  AXButton/AXIncrementArrow @2479,714 20x12 acts=AXPress
+                  AXButton/AXDecrementArrow @2479,726 20x12 acts=AXPress
+            AXScrollArea @2250,780 279x110 acts=AXScrollLeftByPage,AXScrollRightByPage,AXScrollUpByPage,AXScrollDownByPage
+              AXHeading desc="LoRAs" @2280,800 40x16
+              AXLink desc="Library…" @2447,800 52x16 acts=AXPress
+              AXGroup @2270,826 239x44
+                AXButton desc="Add LoRA…" @2280,836 94x24 acts=AXPress
+            AXScrollBar value="0" @2540,251 19x593
+              AXValueIndicator value="0" @2544,255 11x535
+              AXButton/AXIncrementArrow @2541,252 0x0 acts=AXPress
+              AXButton/AXDecrementArrow @2541,252 0x0 acts=AXPress
+              AXButton/AXIncrementPage @2544,791 11x49 acts=AXPress
+              AXButton/AXDecrementPage @2544,255 11x0 acts=AXPress
+          AXStaticText value="×1" @2250,860 17x16
+          AXIncrementor desc="Batch count" value="1" @2275,856 20x24 acts=AXIncrement,AXDecrement,AXIncrement,AXDecrement
+            AXButton/AXIncrementArrow @2275,856 20x12 acts=AXPress
+            AXButton/AXDecrementArrow @2275,868 20x12 acts=AXPress
+          AXButton desc="Generate" [disabled] @2466,856 80x24 acts=AXPress
+        AXSplitter value="320" [disabled] @2558,252 1x640
+        AXGroup/AXHostingView @2559,200 518x692
+          AXStaticText value="Type a prompt and press ⌘↩" @2559,252 518x640
+        AXSplitter value="518" [disabled] @3077,252 1x640
+        AXGroup/AXHostingView @3078,200 260x692
+          AXStaticText value="No images yet" @3164,564 87x16
+    AXToolbar @2238,200 1100x52
+      AXGroup help="Switch or manage collections" @2330,200 81x52 acts=Name:Remove from toolbar
+    AXButton/AXCloseButton @2256,218 16x16 acts=AXPress
+    AXButton/AXFullScreenButton help="this button also has an action to zoom the window" @2302,218 16x16 acts=AXPress,AXZoomWindow
+      AXGroup @2303,219 14x14
+    AXButton/AXMinimizeButton @2279,218 16x16 acts=AXPress
+    AXStaticText value="mlx-create" @2411,200 923x52 acts=AXPress
+          AXMenu @0,1117 0x0 acts=AXCancel
+          AXMenu @0,1117 0x0 acts=AXCancel
+          AXMenu @0,1117 0x0 acts=AXCancel
+          AXMenu @0,1117 0x0 acts=AXCancel
+          AXMenu @0,1117 0x0 acts=AXCancel

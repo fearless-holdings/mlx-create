@@ -1,0 +1,48 @@
+AXApplication title="mlx-create" @0,0 0x0
+  AXWindow/AXStandardWindow title="mlx-create" id=SwiftUI.WindowGroup<SwiftUI._ConditionalContent<SwiftUI._ConditionalContent<mlx_create.(unknown context at $102f65308).LaunchLoadingView, MCApp.MainWindow>, mlx_create.(unknown context at $102f65330).LaunchFailureView>>-1-AppWindow-1 [focused] @2238,390 1100x692 acts=AXRaise
+    AXGroup/AXHostingView @2238,390 1100x692
+      AXSplitGroup @2238,390 1100x692
+        AXGroup/AXHostingView @2238,390 320x692
+          AXScrollArea @2256,460 284x455 acts=AXScrollLeftByPage,AXScrollRightByPage,AXScrollUpByPage,AXScrollDownByPage
+            AXTextArea desc="Prompt" @2249,453 297x468
+            AXScrollBar value="0" [disabled] @2522,459 19x457
+          AXButton desc="Recent prompts" help="Recent prompts" id=clock.arrow.circlepath @2422,934 40x23 acts=AXPress
+          AXButton desc="Enhance" help="Rewrites the prompt for the selected model and LoRAs. Accept keeps the result." [disabled] @2470,933 76x24 acts=AXPress
+          AXButton desc="Model: No model" help="Choose the image model" @2250,969 296x24 acts=AXPress
+          AXStaticText value="Choose an available model to see its settings." @2250,1005 276x16
+          AXStaticText value="×1" @2250,1050 17x16
+          AXIncrementor desc="Batch count" value="1" @2275,1046 20x24 acts=AXIncrement,AXDecrement,AXIncrement,AXDecrement
+            AXButton/AXIncrementArrow @2275,1046 20x12 acts=AXPress
+            AXButton/AXDecrementArrow @2275,1058 20x12 acts=AXPress
+          AXButton desc="Generate" [disabled] @2466,1046 80x24 acts=AXPress
+        AXSplitter value="320" [disabled] @2558,442 1x640
+        AXGroup/AXHostingView @2559,390 518x692
+          AXStaticText value="No image models installed" @2724,620 188x19
+          AXStaticText value="Browse the models that fit this Mac. Each one asks you to accept its license bef" @2583,651 470x30
+          AXStaticText value="Recommended for this Mac" @2595,705 135x13
+          AXStaticText value="Qwen-Image 2.1 Turbo" @2595,728 146x16
+          AXStaticText value="Fits this Mac" @2753,730 63x13
+          AXStaticText value="Recommended" @2834,730 74x13
+          AXButton desc="Install" @2981,728 60x24 acts=AXPress
+          AXStaticText value="4-bit · 10,55 GB download · about 14.3 GB RAM · Qwen Research License Agreement" @2595,749 315x26
+          AXStaticText value="Not installed" @2595,779 72x15
+          AXButton desc="Browse models" @2758,824 121x28 acts=AXPress
+          AXStaticText value="Optional: a prompt enhancer rewrites prompts for the model you pick. It download" @2583,864 470x30
+          AXButton desc="Get the prompt enhancer" @2730,906 177x24 acts=AXPress
+          AXStaticText value="Queue empty" @2571,1055 65x13
+          AXScrollArea @2559,1074 518x0 acts=AXScrollLeftByPage,AXScrollRightByPage,AXScrollUpByPage,AXScrollDownByPage
+            AXOpaqueProviderGroup/AXOpaqueProviderList @?,? 0x0 acts=AXScrollToTop,AXScrollToBottom
+        AXSplitter value="518" [disabled] @3077,442 1x640
+        AXGroup/AXHostingView @3078,390 260x692
+          AXStaticText value="No images yet" @3164,754 87x16
+    AXToolbar @2238,390 1100x52
+      AXGroup help="Switch or manage collections" @2330,390 81x52 acts=Name:Remove from toolbar
+    AXButton/AXCloseButton @2256,408 16x16 acts=AXPress
+    AXButton/AXFullScreenButton help="this button also has an action to zoom the window" @2302,408 16x16 acts=AXPress,AXZoomWindow
+      AXGroup @2303,409 14x14
+    AXButton/AXMinimizeButton @2279,408 16x16 acts=AXPress
+    AXStaticText value="mlx-create" @2411,390 923x52 acts=AXPress
+          AXMenu @0,1117 0x0 acts=AXCancel
+          AXMenu @0,1117 0x0 acts=AXCancel
+          AXMenu @0,1117 0x0 acts=AXCancel
+          AXMenu @0,1117 0x0 acts=AXCancel

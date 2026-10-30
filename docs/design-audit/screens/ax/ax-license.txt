@@ -1,0 +1,101 @@
+AXApplication title="mlx-create" @0,0 0x0
+  AXWindow/AXStandardWindow title="mlx-create" id=SwiftUI.WindowGroup<SwiftUI._ConditionalContent<SwiftUI._ConditionalContent<mlx_create.(unknown context at $102f65308).LaunchLoadingView, MCApp.MainWindow>, mlx_create.(unknown context at $102f65330).LaunchFailureView>>-1-AppWindow-1 @2238,200 1100x692 acts=AXRaise
+    AXGroup/AXHostingView @2238,200 1100x692
+      AXSplitGroup @2238,200 1100x692
+        AXGroup/AXHostingView @2238,200 320x692
+          AXScrollArea @2256,270 284x455 acts=AXScrollLeftByPage,AXScrollRightByPage,AXScrollUpByPage,AXScrollDownByPage
+            AXTextArea desc="Prompt" @2249,263 297x468
+            AXScrollBar value="0" [disabled] @2522,269 19x457
+          AXButton desc="Recent prompts" help="Recent prompts" id=clock.arrow.circlepath @2422,744 40x23 acts=AXPress
+          AXButton desc="Enhance" help="Rewrites the prompt for the selected model and LoRAs. Accept keeps the result." [disabled] @2470,743 76x24 acts=AXPress
+          AXButton desc="Model: No model" help="Choose the image model" @2250,779 296x24 acts=AXPress
+          AXStaticText value="Choose an available model to see its settings." @2250,815 276x16
+          AXStaticText value="×1" @2250,860 17x16
+          AXIncrementor desc="Batch count" value="1" @2275,856 20x24 acts=AXIncrement,AXDecrement,AXIncrement,AXDecrement
+            AXButton/AXIncrementArrow @2275,856 20x12 acts=AXPress
+            AXButton/AXDecrementArrow @2275,868 20x12 acts=AXPress
+          AXButton desc="Generate" [disabled] @2466,856 80x24 acts=AXPress
+        AXSplitter value="320" [disabled] @2558,252 1x640
+        AXGroup/AXHostingView @2559,200 518x692
+          AXStaticText value="No image models installed" @2724,430 188x19
+          AXStaticText value="Browse the models that fit this Mac. Each one asks you to accept its license bef" @2583,461 470x30
+          AXStaticText value="Recommended for this Mac" @2595,515 135x13
+          AXStaticText value="Qwen-Image 2.1 Turbo" @2595,538 146x16
+          AXStaticText value="Fits this Mac" @2753,540 63x13
+          AXStaticText value="Recommended" @2834,540 74x13
+          AXButton desc="Install" @2981,538 60x24 acts=AXPress
+          AXStaticText value="4-bit · 10,55 GB download · about 14.3 GB RAM · Qwen Research License Agreement" @2595,559 315x26
+          AXStaticText value="Not installed" @2595,589 72x15
+          AXButton desc="Browse models" @2758,634 121x28 acts=AXPress
+          AXStaticText value="Optional: a prompt enhancer rewrites prompts for the model you pick. It download" @2583,674 470x30
+          AXButton desc="Get the prompt enhancer" @2730,716 177x24 acts=AXPress
+          AXStaticText value="Queue empty" @2571,865 65x13
+          AXScrollArea @2559,884 518x0 acts=AXScrollLeftByPage,AXScrollRightByPage,AXScrollUpByPage,AXScrollDownByPage
+            AXOpaqueProviderGroup/AXOpaqueProviderList @?,? 0x0 acts=AXScrollToTop,AXScrollToBottom
+        AXSplitter value="518" [disabled] @3077,252 1x640
+        AXGroup/AXHostingView @3078,200 260x692
+          AXStaticText value="No images yet" @3164,564 87x16
+    AXToolbar @2238,200 1100x52
+      AXGroup help="Switch or manage collections" @2330,200 81x52 acts=Name:Remove from toolbar
+    AXButton/AXCloseButton [disabled] @2256,218 16x16 acts=AXPress
+    AXButton/AXZoomButton @2302,218 16x16 acts=AXPress
+      AXGroup @2303,219 14x14
+        AXGroup @2303,219 14x14
+    AXButton/AXMinimizeButton @2279,218 16x16 acts=AXPress
+    AXStaticText value="mlx-create" @2411,200 923x52 acts=AXPress
+    AXSheet @2448,296 680x500 acts=AXRaise
+      AXGroup/AXHostingView @2448,296 680x500
+        AXStaticText value="Models" @2464,313 60x21
+        AXButton desc="Done" @3056,312 56x24 acts=AXPress
+        AXScrollArea @2448,353 680x443 acts=AXScrollLeftByPage,AXScrollRightByPage,AXScrollUpByPage,AXScrollDownByPage
+          AXOutline @2448,353 680x443
+            AXRow/AXOutlineRow @2448,363 680x73 acts=AXShowDefaultUI,AXShowAlternateUI
+              AXCell [focused] @2458,363 660x73
+                AXStaticText value="FLUX.2 klein 4B" @2464,373 103x16
+                AXStaticText value="Fits this Mac" @2579,375 63x13
+                AXButton desc="Install" @3052,373 60x24 acts=AXPress
+                AXStaticText value="4-bit (mflux) · 4,62 GB download · about 8.0 GB RAM · Apache License 2.0" @2464,394 359x13
+                AXStaticText value="Not installed" @2464,411 72x15
+            AXRow/AXOutlineRow @2448,436 680x73 acts=AXShowDefaultUI,AXShowAlternateUI
+              AXCell [focused] @2458,436 660x73
+                AXStaticText value="Krea 2 Turbo" @2464,446 83x16
+                AXStaticText value="Fits this Mac" @2559,448 63x13
+                AXButton desc="Install" @3052,446 60x24 acts=AXPress
+                AXStaticText value="mixed 4/8-bit · 15,83 GB download · about 17.6 GB RAM · Krea 2 Community License" @2464,467 461x13
+                AXStaticText value="Not installed" @2464,484 72x15
+            AXRow/AXOutlineRow @2448,509 680x73 acts=AXShowDefaultUI,AXShowAlternateUI
+              AXCell [focused] @2458,509 660x73
+                AXStaticText value="Qwen-Image 2.1 Turbo" @2464,519 146x16
+                AXStaticText value="Fits this Mac" @2622,521 63x13
+                AXStaticText value="Recommended" @2703,521 74x13
+                AXButton desc="Install" @3052,519 60x24 acts=AXPress
+                AXStaticText value="4-bit · 10,55 GB download · about 14.3 GB RAM · Qwen Research License Agreement" @2464,540 408x13
+                AXStaticText value="Not installed" @2464,557 72x15
+            AXRow/AXOutlineRow @2448,602 680x28 acts=AXShowDefaultUI,AXShowAlternateUI
+              AXCell [focused] @2458,602 660x28
+                AXGroup/AXHostingView @2464,602 648x28
+                  AXHeading desc="Optional extra: prompt enhancer" @2464,609 178x14
+            AXRow/AXOutlineRow @2448,630 680x73 acts=AXShowDefaultUI,AXShowAlternateUI
+              AXCell [focused] @2458,630 660x73
+                AXStaticText value="Gemma 4 E4B heretic (prompt enhancer)" @2464,640 265x16
+                AXStaticText value="Fits this Mac" @2741,642 63x13
+                AXButton desc="Install" @3052,640 60x24 acts=AXPress
+                AXStaticText value="4-bit · 4,26 GB download · about 3.9 GB RAM · Apache License 2.0" @2464,661 322x13
+                AXStaticText value="Not installed" @2464,678 72x15
+            AXColumn id=ListColumn @2458,353 660x443
+      AXSheet [focused] @2538,358 500x375 acts=AXRaise
+        AXGroup/AXHostingView @2538,358 500x375
+          AXStaticText value="Qwen-Image 2.1 Turbo" @2562,382 184x21
+          AXStaticText value="Qwen Research License Agreement, version Release Date: September 20, 2026" @2562,417 414x30
+          AXStaticText value="This license does not allow commercial use." @2563,461 271x15
+          AXScrollArea @2562,491 452x121 acts=AXScrollLeftByPage,AXScrollRightByPage,AXScrollUpByPage,AXScrollDownByPage
+            AXStaticText value="Research and evaluation only (section 2). Any commercial purpose needs a separat" @2562,491 452x120
+              AXStaticText value="Research and evaluation only (section 2). Any commercial purpose needs a separat" @2562,491 452x120
+          AXLink desc="Read the full license" @2562,626 115x15 acts=AXPress
+          AXCheckBox desc="I have read and accept the Qwen Research License Agreement." value="0" @2562,655 403x16 acts=AXPress
+          AXButton desc="Cancel" @2880,685 66x24 acts=AXPress
+          AXButton desc="Install" [disabled] @2954,685 60x24 acts=AXPress
+          AXMenu @0,1117 0x0 acts=AXCancel
+          AXMenu @0,1117 0x0 acts=AXCancel
+          AXMenu @0,1117 0x0 acts=AXCancel
+          AXMenu @0,1117 0x0 acts=AXCancel

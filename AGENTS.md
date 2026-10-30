@@ -153,6 +153,7 @@ HLD Appendix A lists the files worth reusing. The rules:
 - When initialising git, add a `.gitignore` covering at least `.env`, build output, and any local engine or reference downloads, before the first commit.
 - Keep `docs/HLD.md` current. Write component LLDs alongside it as `docs/lld/<component>.md`.
 - `docs/solutions/` holds verified learnings from solved problems, grouped by category (for example `integration-issues/`). Search it before working on an external API or a recurring bug, and add one when a fix hides reasoning the code does not carry. Example: Civitai listing previews and NSFW signals.
+- `docs/design-audit/` holds the 2026-10-30 UX/UI audit: `README.md` (ranked findings, execution order, smoke contract), one executable spec per finding in `specs/`, and `capture-kit.md` (screenshot, accessibility-dump and contrast tools the specs' acceptance checks use). Before changing UI a spec covers, read that spec and its "Depends on"; S08 and S09 need an HLD decision first. For dark-mode captures, the `-AppleInterfaceStyle Dark` launch argument has no effect: flip the system appearance (`capture-kit.md`, `dark.sh`) and flip it back.
 - **Update this file** when you establish a command, convention or gotcha that the next agent would otherwise rediscover. Keep entries short and factual.
 
 <!-- CODEGRAPH_START -->
