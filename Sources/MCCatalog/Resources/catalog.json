@@ -15,7 +15,7 @@
         "model_id" : 2233658,
         "version_id" : 2666766
       },
-      "tested_engine" : "v26.10.3-pre-release.1",
+      "tested_engine" : "v26.10.3",
       "tested_scale" : 0.75,
       "trigger_words" : [
 
@@ -35,7 +35,7 @@
         "model_id" : 2432232,
         "version_id" : 2734784
       },
-      "tested_engine" : "v26.10.3-pre-release.1",
+      "tested_engine" : "v26.10.3",
       "tested_scale" : 0.9,
       "trigger_words" : [
         "Excellent_Full_Nude, A RAW Pro Ultra HiRes erotic photo of a stark naked, fully nude female model"
@@ -55,7 +55,7 @@
         "model_id" : 2725430,
         "version_id" : 3147117
       },
-      "tested_engine" : "v26.10.3-pre-release.1",
+      "tested_engine" : "v26.10.3",
       "tested_scale" : 1.2,
       "trigger_words" : [
 
@@ -75,7 +75,7 @@
         "model_id" : 2540187,
         "version_id" : 3131773
       },
-      "tested_engine" : "v26.10.3-pre-release.1",
+      "tested_engine" : "v26.10.3",
       "tested_scale" : 4,
       "trigger_words" : [
 
@@ -95,7 +95,7 @@
         "model_id" : 1662740,
         "version_id" : 3349565
       },
-      "tested_engine" : "v26.10.3-pre-release.1",
+      "tested_engine" : "v26.10.3",
       "tested_scale" : 1.2,
       "trigger_words" : [
 
@@ -115,7 +115,7 @@
         "model_id" : 764250,
         "version_id" : 3357878
       },
-      "tested_engine" : "v26.10.3-pre-release.1",
+      "tested_engine" : "v26.10.3",
       "tested_scale" : 0.5,
       "trigger_words" : [
 
@@ -135,7 +135,7 @@
         "model_id" : 3008549,
         "version_id" : 3416242
       },
-      "tested_engine" : "v26.10.3-pre-release.1",
+      "tested_engine" : "v26.10.3",
       "tested_scale" : 1,
       "trigger_words" : [
 
@@ -461,5 +461,5 @@
     }
   ],
   "schema_version" : 1,
-  "sequence" : 8
+  "sequence" : 9
 }

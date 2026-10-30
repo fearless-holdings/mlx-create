@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "version": "26.10.3-pre-release.1",
-  "tag": "v26.10.3-pre-release.1",
-  "commit": "49bb6be0760316c75f3b8ba2c6d9cce5103735fa",
+  "version": "26.10.3",
+  "tag": "v26.10.3",
+  "commit": "046b647686419df06c6c7132fb1d15d76185c3e5",
   "asset": "mlx-serve-bin-macos-arm64.tar.gz",
-  "url": "https://github.com/ddalcu/mlx-serve/releases/download/v26.10.3-pre-release.1/mlx-serve-bin-macos-arm64.tar.gz",
-  "sha256": "b2abd6eacb1845a591ed4fc8bf70424800c718ad12b2819cef28b8e23ec6d25d",
-  "size": 81272786,
+  "url": "https://github.com/ddalcu/mlx-serve/releases/download/v26.10.3/mlx-serve-bin-macos-arm64.tar.gz",
+  "sha256": "d1781c89c206f0d077d6d1abbcab43aa9ec65280202c83eac908f957956b652b",
+  "size": 81326484,
   "upstream_team_id": "S77TW432YG",
   "root": "mlx-serve-macos-arm64",
   "executable": "mlx-serve",
@@ -15,5 +15,5 @@
     "lib/libsharpyuv.dylib", "lib/libwebp.dylib", "lib/mlx.metallib"
   ],
   "notices": ["LICENSE", "LICENSE-APACHE-2.0", "NOTICE"],
-  "contract_suite": { "result": "smoke-only", "run_at": "2026-10-21" }
+  "contract_suite": { "result": "pass", "run_at": "2026-10-29", "version": "26.10.3", "probes": 61 }
 }

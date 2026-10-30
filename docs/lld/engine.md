@@ -2,14 +2,14 @@
 
 Module: `MCEngine` (runtime), `scripts/embed-engine.sh` (build). Implements HLD §7.3–7.4 under D6 and D17.
 
-Facts marked **[observed]** were checked against upstream release `v26.10.2` (commit `ccedc6a`, published 2026-10-12) on 2026-10-16. The pin has since moved to `v26.10.3-pre-release.1` (commit `49bb6be`, 2026-10-20); §5.10 records what was re-checked on that bump. Re-check them on every pin bump. **[verify]** marks things to confirm the first time the phase runs for real.
+Facts marked **[observed]** were checked against upstream release `v26.10.2` (commit `ccedc6a`, published 2026-10-12) on 2026-10-16. The pin has since moved to `v26.10.3-pre-release.1` (commit `49bb6be`, 2026-10-20) and then to the stable `v26.10.3` (commit `046b647`); §5.10 and §5.11 record what was re-checked on those bumps. Re-check them on every pin bump. **[verify]** marks things to confirm the first time the phase runs for real.
 
 ## 1. Scope
 
 | In scope | Out of scope |
 |---|---|
 | `engine.lock` format | HTTP/SSE request building (`EngineClient`, HLD §8.1) |
-| Build phase: fetch, verify, embed, install-name fix, re-sign | The engine contract suite itself (HLD §7.3); only its gate is described here |
+| Build phase: fetch, verify, embed, install-name fix, re-sign | The engine contract suite itself (`docs/lld/engine-contract.md`, D49); only its gate is described here |
 | `EngineSupervisor`: launch environment, `HOME` override, models symlink, PID file, readiness, crash classification, backoff restart, shutdown | Queue retry policy for failed jobs (owned by the queue; this module only reports) |
 
 ## 2. Upstream artifact [observed]
@@ -42,13 +42,13 @@ The file sits at the repo root and is JSON, so the build script can read it with
 ```json
 {
   "schema": 1,
-  "version": "26.10.3-pre-release.1",
-  "tag": "v26.10.3-pre-release.1",
-  "commit": "49bb6be0760316c75f3b8ba2c6d9cce5103735fa",
+  "version": "26.10.3",
+  "tag": "v26.10.3",
+  "commit": "046b647686419df06c6c7132fb1d15d76185c3e5",
   "asset": "mlx-serve-bin-macos-arm64.tar.gz",
-  "url": "https://github.com/ddalcu/mlx-serve/releases/download/v26.10.3-pre-release.1/mlx-serve-bin-macos-arm64.tar.gz",
-  "sha256": "b2abd6eacb1845a591ed4fc8bf70424800c718ad12b2819cef28b8e23ec6d25d",
-  "size": 81272786,
+  "url": "https://github.com/ddalcu/mlx-serve/releases/download/v26.10.3/mlx-serve-bin-macos-arm64.tar.gz",
+  "sha256": "d1781c89c206f0d077d6d1abbcab43aa9ec65280202c83eac908f957956b652b",
+  "size": 81326484,
   "upstream_team_id": "S77TW432YG",
   "root": "mlx-serve-macos-arm64",
   "executable": "mlx-serve",
@@ -57,20 +57,20 @@ The file sits at the repo root and is JSON, so the build script can read it with
     "lib/libsharpyuv.dylib", "lib/libwebp.dylib", "lib/mlx.metallib"
   ],
   "notices": ["LICENSE", "LICENSE-APACHE-2.0", "NOTICE"],
-  "contract_suite": { "result": "smoke-only", "run_at": "2026-10-21" }
+  "contract_suite": { "result": "pass", "run_at": "2026-10-29", "version": "26.10.3", "probes": 61 }
 }
 ```
 
 | Field | Purpose |
 |---|---|
 | `schema` | Format version. The script refuses any value it doesn't know |
-| `version`, `tag`, `commit` | `version` must match the first line of `mlx-serve --version` (`mlx-serve 26.10.3-pre-release.1`). `commit` is the ref that HLD and LLD source citations point at |
+| `version`, `tag`, `commit` | `version` must match the first line of `mlx-serve --version` (`mlx-serve 26.10.3`). `commit` is the ref that HLD and LLD source citations point at |
 | `url`, `sha256`, `size` | Integrity. The sha256 is the authority. `size` only makes truncated downloads fail with a clear message |
 | `upstream_team_id` | Provenance. The build checks upstream's signature before stripping it, so a change of upstream signer becomes a deliberate bump instead of a silent one |
 | `root`, `executable`, `frameworks`, `notices` | The expected payload, relative to `root`. Every file in the tarball has to appear in exactly one list. Unknown or missing files fail the build, so a new upstream dylib can't ship unsigned or unlinked |
-| `contract_suite` | Written by the bump PR and checked by CI. The `result` must be `pass` before merge (HLD §7.3) |
+| `contract_suite` | Written by `scripts/engine-contract/run_contract.py` after a complete run and checked by CI (D49). `result` is `pass` or `smoke-only`, `run_at` is the run date, `version` is the engine version the suite ran against, and `probes` is the number of probes that ran. CI fails unless `result` is `pass` and `version` equals the lock's `version`. `schema` stays 1: the build script reads no `contract_suite` field |
 
-**Bump procedure:** edit `engine.lock`, run `scripts/embed-engine.sh --refresh-manifest` (fills in `size` and the payload lists from the new tarball, then prints them for review), run the contract suite, set `contract_suite`, and open the PR. Update the pinned-commit note in `AGENTS.md` in the same PR.
+**Bump procedure:** edit `engine.lock`, run `scripts/embed-engine.sh --refresh-manifest` (fills in `size` and the payload lists from the new tarball, then prints them for review), run `scripts/engine-contract/run_contract.py` (it extracts the engine, runs the suite and writes `contract_suite` only for a complete passing run), and open the PR. Update the pinned-commit note in `AGENTS.md` in the same PR. A red run keeps the previous pin.
 
 ## 4. Build phase: `scripts/embed-engine.sh`
 
@@ -333,6 +333,18 @@ Run by hand with the §5.2 flags, `HOME=/tmp/mc-home`, `--max-resident-models 1`
 - **Memory:** the Turbo 8-bit preflight asks for about 26.3 GB free (22.5 GB peak) and the first loads failed with `out_of_memory` at 26.2 GB available; the load succeeded on a later retry. No `--skip-mem-preflight`.
 - **Not done:** the contract suite (HLD §7.3) does not exist as code yet, so `contract_suite` is `smoke-only`, not `pass`. FLUX.2 klein was not re-run on the new pin, and the GUI was not exercised.
 
+### 5.11 Bump record (2026-10-29, `v26.10.3`)
+
+The first bump gated by the contract suite (HLD D49, `docs/lld/engine-contract.md`). The suite ran to completion on `v26.10.3-pre-release.1` first (61 probes, recorded in `docs/lld/engine-contract.md` §7), and the pin moved only after it passed again on the new binary.
+
+- **What changed upstream** (pre-release.1 to stable, commit `49bb6be` to `046b647`): the app's HTTP surface is byte-identical. Four behaviour changes: purgeable pages count toward memory admission; a refused load waits about 2 s longer; the eviction planner credits a victim's prefix cache; stacked LoRAs on Qwen-Image round once. `--no-w8a8` is the only switch for the M5 int8 default and is not used (a product decision, deferred).
+- **Artifact:** asset sha256 `d1781c89…956b652b`, size 81326484. `--refresh-manifest` found the same seven frameworks and three notices; `mlx-serve --version` prints `mlx-serve 26.10.3`; `--check` verifies. The refresh script rewrites `engine.lock` as one minified line, so the file was restored to its readable layout by hand.
+- **Contract suite on `v26.10.3`:** 61 probes, no failures, recorded in `engine.lock` (`result: pass`, `version: 26.10.3`).
+- **`swift test` with `MLXC_ENGINE_BIN` set:** passes, including the real-engine `EngineSupervisorTests` (start and `kill -9` giving `.restarting` then `.ready` on a new port and key). The 401 and argv checks live in the contract suite's launch probes.
+- **Reference timings** (`ReferenceTimingMeasurementTests`, 1024×1024, one Mac, nothing else loaded): Krea 2 Turbo 20.16 s (was 20.59 s), Qwen-Image 2.1 Turbo 26.19 s (was 25.65 s). Both moved by about 2%, under the 10% threshold, so the catalog timings are unchanged.
+- **LoRA re-gate** (`scripts/lora-gate`, 512×512, the catalog's six shelf files plus the Krea always-on file): all seven `pass` on `v26.10.3` (header fit, load, same-seed reproducibility, strength 0). Every `tested_engine` is now `v26.10.3` and the catalog is re-signed at sequence 9; the diff was exactly those seven stamps.
+- **Not done:** the GUI was not exercised, and FLUX.2 klein has no reference timing (unchanged from before).
+
 ## 6. Tests
 
 Permanent tests cover behaviour only (`AGENTS.md` → Verification):
@@ -357,7 +369,7 @@ Smoke test, against the real engine (`AGENTS.md`):
 5. `kill -9` the app, relaunch, and confirm the orphan is reaped through the PID file.
 6. Enhance one prompt with `gemma-4-e4b-heretic-4bit` installed. While the call runs, `GET /v1/models` must show the enhancer loaded. Below 24 GiB the image model must be unloaded during the call; after release the enhancer must be unloaded and the image model reloaded only when the queue is empty. At 24 GiB and above the enhancer stays loaded after release and the image model is untouched (`EnhancerLease.swift`). Then `pgrep mlx-serve` must show no leftover process.
 
-Engine bumps additionally run the contract suite (HLD §7.3).
+Engine bumps additionally run the contract suite (HLD §7.3, D49, `docs/lld/engine-contract.md`). The real-engine tests are `EngineSupervisorTests` (process lifecycle), `ReferenceTimingMeasurementTests` (timing) and the `MCEngineContractTests` target (everything the app depends on from the engine).
 
 ## 7. Open items
 
