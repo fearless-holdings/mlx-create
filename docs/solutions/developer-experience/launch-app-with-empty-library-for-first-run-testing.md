@@ -40,9 +40,11 @@ Clean up afterwards:
 
 ```bash
 osascript -e 'tell application "mlx-create" to quit'
-pgrep -fl "mlx-serve|mlx-create.app"   # the engine child can outlive the app
+pgrep -fl "/tmp/mc-empty-home"   # the engine child carries the home in --model-dir and can outlive the app; match the path, never the name, because another task may run its own mlx-serve
 rm -rf /tmp/mc-empty-home
 ```
+
+Two caveats found while building the GUI smoke suite (`docs/lld/gui-smoke.md` section 4). Do not pass the home as a bare launch argument: AppKit opens it as a document and no window appears; use a key/value pair such as `-MLXCSmokeHome <home>`. After a session that ended without a window, macOS restores zero windows even from a different home, so add `-ApplePersistenceIgnoreState YES` to the launch. And `CFFIXED_USER_HOME` does not redirect `UserDefaults.standard`: the app still reads and writes the real `com.fearless.mlx-create` preferences.
 
 ## Why This Matters
 Without it the empty-state and onboarding work cannot be seen on a developer machine, so UI there ships unviewed. `CFFIXED_USER_HOME` is read by Foundation when it resolves the home directory, which is why it works where `HOME` does not. [INFERENCE] The mechanism is not documented by Apple; the observed behavior above is the evidence.

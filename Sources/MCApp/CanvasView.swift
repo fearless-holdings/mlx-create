@@ -80,16 +80,21 @@ private struct SelectedImageView: View {
                     .resizable()
                     .scaledToFit()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Selected image: \(image.prompt)")
+                    .accessibilityAddTraits(.isImage)
             case .failure:
                 Label("Image unavailable", systemImage: "exclamationmark.triangle")
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Image unavailable: \(image.prompt)")
             default:
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .accessibilityLabel("Loading image: \(image.prompt)")
             }
         }
-        .accessibilityLabel("Selected image: \(image.prompt)")
     }
 }
 
