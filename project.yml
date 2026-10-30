@@ -31,6 +31,9 @@ targets:
         product: MCCatalog
       - package: MLXCreate
         product: MCLibrary
+    scheme:
+      testTargets:
+        - MLXCreateUITests
     settings:
       base:
         PRODUCT_NAME: mlx-create
@@ -67,3 +70,18 @@ targets:
           - $(SRCROOT)/Sources/MCCatalog/Resources/catalog.json
           - $(SRCROOT)/Sources/MCCatalog/Resources/catalog.json.sig
           - $(SRCROOT)/Sources/MCCatalog/Catalog/PinnedKeys.swift
+  MLXCreateUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - UITests/MLXCreateUITests
+    dependencies:
+      - target: MLXCreate
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.fearless.mlx-create.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+      configs:
+        Debug:
+          CODE_SIGN_IDENTITY: "-"

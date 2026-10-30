@@ -20,9 +20,19 @@ It is not part of the default `swift test` and not part of CI: it needs a real m
 ## 3. Prerequisites
 
 - Developer Mode on (`DevToolsSecurity -status`), enabled once by the developer with an admin password.
+- A one-time system authentication prompt the first time `xcodebuild test` starts the UI test runner ("System authentication is running" in the log until it is answered). It needs someone at the Mac.
 - A small installed model, e.g. FLUX.2 klein 4B 4-bit (about 5 GB on disk, about 8.9 GB RAM free).
 - No mlx-create running.
 
 ## 4. Findings
 
-Filled in by the U2 spike and the live runs.
+Spike results (U2, 2026-10-30, Xcode 27.1, macOS 26.2+):
+
+- **The runner can drive the app from the agent shell.** With Developer Mode on and the one-time authentication prompt answered, `xcodebuild test` launches the ad-hoc signed Debug app and `XCUIApplication` reads its accessibility tree. No separate Accessibility grant was needed.
+- **Never pass the throwaway home as a bare positional launch argument.** AppKit treats it as a file to open, the app has no document handling, and the `WindowGroup` opens no window (XCUITest sees the menu bar only). The marker is a key/value pair, `-MLXCSmokeHome <home>`: it stays visible in `ps` for path-based cleanup and the window opens. This corrects KTD3 in the plan.
+- **Launch with `-ApplePersistenceIgnoreState YES`.** macOS keeps restored-window state outside the app's home, keyed by bundle id (log: `hasPersistentStateToRestore=1`). After a session that ended with no window the next launch restores zero windows, even from a different `CFFIXED_USER_HOME`. A fresh launch with the flag opens the window.
+- **The UI test runner is sandboxed.** It cannot create the home under `/tmp`, so the Python runner creates it and passes the path via `TEST_RUNNER_MLXC_SMOKE_HOME`; the test only reads it.
+- **The throwaway home is honored for the library, models and engine** (`<home>/Library/Application Support/mlx-create`). The engine child outlives a killed app and carries `--model-dir <home>/…`, so cleanup by home path finds it. Match on `-MLXCSmokeHome <home>` or the home path, never on the process name.
+- **`UserDefaults.standard` is not isolated.** cfprefsd keys it to the real user, so `CFFIXED_USER_HOME` does not redirect it. The app reads the Civitai NSFW opt-in and the enhance-offer flag from the real `com.fearless.mlx-create` domain, and AppKit writes `NSWindow Frame …` keys into it on every launch. Flows must not depend on those two settings, and the "defaults unchanged" check from the plan cannot hold; the real domain only gains window-frame keys.
+- **`.keepAlways` screenshots export from a passing run.** `xcrun xcresulttool export attachments --path X.xcresult --output-path DIR` writes the PNG (1100x690 for the default window) and a `manifest.json` mapping each file to its test and attachment name.
+- **Open until U4/U5 (they need a generated image):** whether ⌘R fires under XCUITest (it is bound to a hidden zero-size view), whether the tile context menu items can be clicked, and whether the "Seed policy" segments are queryable.
