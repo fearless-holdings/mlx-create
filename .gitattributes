@@ -1,0 +1,3 @@
+# Third-party agent skill installed from nextlevelbuilder/ui-ux-pro-max-skill (see skills-lock.json).
+# Vendored: kept as published, so the file-size ratchet (scripts/check-file-size.mjs) skips it.
+.agents/skills/ui-ux-pro-max/** linguist-vendored
