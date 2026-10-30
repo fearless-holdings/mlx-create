@@ -219,8 +219,12 @@ final class GalleryCollectionView: NSCollectionView {
     }
 
     override func layout() {
-        if let clip = enclosingScrollView?.contentView {
-            let content = collectionViewLayout?.collectionViewContentSize ?? .zero
+        if let clip = enclosingScrollView?.contentView, let grid = collectionViewLayout as? GalleryLayout {
+            // Fit before the layout pass starts. The flow layout reads its item and inset sizes at the start of a pass, so
+            // a fit made inside `prepare()` can leave the attributes computed from the previous width. When the vertical
+            // scroller then narrows the clip, the next `layout()` fits again to the new width.
+            grid.fit(width: clip.bounds.width)
+            let content = grid.collectionViewContentSize
             let size = NSSize(width: clip.bounds.width, height: max(content.height, clip.bounds.height))
             if frame.size != size {
                 setFrameSize(size)
@@ -238,23 +242,11 @@ final class GalleryLayout: NSCollectionViewFlowLayout {
     static let minSide: CGFloat = 100
     static let maxSide: CGFloat = 120
 
-    private var laidOutWidth: CGFloat = -1
-
-    override func prepare() {
-        if let collectionView {
-            fit(width: collectionView.bounds.width)
-            laidOutWidth = collectionView.bounds.width
-        }
-        super.prepare()
-    }
-
-    override func shouldInvalidateLayout(forBoundsChange newBounds: NSRect) -> Bool {
-        super.shouldInvalidateLayout(forBoundsChange: newBounds) || newBounds.width != laidOutWidth
-    }
-
-    /// Sets the item and section sizes before the flow layout computes its attributes. Each property is written only when
-    /// it changes, because a write invalidates the layout and would otherwise repeat forever.
-    private func fit(width: CGFloat) {
+    /// Sets the item and section sizes. Each property is written only when it changes, because a write invalidates the
+    /// layout and would otherwise repeat forever.
+    func fit(width: CGFloat) {
+        // A scroll view that is not sized yet has no width, and a zero item size makes AppKit raise.
+        guard width > 0 else { return }
         let available = max(0, width - 2 * Self.inset)
         let columns = max(1, Int((available + Self.spacing) / (Self.minSide + Self.spacing)))
         let side = min(Self.maxSide, (available - Self.spacing * CGFloat(columns - 1)) / CGFloat(columns))

@@ -12,7 +12,7 @@ execution: code
 ## Goal Capsule
 
 - **Objective:** After every launch with a populated library, the gallery shows as many tiles per row as its width fits (two at the default 260 pt panel), without the user resizing or reloading anything.
-- **Means:** Re-fit the grid whenever the scroll view's clip width changes, not only when the collection view's own bounds change (KTD1).
+- **Means:** Fit the grid to the clip width in `GalleryCollectionView.layout()`, before the layout pass starts, not inside `GalleryLayout.prepare()` (KTD1, as built; the first attempt in KTD1 did not work).
 - **Authority:** `docs/design-audit/specs/V04-gallery-column-layout-bug.md` carries the proposed edit and acceptance checks. This plan sequences and bounds that spec. `docs/HLD.md` D33 and D37 stay untouched.
 - **Execution profile:** One small fix in one file, then a live relaunch check on the real app. The root cause is inferred, so the relaunch check, not the edit, decides done.
 - **Stop conditions:** Stop and report if the spec's edit still leaves one column after relaunch and a second attempt does not explain why. Do not widen into the other audit specs.
@@ -32,7 +32,7 @@ The grid fits columns from its collection view's width. The likely cause, read f
 
 ### Requirements
 
-- R1. Right after launch with at least six images, the gallery at the default panel width shows two columns. Three consecutive relaunches agree.
+- R1. Right after launch with a gallery taller than its panel (twelve images; with six the scroller never appears and the bug does not occur), the gallery at the default panel width shows two columns. Three consecutive relaunches agree.
 - R2. After the window is resized to a large size and back to the small one, the gallery shows two columns again.
 - R3. The tile sizing rules do not change: 100–120 pt tiles, 8 pt spacing, 12 pt inset, and the scroll-position keeping on updates.
 - R4. The app's smoke contract holds: tile labels beginning "Image: ", the tile menu items "Reuse prompt" and "Reuse all settings", and the gallery's Delete and ⌘A keys.
@@ -47,12 +47,12 @@ The grid fits columns from its collection view's width. The likely cause, read f
 
 ### Key Technical Decisions
 
-- KTD1. **Fit to the clip width, and invalidate when the frame width changes.** The scroll view's clip width is the width the user sees and is the first value that is right. Fitting to it removes the dependence on layout order, and invalidating on a frame-width change covers the case where the frame lags. This is the spec's edit; it is the first attempt, not a settled answer, because the cause is inferred (R1, R2).
+- KTD1. **Fit to the clip width before the layout pass, in `layout()`.** The first attempt, as the spec first proposed it (fit to the clip width inside `prepare()` plus `invalidateLayout()` on a frame-width change), left one column on three of three relaunches. Temporary logging showed why: with a vertical scroller the clip narrows 260 → 243 pt, the fit inside `prepare()` set `itemSize = 105.5`, and the flow layout still produced 114 pt cells in one column. The built fix moves the fit into `GalleryCollectionView.layout()` before `super.layout()` and deletes `prepare()`, `laidOutWidth` and the `shouldInvalidateLayout(forBoundsChange:)` override (R1, R2).
 - KTD2. **The relaunch check is the acceptance bar; the headless repro is a bonus.** The failure is an AppKit sizing-order effect that a unit test may not reproduce. A headless repro that sizes a hosting scroll view after first layout is worth trying first because it also confirms or refutes the inferred cause. If it cannot be made to fail before the fix, drop it and rely on the live check rather than keep a test that passes either way.
 
 ### Assumptions
 
-- The audit's code description matches `main`: `GalleryCollectionView.layout()` and `GalleryLayout.prepare()` were re-read at `efc3734` and match the spec's quoted behavior.
+- The audit's code description matched `main` when re-read at `efc3734`; its inferred cause did not (see KTD1).
 - `GalleryView` hosts the grid at an ideal width of 260 pt with a 200 pt minimum, so the default panel yields two columns by the layout's own arithmetic.
 
 ## Implementation Units
@@ -65,9 +65,9 @@ The grid fits columns from its collection view's width. The likely cause, read f
   - `Sources/MCApp/GalleryCollectionView.swift` (modify)
   - `Tests/MCAppTests/` (new test file only if the headless repro in KTD2 works; none exists for the gallery today)
 - **Approach:**
-  1. In `GalleryCollectionView.layout()`, when the frame width changes after the clip-width correction, invalidate the layout so the next pass re-fits.
-  2. In `GalleryLayout.prepare()`, fit to the enclosing clip width when there is one, falling back to the collection view's bounds. Make `shouldInvalidateLayout(forBoundsChange:)` compare against the same width.
-  3. Leave `fit(width:)` and `applyKeepingScroll` alone (R3).
+  1. In `GalleryCollectionView.layout()`, call `GalleryLayout.fit(width:)` with the clip width before `super.layout()`, then size the frame from the content height as before.
+  2. Delete `GalleryLayout.prepare()`, `laidOutWidth` and the `shouldInvalidateLayout(forBoundsChange:)` override. Make `fit(width:)` internal and return early for a width of zero (a zero item size makes AppKit raise).
+  3. Leave the fit maths and `applyKeepingScroll` alone (R3).
 - **Execution note:** Try a headless AppKit repro first: a scroll view whose document view is laid out before the clip reaches its final width. If it fails on `main` and passes after, keep it as a regression test. If it passes on `main`, the inferred cause is wrong or not reproducible this way; do not keep it, and let U2's live check judge the fix.
 - **Patterns to follow:** The existing write-only-on-change discipline in `GalleryLayout.fit(width:)`, which exists to avoid an endless invalidate loop. The new invalidation must not loop either.
 - **Test scenarios:**
@@ -115,6 +115,6 @@ The grid fits columns from its collection view's width. The likely cause, read f
 ## Sources
 
 - `docs/design-audit/specs/V04-gallery-column-layout-bug.md` (the finding, edit and acceptance checks); `docs/design-audit/README.md` §12 (the root cause is inferred and its check tests the outcome).
-- `Sources/MCApp/GalleryCollectionView.swift`: `GalleryCollectionView.layout()`, `GalleryLayout.prepare()`, `fit(width:)`.
+- `Sources/MCApp/GalleryCollectionView.swift`: `GalleryCollectionView.layout()`, `GalleryLayout.fit(width:)`.
 - `Sources/MCApp/GalleryView.swift` (panel frame 200 / 260 pt) and `Sources/MCApp/MainWindow.swift` (the `HSplitView`).
 - `AGENTS.md` Commands and Verification sections for the gates and cleanup rules.
