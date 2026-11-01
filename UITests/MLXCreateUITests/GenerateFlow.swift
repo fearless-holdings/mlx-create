@@ -40,8 +40,7 @@ extension SmokeSession {
         let seed = "424242"
 
         step("Launch with the model installed") {
-            app.launch()
-            app.activate()
+            launchOnBuiltInDisplay()
             require(element(labelPrefix: "Model: "), within: 90, "the Model chip never appeared: the app did not load the installed model")
         }
         step("Type the prompt") {

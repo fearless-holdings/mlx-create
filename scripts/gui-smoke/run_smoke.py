@@ -25,6 +25,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -214,6 +215,75 @@ def changed_paths(before, after):
     return sorted(path for path in set(before) | set(after) if before.get(path) != after.get(path))
 
 
+# --- window placement --------------------------------------------------------------------------------------------
+
+
+def builtin_display_bounds():
+    """(x, y, width, height) of the built-in display in the global top-left-origin space, or None when none is active.
+
+    CoreGraphics through ctypes: an AppleScript or `system_profiler` answer would not say which display is built in."""
+    import ctypes
+
+    class CGRect(ctypes.Structure):
+        _fields_ = [("x", ctypes.c_double), ("y", ctypes.c_double), ("w", ctypes.c_double), ("h", ctypes.c_double)]
+
+    core = ctypes.CDLL("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")
+    core.CGDisplayBounds.restype = CGRect
+    core.CGDisplayBounds.argtypes = [ctypes.c_uint32]
+    core.CGDisplayIsBuiltin.argtypes = [ctypes.c_uint32]
+    ids = (ctypes.c_uint32 * 16)()
+    count = ctypes.c_uint32(0)
+    if core.CGGetActiveDisplayList(16, ids, ctypes.byref(count)) != 0:
+        return None
+    for display in list(ids)[: count.value]:
+        if core.CGDisplayIsBuiltin(display):
+            rect = core.CGDisplayBounds(display)
+            return (rect.x, rect.y, rect.w, rect.h)
+    return None
+
+
+def move_window_script(pid, x, y):
+    """AppleScript that moves window 1 of the process with this unix id, and prints `moved` once it did."""
+    return (
+        'tell application "System Events"\n'
+        f"  set matches to (every process whose unix id is {pid})\n"
+        '  if (count of matches) is 0 then return "no process"\n'
+        "  tell item 1 of matches\n"
+        '    if (count of windows) is 0 then return "no window"\n'
+        f"    set position of window 1 to {{{int(x)}, {int(y)}}}\n"
+        "  end tell\n"
+        'end tell\n'
+        'return "moved"'
+    )
+
+
+class WindowPinner(threading.Thread):
+    """Moves the app's window onto the built-in display as soon as it exists.
+
+    macOS opens the window on whichever display it likes, and a window on an external display made XCUITest's
+    `window.screenshot()` fail. XCUITest cannot move a window (a title-bar drag leaves the frame unchanged), and the test runner
+    is sandboxed, so this runs here, in the runner, through System Events. The app is found by the throwaway home in its command
+    line and by its bundle path, never by name alone (the engine child carries the home too)."""
+
+    def __init__(self, home, bounds):
+        super().__init__(daemon=True)
+        self.home, self.bounds = home, bounds
+        self.stop_event = threading.Event()
+        self.moved = False
+
+    def run(self):
+        x, y, _, _ = self.bounds
+        while not self.stop_event.wait(0.4) and not self.moved:
+            apps = [pid for pid, args in processes_mentioning(self.home) if ".app/Contents/MacOS/" in args]
+            for pid in apps[:1]:
+                done = subprocess.run(["osascript", "-e", move_window_script(pid, x + 60, y + 60)], capture_output=True, text=True)
+                self.moved = done.stdout.strip() == "moved"
+
+    def stop(self):
+        self.stop_event.set()
+        self.join(timeout=10)
+
+
 # --- run ---------------------------------------------------------------------------------------------------------
 
 
@@ -309,6 +379,9 @@ def run(args):
     phases = {}
     prefs_before = real_prefs()
     library_before = library_fingerprint()
+    bounds = builtin_display_bounds()
+    if bounds is None:
+        raise NotRun("no built-in display is active (lid closed?): the run is pinned to the laptop's own screen")
     home = make_home(model_folder, args.model_id)
     code = EXIT_FAIL
     try:
@@ -320,10 +393,15 @@ def run(args):
 
             mark = time.time()
             env = dict(os.environ, TEST_RUNNER_MLXC_SMOKE_HOME=home, TEST_RUNNER_MLXC_SMOKE_MODEL_ID=args.model_id)
-            status = run_logged(
-                ["xcodebuild", "-project", "MLXCreate.xcodeproj", "-scheme", SCHEME, "-configuration", "Debug", "-derivedDataPath", "build",
-                 "-destination", "platform=macOS", "-resultBundlePath", result_bundle, f"-only-testing:{TEST_TARGET}", "test"],
-                log_path, env=env, timeout=args.timeout)
+            pinner = WindowPinner(home, bounds)
+            pinner.start()
+            try:
+                status = run_logged(
+                    ["xcodebuild", "-project", "MLXCreate.xcodeproj", "-scheme", SCHEME, "-configuration", "Debug", "-derivedDataPath", "build",
+                     "-destination", "platform=macOS", "-resultBundlePath", result_bundle, f"-only-testing:{TEST_TARGET}", "test"],
+                    log_path, env=env, timeout=args.timeout)
+            finally:
+                pinner.stop()
             phases["build+test"] = time.time() - mark
 
             mark = time.time()
