@@ -16,7 +16,9 @@
 
 - Screenshots: `screens/08-enhancer-memory-refusal_small_light.png` and `screens/07-engine-error-banner_small_light.png` (after relaunch, one centred column in the 260 pt panel); `screens/11-lora-civitai_large_light.png` (one column at 1680 pt); compare `screens/06-populated-gallery_small_light.png` (two columns at the same width, before relaunch).
 - `ax dump` after relaunch: tiles at x = 3143 (one column, `GalleryLayout` margin 65 pt); before: x = 3090 and 3212 (two columns).
-- Code: `Sources/MCApp/GalleryCollectionView.swift`, `GalleryLayout.prepare()` fits columns to `collectionView.bounds.width`, and `shouldInvalidateLayout(forBoundsChange:)` re-fits only when the **bounds** width changes. Likely cause, inferred from the code and not traced in a debugger: at first layout the collection view's width is narrower than the final clip width (the hosting `NSScrollView` is sized after the document view), so the layout fits one column. `GalleryCollectionView.layout()` then widens the frame to the clip width with `setFrameSize`, a frame change that does not invalidate the flow layout.
+- Cause (traced 2026-11-01 with temporary logging, then removed): the bug needs a gallery taller than its panel, so the vertical scroller appears and narrows the clip 260 → 243 pt (with six images and no scroller it does not occur). The first layout pass fits the grid at 260 pt (`item = 114`, two columns). The second pass runs at 243 pt, where 114 pt tiles fit one column only. Its fit ran **inside `GalleryLayout.prepare()`**, and a fit made while the flow layout is preparing left the attributes computed from the previous item size: the log showed `itemSize = 105.5` yet every cell frame stayed 114 pt in one column. The theory above (a frame change that never invalidates the layout) was not the cause: a first attempt that read the clip width once in `prepare()` and invalidated on a frame-width change still left one column on three of three launches.
+- Fix: `GalleryCollectionView.layout()` calls `GalleryLayout.fit(width:)` with the clip width before `super.layout()`, and `GalleryLayout.prepare()` and `shouldInvalidateLayout(forBoundsChange:)` are gone. Measured live: two distinct cell x positions (3090 and 3204, 105 pt cells) on three of three relaunches; 1680×1050 and back to 1100×692 both two; dragging the gallery splitter to 378 pt gives three columns, and to the 200 pt minimum one.
+- Earlier code reading (superseded): `GalleryLayout.prepare()` fit columns to `collectionView.bounds.width`, and `shouldInvalidateLayout(forBoundsChange:)` re-fit only when the **bounds** width changed.
 - Columns: `available = width − 2 × 12`, `columns = (available + 8) / (100 + 8)`. Width 236 gives 2 columns; a width under 224 gives 1.
 
 ## Target behavior
@@ -25,38 +27,21 @@ The grid always fits columns to the current clip width: two columns at the defau
 
 ## Edit steps
 
-1. `Sources/MCApp/GalleryCollectionView.swift`, `GalleryCollectionView.layout()`: when the frame size changes, invalidate the layout so `prepare()` re-fits:
+1. `Sources/MCApp/GalleryCollectionView.swift`, `GalleryCollectionView.layout()`: fit the grid to the clip width before the layout pass starts, so the flow layout reads its item and inset sizes at the start of the pass:
 
    ```swift
    override func layout() {
-       if let clip = enclosingScrollView?.contentView {
-           let content = collectionViewLayout?.collectionViewContentSize ?? .zero
+       if let clip = enclosingScrollView?.contentView, let grid = collectionViewLayout as? GalleryLayout {
+           grid.fit(width: clip.bounds.width)
+           let content = grid.collectionViewContentSize
            let size = NSSize(width: clip.bounds.width, height: max(content.height, clip.bounds.height))
-           if frame.size != size {
-               let widthChanged = frame.size.width != size.width
-               setFrameSize(size)
-               // The flow layout fitted its columns to the old width; re-fit now (V04).
-               if widthChanged { collectionViewLayout?.invalidateLayout() }
-           }
+           if frame.size != size { setFrameSize(size) }
        }
        super.layout()
    }
    ```
 
-2. `GalleryLayout.prepare()`: fit to the clip width when there is one, because the document view can lag behind:
-
-   ```swift
-   override func prepare() {
-       if let collectionView {
-           let width = collectionView.enclosingScrollView?.contentView.bounds.width ?? collectionView.bounds.width
-           fit(width: width)
-           laidOutWidth = width
-       }
-       super.prepare()
-   }
-   ```
-
-   Also make `shouldInvalidateLayout(forBoundsChange:)` compare against the same clip width.
+2. `GalleryLayout`: delete `prepare()`, `laidOutWidth` and the `shouldInvalidateLayout(forBoundsChange:)` override, and make `fit(width:)` internal (not private) with a `guard width > 0` (a zero item size makes AppKit raise).
 3. Format the file.
 
 ## Do not touch
