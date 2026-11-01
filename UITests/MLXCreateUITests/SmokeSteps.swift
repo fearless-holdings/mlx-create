@@ -1,3 +1,4 @@
+import CoreGraphics
 import XCTest
 
 /// One ordered smoke run (KTD5): a single app launch, named steps, and a `.keepAlways` screenshot after every step (KTD8).
@@ -41,6 +42,37 @@ final class SmokeSession {
             attachScreenshot(named: label)
             return result
         }
+    }
+
+    /// Launches the app and waits until its window is on the built-in display, the one screen every run is sure to have.
+    ///
+    /// macOS opens the window on whichever display it picks, which depends on the monitors plugged in, and a window on an
+    /// external display made `window.screenshot()` fail ("Failed to create screenshot"). XCUITest cannot move a window (a
+    /// title-bar drag leaves the frame unchanged) and this runner is sandboxed, so `run_smoke.py` moves it through System
+    /// Events; this only checks that it happened, so a failure names the cause instead of an opaque screenshot error.
+    func launchOnBuiltInDisplay() {
+        app.launch()
+        app.activate()
+        let window = app.windows.firstMatch
+        guard window.waitForExistence(timeout: 30) else { return }
+        guard let display = Self.builtInDisplayBounds() else {
+            XCTFail("No built-in display is active (lid closed?): the smoke run needs the laptop's own screen")
+            return
+        }
+        let onBuiltIn = NSPredicate { _, _ in display.contains(window.frame) }
+        let settled = XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: onBuiltIn, object: nil)], timeout: 20)
+        XCTAssertEqual(
+            settled, .completed,
+            "the window is not on the built-in display (frame \(window.frame), display \(display)); run_smoke.py moves it through System Events, so use the runner and allow it Accessibility"
+        )
+    }
+
+    /// Bounds of the built-in display in the global top-left-origin space XCUIElement frames use.
+    private static func builtInDisplayBounds() -> CGRect? {
+        var count: UInt32 = 0
+        var ids = [CGDirectDisplayID](repeating: 0, count: 16)
+        guard CGGetActiveDisplayList(UInt32(ids.count), &ids, &count) == .success else { return nil }
+        return ids.prefix(Int(count)).first { CGDisplayIsBuiltin($0) != 0 }.map { CGDisplayBounds($0) }
     }
 
     func attachScreenshot(named name: String) {
