@@ -574,6 +574,13 @@ func browserRow(_ rows: [ModelBrowserRow], _ id: String) -> ModelBrowserRow? {
         #expect(rig.browser.enhancerStatus == EnhancerStatus(isInstalled: false, engineModelID: nil))
     }
 
+    @Test func licenseTitleReadsNaturally() {
+        #expect(LicenseSheet.licenseTitle(name: "Apache License 2.0", version: "2.0").contains("version 2.0"))
+        #expect(
+            !LicenseSheet.licenseTitle(name: "Qwen Research License Agreement", version: "Release Date: September 20, 2026")
+                .contains("version Release"))
+    }
+
     /// The picker reads the engine listing and keeps image models only, so an enhancer the engine lists never appears.
     @Test func installedEnhancerNeverAppearsInTheImagePicker() throws {
         let listing = Data(

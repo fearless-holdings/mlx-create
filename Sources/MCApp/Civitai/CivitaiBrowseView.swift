@@ -502,19 +502,20 @@ struct CivitaiLicenseSheet: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-            Text("Your acceptance and the time you accepted are recorded with the LoRA.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Text("By choosing Accept and Download you accept this license. The time you accepted is recorded with the LoRA.")
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
             HStack {
                 Spacer()
                 Button("Cancel") {
                     browse.declinePendingLicense()
                 }
                 .keyboardShortcut(.cancelAction)
-                Button("Accept and download") {
+                Button("Accept and Download") {
                     browse.acceptPendingLicense()
                 }
                 .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
             }
         }
         .padding(20)
