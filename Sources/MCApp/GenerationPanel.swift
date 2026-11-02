@@ -195,7 +195,7 @@ struct GenerationPanel: View {
         Section("Size") {
             Picker("Size", selection: $model.size) {
                 ForEach(controls.sizes, id: \.self) { size in
-                    Text("\(size.width) × \(size.height)").tag(size)
+                    Text(verbatim: "\(size.width) × \(size.height)").tag(size)
                 }
             }
         }
@@ -247,7 +247,7 @@ struct GenerationPanel: View {
                         step: 0.1
                     )
                     .frame(width: 160)
-                    Text(model.guidance.map { String(format: "%.1f", $0) } ?? "Default")
+                    Text(model.guidance.map { $0.formatted(.number.precision(.fractionLength(1))) } ?? "Default")
                         .monospacedDigit()
                         .foregroundStyle(model.guidance == nil ? .secondary : .primary)
                     if model.guidance != nil {

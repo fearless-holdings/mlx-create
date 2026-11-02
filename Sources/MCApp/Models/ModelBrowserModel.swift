@@ -421,7 +421,7 @@ final class ModelBrowserModel {
     private static func fitWarning(needGB: Double, usableGB: Double?) -> String? {
         guard let usableGB else { return nil }
         return
-            "Needs about \(String(format: "%.1f", needGB)) GB, more than the \(String(format: "%.1f", usableGB)) GB this Mac can use. It may not run."
+            "Needs about \(needGB.formatted(.number.precision(.fractionLength(1)))) GB, more than the \(usableGB.formatted(.number.precision(.fractionLength(1)))) GB this Mac can use. It may not run."
     }
 
     /// The last path component of a repo id, which is the folder name a flat model folder uses.
