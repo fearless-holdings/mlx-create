@@ -58,17 +58,18 @@ Standard checks, all must pass:
 2. `swift test` exits 0 (about 40 s; if past 2 minutes, `pkill -f swiftpm-testing-helper; pkill -f swift-test` and rerun with `--filter`).
 3. `git ls-files '*.swift' | xargs swift format lint --strict --configuration .swift-format` prints nothing.
 4. `xcodegen generate && xcodebuild -project MLXCreate.xcodeproj -scheme MLXCreate -configuration Debug -derivedDataPath build build` prints `** BUILD SUCCEEDED **`.
-5. GUI smoke exits 0.
+5. GUI smoke exits 0. The step below is the gate for Tab, and it fails on the unfixed prompt: there, Tab leaves a tab character in the prompt and ⌘A and ⌫ then empty it. Checked on the unfixed tree: the step fails there and passes with the handler.
 
-Keyboard check with the capture kit (one model installed, default keyboard settings):
+**Tab, in the GUI smoke.** `UITests/MLXCreateUITests/GenerateFlow.swift` adds a step, "Tab leaves the prompt", after the seed policy is set to Fixed:
 
-6. Bring the app to the front, focus the prompt (`ax focus <pid> AXTextArea "Prompt"`), type `ab` (`osascript -e 'tell application "System Events" to keystroke "ab"'`), press Tab (`key code 48`). `ax focused <pid>` no longer reports `desc=Prompt`, and `ax dump | grep 'desc="Prompt"'` shows `value="ab"` with no `\t`.
-7. ⇧Tab (`key code 48 using shift down`) from the next field returns focus to the prompt.
-8. Add an XCUITest step to `UITests/MLXCreateUITests/GenerateFlow.swift`, at the end of "Type the prompt":
+```swift
+promptField.click()
+app.typeKey(.tab, modifierFlags: [])
+app.typeKey("a", modifierFlags: .command)
+app.typeKey(.delete, modifierFlags: [])
+XCTAssertEqual(promptField.value as? String, prompt, "Tab did not leave the prompt: …")
+```
 
-   ```swift
-   promptField.typeKey(.tab, modifierFlags: [])
-   XCTAssertEqual(promptField.value as? String, prompt, "Tab typed a character into the prompt instead of moving focus")
-   ```
+The step sits after choosing Fixed because, with a random seed, the prompt is the only text input in the window: the key-view loop has no other valid view (`nextValidKeyView` is nil), so Tab has nowhere to go and the check could not tell a working handler from a missing one. Fixed puts the Seed field on screen, and Tab then lands in it. The keys are sent through `app`, not `promptField.typeText`, which clicks the field first and would hide the bug. XCUITest has no focus property on macOS (`hasFocus` is unavailable), so the following ⌘A and ⌫ carry the proof: if focus stayed in the prompt, they empty the prompt and the assertion fails; if it moved, they act on the Seed field, which the next step sets anyway, and the prompt keeps its text. A handler that consumed Tab but found no next view fails the same way. A probe on the first responder showed the handler fires inside the `TextEditor` and moves focus from the prompt's text view to the Seed field's field editor.
 
-   The GUI smoke run must pass with it.
+**⇧Tab and ⌥Tab are not automated.** The smoke proves Tab only. ⇧Tab rests on the scratch-app run in Evidence (macOS 27.2, handler in Edit steps); ⌥Tab rests on the handler returning `.ignored` for it, so the text view still types a tab. Return and ⌘↩ keep their behaviour through the smoke steps that type, generate and restore.

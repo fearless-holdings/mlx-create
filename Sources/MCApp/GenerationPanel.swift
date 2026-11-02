@@ -1,3 +1,4 @@
+import AppKit
 import MCCatalog
 import MCGeneration
 import SwiftUI
@@ -85,6 +86,17 @@ struct GenerationPanel: View {
                 }
             }
             .accessibilityLabel("Prompt")
+            // Tab and ⇧Tab leave the prompt like any other field, so keyboard focus is never trapped. ⌥Tab still types a tab.
+            // ⇧Tab arrives as the back-tab character U+0019, not as `.tab` with ⇧, so both keys are listed.
+            .onKeyPress(keys: [.tab, KeyEquivalent("\u{19}")], phases: .down) { press in
+                if press.modifiers.contains(.option) { return .ignored }
+                if press.key == .tab && !press.modifiers.contains(.shift) {
+                    NSApp.keyWindow?.selectNextKeyView(nil)
+                } else {
+                    NSApp.keyWindow?.selectPreviousKeyView(nil)
+                }
+                return .handled
+            }
     }
 
     /// The prompt an accepted enhancement replaced, read-only (KTD7). It is the text saved as provenance with the next image.

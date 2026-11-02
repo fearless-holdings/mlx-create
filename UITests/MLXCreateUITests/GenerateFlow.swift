@@ -47,9 +47,24 @@ extension SmokeSession {
             setPrompt(prompt)
             XCTAssertEqual(promptField.value as? String, prompt, "the Prompt field did not take the typed text")
         }
-        step("Fix the seed") {
+        step("Choose a fixed seed") {
             seedPolicy("Fixed").click()
             require(seedField, "the Seed field did not appear after choosing Fixed")
+        }
+        step("Tab leaves the prompt") {
+            // Tab must move focus out of the prompt, not type a tab. With a random seed the prompt is the window's only text
+            // input, so Tab would find nowhere to go; the Seed field, now on screen, is the next one. XCUITest has no focus
+            // property on macOS (`hasFocus` is unavailable), so the keys after Tab carry the proof: a trapped prompt gains a
+            // tab character and ⌘A and ⌫ then empty it, while a moved focus sends them to the Seed field and the prompt keeps
+            // its text.
+            promptField.click()
+            app.typeKey(.tab, modifierFlags: [])
+            app.typeKey("a", modifierFlags: .command)
+            app.typeKey(.delete, modifierFlags: [])
+            let observed = promptField.value as? String ?? ""
+            XCTAssertEqual(observed, prompt, "Tab did not leave the prompt: it reads \"\(observed)\" after Tab, ⌘A and ⌫")
+        }
+        step("Fix the seed") {
             setSeed(seed)
             XCTAssertEqual(seedField.value as? String, seed, "the Seed field did not take the typed seed")
         }
