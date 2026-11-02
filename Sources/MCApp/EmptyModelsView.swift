@@ -13,11 +13,6 @@ struct EmptyModelsView: View {
                 .font(.system(size: 44))
                 .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
-            Text("Download a model to start")
-                .font(.title2.bold())
-            Text("mlx-create makes images on this Mac. It needs one image model first.")
-                .font(.body)
-                .multilineTextAlignment(.center)
             if let installing = model.browser.installingRow {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Downloading \(installing.title)")
@@ -27,19 +22,26 @@ struct EmptyModelsView: View {
                 .padding(16)
                 .frame(maxWidth: 520)
                 .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
-            } else if let recommended = model.browser.recommendedRow {
-                RecommendedInstallCard(row: recommended, browser: model.browser)
-                Button("Choose a Different Model…") {
-                    model.openBrowser()
-                }
-                .buttonStyle(.link)
             } else {
-                Button("Browse Models…") {
-                    model.openBrowser()
+                Text("Download a model to start")
+                    .font(.title2.bold())
+                Text("mlx-create makes images on this Mac. It needs one image model first.")
+                    .font(.body)
+                    .multilineTextAlignment(.center)
+                if let recommended = model.browser.recommendedRow {
+                    RecommendedInstallCard(row: recommended, browser: model.browser)
+                    Button("Choose a Different Model…") {
+                        model.openBrowser()
+                    }
+                    .buttonStyle(.link)
+                } else {
+                    Button("Browse Models…") {
+                        model.openBrowser()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .keyboardShortcut(.defaultAction)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .keyboardShortcut(.defaultAction)
             }
         }
         .padding(24)
