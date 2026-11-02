@@ -105,15 +105,20 @@ enum InstallStaging {
         }
     }
 
-    private static func directorySize(_ directory: URL) -> Int64 {
-        guard
-            let enumerator = FileManager.default.enumerator(
-                at: directory, includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey])
-        else { return 0 }
+    /// Bytes of the files under `directory` that have actually arrived. A partial written by ranged parts is sparse:
+    /// its logical size is the final size, while its allocated size is what arrived. Allocation is rounded up to whole
+    /// blocks, so it is capped at the logical size to never count past what the file holds.
+    static func directorySize(_ directory: URL) -> Int64 {
+        let keys: Set<URLResourceKey> = [.isRegularFileKey, .fileSizeKey, .totalFileAllocatedSizeKey]
+        guard let enumerator = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: Array(keys)) else {
+            return 0
+        }
         var total: Int64 = 0
         for case let url as URL in enumerator {
-            let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
-            if values?.isRegularFile == true { total += Int64(values?.fileSize ?? 0) }
+            guard let values = try? url.resourceValues(forKeys: keys), values.isRegularFile == true else { continue }
+            let logical = Int64(values.fileSize ?? 0)
+            let allocated = Int64(values.totalFileAllocatedSize ?? values.fileSize ?? 0)
+            total += min(logical, allocated)
         }
         return total
     }

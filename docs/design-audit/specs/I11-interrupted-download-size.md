@@ -25,44 +25,50 @@
 
 ## Edit steps
 
-1. `Sources/MCModels/InstallStaging.swift`: change `private static func directorySize(_ directory: URL) -> Int64` to `static func directorySize(_ directory: URL) -> Int64` (internal, for the test), and its body to:
+1. `Sources/MCModels/InstallStaging.swift`: `directorySize(_:)` is now `static` (internal, so a test can call it) instead of `private`, and per regular file it adds the allocated size capped at the logical size:
 
    ```swift
-   let keys: Set<URLResourceKey> = [.isRegularFileKey, .fileSizeKey, .totalFileAllocatedSizeKey]
-   guard let enumerator = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: Array(keys)) else {
-       return 0
+   /// Bytes of the files under `directory` that have actually arrived. A partial written by ranged parts is sparse:
+   /// its logical size is the final size, while its allocated size is what arrived. Allocation is rounded up to whole
+   /// blocks, so it is capped at the logical size to never count past what the file holds.
+   static func directorySize(_ directory: URL) -> Int64 {
+       let keys: Set<URLResourceKey> = [.isRegularFileKey, .fileSizeKey, .totalFileAllocatedSizeKey]
+       guard let enumerator = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: Array(keys)) else {
+           return 0
+       }
+       var total: Int64 = 0
+       for case let url as URL in enumerator {
+           guard let values = try? url.resourceValues(forKeys: keys), values.isRegularFile == true else { continue }
+           let logical = Int64(values.fileSize ?? 0)
+           let allocated = Int64(values.totalFileAllocatedSize ?? values.fileSize ?? 0)
+           total += min(logical, allocated)
+       }
+       return total
    }
-   var total: Int64 = 0
-   for case let url as URL in enumerator {
-       guard let values = try? url.resourceValues(forKeys: keys), values.isRegularFile == true else { continue }
-       // A partial written by ranged parts is sparse: its logical size is the final size, its allocated size is what
-       // arrived (I11). Allocation is rounded up to whole blocks, so it never counts past the logical size.
-       let logical = Int64(values.fileSize ?? 0)
-       let allocated = Int64(values.totalFileAllocatedSize ?? values.fileSize ?? 0)
-       total += min(logical, allocated)
-   }
-   return total
    ```
 
-2. Add a test to `Tests/MCModelsTests/ModelInstallerTests.swift`, or a new `Tests/MCModelsTests/InstallStagingSizeTests.swift` (Swift Testing, `@testable import MCModels`):
+2. Add `Tests/MCModelsTests/InstallStagingSizeTests.swift` (Swift Testing, `@testable import MCModels`), three cases over a temporary directory the test creates and removes:
 
    ```swift
    @Test func aSparsePartialCountsOnlyTheBytesWritten() throws {
-       let dir = FileManager.default.temporaryDirectory.appending(path: "staging-\(UUID().uuidString)", directoryHint: .isDirectory)
-       try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-       defer { try? FileManager.default.removeItem(at: dir) }
-       let file = dir.appending(path: "weights.safetensors.partial")
+       let directory = try makeStagingDirectory()
+       defer { try? FileManager.default.removeItem(at: directory) }
+       let file = directory.appending(path: "weights.safetensors.partial")
+
        FileManager.default.createFile(atPath: file.path, contents: nil)
        let handle = try FileHandle(forWritingTo: file)
-       try handle.truncate(atOffset: 64 * 1024 * 1024)       // 64 MiB logical, nothing allocated
+       defer { try? handle.close() }
+       try handle.truncate(atOffset: 64 * 1024 * 1024)
        try handle.seek(toOffset: 0)
-       try handle.write(contentsOf: Data(repeating: 1, count: 1024 * 1024))  // 1 MiB written
-       try handle.close()
-       let size = InstallStaging.directorySize(dir)
+       try handle.write(contentsOf: Data(repeating: 1, count: 1024 * 1024))
+
+       let size = InstallStaging.directorySize(directory)
        #expect(size >= 1024 * 1024)
        #expect(size < 8 * 1024 * 1024)
    }
    ```
+
+   A second case writes a few KiB of real data and expects exactly the logical size, and a third expects 0 for an empty directory and for a missing one.
 
 3. Format the touched files.
 
@@ -80,4 +86,4 @@ Standard checks, all must pass:
 3. `git ls-files '*.swift' | xargs swift format lint --strict --configuration .swift-format` prints nothing.
 4. `xcodegen generate && xcodebuild -project MLXCreate.xcodeproj -scheme MLXCreate -configuration Debug -derivedDataPath build build` prints `** BUILD SUCCEEDED **`.
 
-Optional live check (it downloads real weights, so **ask the user first**): in an empty home, start FLUX.2 klein 4B, cancel after about 30 s, and compare the row's "Interrupted at X" with `du -sk` of `Models/.partial`. They agree within 5 %.
+Gate for the reported figure: `Tests/MCModelsTests/InstallStagingSizeTests.swift`. The sparse 64 MiB partial with 1 MiB written must report at least 1 MiB and under 8 MiB, which the former logical-size sum failed at 64 MiB; a fully written few-KiB file must report exactly its logical size, and an empty or missing directory must report 0. It needs no network and no real weights, so the optional live check is dropped: the old one pulled real weights and had to ask the user first. The test relies on the temp volume being APFS, so the truncated file is sparse; if a runner reports the logical size, point the test at a directory on an APFS volume rather than weakening the assertion.
