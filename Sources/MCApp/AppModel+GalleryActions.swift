@@ -188,7 +188,7 @@ extension AppModel {
     var reuseTarget: LibraryImage? {
         if gallerySelection.count > 1 { return nil }
         if let id = gallerySelection.first { return galleryImages.first { $0.id == id } }
-        return selectedImage
+        return canvasImage
     }
 
     /// The status line under the grid: the selection count, then the last action's result (R18).

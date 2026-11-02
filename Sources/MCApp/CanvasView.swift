@@ -65,7 +65,7 @@ private struct ContentCanvas: View {
                     Text("Starting…").font(.callout)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if model.selectedFailedJob == nil {
+            } else if model.selectedFailedJob == nil, model.runningProgress == nil {
                 Text("Select an image in the gallery, or generate one.")
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -125,7 +125,7 @@ struct FailureCard: View {
             HStack(spacing: 8) {
                 Spacer(minLength: 0)
                 Button("Dismiss") {
-                    model.selection = model.canvasFallbackImageID
+                    model.dismissFailureCard()
                 }
                 .buttonStyle(.bordered)
                 if job.canRetry {
@@ -254,10 +254,13 @@ private struct CanvasImageBar: View {
         .fixedSize()
     }
 
-    /// Makes this image the only gallery selection, then runs a D37 action on it.
+    /// Makes this image the only gallery selection, then runs a D37 action on it. The canvas keeps following the running
+    /// batch: acting on an image is not the click that hands the canvas back to the user (I02).
     private func act(_ action: @escaping @MainActor () async -> Void) {
         guard !isBusy else { return }
+        let followed = model.canvasFollowedJobs
         model.selectGalleryImage(image.id, click: .plain)
+        model.canvasFollowedJobs = followed
         Task { await action() }
     }
 }

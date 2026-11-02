@@ -41,6 +41,13 @@ extension AppModel {
         queueJobs.first { $0.id == selection && $0.status == .failed }
     }
 
+    /// Dismisses the failure card: the canvas goes back to the image kept from before the Generate, if it is still in the
+    /// gallery, else to the empty canvas (I03).
+    func dismissFailureCard() {
+        let kept = canvasFallbackImageID.flatMap { id in galleryImages.contains { $0.id == id } ? id : nil }
+        selection = kept
+    }
+
     /// A job is under way but has sent no step yet. A paused or held queue says so in its own header instead (I02), so the
     /// canvas keeps what it has rather than announcing a start that will not happen.
     var isStartingJob: Bool {

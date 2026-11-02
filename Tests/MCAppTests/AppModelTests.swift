@@ -542,6 +542,8 @@ private func writeTurboIndex(under weightsRoot: URL) throws {
         // The new job's placeholder is selected, so the canvas has no selection to draw and keeps the earlier image.
         #expect(model.selectedImage?.id == nil)
         #expect(model.canvasImage?.id == firstID)
+        // The kept image is what ⌘R and the bar's Reuse Settings act on, not nothing.
+        #expect(model.reuseTarget?.id == firstID)
         EngineStubProtocol.finishHeld(harness.endpoint)
     }
 
