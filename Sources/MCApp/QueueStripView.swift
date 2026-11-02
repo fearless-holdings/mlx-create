@@ -73,7 +73,7 @@ struct JobCell: View {
     var body: some View {
         let selected = model.selection == job.id
         Button {
-            model.selection = job.id
+            model.selectJob(job.id)
         } label: {
             VStack(spacing: 6) {
                 Spacer(minLength: 0)

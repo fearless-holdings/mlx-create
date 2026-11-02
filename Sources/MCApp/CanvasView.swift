@@ -44,23 +44,39 @@ struct CanvasView: View {
     }
 }
 
-/// The selected image scaled to fit, with the running generation's step bar underneath.
+/// The canvas image scaled to fit, with the running generation's step bar laid over its bottom edge.
 private struct ContentCanvas: View {
     let model: AppModel
 
     var body: some View {
         VStack(spacing: 12) {
-            if let image = model.selectedImage {
+            if let image = model.canvasImage {
                 SelectedImageView(model: model, image: image)
                     .id(image.id)
-            } else if model.runningProgress == nil {
+                    .overlay(alignment: .bottom) {
+                        if let progress = model.runningProgress {
+                            StepProgressView(progress: progress)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .frame(maxWidth: 420)
+                                .background(.regularMaterial, in: Capsule())
+                                .padding(.bottom, 12)
+                        }
+                    }
+            } else if let progress = model.runningProgress {
+                StepProgressView(progress: progress)
+                    .frame(maxWidth: 420)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if model.isStartingJob {
+                VStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Starting…").font(.callout)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
                 Text("Select an image in the gallery, or generate one.")
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            if let progress = model.runningProgress {
-                StepProgressView(progress: progress)
-                    .frame(maxWidth: 420)
             }
         }
         .padding(16)

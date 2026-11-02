@@ -159,7 +159,10 @@ extension AppModel {
                 if query.collectionID == currentCollection.id { await refreshGalleryMeta() }
                 return
             }
-            if selection == jobID { selection = imageID }
+            if selection == jobID || canvasFollowedJobs.contains(jobID) {
+                selection = imageID
+                canvasFallbackImageID = imageID
+            }
             galleryRevision += 1
             // Before the first gallery load there is nothing to prepend to, and that load reads the image anyway.
             if galleryLoaded, !galleryImages.contains(where: { $0.id == imageID }) {

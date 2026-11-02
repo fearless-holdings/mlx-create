@@ -116,6 +116,11 @@ public final class AppModel {
     /// Counts drops so a slow earlier read cannot overwrite a newer drop's result.
     var dropCounter = 0
     public var selection: UUID?
+    /// Jobs whose saved images take the canvas as they land (I02). Generate adds its job; a click in the gallery or the
+    /// queue strip clears the set, handing the canvas back to the user.
+    var canvasFollowedJobs: Set<UUID> = []
+    /// The image the canvas keeps showing while a followed job has not saved one yet (I02).
+    var canvasFallbackImageID: UUID?
     /// The images the gallery actions work on (D37). Separate from `selection`, which is what the canvas shows.
     var gallerySelection: Set<UUID> = []
     /// The last image clicked without ⇧, where a ⇧-click range starts.
@@ -596,7 +601,9 @@ public final class AppModel {
             originalPrompt: originalPrompt)
         do {
             let job = try await composer.enqueue(draft, collectionID: currentCollection.id)
+            if let shown = selectedImage?.id { canvasFallbackImageID = shown }
             selection = job.id
+            canvasFollowedJobs.insert(job.id)
             lastError = nil
             dropNotice = nil
             await reload()

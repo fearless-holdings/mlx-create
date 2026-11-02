@@ -74,6 +74,8 @@ extension AppModel {
         hasMoreImages = false
         galleryLoaded = false
         selection = nil
+        canvasFollowedJobs.removeAll()
+        canvasFallbackImageID = nil
         // The search and filters belong to the collection they were set in (R14).
         resetGalleryQuery()
         galleryRevision += 1

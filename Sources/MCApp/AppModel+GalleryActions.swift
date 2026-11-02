@@ -140,8 +140,10 @@ extension AppModel {
     // MARK: Selection (KTD4)
 
     /// A click on an image: plain selects it alone and shows it in the canvas; ⌘ toggles it and ⇧ selects the range
-    /// from the anchor, and neither changes the canvas (R1).
+    /// from the anchor, and neither changes the canvas (R1). Every click kind hands the canvas back to the user until the
+    /// next Generate (I02).
     func selectGalleryImage(_ id: UUID, click: GalleryClick) {
+        canvasFollowedJobs.removeAll()
         switch click {
         case .plain:
             gallerySelection = [id]
