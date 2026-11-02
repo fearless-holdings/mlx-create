@@ -5,9 +5,9 @@ mlx-create is a commercial, native macOS app (macOS 26.2+, Apple Silicon, 16 GB 
 ## Status and source of truth
 
 - **Phase:** the text-to-image vertical slice is implemented and lives on `main` (a git repo; app code in `Sources/`, `App/`, `scripts/`). Later phases follow the HLD.
-- **`docs/HLD.md` is the source of truth.** Decisions carry IDs (`D1`–`D25`), as do upstream engine requests (`F1`, `F3`–`F5`). Cite them in plans, PRs and commit messages.
+- **`docs/HLD.md` is the source of truth.** Decisions carry IDs (`D1` upward; the newest is at the end of the HLD decision log), as do upstream engine requests (`F1`, `F3`–`F5`). Cite them in plans, PRs and commit messages.
 - **Changing a decision:** update the HLD decision log first, then the code. Never let code silently diverge from a `D*` entry. If a task seems to need breaking one, stop and ask the user.
-- **Planned layout:** see HLD §6 (Swift modules `MCEngine`, `MCCatalog`, `MCLibrary`, `MCModels`, `MCEnhancer`, `MCApp`) and §9 (data model, on-disk layout). Once real build and test commands exist, record them here in a **Commands** section.
+- **Layout:** see HLD §6 (Swift modules `MCEngine`, `MCCatalog`, `MCLibrary`, `MCModels`, `MCEnhancer`, `MCApp`) and §9 (data model, on-disk layout). Build and test commands are in **Commands** below.
 
 ## Non-negotiables
 
