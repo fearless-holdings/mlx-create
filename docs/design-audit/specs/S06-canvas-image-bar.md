@@ -25,7 +25,7 @@ After a generation the image fills the canvas. To export it, the user must know 
 
 ## Target behavior
 
-Under the image (only when `model.selectedImage` is non-nil), inside `ContentCanvas` and above the step bar:
+Under the image (only when `model.canvasImage` is non-nil, so it stays under the kept image while a followed job runs), inside `ContentCanvas` and above the step bar:
 
 ```
 a lighthouse on a rocky coast at dusk, warm window light…            [Reuse Settings] [⬆︎ Export…] [📁] [🗑]
@@ -128,14 +128,13 @@ a lighthouse on a rocky coast at dusk, warm window light…            [Reuse Se
    }
    ```
 
-2. In `ContentCanvas.body`, change the `if let image = model.selectedImage { … }` branch to:
+2. In `ContentCanvas.body`, change the `if let image = model.canvasImage { … }` branch to:
 
    ```swift
-   if let image = model.selectedImage {
+   if let image = model.canvasImage {
        SelectedImageView(model: model, image: image)
            .id(image.id)
        CanvasImageBar(model: model, image: image)
-           .padding(.top, 12)
    }
    ```
 
