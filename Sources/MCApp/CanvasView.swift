@@ -34,7 +34,7 @@ struct CanvasView: View {
         case .onlyUnavailable(let rows):
             UnavailableModelsView(rows: rows)
         case .emptyHint:
-            Text("Type a prompt and press ⌘↩")
+            Text(model.emptyHintText)
                 .font(.title3)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

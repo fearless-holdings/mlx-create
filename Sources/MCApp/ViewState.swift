@@ -27,7 +27,8 @@ public enum CanvasMode: Equatable, Sendable {
     case noModels
     /// Image models exist but none can be driven: list each with its reason, no Reveal action.
     case onlyUnavailable([UnavailableModelRow])
-    /// A model is available but nothing has been generated: show the "Type a prompt and press ⌘↩" hint, hide the queue strip.
+    /// A model is available but nothing has been generated: show the hint that matches whether a prompt is typed, and keep
+    /// the queue strip hidden while the queue is empty.
     case emptyHint
     /// Show the selected image or the running generation's step bar.
     case content

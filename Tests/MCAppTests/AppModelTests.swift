@@ -438,4 +438,71 @@ private func writeTurboIndex(under weightsRoot: URL) throws {
         EngineStubProtocol.finishHeld(harness.endpoint)
         try await eventually { try await harness.store.jobs(status: .done).count == 2 }
     }
+
+    @Test func theStripIsHiddenUntilThereIsSomethingToShow() async throws {
+        // No models and nothing queued: the canvas explains the state on its own.
+        let empty = try await AppHarness.make(models: [])
+        await empty.model.start()
+        await empty.model.refreshModels()
+        #expect(empty.model.canvasMode == .noModels)
+        #expect(empty.model.showsQueueStrip == false)
+
+        // A model installed with an empty queue and gallery: the hint shows, the strip stays hidden.
+        let ready = try await AppHarness.make()
+        await ready.model.start()
+        await ready.model.refreshModels()
+        #expect(ready.model.canvasMode == .emptyHint)
+        #expect(ready.model.showsQueueStrip == false)
+
+        // One saved image gives the canvas content, so the strip comes back.
+        _ = try await ready.saveImage(prompt: "a fox in snow")
+        await ready.model.reload()
+        #expect(ready.model.canvasMode == .content)
+        #expect(ready.model.showsQueueStrip)
+
+        // Calibration needs the header even with nothing queued.
+        ready.model.queueHeader = .calibrating
+        #expect(ready.model.showsQueueStrip)
+
+        // A healthy engine with no models: the canvas reports no models, so only a job can bring the strip back.
+        let busy = try await AppHarness.make(models: [])
+        await busy.model.start()
+        await busy.model.refreshModels()
+        #expect(busy.model.canvasMode == .noModels)
+        #expect(busy.model.showsQueueStrip == false)
+
+        // A paused job keeps the strip for Resume. The drain ended on an empty queue, so a job queued directly in the
+        // library is never claimed behind the status being written here.
+        let pausedJob = try await busy.enqueue(batch: 1, prompt: "paused")
+        try await busy.store.setJobStatus(pausedJob.id, .paused)
+        await busy.model.reload()
+        #expect(busy.model.canvasMode == .noModels)
+        #expect(busy.model.queueJobs.contains { $0.id == pausedJob.id && $0.status == .paused })
+        #expect(busy.model.showsQueueStrip)
+
+        // A failed job keeps it for Retry, with nothing else in the strip.
+        try await busy.store.setJobStatus(pausedJob.id, .done)
+        let failedJob = try await busy.enqueue(batch: 1, prompt: "failed")
+        try await busy.store.setJobStatus(failedJob.id, .failed)
+        await busy.model.reload()
+        #expect(busy.model.canvasMode == .noModels)
+        #expect(busy.model.queueJobs.contains { $0.id == failedJob.id && $0.status == .failed })
+        #expect(busy.model.showsQueueStrip)
+    }
+
+    @Test func theEmptyHintFollowsThePrompt() async throws {
+        let harness = try await AppHarness.make()
+        let model = harness.model
+        await model.start()
+        await model.refreshModels()
+
+        #expect(model.prompt.isEmpty)
+        #expect(model.emptyHintText == "Describe an image on the left, then press ⌘↩")
+
+        model.prompt = "  \n\t "
+        #expect(model.emptyHintText == "Describe an image on the left, then press ⌘↩")
+
+        model.prompt = "a teapot"
+        #expect(model.emptyHintText == "Press ⌘↩ to make your first image")
+    }
 }

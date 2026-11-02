@@ -21,7 +21,7 @@ public struct MainWindow: View {
                 VStack(spacing: 0) {
                     CanvasView(model: model)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    if model.canvasMode != .emptyHint || model.queueHeader == .calibrating {
+                    if model.showsQueueStrip {
                         Divider()
                         QueueStripView(model: model)
                             .fixedSize(horizontal: false, vertical: true)

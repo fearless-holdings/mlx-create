@@ -8,7 +8,7 @@
 | Heuristics | H1 Visibility of system status; H2 Match between system and the real world |
 | User task | (a) first image, (f) change collection |
 | Strategy metric | Nothing to learn |
-| HLD decisions | No D* change. HLD §10: the queue strip is "Hidden while the canvas shows the empty hint" |
+| HLD decisions | No D* change. HLD §10: the queue strip is hidden in `.noModels`, `.onlyUnavailable` and `.emptyHint`, unless calibration is running or the queue holds any job |
 | Size | S |
 | Depends on | none |
 
@@ -21,7 +21,7 @@
 
 ## Target behavior
 
-- The queue strip is hidden in `.noModels`, `.onlyUnavailable` and `.emptyHint`, unless calibration is running (that exception exists today).
+- The queue strip is hidden in `.noModels`, `.onlyUnavailable` and `.emptyHint`, unless calibration is running or the queue holds any job, whatever its status (queued, running, paused, failed, cancelled): a job the user can still cancel, resume or retry keeps its strip.
 - Canvas `.emptyHint`, `.title3`, `.secondary` (large text, so the secondary colour is acceptable):
   - prompt empty: "Describe an image on the left, then press ⌘↩";
   - prompt not empty: "Press ⌘↩ to make your first image".
@@ -29,30 +29,33 @@
 
 ## Edit steps
 
-1. `Sources/MCApp/MainWindow.swift`: replace the condition `if model.canvasMode != .emptyHint || model.queueHeader == .calibrating {` with `if model.showsQueueStrip {` and add to `AppModel` (in `AppModel+Projection.swift` or `ViewState.swift` as an extension):
+1. `Sources/MCApp/MainWindow.swift`: replace the condition `if model.canvasMode != .emptyHint || model.queueHeader == .calibrating {` with `if model.showsQueueStrip {` and add to `AppModel` beside `canvasMode`:
 
    ```swift
-   /// The strip shows once the canvas has something to show, or while calibration runs (HLD §10, I13).
-   var showsQueueStrip: Bool {
-       if queueHeader == .calibrating { return true }
-       switch canvasMode {
-       case .content: return true
-       case .noModels, .onlyUnavailable, .emptyHint: return false
-       }
+   /// Whether the queue strip is visible (HLD §10). It is hidden while the canvas offers nothing to act on, but a job of
+   /// any status keeps it: a queued, paused or failed job still offers Cancel, Resume or Retry.
+   public var showsQueueStrip: Bool {
+       if queueHeader == .calibrating || !queueJobs.isEmpty { return true }
+       return canvasMode == .content
    }
    ```
 
-2. `Sources/MCApp/CanvasView.swift`, `.emptyHint` case: replace `Text("Type a prompt and press ⌘↩")` with
+   A job of any status keeps the strip, so a queued, paused or failed job is never hidden; calibrating and `.content` keep it too.
+
+2. `Sources/MCApp/AppModel.swift`: add `emptyHintText` beside `showsQueueStrip`:
 
    ```swift
-   Text(
-       model.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-           ? "Describe an image on the left, then press ⌘↩" : "Press ⌘↩ to make your first image")
+   /// The empty canvas's hint: it asks for a prompt only while the prompt is empty.
+   public var emptyHintText: String {
+       prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+           ? "Describe an image on the left, then press ⌘↩"
+           : "Press ⌘↩ to make your first image"
+   }
    ```
 
-   Keep `.font(.title3)`, `.foregroundStyle(.secondary)` and the frame.
+   `Sources/MCApp/CanvasView.swift`, `.emptyHint` case: replace `Text("Type a prompt and press ⌘↩")` with `Text(model.emptyHintText)`. Keep `.font(.title3)`, `.foregroundStyle(.secondary)` and the frame.
 3. `Sources/MCApp/GalleryView.swift`, `content`: change `Text("No images yet")` to `Text("Your images will appear here")` and add `.font(.callout)`.
-4. Test: in `Tests/MCAppTests/AppModelTests.swift`, add `theStripIsHiddenUntilThereIsSomethingToShow`. Use a harness with no models (`AppHarness.make(...)` with a `FakeEngine` reporting none; see the existing no-models tests: `rg -n "noModels" Tests/MCAppTests`) and expect `showsQueueStrip == false`. With a model and no images it is also false. After one generation it is true.
+4. Tests: in `Tests/MCAppTests/AppModelTests.swift`, add `theStripIsHiddenUntilThereIsSomethingToShow`, which covers no models with an empty queue, a model with an empty queue and gallery, a saved image, and a queued, paused and failed job with no models, plus calibration with nothing queued; and `theEmptyHintFollowsThePrompt`, which covers an empty prompt, a whitespace-only prompt and a prompt with text. Use `AppHarness.make(...)` as the existing no-models tests do (`rg -n "noModels" Tests/MCAppTests`).
 5. Format the touched files.
 
 ## Do not touch
@@ -69,8 +72,5 @@ Standard checks, all must pass:
 3. `git ls-files '*.swift' | xargs swift format lint --strict --configuration .swift-format` prints nothing.
 4. `xcodegen generate && xcodebuild -project MLXCreate.xcodeproj -scheme MLXCreate -configuration Debug -derivedDataPath build build` prints `** BUILD SUCCEEDED **`.
 5. GUI smoke exits 0.
-
-With the capture kit:
-
-6. Empty home: `ax dump` contains no `AXStaticText` "Queue empty".
-7. One model, no images, prompt "a teapot" set with `ax setvalue`: the canvas text reads "Press ⌘↩ to make your first image".
+6. `swift test --filter theStripIsHiddenUntilThereIsSomethingToShow` passes: it proves the strip is gone from an empty home and an empty canvas, and stays for a saved image, any queued, paused or failed job, and calibration.
+7. `swift test --filter theEmptyHintFollowsThePrompt` passes: it proves the canvas hint asks for a prompt only while the prompt is empty.
