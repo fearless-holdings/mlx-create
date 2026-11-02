@@ -58,6 +58,12 @@ extension SmokeSession {
             return sizePicker.value as? String ?? ""
         }
         XCTAssertFalse(size.isEmpty, "the Size picker has no value")
+        // Two plain integers around "×". A localized Text interpolation groups thousands ("1.024 × 1.024") in some regions (audit V03).
+        let sizeParts = size.components(separatedBy: "×").map { $0.trimmingCharacters(in: .whitespaces) }
+        XCTAssertEqual(sizeParts.count, 2, "the Size value is not two numbers around ×: \(size)")
+        XCTAssertTrue(
+            sizeParts.allSatisfy { !$0.isEmpty && $0.allSatisfy { $0.isASCII && $0.isNumber } },
+            "the Size value has a grouping separator or non-ASCII digits: \(size)")
 
         step("Press Generate and see progress") {
             XCTAssertTrue(generateButton.isEnabled, "Generate is disabled with a prompt and an installed model")

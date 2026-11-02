@@ -61,7 +61,7 @@ The same screens also mix decimal styles. The model browser's facts line prints 
 
 - KTD1. **Print the size label with `Text(verbatim:)`.** It bypasses the localized-key interpolation that groups, so the picker entry is exactly the two integers. The spec's alternative, wrapping each side in `String(…)` and adding a `GenerationPanel.sizeLabel` helper, adds a symbol that only a test would call (KTD3). Governs R1.
 - KTD2. **Use `Double.formatted(.number.precision(.fractionLength(1)))` for the three `String(format: "%.1f", …)` sites.** This is the style `LoRASection.weightText` already uses, and it follows `Locale.current`, as `.byteCount(style: .file)` does for the neighbouring size. No shared helper: three one-line call sites do not earn one. Governs R2, R3, R4.
-- KTD3. **No permanent test.** The spec's `NumberFormattingTests` asserts `sizeLabel(1024×1024) == "1024 × 1024"`. Plain Swift string interpolation never groups, so that assertion passes on the unfixed code and pins nothing; the defect only exists inside SwiftUI's localized `Text`. The decimal sites call the platform's locale formatter and are private view or model text with no locale seam. The proof is the live check in U2, run under a locale that groups and uses a comma decimal.
+- KTD3. **No unit test; the GUI smoke guards the Size label instead.** The spec's `NumberFormattingTests` asserts `sizeLabel(1024×1024) == "1024 × 1024"`. Plain Swift string interpolation never groups, so that assertion passes on the unfixed code and pins nothing; the defect only exists inside SwiftUI's localized `Text`. The decimal sites call the platform's locale formatter and are private view or model text with no locale seam. The Size label is different: the GUI smoke reads its real accessibility value, so `runGenerateFlow` asserts two ASCII digit runs around "×" (no wording pinned), which fails on a grouping locale when the label regresses. Code review found the smoke asserted only non-empty; the new assertion was shown to fail on the unfixed label ("1.024 × 1.024") and pass on the fix. The decimal sites stay proven by the live check in U2 only.
 
 ### Assumptions
 
@@ -85,7 +85,7 @@ The same screens also mix decimal styles. The model browser's facts line prints 
   4. CFG value: format `model.guidance` the same way, keeping the "Default" fallback (KTD2).
   5. Re-run the spec's sweep for other pixel-size, seed or step text that reaches a `Text` through `\(…)` (`rg -n 'Text\("[^"]*\\\((size|progress|job|controls\.steps|image)\.' Sources/MCApp`). Convert only a value that can reach 1000.
 - **Patterns to follow:** `LoRASection.weightText` for the number style; the neighbouring `.formatted(.byteCount(style: .file))` call in `InstallRow.facts(for:)` for the locale behavior to match.
-- **Test scenarios:** Test expectation: none -- KTD3. The existing `ModelBrowserTests` (it asserts `fitWarning != nil`) and the GUI smoke (which reads the Size value through `CONTAINS "×"`) keep guarding the surrounding behavior.
+- **Test scenarios:** `UITests/MLXCreateUITests/GenerateFlow.swift` (`runGenerateFlow`, step "Read the size"): the Size value is two non-empty ASCII digit runs around "×". It fails on "1.024 × 1.024" and passes on "1024 × 1024" in a locale that groups; elsewhere it is a harmless structural check. No unit test for the decimal sites (KTD3). The existing `ModelBrowserTests` still only assert `fitWarning != nil`.
 - **Verification:** `swift build` and `swift test` pass, lint prints nothing, and the diff touches only the four sites above plus any sweep hit that can reach 1000.
 
 ### U2. Prove it on the real app in a grouping locale
@@ -121,7 +121,7 @@ The same screens also mix decimal styles. The model browser's facts line prints 
 - U1 and U2 complete, every gate above passes, and the after screenshot is attached.
 - Byte counts, download counts, LoRA weights and the seed field are unchanged in the diff.
 - Any decimal site the live check could not reach is named as not exercised in the PR description.
-- `docs/design-audit/specs/V03-number-formatting.md` matches what shipped: Edit steps name the two extra decimal sites and the verbatim size label and drop the `sizeLabel` helper and `NumberFormattingTests`; Acceptance item 2 no longer requires `NumberFormattingTests`; the locale line before Acceptance items 6 and 7 names this Mac's own locale (`en_US@rg=dezzzz`, no flag needed) in place of `-AppleLocale es_ES`; the Target behavior line no longer promises "Step 3 of 4"-style step counts as plain integers, since they are left as they are (Scope Boundaries).
+- `docs/design-audit/specs/V03-number-formatting.md` matches what shipped: Edit steps name the two extra decimal sites, the verbatim size label and the smoke assertion, and drop the `sizeLabel` helper and `NumberFormattingTests`; Acceptance item 2 no longer requires `NumberFormattingTests`; the locale line before Acceptance items 6 and 7 names this Mac's own locale (`en_US@rg=dezzzz`, no flag needed) in place of `-AppleLocale es_ES`; the Target behavior line no longer promises "Step 3 of 4"-style step counts as plain integers, since they are left as they are (Scope Boundaries).
 - No stray `mlx-serve` or `mlx-create` process is left running, and the real preferences are restored.
 
 ## Sources

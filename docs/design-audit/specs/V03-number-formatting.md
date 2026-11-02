@@ -30,7 +30,7 @@
 
 ## Edit steps
 
-1. `GenerationPanel.sizeSection` (`ComposerSettings` after S02): print the Size picker labels verbatim, `Text(verbatim: "\(size.width) × \(size.height)").tag(size)`, so SwiftUI's localized interpolation cannot group them. No `sizeLabel` helper and no `NumberFormattingTests`: plain Swift interpolation never groups, so such a test would pass on the unfixed code; the defect only exists inside SwiftUI's localized `Text`, and the live check in Acceptance 6 and 7 is the proof.
+1. `GenerationPanel.sizeSection` (`ComposerSettings` after S02): print the Size picker labels verbatim, `Text(verbatim: "\(size.width) × \(size.height)").tag(size)`, so SwiftUI's localized interpolation cannot group them. No `sizeLabel` helper and no `NumberFormattingTests`: plain Swift interpolation never groups, so such a test would pass on the unfixed code. The permanent guard is in the GUI smoke instead: `runGenerateFlow` asserts the real Size value is two ASCII digit runs around "×" (`GenerateFlow.swift`), which fails on "1.024 × 1.024" in a grouping locale (verified on the unfixed label) and pins no wording.
 2. Replace `String(format: "%.1f", …)` with `.formatted(.number.precision(.fractionLength(1)))` at all three sites: `InstallRow.facts(for:)` (`model.ramGB`), `ModelBrowserModel.fitWarning(needGB:usableGB:)` (both figures) and `GenerationPanel.guidanceSection` (the CFG value, keeping the "Default" fallback).
 3. Sweep with `rg -n 'Text\("[^"]*\\\((size|progress|job|controls\.steps|image)\.' Sources/MCApp` and convert only a value that can reach 1000. The remaining hits (`Step n of m`, the fixed-steps text, `n of m saved`, the LoRA import progress) cannot, and counts are right to group, so none were converted.
 4. Format the touched files.
