@@ -73,3 +73,7 @@ XCTAssertEqual(promptField.value as? String, prompt, "Tab did not leave the prom
 The step sits after choosing Fixed because, with a random seed, the prompt is the only text input in the window: the key-view loop has no other valid view (`nextValidKeyView` is nil), so Tab has nowhere to go and the check could not tell a working handler from a missing one. Fixed puts the Seed field on screen, and Tab then lands in it. The keys are sent through `app`, not `promptField.typeText`, which clicks the field first and would hide the bug. XCUITest has no focus property on macOS (`hasFocus` is unavailable), so the following ⌘A and ⌫ carry the proof: if focus stayed in the prompt, they empty the prompt and the assertion fails; if it moved, they act on the Seed field, which the next step sets anyway, and the prompt keeps its text. A handler that consumed Tab but found no next view fails the same way. A probe on the first responder showed the handler fires inside the `TextEditor` and moves focus from the prompt's text view to the Seed field's field editor.
 
 **⇧Tab and ⌥Tab are not automated.** The smoke proves Tab only. ⇧Tab rests on the scratch-app run in Evidence (macOS 27.2, handler in Edit steps); ⌥Tab rests on the handler returning `.ignored` for it, so the text view still types a tab. Return and ⌘↩ keep their behaviour through the smoke steps that type, generate and restore.
+
+## Resolution
+
+Done. PR [#25](https://github.com/fearless-holdings/mlx-create/pull/25), commit `7586749`. The GUI-smoke step in Acceptance gates Tab; ⇧Tab and ⌥Tab are not automated.

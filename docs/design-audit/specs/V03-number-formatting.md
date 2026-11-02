@@ -54,3 +54,7 @@ With the capture kit, on this Mac: its locale is `en_US@rg=dezzzz` (English, Ger
 
 6. `ax dump | grep '×'` shows `value="1024 × 1024"` on the Size pop-up, with no "." between digits.
 7. The model browser facts line for FLUX.2 klein 4B reads "… 4,62 GB download · about 8,0 GB RAM …", with the same decimal separator on both numbers.
+
+## Resolution
+
+Done. PR [#23](https://github.com/fearless-holdings/mlx-create/pull/23); commits `302d0b1` (fix), `4fcd603` (GUI-smoke assertion that Size is two plain integers) and `c494588` (after screenshot, `screens/V03_after_small_light.png`). Not exercised in the app: the CFG value (every bundled family ships `guidance` null) and the fit warning.

@@ -74,3 +74,7 @@ Standard checks, all must pass:
 5. GUI smoke exits 0.
 6. `swift test --filter theStripIsHiddenUntilThereIsSomethingToShow` passes: it proves the strip is gone from an empty home and an empty canvas, and stays for a saved image, any queued, paused or failed job, and calibration.
 7. `swift test --filter theEmptyHintFollowsThePrompt` passes: it proves the canvas hint asks for a prompt only while the prompt is empty.
+
+## Resolution
+
+Done. PR [#25](https://github.com/fearless-holdings/mlx-create/pull/25), commit `15ea797`. Edit steps describe the as-built change.

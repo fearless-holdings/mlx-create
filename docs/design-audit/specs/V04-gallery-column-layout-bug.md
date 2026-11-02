@@ -63,3 +63,7 @@ With the capture kit and a home with at least 6 images:
 6. Quit and relaunch, with the window at 1100×692 before quitting. Immediately after the window appears, `ax dump | grep 'desc="Image: '` shows tiles at exactly **2** distinct x positions. Repeat three launches; all show 2.
 7. Resize to 1680×1050 and back to 1100×692 (`cap.py big`, `cap.py small`). There are still 2 distinct x positions.
 8. Attach `V04_after_relaunch_small_light.png`.
+
+## Resolution
+
+Done. PR [#21](https://github.com/fearless-holdings/mlx-create/pull/21), fix commit `c245064`. The root cause turned out to differ from the first inference; Evidence above is rewritten to the traced cause and the live measurements, and Edit steps describe the as-built change.

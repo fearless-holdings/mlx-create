@@ -1,8 +1,19 @@
 # mlx-create design audit (2026-10-30)
 
-An audit of the UX, the UI and the usage flows of the native app on `main` at commit `633e737`, judged against `STRATEGY.md`: **"nothing to learn"**, and the metric **time to first kept image**. Every finding is a spec in `specs/`, written so that an agent with no other context can execute it. **No app code was changed.** The deliverable is this file, `specs/*.md` (28 findings), `capture-kit.md` (the tools that made the evidence, which the specs' checks reuse), and `screens/` (86 screenshots plus four accessibility-tree dumps).
+An audit of the UX, the UI and the usage flows of the native app on `main` at commit `633e737`, judged against `STRATEGY.md`: **"nothing to learn"**, and the metric **time to first kept image**. Every finding is a spec in `specs/`, written so that an agent with no other context can execute it. **No app code was changed by the audit itself**; fixes since then are tracked under [Progress](#progress). The deliverable is this file, `specs/*.md` (28 findings), `capture-kit.md` (the tools that made the evidence, which the specs' checks reuse), and `screens/` (86 screenshots plus four accessibility-tree dumps).
 
 The user's brief shaped the bar. They chose mlx-create over Draw Things because Draw Things keeps every rarely used control on screen, feels crowded, and does not feel like a Mac app. So Draw Things is used here as the **counter-example**, and Apple's own apps (Image Playground, Photos) as the model.
+
+## Progress
+
+**5 of 28 done, 1 deferred, 2 blocked on an HLD decision, 20 open.** Last updated 2026-11-02. Findings, evidence and line references describe `633e737`; they are not rewritten as the code moves. Progress lives in two places only:
+
+- the **Status** column in [§2](#2-all-findings), which is the tracker;
+- a **Resolution** section at the end of a spec once it ships: the PR and commits, where the result differs from the spec, and what was and was not exercised.
+
+Status values: `open`, `in progress (PR #n)`, `done (PR #n)`, `deferred (reason)`, `blocked (reason)`.
+
+When you ship a finding: update its row, add its Resolution section, and put `Audit: <ID>` in the PR body and in the commit message trailer, so `git log --grep='Audit: '` can rebuild the table. Bump the count and date above.
 
 ## Contents
 
@@ -39,48 +50,48 @@ The user's brief shaped the bar. They chose mlx-create over Draw Things because 
 
 The order is STRUCTURE, then INTERACTION, then VISUAL, as requested. Severity follows Nielsen: 0 not a problem, 1 cosmetic, 2 minor, 3 major, 4 catastrophe. Frequency is how often a user meets the finding. Sizes: S ≈ under 2 h, M ≈ half a day, L ≈ a day or more.
 
-| ID | Title | Tag | Sev. | Frequency | Task | Size | Depends on | HLD change first? |
-|---|---|---|---|---|---|---|---|---|
-| [S01](specs/S01-first-run-single-primary-action.md) | First launch: one primary action | STRUCTURE | 4 | First minute, every user | a | S | — | No |
-| [S02](specs/S02-composer-progressive-disclosure.md) | Composer: rarely used settings behind "More options" | STRUCTURE | 3 | Every session | a, b | M | — | No (stays inline, D33) |
-| [S03](specs/S03-model-chip-in-toolbar.md) | Model chip in the toolbar, exact model name | STRUCTURE | 2 | Every session | a, b | S | — | No (follows §10) |
-| [S04](specs/S04-collection-as-window-title.md) | The window title is the collection, with its menu | STRUCTURE | 2 | Every switch | f | S | — | No |
-| [S05](specs/S05-menu-bar-commands-single-window.md) | Commands in the menu bar; single window | STRUCTURE | 3 | Every session | b, c, e | M | — | No |
-| [S06](specs/S06-canvas-image-bar.md) | Canvas shows the image's prompt, facts and actions | STRUCTURE | 3 | Every kept image | a, b, c | M | — | No |
-| [S07](specs/S07-lora-sheet-entry-and-order.md) | LoRAs: one entry point; opens on the curated list | STRUCTURE | 3 | Every LoRA add | d | S | — | No (wording only) |
-| [S08](specs/S08-civitai-download-adds-to-stack.md) | A Civitai download goes on the stack | STRUCTURE | 3 | Every Civitai LoRA | d | M | S07 | **Yes: D34 amendment** |
-| [S09](specs/S09-gallery-mode-decision.md) | Gallery mode: decide D33's open question | STRUCTURE | 2 | Finding old images | c | L | S05, I08 | **Yes: resolves D33/§10 open question** |
-| [I01](specs/I01-install-progress-visible.md) | Download progress and time left in the main window | INTERACTION | 4 | Every download | a | M | S01 | No |
-| [I02](specs/I02-canvas-follows-generation.md) | Canvas keeps the last image; shows every new one | INTERACTION | 3 | Every generation | a, b | M | — | No |
-| [I03](specs/I03-out-of-memory-recovery.md) | Out of memory: failure card with Try Again; right copy | INTERACTION | 4 | When memory is short | e | M | I02 | No |
-| [I04](specs/I04-lora-rejection-recovery.md) | LoRA rejected: no internal ids; one-click fix | INTERACTION | 3 | Rare | e | S | I03 | No |
-| [I05](specs/I05-queue-strip-legible-cells.md) | Queue cells you can tell apart; Clear | INTERACTION | 3 | Batches, failures | b, e | M | I02 | No |
-| [I06](specs/I06-engine-failure-banner.md) | Engine failure: one recovery action | INTERACTION | 2 | Rare | e | S | — | No |
-| [I07](specs/I07-prompt-tab-key-trap.md) | Prompt: Tab moves focus (keyboard trap) | INTERACTION | 3 | Every keyboard user | all | S | — | No |
-| [I08](specs/I08-gallery-keyboard-and-labels.md) | Gallery arrow keys; distinct tile labels | INTERACTION | 2 | Batch review | b, c | S | — | No |
-| [I09](specs/I09-enhance-card-actions-and-provenance.md) | Enhance: clear labels, Restore, no stale provenance | INTERACTION | 2 | Every Enhance | b | S | — | No (§8.8 wording) |
-| [I10](specs/I10-license-sheet-single-action.md) | Licence sheets: one "Accept and Download" | INTERACTION | 2 | Every download | a, d | S | — | No (see spec on the legal read) |
-| [I11](specs/I11-interrupted-download-size.md) | Interrupted download reports real bytes | INTERACTION | 2 | Cancelled downloads | a | S | — | No |
-| [I12](specs/I12-generate-disabled-reason.md) | Generate says why it is disabled | INTERACTION | 2 | First launch, empty prompt | a | S | (I01) | No |
-| [I13](specs/I13-empty-state-copy.md) | Empty states that match the state | INTERACTION | 1 | First run | a, f | S | — | No |
-| [V01](specs/V01-design-tokens.md) | One design-token file (with inventory and migration list) | VISUAL | 2 | Every screen | all | M | see §3 | No |
-| [V02](specs/V02-text-contrast-and-status-colour.md) | Status and error text ≥ 4.5:1; colour on symbols only | VISUAL | 2 | Every error | e, d | M | V01 | No |
-| [V03](specs/V03-number-formatting.md) | "1024 × 1024", not "1.024 × 1.024"; one decimal style | VISUAL | 2 | Every session (EU locales) | a, b | S | — | No |
-| [V04](specs/V04-gallery-column-layout-bug.md) | Gallery shows one column after launch | VISUAL | 2 | Every launch | c | S | — | No |
-| [V05](specs/V05-badges-and-redundant-labels.md) | One badge style; no label that repeats its button | VISUAL | 2 | Browser, LoRA sheet | a, d | M | V01, S01, S03 | No |
-| [V06](specs/V06-sheet-consistency.md) | Sheets: one title style, one inset, two widths | VISUAL | 1 | Every sheet | a, d, f | S | V01, I10, S04 | No |
+| ID | Status | Title | Tag | Sev. | Frequency | Task | Size | Depends on | HLD change first? |
+|---|---|---|---|---|---|---|---|---|---|
+| [S01](specs/S01-first-run-single-primary-action.md) | open | First launch: one primary action | STRUCTURE | 4 | First minute, every user | a | S | — | No |
+| [S02](specs/S02-composer-progressive-disclosure.md) | open | Composer: rarely used settings behind "More options" | STRUCTURE | 3 | Every session | a, b | M | — | No (stays inline, D33) |
+| [S03](specs/S03-model-chip-in-toolbar.md) | open | Model chip in the toolbar, exact model name | STRUCTURE | 2 | Every session | a, b | S | — | No (follows §10) |
+| [S04](specs/S04-collection-as-window-title.md) | open | The window title is the collection, with its menu | STRUCTURE | 2 | Every switch | f | S | — | No |
+| [S05](specs/S05-menu-bar-commands-single-window.md) | open | Commands in the menu bar; single window | STRUCTURE | 3 | Every session | b, c, e | M | — | No |
+| [S06](specs/S06-canvas-image-bar.md) | open | Canvas shows the image's prompt, facts and actions | STRUCTURE | 3 | Every kept image | a, b, c | M | — | No |
+| [S07](specs/S07-lora-sheet-entry-and-order.md) | open | LoRAs: one entry point; opens on the curated list | STRUCTURE | 3 | Every LoRA add | d | S | — | No (wording only) |
+| [S08](specs/S08-civitai-download-adds-to-stack.md) | blocked (needs the D34 decision) | A Civitai download goes on the stack | STRUCTURE | 3 | Every Civitai LoRA | d | M | S07 | **Yes: D34 amendment** |
+| [S09](specs/S09-gallery-mode-decision.md) | blocked (needs the D33 decision) | Gallery mode: decide D33's open question | STRUCTURE | 2 | Finding old images | c | L | S05, I08 | **Yes: resolves D33/§10 open question** |
+| [I01](specs/I01-install-progress-visible.md) | open | Download progress and time left in the main window | INTERACTION | 4 | Every download | a | M | S01 | No |
+| [I02](specs/I02-canvas-follows-generation.md) | open | Canvas keeps the last image; shows every new one | INTERACTION | 3 | Every generation | a, b | M | — | No |
+| [I03](specs/I03-out-of-memory-recovery.md) | open | Out of memory: failure card with Try Again; right copy | INTERACTION | 4 | When memory is short | e | M | I02 | No |
+| [I04](specs/I04-lora-rejection-recovery.md) | open | LoRA rejected: no internal ids; one-click fix | INTERACTION | 3 | Rare | e | S | I03 | No |
+| [I05](specs/I05-queue-strip-legible-cells.md) | open | Queue cells you can tell apart; Clear | INTERACTION | 3 | Batches, failures | b, e | M | I02 | No |
+| [I06](specs/I06-engine-failure-banner.md) | deferred (acceptance needs a live engine kill) | Engine failure: one recovery action | INTERACTION | 2 | Rare | e | S | — | No |
+| [I07](specs/I07-prompt-tab-key-trap.md) | done ([#25](https://github.com/fearless-holdings/mlx-create/pull/25)) | Prompt: Tab moves focus (keyboard trap) | INTERACTION | 3 | Every keyboard user | all | S | — | No |
+| [I08](specs/I08-gallery-keyboard-and-labels.md) | open | Gallery arrow keys; distinct tile labels | INTERACTION | 2 | Batch review | b, c | S | — | No |
+| [I09](specs/I09-enhance-card-actions-and-provenance.md) | open | Enhance: clear labels, Restore, no stale provenance | INTERACTION | 2 | Every Enhance | b | S | — | No (§8.8 wording) |
+| [I10](specs/I10-license-sheet-single-action.md) | open | Licence sheets: one "Accept and Download" | INTERACTION | 2 | Every download | a, d | S | — | No (see spec on the legal read) |
+| [I11](specs/I11-interrupted-download-size.md) | done ([#25](https://github.com/fearless-holdings/mlx-create/pull/25)) | Interrupted download reports real bytes | INTERACTION | 2 | Cancelled downloads | a | S | — | No |
+| [I12](specs/I12-generate-disabled-reason.md) | open | Generate says why it is disabled | INTERACTION | 2 | First launch, empty prompt | a | S | (I01) | No |
+| [I13](specs/I13-empty-state-copy.md) | done ([#25](https://github.com/fearless-holdings/mlx-create/pull/25)) | Empty states that match the state | INTERACTION | 1 | First run | a, f | S | — | No |
+| [V01](specs/V01-design-tokens.md) | open | One design-token file (with inventory and migration list) | VISUAL | 2 | Every screen | all | M | see §3 | No |
+| [V02](specs/V02-text-contrast-and-status-colour.md) | open | Status and error text ≥ 4.5:1; colour on symbols only | VISUAL | 2 | Every error | e, d | M | V01 | No |
+| [V03](specs/V03-number-formatting.md) | done ([#23](https://github.com/fearless-holdings/mlx-create/pull/23)) | "1024 × 1024", not "1.024 × 1.024"; one decimal style | VISUAL | 2 | Every session (EU locales) | a, b | S | — | No |
+| [V04](specs/V04-gallery-column-layout-bug.md) | done ([#21](https://github.com/fearless-holdings/mlx-create/pull/21)) | Gallery shows one column after launch | VISUAL | 2 | Every launch | c | S | — | No |
+| [V05](specs/V05-badges-and-redundant-labels.md) | open | One badge style; no label that repeats its button | VISUAL | 2 | Browser, LoRA sheet | a, d | M | V01, S01, S03 | No |
+| [V06](specs/V06-sheet-consistency.md) | open | Sheets: one title style, one inset, two widths | VISUAL | 1 | Every sheet | a, d, f | S | V01, I10, S04 | No |
 
 Two specs need a decision from you before any code: **S08** changes the D34 amendment, and **S09** resolves D33's open question. Both carry the exact decision-log text to add.
 
 ## 3. Recommended execution order
 
 1. **No-regret fixes.** Small, independent, and needing no structure decision:
-   - V04, the gallery column bug;
-   - V03, number formatting;
-   - I11, the interrupted size;
-   - I07, the Tab key trap;
-   - I13, empty-state copy;
-   - I06, the engine banner.
+   - [x] V04, the gallery column bug;
+   - [x] V03, number formatting;
+   - [x] I11, the interrupted size;
+   - [x] I07, the Tab key trap;
+   - [x] I13, empty-state copy;
+   - [ ] I06, the engine banner (deferred, see §2).
 2. **First-run path:** S01 → I01 → I10 → I12. This is the shortest path to moving time to first kept image.
 3. **Window structure:** S05 (menus, single window) → S04 (title) → S03 (chip to toolbar) → S02 (composer). Do S02 after S03 so the at-rest count lands at its target.
 4. **Results and recovery:** I02 → S06 → I03 → I04 → I05 → I08 → I09.
@@ -320,7 +331,7 @@ These were reviewed and deliberately left alone. Most are already Apple-like, or
 
 ## 12. Verification status
 
-- **Spec execution by fresh agents: not done, at your instruction** ("we'll take care of the execution afterwards"). The random pick was made (seed `1793377315`): **V04**, **I08** and **V01**. Those three are the suggested first trial. Their throwaway worktrees were created, then removed unused.
+- **Spec execution by fresh agents: no trial recorded.** The audit's brief was "we'll take care of the execution afterwards"; the random pick (seed `1793377315`) was **V04**, **I08** and **V01**. V04 has since shipped through the normal workflow, not as a recorded blind trial, so I08 and V01 are the remaining suggested trial. Which specs have shipped is in [Progress](#progress).
 - **Static check of all 28 specs, done.** Every repository path a spec names exists, except the 15 new files the specs themselves create. Every type, function and property a spec names exists in the code, unless the spec defines it, it is an accessibility role, or it is an Apple API.
 - **Verified by experiment while writing:**
   - I07's Tab and ⇧Tab handler (a scratch SwiftUI app; ⇧Tab arrives as U+0019);
@@ -329,7 +340,7 @@ These were reviewed and deliberately left alone. Most are already Apple-like, or
   - I03's memory-refusal strings, read from upstream mlx-serve at the pinned tag `v26.10.3` (`src/server.zig`).
 - **Unverified assumptions inside specs, each with an explicit check or fallback:**
   - `toolbarTitleMenu` rendering on macOS (S04 step 4 gives the fallback);
-  - the V04 root cause (inferred from code; its acceptance check tests the outcome, not the cause);
+  - ~~the V04 root cause~~ (resolved: traced with temporary logging when V04 shipped; the spec's Evidence records the real cause, which was not the inferred one);
   - `@Entry` on `FocusedValues` (S05, standard SwiftUI).
 
 ## 13. Smoke contract every spec must keep

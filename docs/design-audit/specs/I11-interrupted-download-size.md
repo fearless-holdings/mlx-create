@@ -87,3 +87,7 @@ Standard checks, all must pass:
 4. `xcodegen generate && xcodebuild -project MLXCreate.xcodeproj -scheme MLXCreate -configuration Debug -derivedDataPath build build` prints `** BUILD SUCCEEDED **`.
 
 Gate for the reported figure: `Tests/MCModelsTests/InstallStagingSizeTests.swift`. The sparse 64 MiB partial with 1 MiB written must report at least 1 MiB and under 8 MiB, which the former logical-size sum failed at 64 MiB; a fully written few-KiB file must report exactly its logical size, and an empty or missing directory must report 0. It needs no network and no real weights, so the optional live check is dropped: the old one pulled real weights and had to ask the user first. The test relies on the temp volume being APFS, so the truncated file is sparse; if a runner reports the logical size, point the test at a directory on an APFS volume rather than weakening the assertion.
+
+## Resolution
+
+Done. PR [#25](https://github.com/fearless-holdings/mlx-create/pull/25), commit `7c5761c`. Edit steps describe the as-built change.
