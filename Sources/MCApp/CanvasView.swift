@@ -44,8 +44,9 @@ struct CanvasView: View {
     }
 }
 
-/// The canvas image scaled to fit, with the failure card and the running generation's step bar stacked over its bottom
-/// edge in one overlay, so a failure in a batch never covers the next job's progress (I03).
+/// The canvas image scaled to fit, with the failure card and the running generation's step bar stacked over the image's
+/// bottom edge in one overlay, so a failure in a batch never covers the next job's progress (I03) and neither covers the
+/// image bar below it (S06). With no image the stack is centred on the canvas instead.
 private struct ContentCanvas: View {
     let model: AppModel
 
@@ -54,6 +55,9 @@ private struct ContentCanvas: View {
             if let image = model.canvasImage {
                 SelectedImageView(model: model, image: image)
                     .id(image.id)
+                    .overlay(alignment: .bottom) {
+                        CanvasStatusStack(model: model)
+                    }
                 CanvasImageBar(model: model, image: image)
             } else if model.selectedFailedJob == nil, model.isStartingJob {
                 VStack(spacing: 8) {
@@ -69,8 +73,10 @@ private struct ContentCanvas: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .overlay(alignment: model.canvasImage == nil ? .center : .bottom) {
-            CanvasStatusStack(model: model)
+        .overlay(alignment: .center) {
+            if model.canvasImage == nil {
+                CanvasStatusStack(model: model)
+            }
         }
     }
 }
