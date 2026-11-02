@@ -52,6 +52,7 @@ Spec: `docs/design-audit/specs/I03-out-of-memory-recovery.md`. Depends on U2.
   - The same body on the image route is still `.badRequest`.
   - A followed job that fails takes the canvas.
   - Retry re-follows the job.
+  - `renderTheCardForReview` renders the card in light and dark to `/tmp/I03_card_light.png` and `/tmp/I03_card_dark.png`, with the whole message visible (no live out-of-memory run is needed).
 
 ### U4. S06: canvas image bar (M, separate PR)
 

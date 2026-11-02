@@ -60,6 +60,8 @@ extension AppModel {
     public func retry(_ jobID: UUID) async {
         do {
             try await queue.retry(jobID)
+            // The retried job's images take the canvas again (I03, I02).
+            canvasFollowedJobs.insert(jobID)
         } catch {
             lastError = message(for: error)
         }

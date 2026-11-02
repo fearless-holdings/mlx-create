@@ -44,7 +44,8 @@ struct CanvasView: View {
     }
 }
 
-/// The canvas image scaled to fit, with the running generation's step bar laid over its bottom edge.
+/// The canvas image scaled to fit, with the failure card and the running generation's step bar stacked over its bottom
+/// edge in one overlay, so a failure in a batch never covers the next job's progress (I03).
 private struct ContentCanvas: View {
     let model: AppModel
 
@@ -53,27 +54,13 @@ private struct ContentCanvas: View {
             if let image = model.canvasImage {
                 SelectedImageView(model: model, image: image)
                     .id(image.id)
-                    .overlay(alignment: .bottom) {
-                        if let progress = model.runningProgress {
-                            StepProgressView(progress: progress)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 8)
-                                .frame(maxWidth: 420)
-                                .background(.regularMaterial, in: Capsule())
-                                .padding(.bottom, 12)
-                        }
-                    }
-            } else if let progress = model.runningProgress {
-                StepProgressView(progress: progress)
-                    .frame(maxWidth: 420)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if model.isStartingJob {
+            } else if model.selectedFailedJob == nil, model.isStartingJob {
                 VStack(spacing: 8) {
                     ProgressView().controlSize(.small)
                     Text("Starting…").font(.callout)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
+            } else if model.selectedFailedJob == nil {
                 Text("Select an image in the gallery, or generate one.")
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -81,6 +68,72 @@ private struct ContentCanvas: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay(alignment: model.canvasImage == nil ? .center : .bottom) {
+            CanvasStatusStack(model: model)
+        }
+    }
+}
+
+/// The failure card above the running generation's step bar. One overlay for both, so the two are always both readable.
+private struct CanvasStatusStack: View {
+    let model: AppModel
+
+    var body: some View {
+        VStack(spacing: 12) {
+            if let job = model.selectedFailedJob {
+                FailureCard(model: model, job: job)
+                    .padding(16)
+            }
+            if let progress = model.runningProgress {
+                StepProgressView(progress: progress)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: 420)
+                    .background(.regularMaterial, in: Capsule())
+                    .padding(.bottom, 12)
+            }
+        }
+    }
+}
+
+/// A failed job's reason and recovery, on the canvas (I03). Internal, not private, so a test can render it.
+struct FailureCard: View {
+    let model: AppModel
+    let job: JobItem
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.title2)
+                    .foregroundStyle(.red)
+                    .accessibilityHidden(true)
+                Text("This image couldn't be made")
+                    .font(.headline)
+            }
+            Text(job.failure?.message ?? "The image could not be generated.")
+                .font(.body)
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+            HStack(spacing: 8) {
+                Spacer(minLength: 0)
+                Button("Dismiss") {
+                    model.selection = model.canvasFallbackImageID
+                }
+                .buttonStyle(.bordered)
+                if job.canRetry {
+                    Button("Try Again") {
+                        Task { await model.retry(job.id) }
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: 460, alignment: .leading)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("This image couldn't be made")
     }
 }
 

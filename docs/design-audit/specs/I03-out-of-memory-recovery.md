@@ -137,9 +137,20 @@ See Evidence. The user has to notice a small cell, read truncated 10 pt text, kn
    }
    ```
 
-   In `ContentCanvas.body`, wrap the outer `VStack` with `.overlay(alignment: model.canvasImage == nil ? .center : .bottom) { if let job = model.selectedFailedJob { FailureCard(model: model, job: job).padding(16) } }`. When `selectedFailedJob` is non-nil and `canvasImage` is nil, do not show the "Select an image…" text: add `&& model.selectedFailedJob == nil` to the branch that shows it.
-7. Tests in `Tests/MCAppTests/`, in a new `FailureCardTests.swift`:
-   - `anOutOfMemoryFailureTakesTheCanvasAndCanBeRetried`: use `AppHarness.make(script:)` with a script that answers generation 1 with `.init(status: 503, body: Data(#"{"error":{"type":"out_of_memory","message":"insufficient memory"}}"#.utf8), tail: nil)` and later generations with a normal image (copy `AppModelTests`' 200 reply). Generate, wait until `model.selectedFailedJob != nil`, and expect `canRetry`. Call `await model.retry(id)`, then wait until `model.selectedImage != nil`.
+   In `ContentCanvas.body`, remove the step bar's own `.overlay` on `SelectedImageView` and wrap the outer `VStack` in one overlay:
+
+   ```swift
+   .overlay(alignment: model.canvasImage == nil ? .center : .bottom) {
+       CanvasStatusStack(model: model)
+   }
+   ```
+
+   `CanvasStatusStack` is a `VStack(spacing: 12)` holding the failure card (`FailureCard(model: model, job: job).padding(16)`, when `selectedFailedJob` is non-nil) above the running generation's step bar (`StepProgressView(progress:)` with its capsule and `.padding(.bottom, 12)`, when `runningProgress` is non-nil). One overlay for both, card above bar: two independent `.bottom` overlays would let the card cover the next job's progress when one job of a batch fails while the next runs. The step bar leaves the base `VStack` for that same overlay, so it renders in every case, and the canvas centres the card and the bar when there is no image.
+
+   When `selectedFailedJob` is non-nil and `canvasImage` is nil, the card is the canvas content: add `&& model.selectedFailedJob == nil` to the branches that show the "Select an image in the gallery, or generate one." text and the "Starting…" spinner.
+7. Tests in `Tests/MCAppTests/`, in a new `FailureCardTests.swift`. All three share a helper that makes a harness whose script answers generation 1 with `.init(status: 503, body: Data(#"{"error":{"type":"out_of_memory","message":"insufficient memory"}}"#.utf8), tail: nil)` and later generations with a normal image (copy `AppModelTests`' 200 reply), generates, and waits until `model.selectedFailedJob` is that job:
+   - `anOutOfMemoryFailureTakesTheCanvasAndCanBeRetried`: the failure takes the canvas as a `failed` job with `canRetry`. Call `await model.retry(id)`, then wait until `model.selectedImage != nil`.
+   - `retryingAFailedJobFollowsItAgain`: the failure took the job out of `canvasFollowedJobs`; `retry` puts it back, and its image then takes the canvas.
    - `OutOfMemoryAgreementTests` and `OutOfMemoryCopyTests` compare against the constant, so they need no edit. Run them.
 8. Format the touched files.
 

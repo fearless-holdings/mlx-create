@@ -76,6 +76,11 @@ extension AppModel {
                 guard collectionID == currentCollection.id else { return }
                 guard revision == galleryRevision else { continue }
                 queueJobs = items
+                // A followed job that failed takes the canvas, so the failure shows where the user is looking (I03).
+                if let failed = items.first(where: { $0.status == .failed && canvasFollowedJobs.contains($0.id) }) {
+                    canvasFollowedJobs.remove(failed.id)
+                    selection = failed.id
+                }
                 queueHeader = QueuePresentation.header(
                     isRunning: snapshot.running != nil, pauseRequested: snapshot.isPauseRequested,
                     isCalibrating: isCalibrating)

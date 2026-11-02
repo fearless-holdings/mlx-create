@@ -36,6 +36,11 @@ extension AppModel {
         return galleryImages.first { $0.id == canvasFallbackImageID }
     }
 
+    /// The failed job the canvas is showing, if the selection is one (I03).
+    var selectedFailedJob: JobItem? {
+        queueJobs.first { $0.id == selection && $0.status == .failed }
+    }
+
     /// A job is under way but has sent no step yet. A paused or held queue says so in its own header instead (I02), so the
     /// canvas keeps what it has rather than announcing a start that will not happen.
     var isStartingJob: Bool {
