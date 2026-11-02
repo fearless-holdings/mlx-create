@@ -285,7 +285,7 @@ public actor ModelDownloader {
 public struct StagedInstall: Sendable, Equatable {
     public let plan: InstallPlan
     public let directory: URL
-    /// Bytes currently held by the staging folder, partials and sidecars included.
+    /// Bytes that have actually arrived in the staging folder (allocation capped at file size), sidecars included.
     public let bytesOnDisk: Int64
 
     public init(plan: InstallPlan, directory: URL, bytesOnDisk: Int64) {
