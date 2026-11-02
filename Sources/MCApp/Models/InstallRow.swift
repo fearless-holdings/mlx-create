@@ -71,7 +71,7 @@ struct InstallRow: View {
 
     private func facts(for model: CatalogModel) -> String {
         let download = model.downloadBytes.formatted(.byteCount(style: .file))
-        let ram = String(format: "%.1f", model.ramGB)
+        let ram = model.ramGB.formatted(.number.precision(.fractionLength(1)))
         return "\(model.quantization) · \(download) download · about \(ram) GB RAM · \(model.license.name)"
     }
 
