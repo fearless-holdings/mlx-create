@@ -518,6 +518,13 @@ private func writeTurboIndex(under weightsRoot: URL) throws {
         })
     }
 
+    /// Waits until the engine has been asked for `count` images, so a held reply exists for `finishHeld` to release.
+    private static func engineHasBeenAskedForImages(_ count: Int, _ harness: AppHarness) async throws {
+        try await eventually {
+            EngineStubProtocol.requests(harness.endpoint).filter { $0.path == "v1/images/generations" }.count >= count
+        }
+    }
+
     @Test func theCanvasKeepsThePreviousImageWhileTheNextJobRuns() async throws {
         let harness = try await Self.heldAfterTheFirstImage()
         let model = harness.model
@@ -572,6 +579,7 @@ private func writeTurboIndex(under weightsRoot: URL) throws {
         model.selectGalleryImage(older.id, click: .plain)
         #expect(model.selection == older.id)
 
+        try await Self.engineHasBeenAskedForImages(2, harness)
         EngineStubProtocol.finishHeld(harness.endpoint)
         try await eventually { imageCount(model) == 3 }
         #expect(model.selection == older.id)
@@ -596,6 +604,7 @@ private func writeTurboIndex(under weightsRoot: URL) throws {
         model.selectGalleryImage(older.id, click: .toggle)
         #expect(model.selection == firstID)
 
+        try await Self.engineHasBeenAskedForImages(2, harness)
         EngineStubProtocol.finishHeld(harness.endpoint)
         try await eventually { imageCount(model) == 3 }
         #expect(model.selection == firstID)
