@@ -18,7 +18,16 @@ struct EmptyModelsView: View {
             Text("mlx-create makes images on this Mac. It needs one image model first.")
                 .font(.body)
                 .multilineTextAlignment(.center)
-            if let recommended = model.browser.recommendedRow {
+            if let installing = model.browser.installingRow {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Downloading \(installing.title)")
+                        .font(.headline)
+                    InstallRow(row: installing, browser: model.browser)
+                }
+                .padding(16)
+                .frame(maxWidth: 520)
+                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
+            } else if let recommended = model.browser.recommendedRow {
                 RecommendedInstallCard(row: recommended, browser: model.browser)
                 Button("Choose a Different Model…") {
                     model.openBrowser()
