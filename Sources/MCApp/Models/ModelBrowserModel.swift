@@ -91,10 +91,10 @@ struct PendingLicense: Equatable {
 @Observable
 final class LicensePrompt {
     private(set) var pending: PendingLicense?
-    /// The checkbox on the license sheet.
+    /// Set when the user chooses Accept and Download on the license sheet.
     var accepted = false
 
-    /// Whether Install can be confirmed: a license is pending and its checkbox is set.
+    /// Whether the install can be confirmed: a license is pending and has been accepted.
     var canConfirm: Bool { pending != nil && accepted }
 
     func present(_ license: PendingLicense) {
@@ -134,6 +134,9 @@ final class ModelBrowserModel {
     var estimatesRefreshPending = false
 
     private(set) var active: ModelInstaller.Snapshot.Active?
+    /// Recent byte counts of the active download, for its time left.
+    private(set) var rate = InstallRateEstimator()
+    private var rateModelID: String?
     private(set) var interrupted: [StagedInstall] = []
     private(set) var statuses: [String: ModelInstallStatus] = [:]
     private(set) var localFolders: [String] = []
@@ -222,6 +225,19 @@ final class ModelBrowserModel {
         rows.first { $0.isRecommended }
     }
 
+    /// The row being installed now, if any.
+    var installingRow: ModelBrowserRow? {
+        rows.first { if case .installing = $0.state { true } else { false } }
+    }
+
+    /// "About 4 min left" for the active download, or nil while the rate is unknown or the phase is not downloading.
+    func remainingText(for modelID: String) -> String? {
+        guard let active, active.modelID == modelID, active.event.phase == .downloading,
+            let seconds = rate.secondsLeft(total: active.event.bytesTotal)
+        else { return nil }
+        return InstallRateEstimator.text(secondsLeft: seconds)
+    }
+
     private var recommendedModel: CatalogModel? {
         guard let catalog, installs != nil else { return nil }
         return Recommender.pick(from: catalog, usableGB: workingSetGB) { state(for: $0).1 != nil }
@@ -307,7 +323,7 @@ final class ModelBrowserModel {
         return PendingLicense(model: model, content: .init(model.license), notices: notices)
     }
 
-    /// Confirm on the license sheet. Does nothing until the checkbox is set; then starts the install once.
+    /// Confirm on the license sheet. Does nothing until the license is accepted; then starts the install once.
     func confirmLicense() {
         guard license.canConfirm, let pending = license.pending else { return }
         license.dismiss()
@@ -346,6 +362,16 @@ final class ModelBrowserModel {
 
     private func apply(_ snapshot: ModelInstaller.Snapshot) {
         active = snapshot.active
+        if let active = snapshot.active {
+            if rateModelID != active.modelID {
+                rate = InstallRateEstimator()
+                rateModelID = active.modelID
+            }
+            rate.record(bytes: active.event.bytesDone, at: Date())
+        } else {
+            rate = InstallRateEstimator()
+            rateModelID = nil
+        }
         interrupted = snapshot.interrupted
     }
 

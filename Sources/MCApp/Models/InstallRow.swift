@@ -85,9 +85,14 @@ struct InstallRow: View {
         case .installing(let progress):
             VStack(alignment: .leading, spacing: 2) {
                 ProgressView(value: progress.fraction)
-                Text("\(Self.phaseLabel(progress.phase)): \(bytes(progress.bytesDone)) of \(bytes(progress.bytesTotal))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text(
+                    [
+                        "\(Self.phaseLabel(progress.phase)): \(bytes(progress.bytesDone)) of \(bytes(progress.bytesTotal))",
+                        browser.remainingText(for: row.id),
+                    ].compactMap { $0 }.joined(separator: " · ")
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
         case .installed:
             Label("Installed", systemImage: "checkmark.circle")

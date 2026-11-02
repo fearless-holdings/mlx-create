@@ -99,6 +99,22 @@ struct ModelChip: View {
                 }
             }
             Divider().padding(.vertical, 4)
+            if let installing = model.browser.installingRow, case .installing(let progress) = installing.state {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(
+                        [
+                            "Downloading \(installing.title) · \(Int(progress.fraction * 100))%",
+                            model.browser.remainingText(for: installing.id),
+                        ].compactMap { $0 }.joined(separator: " · ")
+                    )
+                    .font(.callout)
+                    ProgressView(value: progress.fraction)
+                        .frame(width: 220)
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 4)
+                .accessibilityElement(children: .combine)
+            }
             Button("Browse models…") {
                 isOpen = false
                 model.openBrowser()

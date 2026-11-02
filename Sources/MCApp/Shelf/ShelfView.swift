@@ -104,7 +104,6 @@ private struct ShelfRowView: View {
 private struct ShelfLicenseSheet: View {
     let model: AppModel
     let entry: LoRAShelfEntry
-    @State private var accepted = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -115,14 +114,16 @@ private struct ShelfLicenseSheet: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .frame(minHeight: 120, maxHeight: 280)
-            Toggle("I have read and accept this license", isOn: $accepted)
+            Text("By choosing Accept and Download you accept this license.")
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
             HStack {
                 Spacer()
                 Button("Cancel") { model.shelf.dismissPending() }
                     .keyboardShortcut(.cancelAction)
-                Button("Download and add") { Task { await model.shelf.acceptPending() } }
+                Button("Accept and Download") { Task { await model.shelf.acceptPending() } }
                     .keyboardShortcut(.defaultAction)
-                    .disabled(!accepted)
+                    .buttonStyle(.borderedProminent)
             }
         }
         .padding(20)

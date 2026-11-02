@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// The license a model needs accepted before it downloads (R3, KTD10). Shows the catalog's license fields, and keeps
-/// Install disabled until the acceptance checkbox is set.
+/// The license a model needs accepted before it downloads (R3, KTD10). Shows the catalog's license fields; Accept and
+/// Download records the acceptance and starts the install.
 struct LicenseSheet: View {
     let browser: ModelBrowserModel
     @Bindable var license: LicensePrompt
@@ -11,7 +11,7 @@ struct LicenseSheet: View {
         VStack(alignment: .leading, spacing: 14) {
             Text(pending.model.name)
                 .font(.title2.bold())
-            Text("\(pending.content.licenseName), version \(pending.content.version)")
+            Text(Self.licenseTitle(name: pending.content.licenseName, version: pending.content.version))
                 .font(.callout.bold())
             Label(
                 pending.content.commercialUse
@@ -34,26 +34,35 @@ struct LicenseSheet: View {
             if !pending.notices.isEmpty {
                 notices
             }
-            Toggle(
+            Text(
                 pending.notices.isEmpty
-                    ? "I have read and accept the \(pending.content.licenseName)."
-                    : "I have read and accept the \(pending.content.licenseName) and the notices above.",
-                isOn: $license.accepted)
+                    ? "By choosing Accept and Download you accept the \(pending.content.licenseName)."
+                    : "By choosing Accept and Download you accept the \(pending.content.licenseName) and the notices above."
+            )
+            .font(.callout)
+            .fixedSize(horizontal: false, vertical: true)
             HStack {
                 Spacer()
                 Button("Cancel") {
                     browser.dismissLicense()
                 }
                 .keyboardShortcut(.cancelAction)
-                Button("Install") {
+                Button("Accept and Download") {
+                    license.accepted = true
                     browser.confirmLicense()
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(!license.canConfirm)
+                .buttonStyle(.borderedProminent)
             }
         }
         .padding(24)
         .frame(width: 500)
+    }
+
+    /// The license name with its version. A version that starts with a digit reads as "version 5.0"; a release-date
+    /// version reads in parentheses.
+    static func licenseTitle(name: String, version: String) -> String {
+        version.first?.isNumber == true ? "\(name), version \(version)" : "\(name) (\(version))"
     }
 
     /// The measures mlx-create takes for this model's family, with the license of each file it uses (D45). This screen and

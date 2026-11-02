@@ -155,3 +155,7 @@ Screenshot and accessibility checks, with `docs/design-audit/capture-kit.md`, an
 8. Pressing Return with the window focused opens the license sheet. Check: `osascript -e 'tell application "System Events" to key code 36'`, then `ax dump` shows an `AXSheet` whose text includes "License".
 
 No XCUITest: D50 keeps the first-launch state out of the smoke suite.
+
+## Resolution
+
+Done on branch `feat/audit-first-run-path`, commit `c29cd21` (PR pending). The edit steps describe the as-built change. Exercised: `swift build`, `swift test`, `swift format lint --strict`, the Debug `xcodebuild`, GUI smoke (exit 0), and acceptance checks 5 to 8 on an empty home. `ax dump` shows one `Download…` button and one `Choose a Different Model…` link, no "prompt enhancer" text, and the Download button frame inside the window. Return opens the licence sheet. A vision-agent read of `S01_small_light.png` confirmed one accent-filled control (`#3478F6`) and no shippingbox. `S01_small_dark.png` confirms layout and legibility, but the capture window was not key, so the accent fill itself is only verified in light mode and on the dark licence sheet.
