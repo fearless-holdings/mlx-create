@@ -9,40 +9,28 @@ struct EmptyModelsView: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            Image(systemName: "shippingbox")
-                .font(.system(size: 40))
+            Image(systemName: "arrow.down.circle")
+                .font(.system(size: 44))
                 .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
-            Text("No image models installed")
-                .font(.title3.bold())
-            Text("Browse the models that fit this Mac. Each one asks you to accept its license before it downloads.")
-                .font(.callout)
+            Text("Download a model to start")
+                .font(.title2.bold())
+            Text("mlx-create makes images on this Mac. It needs one image model first.")
+                .font(.body)
                 .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
             if let recommended = model.browser.recommendedRow {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Recommended for this Mac")
-                        .font(.caption.bold())
-                        .foregroundStyle(.secondary)
-                    InstallRow(row: recommended, browser: model.browser)
+                RecommendedInstallCard(row: recommended, browser: model.browser)
+                Button("Choose a Different Model…") {
+                    model.openBrowser()
                 }
-                .padding(12)
-                .frame(maxWidth: 520)
-                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
-            }
-            Button("Browse models") {
-                model.openBrowser()
-            }
-            .controlSize(.large)
-            .keyboardShortcut(model.browser.recommendedRow == nil ? .defaultAction : nil)
-            if EnhancerOffer.isOffered(model.enhancer) {
-                Text("Optional: a prompt enhancer rewrites prompts for the model you pick. It downloads separately.")
-                    .font(.callout)
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.secondary)
-                Button("Get the prompt enhancer") {
-                    model.isEnhancerInstallPresented = true
+                .buttonStyle(.link)
+            } else {
+                Button("Browse Models…") {
+                    model.openBrowser()
                 }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .keyboardShortcut(.defaultAction)
             }
         }
         .padding(24)
@@ -68,5 +56,42 @@ struct EmptyModelsView: View {
             set: { presented in
                 if !presented { model.license.dismiss() }
             })
+    }
+}
+
+/// The recommended model with its one action (D42). A row that is installing, interrupted or failed falls back to
+/// `InstallRow`, which owns progress, Cancel, Resume and Retry.
+private struct RecommendedInstallCard: View {
+    let row: ModelBrowserRow
+    let browser: ModelBrowserModel
+
+    var body: some View {
+        Group {
+            if row.action == .install, let catalogModel = row.model {
+                HStack(alignment: .center, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(row.title)
+                            .font(.headline)
+                        Text(
+                            "Recommended for this Mac · \(catalogModel.downloadBytes.formatted(.byteCount(style: .file))) download"
+                        )
+                        .font(.callout)
+                    }
+                    Spacer(minLength: 12)
+                    Button("Download…") {
+                        browser.beginInstall(row.id)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!row.canAct)
+                }
+            } else {
+                InstallRow(row: row, browser: browser)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: 520)
+        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
     }
 }
