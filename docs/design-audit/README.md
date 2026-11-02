@@ -6,7 +6,7 @@ The user's brief shaped the bar. They chose mlx-create over Draw Things because 
 
 ## Progress
 
-**5 of 28 done, 1 deferred, 2 blocked on an HLD decision, 20 open.** Last updated 2026-11-02. Findings, evidence and line references describe `633e737`; they are not rewritten as the code moves. Progress lives in two places only:
+**5 of 28 done, 4 implemented on a branch and awaiting their GUI acceptance checks, 1 deferred, 2 blocked on an HLD decision, 16 open.** Last updated 2026-11-02. Findings, evidence and line references describe `633e737`; they are not rewritten as the code moves. Progress lives in two places only:
 
 - the **Status** column in [§2](#2-all-findings), which is the tracker;
 - a **Resolution** section at the end of a spec once it ships: the PR and commits, where the result differs from the spec, and what was and was not exercised.
@@ -52,7 +52,7 @@ The order is STRUCTURE, then INTERACTION, then VISUAL, as requested. Severity fo
 
 | ID | Status | Title | Tag | Sev. | Frequency | Task | Size | Depends on | HLD change first? |
 |---|---|---|---|---|---|---|---|---|---|
-| [S01](specs/S01-first-run-single-primary-action.md) | open | First launch: one primary action | STRUCTURE | 4 | First minute, every user | a | S | — | No |
+| [S01](specs/S01-first-run-single-primary-action.md) | in progress (branch `feat/audit-first-run-path`, `c29cd21`; GUI checks pending) | First launch: one primary action | STRUCTURE | 4 | First minute, every user | a | S | — | No |
 | [S02](specs/S02-composer-progressive-disclosure.md) | open | Composer: rarely used settings behind "More options" | STRUCTURE | 3 | Every session | a, b | M | — | No (stays inline, D33) |
 | [S03](specs/S03-model-chip-in-toolbar.md) | open | Model chip in the toolbar, exact model name | STRUCTURE | 2 | Every session | a, b | S | — | No (follows §10) |
 | [S04](specs/S04-collection-as-window-title.md) | open | The window title is the collection, with its menu | STRUCTURE | 2 | Every switch | f | S | — | No |
@@ -61,7 +61,7 @@ The order is STRUCTURE, then INTERACTION, then VISUAL, as requested. Severity fo
 | [S07](specs/S07-lora-sheet-entry-and-order.md) | open | LoRAs: one entry point; opens on the curated list | STRUCTURE | 3 | Every LoRA add | d | S | — | No (wording only) |
 | [S08](specs/S08-civitai-download-adds-to-stack.md) | blocked (needs the D34 decision) | A Civitai download goes on the stack | STRUCTURE | 3 | Every Civitai LoRA | d | M | S07 | **Yes: D34 amendment** |
 | [S09](specs/S09-gallery-mode-decision.md) | blocked (needs the D33 decision) | Gallery mode: decide D33's open question | STRUCTURE | 2 | Finding old images | c | L | S05, I08 | **Yes: resolves D33/§10 open question** |
-| [I01](specs/I01-install-progress-visible.md) | open | Download progress and time left in the main window | INTERACTION | 4 | Every download | a | M | S01 | No |
+| [I01](specs/I01-install-progress-visible.md) | in progress (branch `feat/audit-first-run-path`, `8ed5201`; GUI checks pending) | Download progress and time left in the main window | INTERACTION | 4 | Every download | a | M | S01 | No |
 | [I02](specs/I02-canvas-follows-generation.md) | open | Canvas keeps the last image; shows every new one | INTERACTION | 3 | Every generation | a, b | M | — | No |
 | [I03](specs/I03-out-of-memory-recovery.md) | open | Out of memory: failure card with Try Again; right copy | INTERACTION | 4 | When memory is short | e | M | I02 | No |
 | [I04](specs/I04-lora-rejection-recovery.md) | open | LoRA rejected: no internal ids; one-click fix | INTERACTION | 3 | Rare | e | S | I03 | No |
@@ -70,9 +70,9 @@ The order is STRUCTURE, then INTERACTION, then VISUAL, as requested. Severity fo
 | [I07](specs/I07-prompt-tab-key-trap.md) | done ([#25](https://github.com/fearless-holdings/mlx-create/pull/25)) | Prompt: Tab moves focus (keyboard trap) | INTERACTION | 3 | Every keyboard user | all | S | — | No |
 | [I08](specs/I08-gallery-keyboard-and-labels.md) | open | Gallery arrow keys; distinct tile labels | INTERACTION | 2 | Batch review | b, c | S | — | No |
 | [I09](specs/I09-enhance-card-actions-and-provenance.md) | open | Enhance: clear labels, Restore, no stale provenance | INTERACTION | 2 | Every Enhance | b | S | — | No (§8.8 wording) |
-| [I10](specs/I10-license-sheet-single-action.md) | open | Licence sheets: one "Accept and Download" | INTERACTION | 2 | Every download | a, d | S | — | No (see spec on the legal read) |
+| [I10](specs/I10-license-sheet-single-action.md) | in progress (branch `feat/audit-first-run-path`, `9903a19`; GUI checks pending) | Licence sheets: one "Accept and Download" | INTERACTION | 2 | Every download | a, d | S | — | No (see spec on the legal read) |
 | [I11](specs/I11-interrupted-download-size.md) | done ([#25](https://github.com/fearless-holdings/mlx-create/pull/25)) | Interrupted download reports real bytes | INTERACTION | 2 | Cancelled downloads | a | S | — | No |
-| [I12](specs/I12-generate-disabled-reason.md) | open | Generate says why it is disabled | INTERACTION | 2 | First launch, empty prompt | a | S | (I01) | No |
+| [I12](specs/I12-generate-disabled-reason.md) | in progress (branch `feat/audit-first-run-path`, `adc7695`; GUI checks pending) | Generate says why it is disabled | INTERACTION | 2 | First launch, empty prompt | a | S | (I01) | No |
 | [I13](specs/I13-empty-state-copy.md) | done ([#25](https://github.com/fearless-holdings/mlx-create/pull/25)) | Empty states that match the state | INTERACTION | 1 | First run | a, f | S | — | No |
 | [V01](specs/V01-design-tokens.md) | open | One design-token file (with inventory and migration list) | VISUAL | 2 | Every screen | all | M | see §3 | No |
 | [V02](specs/V02-text-contrast-and-status-colour.md) | open | Status and error text ≥ 4.5:1; colour on symbols only | VISUAL | 2 | Every error | e, d | M | V01 | No |

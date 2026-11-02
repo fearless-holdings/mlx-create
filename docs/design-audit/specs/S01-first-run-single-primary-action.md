@@ -155,3 +155,7 @@ Screenshot and accessibility checks, with `docs/design-audit/capture-kit.md`, an
 8. Pressing Return with the window focused opens the license sheet. Check: `osascript -e 'tell application "System Events" to key code 36'`, then `ax dump` shows an `AXSheet` whose text includes "License".
 
 No XCUITest: D50 keeps the first-launch state out of the smoke suite.
+
+## Resolution
+
+Implemented on branch `feat/audit-first-run-path`, commit `c29cd21` (no PR yet). The edit steps describe the as-built change. Exercised: `swift build`, `swift test`, `swift format lint --strict`, and the Debug `xcodebuild`. Not exercised: acceptance checks 5 to 8 (ax dump, light and dark captures, Return opening the licence sheet). The built-in display was not active, so the capture kit could not run. Run those once on an empty home before the PR, then mark this finding done.

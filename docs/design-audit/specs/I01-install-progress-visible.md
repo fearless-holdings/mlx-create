@@ -175,3 +175,7 @@ With the capture kit and an empty home. This downloads real weights: **ask the u
 
 5. Start the install from the browser, wait 10 s, close the browser (Done). In `ax dump`, the canvas shows a static text starting "Downloading FLUX.2 klein 4B" and a static text containing "min left" or "Less than a minute left".
 6. Capture `I01_main_small_light.png` showing the bar in the main window, then cancel the install with the card's Cancel button and delete the throwaway home.
+
+## Resolution
+
+Implemented on branch `feat/audit-first-run-path`, commit `8ed5201` (no PR yet). Differs from the edit steps in one place: the model chip popover block sits after the existing `Divider()` before "Browse models…" instead of adding a second divider. Exercised: `swift build`, `swift test` (including `InstallRateEstimatorTests`), `swift format lint --strict`, and the Debug `xcodebuild`. Not exercised: acceptance checks 5 and 6. They download real weights, so they need your go-ahead, and the built-in display was not active either. Run them before the PR, then mark this finding done.

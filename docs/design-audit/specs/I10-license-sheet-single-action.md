@@ -86,3 +86,7 @@ With the capture kit and an empty home (no download is started):
 
 6. Open the model browser, press Install on Qwen-Image 2.1 Turbo. `ax dump` of the sheet shows no `AXCheckBox`, an enabled `AXButton` "Accept and Download", and a static text containing "(Release Date: September 20, 2026)". Press Cancel.
 7. Captures `I10_model_license_light.png` and `I10_model_license_dark.png` are attached to the PR.
+
+## Resolution
+
+Implemented on branch `feat/audit-first-run-path`, commit `9903a19` (no PR yet). The checkbox is gone from all three sheets. This takes the default in the HLD row: the release-prerequisite legal read (D26, D31) has not happened, and if it asks for a separate checkbox, revert this commit or keep only edit steps 3 and 4. The stale "checkbox" comments in `LicensePrompt` and `confirmLicense()` were corrected in the I01 commit `8ed5201`, because that commit already changes `ModelBrowserModel.swift`. Exercised: `swift build`, `swift test` (including `licenseTitleReadsNaturally`), `swift format lint --strict`, and the Debug `xcodebuild`. Not exercised: acceptance checks 6 and 7 (ax dump and captures of the licence sheet), because the built-in display was not active. Run them before the PR, then mark this finding done.

@@ -102,3 +102,7 @@ With the capture kit:
 6. Empty home: `ax dump` shows `AXStaticText` "Download a model to start" in the left panel's bottom row, and the Generate button's `help` equals it.
 7. One model, empty prompt: the text reads "Type a prompt to generate". After `ax setvalue … "a teapot"` it is gone, and the estimate or nothing shows instead.
 8. `contrast.py` on the reason text in light and dark captures: ≥ 4.5:1. Attach `I12_small_light.png` and `I12_small_dark.png`.
+
+## Resolution
+
+Implemented on branch `feat/audit-first-run-path`, commit `adc7695` (no PR yet). Differs from the edit steps in one place: `generateBlockReason` lives in `Sources/MCApp/AppModel+GenerateBlockReason.swift`, not in `AppModel.swift`, which was already at the file-size budget the pre-commit check enforces. `browser.installingRow` comes from the I01 commit `8ed5201`, which therefore precedes this one. Exercised: `swift build`, `swift test` (including `GenerateBlockReasonTests`), `swift format lint --strict`, and the Debug `xcodebuild`. Not exercised: GUI smoke (exit 2, NOT RUN: no built-in display) and acceptance checks 6 to 8 (ax dump, `contrast.py`, captures). Run them before the PR, then mark this finding done.
