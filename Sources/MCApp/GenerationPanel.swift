@@ -286,7 +286,12 @@ struct GenerationPanel: View {
                 .accessibilityLabel("Batch count")
                 .accessibilityValue("\(model.batchCount)")
 
-                if let estimate {
+                if let reason = model.generateBlockReason {
+                    Text(reason)
+                        .font(.callout)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else if let estimate {
                     Text(SpeedEstimate.scaled(estimate, by: model.batchCount).label)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -299,6 +304,8 @@ struct GenerationPanel: View {
                 .keyboardShortcut(.return, modifiers: .command)
                 .disabled(!model.canGenerate)
                 .buttonStyle(.borderedProminent)
+                .help(model.generateBlockReason ?? "Generate (⌘↩)")
+                .accessibilityHint(model.generateBlockReason ?? "")
             }
             .task(id: estimateTaskID) {
                 estimate = await model.composerEstimate()
