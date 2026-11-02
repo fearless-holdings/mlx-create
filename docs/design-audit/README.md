@@ -308,7 +308,7 @@ These were reviewed and deliberately left alone. Most are already Apple-like, or
 - **The LoRA "Wide range (−20 to 20)" toggle is an expert knob** (STRATEGY.md), but HLD §8.3 specifies it. It is only visible in an expanded row. Consider removing it; that needs an HLD §8.3 change.
 - **HLD §10 Onboarding** (hardware scan, starter set, analytics opt-in, first collection) is not a flow in the app. S01 covers the starter-set part only. Analytics waits on a vendor (§15).
 - **The empty-canvas enhancer offer** comes from plan items F2/R16. S01 removes it from that screen; update the enhancer plan if you accept S01.
-- **AGENTS.md** still says the vertical slice is on branch `feat/t2i-generation-core`; the work is on `main`.
+- ~~**AGENTS.md** still says the vertical slice is on branch `feat/t2i-generation-core`; the work is on `main`.~~ Fixed 2026-11-02.
 
 ## 11. Method, environment, and what was not done
 
