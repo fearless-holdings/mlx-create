@@ -172,3 +172,7 @@ With the capture kit, one model, one generated image selected, window at 1100×6
 8. The facts line contains `× ` and no "." or "," between digits: run `ax dump | grep "Seed "` and check the value matches the regex `^[0-9]+ × [0-9]+ · .+ · Seed [0-9]+$`.
 9. Press Export (`ax press <pid> "=Export"`): an `AXSheet` or a save panel window appears whose name field holds the image's base name. Press Escape to cancel.
 10. Captures `S06_small_light.png` and `S06_large_dark.png` are attached to the PR.
+
+## Resolution
+
+Done on branch `feat/audit-s06-canvas-image-bar`, commits `0ae64b8` (bar), `a1670d6` (status stack moved off the bar) and `e49fcc5` (test synchronisation). The bar binds to `canvasImage` (I02), not the selected gallery image, and its four buttons are disabled while a bulk gallery action runs. A GUI pass found the step bar overlapping the bar's prompt by 32 pt; `a1670d6` anchors the status stack to the image's bottom edge. Exercised: `swift test`, lint, the Debug `xcodebuild`, GUI smoke (`TEST SUCCEEDED`, one added canvas assertion in `GenerateFlow.swift`), and acceptance 7 and 8 plus captures (`screens/S06_small_light.png`, `screens/S06_large_dark.png`). The Export panel (acceptance 9) was not separately recorded.
