@@ -268,8 +268,7 @@ private func writeTurboIndex(under weightsRoot: URL) throws {
 
         harness.states.yield(.ready(harness.endpoint))
         try await eventually { try await harness.store.jobs(status: .done).count == 2 }
-        #expect(model.banner == nil)
-        #expect(model.queueHeader == .idle)
+        try await eventually { model.banner == nil && model.queueHeader == .idle }
     }
 
     @Test func cancellingShowsTheJobCancelledWithItsFinishedImagesRetained() async throws {
@@ -294,8 +293,7 @@ private func writeTurboIndex(under weightsRoot: URL) throws {
         try await eventually { jobItem(model, jobID)?.status == .cancelled }
         #expect(jobItem(model, jobID)?.savedCount == 1)
         #expect(imageCount(model) == 1)
-        #expect(model.runningProgress == nil)
-        #expect(model.queueHeader == .idle)
+        try await eventually { model.runningProgress == nil && model.queueHeader == .idle }
     }
 
     @Test func queueStripListsTheRunningJobThenQueuedJobsInOrderWithoutImages() async throws {

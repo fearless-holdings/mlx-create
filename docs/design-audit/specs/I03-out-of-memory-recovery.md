@@ -192,3 +192,7 @@ Screenshot check. A real OOM cannot be forced on demand, so the card is rendered
 
    Add `import AppKit` and `import SwiftUI` to the test file.
 8. Open `/tmp/I03_card_light.png` and `/tmp/I03_card_dark.png` and attach them to the PR. The whole message is visible (no ellipsis). `contrast.py` on a box around the message text gives ≥ 4.5:1 in both.
+
+## Resolution
+
+Done on branch `fix/audit-results-recovery-plan`, commits `c771aed` (engine mapping and copy) and `100a95a` (canvas failure card). The card and the step bar share one `CanvasStatusStack`, anchored to the image view (S06 commit `a1670d6` moved it there). Exercised: `EngineErrorMappingTests` and `FailureCardTests` (including `renderTheCardForReview`), `swift test`, lint, GUI smoke, and the light and dark card renders (`screens/I03_card_light.png`, `screens/I03_card_dark.png`) with contrast measured at or above 4.5:1. Not exercised: a live out-of-memory refusal from a real engine; the error text is matched on the engine's "GPU memory" wording, which is a string match and will need an update if upstream rewords it.

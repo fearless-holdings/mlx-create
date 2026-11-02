@@ -6,7 +6,7 @@ The user's brief shaped the bar. They chose mlx-create over Draw Things because 
 
 ## Progress
 
-**9 of 28 done, 1 deferred, 2 blocked on an HLD decision, 16 open.** Last updated 2026-11-02. Findings, evidence and line references describe `633e737`; they are not rewritten as the code moves. Progress lives in two places only:
+**9 of 28 done, 2 in progress, 1 deferred, 2 blocked on an HLD decision, 14 open.** Last updated 2026-11-02. Findings, evidence and line references describe `633e737`; they are not rewritten as the code moves. Progress lives in two places only:
 
 - the **Status** column in [§2](#2-all-findings), which is the tracker;
 - a **Resolution** section at the end of a spec once it ships: the PR and commits, where the result differs from the spec, and what was and was not exercised.
@@ -62,8 +62,8 @@ The order is STRUCTURE, then INTERACTION, then VISUAL, as requested. Severity fo
 | [S08](specs/S08-civitai-download-adds-to-stack.md) | blocked (needs the D34 decision) | A Civitai download goes on the stack | STRUCTURE | 3 | Every Civitai LoRA | d | M | S07 | **Yes: D34 amendment** |
 | [S09](specs/S09-gallery-mode-decision.md) | blocked (needs the D33 decision) | Gallery mode: decide D33's open question | STRUCTURE | 2 | Finding old images | c | L | S05, I08 | **Yes: resolves D33/§10 open question** |
 | [I01](specs/I01-install-progress-visible.md) | done ([#26](https://github.com/fearless-holdings/mlx-create/pull/26)) | Download progress and time left in the main window | INTERACTION | 4 | Every download | a | M | S01 | No |
-| [I02](specs/I02-canvas-follows-generation.md) | open | Canvas keeps the last image; shows every new one | INTERACTION | 3 | Every generation | a, b | M | — | No |
-| [I03](specs/I03-out-of-memory-recovery.md) | open | Out of memory: failure card with Try Again; right copy | INTERACTION | 4 | When memory is short | e | M | I02 | No |
+| [I02](specs/I02-canvas-follows-generation.md) | in progress (branch `fix/audit-results-recovery-plan`, PR pending) | Canvas keeps the last image; shows every new one | INTERACTION | 3 | Every generation | a, b | M | — | No |
+| [I03](specs/I03-out-of-memory-recovery.md) | in progress (branch `fix/audit-results-recovery-plan`, PR pending) | Out of memory: failure card with Try Again; right copy | INTERACTION | 4 | When memory is short | e | M | I02 | No |
 | [I04](specs/I04-lora-rejection-recovery.md) | open | LoRA rejected: no internal ids; one-click fix | INTERACTION | 3 | Rare | e | S | I03 | No |
 | [I05](specs/I05-queue-strip-legible-cells.md) | open | Queue cells you can tell apart; Clear | INTERACTION | 3 | Batches, failures | b, e | M | I02 | No |
 | [I06](specs/I06-engine-failure-banner.md) | deferred (acceptance needs a live engine kill) | Engine failure: one recovery action | INTERACTION | 2 | Rare | e | S | — | No |
