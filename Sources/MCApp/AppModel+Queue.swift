@@ -60,6 +60,9 @@ extension AppModel {
     public func retry(_ jobID: UUID) async {
         do {
             try await queue.retry(jobID)
+            // The job leaves the finished states now, not at the next reload that happens to see it queued: a retry that
+            // fails again before then must show its new failure, not stay hidden behind the old dismissal.
+            if dismissedJobIDs.contains(jobID) { dismissedJobIDs.remove(jobID) }
             // A queue read that began before the retry still holds the job as failed. Making it read again keeps that
             // stale snapshot from taking the canvas back to the old failure.
             galleryRevision += 1
@@ -81,7 +84,7 @@ extension AppModel {
 
     /// The failed and cancelled cells on screen, which Clear removes together.
     var finishedJobIDs: [UUID] {
-        queueJobs.filter { $0.status == .failed || $0.status == .cancelled }.map(\.id)
+        queueJobs.filter(\.isDismissible).map(\.id)
     }
 
     /// Opens the model browser sheet and refreshes its rows from the installer and the folders.

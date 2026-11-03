@@ -35,11 +35,15 @@ struct QueueHeaderView: View {
         HStack(spacing: 8) {
             switch model.queueHeader {
             case .idle:
-                if model.queueJobs.isEmpty {
+                switch QueuePresentation.idleSummary(model.queueJobs) {
+                case .empty:
                     Text("Queue empty")
                         .foregroundStyle(.secondary)
-                } else {
-                    Text(verbatim: "\(model.finishedJobIDs.count) finished")
+                case .finished(let count):
+                    Text(verbatim: "\(count) finished")
+                        .foregroundStyle(.secondary)
+                case .waiting(let count):
+                    Text(verbatim: "\(count) waiting")
                         .foregroundStyle(.secondary)
                 }
             case .running:
@@ -82,14 +86,12 @@ struct QueueHeaderView: View {
     }
 }
 
-/// A queue cell: its status in words, the prompt it will generate, and how far it has got. Context menu and VoiceOver
-/// actions offer Move Up, Move Down, Cancel, Retry and, once the job has finished, Remove from the queue; ⌥↑ and ⌥↓
-/// move the selected cell from the keyboard.
+/// A queue cell: its status in words, the prompt it will generate, and how far it has got. The context menu offers Move
+/// Up, Move Down, Retry and Cancel; once the job has finished, a corner button and a VoiceOver action also offer Remove
+/// from the queue. ⌥↑ and ⌥↓ move the selected cell from the keyboard.
 struct JobCell: View {
     let model: AppModel
     let job: JobItem
-
-    private var isFinished: Bool { job.status == .failed || job.status == .cancelled }
 
     var body: some View {
         let selected = model.selection == job.id
@@ -114,32 +116,7 @@ struct JobCell: View {
             )
         }
         .buttonStyle(.plain)
-        // A sibling of the button, not part of its label, so removing a cell does not select it first.
-        .overlay(alignment: .topTrailing) {
-            if isFinished {
-                Button {
-                    Task { await model.dismissJobs([job.id]) }
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.borderless)
-                .padding(4)
-                .help("Remove from the queue")
-                .accessibilityLabel("Remove from the queue")
-            }
-        }
-        .contextMenu {
-            Button("Move Up") { Task { await model.move(job.id, by: -1) } }
-                .disabled(!job.canMoveUp)
-            Button("Move Down") { Task { await model.move(job.id, by: 1) } }
-                .disabled(!job.canMoveDown)
-            Divider()
-            Button("Retry") { Task { await model.retry(job.id) } }
-                .disabled(!job.canRetry)
-            Button("Cancel", role: .destructive) { Task { await model.cancel(job.id) } }
-                .disabled(!job.canCancel)
-        }
+        // The cell reads as one element. This sits before the Remove overlay so that button stays an element of its own.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(job.promptSnippet), \(accessibleStatus)")
         .accessibilityAddTraits(selected ? .isSelected : [])
@@ -159,9 +136,37 @@ struct JobCell: View {
             guard job.canCancel else { return }
             Task { await model.cancel(job.id) }
         }
-        .accessibilityAction(named: "Remove from the queue") {
-            guard isFinished else { return }
-            Task { await model.dismissJobs([job.id]) }
+        .accessibilityActions {
+            if job.isDismissible {
+                Button("Remove from the queue") { Task { await model.dismissJobs([job.id]) } }
+            }
+        }
+        // A sibling of the button, not part of its label, so removing a cell does not select it first.
+        .overlay(alignment: .topTrailing) {
+            if job.isDismissible {
+                Button {
+                    Task { await model.dismissJobs([job.id]) }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                        .frame(width: 24, height: 24)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.borderless)
+                .help("Remove from the queue")
+                .accessibilityLabel("Remove from the queue")
+            }
+        }
+        .contextMenu {
+            Button("Move Up") { Task { await model.move(job.id, by: -1) } }
+                .disabled(!job.canMoveUp)
+            Button("Move Down") { Task { await model.move(job.id, by: 1) } }
+                .disabled(!job.canMoveDown)
+            Divider()
+            Button("Retry") { Task { await model.retry(job.id) } }
+                .disabled(!job.canRetry)
+            Button("Cancel", role: .destructive) { Task { await model.cancel(job.id) } }
+                .disabled(!job.canCancel)
         }
         .onKeyPress(phases: .down) { press in
             guard press.modifiers.contains(.option) else { return .ignored }

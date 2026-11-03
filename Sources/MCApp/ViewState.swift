@@ -94,6 +94,9 @@ public struct JobItem: Equatable, Sendable, Identifiable {
         self.loraIDs = loraIDs
         self.loraNames = loraNames
     }
+
+    /// A failed or cancelled job: its cell can be removed from the strip, and Clear removes it with the others.
+    public var isDismissible: Bool { status == .failed || status == .cancelled }
 }
 
 /// Queue header state (U8 step 4). `calibrating` is the on-device speed measurement (R8): no Pause or Resume, and no job runs.

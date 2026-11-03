@@ -200,12 +200,17 @@ import Testing
         try await eventually { model.selectedFailedJob?.id == failedID }
         let failed = try #require(model.selectedFailedJob)
         #expect(model.offersRemoveRejectedLoRAs(for: failed))
+        // A LoRA stacked after the failure was not part of the rejected request, so the fix must leave it alone.
+        let line = try await importLoRA(harness, .krea, name: "Line Art")
+        model.addToLoRAStack(id: line.id)
 
         // The engine's refusal does not say which LoRA it rejected, so every one the job carried leaves the stack.
         model.removeRejectedLoRAs(from: failed)
-        #expect(model.loraStack.isEmpty)
+        #expect(model.loraStack.map(\.id) == [line.id])
         #expect(model.loraNotice?.contains("\"Pixel Art\"") == true)
         #expect(model.loraNotice?.contains("\"Ink Wash\"") == true)
+        #expect(model.loraNotice?.contains("Line Art") != true)
+        #expect(model.selectedFailedJob == nil)
         #expect(model.canvasImage?.id == keptID)
     }
 

@@ -178,12 +178,15 @@ def restore_prefs(before, domain=PREFS_DOMAIN):
             command = ["defaults", "delete", domain, key]
         else:
             value = before[key]
-            flag = DEFAULTS_FLAGS.get(type(value))
-            if flag is None:
-                stuck.append(key)
-                continue
-            text = ("TRUE" if value else "FALSE") if isinstance(value, bool) else str(value)
-            command = ["defaults", "write", domain, key, flag, text]
+            if isinstance(value, list) and all(isinstance(item, str) for item in value):
+                command = ["defaults", "write", domain, key, "-array", *value]
+            else:
+                flag = DEFAULTS_FLAGS.get(type(value))
+                if flag is None:
+                    stuck.append(key)
+                    continue
+                text = ("TRUE" if value else "FALSE") if isinstance(value, bool) else str(value)
+                command = ["defaults", "write", domain, key, flag, text]
         if subprocess.run(command, capture_output=True).returncode == 0:
             restored.append(key)
         else:
@@ -526,15 +529,18 @@ def self_test():
         try:
             subprocess.run(["defaults", "write", domain, "lastUsedModelID", "-string", "Org/Name"], check=True)
             subprocess.run(["defaults", "write", domain, "queuePaused", "-bool", "TRUE"], check=True)
+            subprocess.run(["defaults", "write", domain, "dismissedQueueJobIDs", "-array", "id-1", "id-2"], check=True)
             prefs = real_prefs(domain)
             subprocess.run(["defaults", "write", domain, "lastUsedModelID", "-string", "Org/Other"], check=True)
             subprocess.run(["defaults", "delete", domain, "queuePaused"], check=True)
+            subprocess.run(["defaults", "write", domain, "dismissedQueueJobIDs", "-array"], check=True)
             subprocess.run(["defaults", "write", domain, "currentCollectionID", "-string", "ABC"], check=True)
             subprocess.run(["defaults", "write", domain, "NSWindow Frame x", "-string", "1 2 3 4"], check=True)
             restored, stuck = restore_prefs(prefs, domain)
             now = real_prefs(domain)
             check("preferences the app changed or added are restored", now.get("lastUsedModelID") == "Org/Name" and now.get("queuePaused") is True
-                  and "currentCollectionID" not in now and not stuck and len(restored) == 3)
+                  and "currentCollectionID" not in now and not stuck and len(restored) == 4)
+            check("a string-array preference the app emptied is restored", now.get("dismissedQueueJobIDs") == ["id-1", "id-2"])
             check("AppKit's own NS keys are left alone", now.get("NSWindow Frame x") == "1 2 3 4")
         finally:
             subprocess.run(["defaults", "delete", domain], capture_output=True)

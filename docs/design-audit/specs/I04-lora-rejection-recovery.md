@@ -74,7 +74,7 @@ No live screenshot: the engine rejection cannot be produced on demand with the i
 
 ## Resolution
 
-Done on branch `work/lora-rejection-i04` (uncommitted; the orchestrator commits). The four LoRA failure messages lost the raw engine model id; `modelID` stays a payload of `ExecutorError`'s three LoRA cases and is simply no longer read by `FailureMapping`. `JobItem` carries `loraIDs` and `loraNames`, filled by `placeholder(for:canMoveUp:canMoveDown:)` from `job.request.loras`, which holds only the user's LoRAs, so the copy and the notice can never name an always-on one. `FailureCard` offers **Remove LoRAs from Stack** (`.borderedProminent`) when the failure cannot be retried and at least one of the job's LoRAs is still on the composer stack; the action removes every LoRA the job carried, writes the stack notice and returns the canvas to the kept image.
+Done on branch `feat/queue-lora-recovery-i05-i04`. The four LoRA failure messages lost the raw engine model id; `modelID` stays a payload of `ExecutorError`'s three LoRA cases and is simply no longer read by `FailureMapping`. `JobItem` carries `loraIDs` and `loraNames`, filled by `placeholder(for:canMoveUp:canMoveDown:)` from `job.request.loras`, which holds only the user's LoRAs, so the copy and the notice can never name an always-on one. `FailureCard` offers **Remove LoRAs from Stack** (`.borderedProminent`) when the failure cannot be retried and at least one of the job's LoRAs is still on the composer stack; the action removes every LoRA the job carried, writes the stack notice and returns the canvas to the kept image. The removal test stacks a third LoRA after the failure and requires it to stay, and requires the failure card to be gone.
 
 Differs from the edit steps in four places:
 

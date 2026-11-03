@@ -140,6 +140,18 @@ import Testing
         await model.dismissJobs([job.id])
 
         #expect(model.selectedFailedJob == nil)
+        #expect(model.selection == kept.id)
         #expect(model.canvasImage?.id == kept.id)
+    }
+
+    @Test func theIdleHeaderReportsWhatIsOnTheStripNotZeroFinished() {
+        func cell(_ status: JobStatus) -> JobItem {
+            JobItem(id: UUID(), status: status, promptSnippet: "a teapot", savedCount: 0, batchCount: 1)
+        }
+        #expect(QueuePresentation.idleSummary([]) == .empty)
+        #expect(QueuePresentation.idleSummary([cell(.failed), cell(.cancelled)]) == .finished(2))
+        // A cell that has not finished is still waiting, so the header counts it instead of reporting zero finished.
+        #expect(QueuePresentation.idleSummary([cell(.queued), cell(.failed)]) == .waiting(1))
+        #expect(QueuePresentation.idleSummary([cell(.queued), cell(.paused)]) == .waiting(2))
     }
 }
