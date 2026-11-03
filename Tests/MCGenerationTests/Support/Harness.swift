@@ -210,9 +210,10 @@ struct Harness {
 
 /// Polls `condition` until it holds or the timeout passes.
 func eventually(timeout: Duration = .seconds(10), _ condition: () async throws -> Bool) async throws {
-    let deadline = ContinuousClock.now + timeout
+    // The suspending clock stops while the Mac sleeps, so a nap mid-run (DarkWake) does not use up the timeout.
+    let deadline = SuspendingClock.now + timeout
     while try await !condition() {
-        if ContinuousClock.now > deadline {
+        if SuspendingClock.now > deadline {
             Issue.record("condition not met before the timeout")
             return
         }

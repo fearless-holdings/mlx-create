@@ -67,7 +67,8 @@ enum SupervisorFixtures {
                 return nil
             }
             group.addTask {
-                try await Task.sleep(for: .seconds(seconds))
+                // On the suspending clock, so a sleep of the Mac mid-run does not count toward the timeout.
+                try await Task.sleep(for: .seconds(seconds), clock: .suspending)
                 return nil
             }
             let first = try await group.next() ?? nil
@@ -83,8 +84,8 @@ enum SupervisorFixtures {
     }
 
     static func waitForFile(_ url: URL, seconds: Double = 10) async throws {
-        let deadline = ContinuousClock.now + .seconds(seconds)
-        while !FileManager.default.fileExists(atPath: url.path), ContinuousClock.now < deadline {
+        let deadline = SuspendingClock.now + .seconds(seconds)
+        while !FileManager.default.fileExists(atPath: url.path), SuspendingClock.now < deadline {
             try await Task.sleep(for: .milliseconds(50))
         }
         try #require(FileManager.default.fileExists(atPath: url.path))

@@ -20,9 +20,10 @@ final class RangeServer: @unchecked Sendable {
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         try process.run()
-        let deadline = Date().addingTimeInterval(10)
+        // Not `Date()`: the wall clock jumps across a sleep, which failed this wait 0.3 s in. The suspending clock stops.
+        let deadline = SuspendingClock.now + .seconds(10)
         while !FileManager.default.fileExists(atPath: ready.path) {
-            try #require(Date() < deadline, "range server did not start")
+            try #require(SuspendingClock.now < deadline, "range server did not start")
             Thread.sleep(forTimeInterval: 0.02)
         }
         let text = try String(contentsOf: ready, encoding: .utf8)
