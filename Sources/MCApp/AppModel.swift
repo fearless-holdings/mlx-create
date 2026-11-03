@@ -90,10 +90,7 @@ public final class AppModel {
     }
 
     public var prompt = "" {
-        didSet {
-            // Emptying the prompt drops the provenance: a later image is not made from an enhancement (KTD7).
-            if prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { originalPrompt = nil }
-        }
+        didSet { promptDidChange() }
     }
     public var negativePrompt = ""
     /// The Enhance run in progress or the result card it left (U7). Nil when no card is up.
@@ -102,6 +99,8 @@ public final class AppModel {
     var enhanceTask: Task<Void, Never>?
     /// The prompt an accepted enhancement replaced (KTD7, R17). The next generation records it in the image's metadata.
     var originalPrompt: String?
+    /// The enhanced text the user used; the provenance holds while the prompt still derives from it.
+    var acceptedEnhancedPrompt: String?
     /// The memory tier the engine residency follows (KTD5). Below 24 GiB an Enhance unloads the image model.
     let memoryTier: MemoryTier
     public var size = ImageSize(width: 1024, height: 1024)

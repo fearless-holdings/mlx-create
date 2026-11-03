@@ -80,6 +80,29 @@ extension AppModel {
     /// U8 shows a one-time note (R14). Larger tiers keep both resident.
     public var enhanceWillReloadImageModel: Bool { memoryTier.maxResidentModels == 1 }
 
+    /// Drops the provenance when the prompt is emptied or no longer derives from the accepted enhancement: the prompt
+    /// and the accepted text share no word of four or more letters or digits.
+    func promptDidChange() {
+        if prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            originalPrompt = nil
+            acceptedEnhancedPrompt = nil
+        } else if originalPrompt != nil, let accepted = acceptedEnhancedPrompt,
+            Self.significantWords(prompt).isDisjoint(with: Self.significantWords(accepted))
+        {
+            originalPrompt = nil
+            acceptedEnhancedPrompt = nil
+        }
+    }
+
+    /// Lowercased words of four or more letters or digits: the content words two prompts must share to be related.
+    static func significantWords(_ text: String) -> Set<String> {
+        Set(
+            text.lowercased()
+                .split { !$0.isLetter && !$0.isNumber }
+                .map(String.init)
+                .filter { $0.count >= 4 })
+    }
+
     /// Starts an Enhance on the current prompt (R1, R2, R4). Regenerate is this same call once a card is up: it
     /// replaces the card. Validation runs first; the LoRA lookup awaits the store. The run then waits for the image in
     /// progress and streams ahead of queued jobs (KTD5).
@@ -135,10 +158,21 @@ extension AppModel {
     public func acceptEnhance() {
         guard case .ready(let result, stale: false) = enhanceState else { return }
         let replaced = prompt
+        // The provenance is set after the prompt: assigning the prompt runs the cleanup, which would otherwise clear a
+        // result that shares no four-letter word with the previous accepted text, and leave the original half set.
         prompt = result.prompt
-        if let negative = result.negativePrompt { negativePrompt = negative }
+        acceptedEnhancedPrompt = result.prompt
         originalPrompt = replaced
+        if let negative = result.negativePrompt { negativePrompt = negative }
         enhanceRun = nil
+    }
+
+    /// Puts the text an accepted enhancement replaced back into the prompt, and drops the provenance.
+    public func restoreOriginalPrompt() {
+        guard let original = originalPrompt else { return }
+        originalPrompt = nil
+        acceptedEnhancedPrompt = nil
+        prompt = original
     }
 
     /// Streams the run's request inside the executor's lease, then cleans the reply. Only the run still current writes
