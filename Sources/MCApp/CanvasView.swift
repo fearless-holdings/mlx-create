@@ -128,6 +128,12 @@ struct FailureCard: View {
                     model.dismissFailureCard()
                 }
                 .buttonStyle(.bordered)
+                if model.offersRemoveRejectedLoRAs(for: job) {
+                    Button("Remove LoRAs from Stack") {
+                        model.removeRejectedLoRAs(from: job)
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
                 if job.canRetry {
                     Button("Try Again") {
                         Task { await model.retry(job.id) }

@@ -28,4 +28,20 @@ enum QueuePresentation {
         case (false, false): .idle
         }
     }
+
+    /// What an idle header says about the cells on the strip.
+    enum IdleSummary: Equatable {
+        /// No cells.
+        case empty
+        /// Only failed or cancelled cells remain, so this many are finished and Clear removes them.
+        case finished(Int)
+        /// Some cell has not finished (queued or paused), so the header counts those instead of reporting zero finished.
+        case waiting(Int)
+    }
+
+    static func idleSummary(_ jobs: [JobItem]) -> IdleSummary {
+        guard !jobs.isEmpty else { return .empty }
+        let finished = jobs.filter(\.isDismissible).count
+        return finished == jobs.count ? .finished(finished) : .waiting(jobs.count - finished)
+    }
 }
