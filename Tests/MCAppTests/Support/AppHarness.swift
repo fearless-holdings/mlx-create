@@ -279,14 +279,22 @@ struct AppHarness {
                     requestedWidth: width, requestedHeight: height, requestedSteps: 6, guidance: nil,
                     seed: 12345, width: width, height: height, steps: 6)))
     }
+
+    /// Waits until the engine has received `count` requests to `path` (e.g. `v1/images/generations`), so a held reply
+    /// exists for `EngineStubProtocol.finishHeld` to release. A release before the request arrives finds nothing held.
+    @MainActor
+    func engineHasReceived(_ path: String, count: Int = 1) async throws {
+        try await eventually { EngineStubProtocol.requests(endpoint).filter { $0.path == path }.count >= count }
+    }
 }
 
 /// Polls `condition` until it holds or the timeout passes.
 @MainActor
 func eventually(timeout: Duration = .seconds(10), _ condition: () async throws -> Bool) async throws {
-    let deadline = ContinuousClock.now + timeout
+    // The suspending clock stops while the Mac sleeps, so a nap mid-run (DarkWake) does not use up the timeout.
+    let deadline = SuspendingClock.now + timeout
     while try await !condition() {
-        if ContinuousClock.now > deadline {
+        if SuspendingClock.now > deadline {
             Issue.record("condition not met before the timeout")
             return
         }

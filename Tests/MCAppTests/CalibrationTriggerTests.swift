@@ -70,6 +70,7 @@ final class CalibrationTriggerTests {
         await harness.model.refreshModels()
 
         try await eventually { harness.model.isCalibrating }
+        try await harness.engineHasReceived("v1/load-model")
         EngineStubProtocol.finishHeld(harness.endpoint)
 
         try await eventually { try await harness.store.baseline(engineVersion: "1.0") != nil }

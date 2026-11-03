@@ -32,9 +32,7 @@ import Testing
         // The second job is selected as a placeholder, and the canvas keeps the first image while it runs.
         model.prompt = "a lighthouse at noon"
         await model.generate()
-        try await eventually {
-            EngineStubProtocol.requests(harness.endpoint).filter { $0.path == "v1/images/generations" }.count >= 2
-        }
+        try await harness.engineHasReceived("v1/images/generations", count: 2)
         #expect(model.canvasImage?.id == shownID)
 
         model.selectGalleryImage(older.id, click: .toggle)
