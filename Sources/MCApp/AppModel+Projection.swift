@@ -199,6 +199,8 @@ extension AppModel {
             canMoveUp: canMoveUp,
             canMoveDown: canMoveDown,
             canCancel: [JobStatus.queued, .running, .paused].contains(job.status),
-            canRetry: job.status == .failed && job.failure?.retryable == true)
+            canRetry: job.status == .failed && job.failure?.retryable == true,
+            loraIDs: job.request.loras?.map(\.id) ?? [],
+            loraNames: job.request.loras?.map(\.name) ?? [])
     }
 }

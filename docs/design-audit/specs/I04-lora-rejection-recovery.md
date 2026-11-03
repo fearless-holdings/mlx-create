@@ -71,3 +71,21 @@ Standard checks, all must pass:
 5. `rg -n 'modelID\)' Sources/MCGeneration/FailureMapping.swift` prints no line inside a `message:` string.
 
 No live screenshot: the engine rejection cannot be produced on demand with the installed LoRAs. The `ImageRenderer` approach from I03 step 7 may be reused to render the card with `loraIDs` set. If you do, attach `I04_card_light.png`.
+
+## Resolution
+
+Done on branch `work/lora-rejection-i04` (uncommitted; the orchestrator commits). The four LoRA failure messages lost the raw engine model id; `modelID` stays a payload of `ExecutorError`'s three LoRA cases and is simply no longer read by `FailureMapping`. `JobItem` carries `loraIDs` and `loraNames`, filled by `placeholder(for:canMoveUp:canMoveDown:)` from `job.request.loras`, which holds only the user's LoRAs, so the copy and the notice can never name an always-on one. `FailureCard` offers **Remove LoRAs from Stack** (`.borderedProminent`) when the failure cannot be retried and at least one of the job's LoRAs is still on the composer stack; the action removes every LoRA the job carried, writes the stack notice and returns the canvas to the kept image.
+
+Differs from the edit steps in four places:
+
+- The button is gated on the stack still holding one of the job's LoRAs, not just on the job having carried them, so it is gone once the user has removed them by hand (new test `removingTheLoRAByHandTakesTheStackRemovalAway`).
+- The predicate and the action are two functions on `AppModel` in a new `Sources/MCApp/AppModel+LoRARejection.swift` (`offersRemoveRejectedLoRAs(for:)`, `removeRejectedLoRAs(from:)`) rather than inline in the view, so the non-retryable and still-stacked rule is testable without AppKit. No stored property was added to `AppModel.swift`.
+- The notice names only the LoRAs still on the stack when the button is pressed, and the action does nothing when nothing is left, so it can never read "Removed  from the stack." The button removes every LoRA the job carried anyway, because the engine's refusal does not say which one it rejected.
+- The canvas returns through `dismissFailureCard()`, not `selection = canvasFallbackImageID`, so the kept image is shown only while it is still in the gallery.
+
+Tests: `LoRAExecutorTests`' rejection test is now `engineRejectingALoRANamesTheLoRAWithoutTheModelAndIsNotRetryable`, and its assertion plus the missing-LoRA, changed-LoRA and limit assertions flip to "the message does not contain the model id"; the limit test gained that assertion. `FailureCardTests` gained `aRejectedLoRAIsListedOnTheFailedJob`, `removeLoRAsFromStackTakesEveryLoRATheJobCarriedAndNamesThem`, `aFailureThatCarriedNoLoRAsOffersNoStackRemoval`, `aRetryableFailureOffersTryAgainAndNoStackRemoval` and `removingTheLoRAByHandTakesTheStackRemovalAway`. All the existing `FailureCardTests` and `LoRAExecutorTests` tests pass unchanged otherwise.
+
+Exercised: `swift build`, `swift test` (269 tests, 28 suites, all pass), `swift format lint --strict` over every tracked Swift file (prints nothing), and `scripts/check-file-size.mjs` over the changed files (exit 0; `AppModel.swift` untouched).
+
+Not run: the live engine rejection. No LoRA installed here passes the header pre-check and then fails in the engine, so the one-click recovery path has only been driven with the stub engine returning the engine's real 400 body. No `I04_card_light.png` was rendered, so the card's layout with the longer non-retryable copy (`loraChanged`, `loraLimitExceeded`) and its third button is unchecked visually; the message text keeps I03's `.body` full-width treatment, so it wraps rather than truncates at the card's 460 pt maximum. `xcodegen`/`xcodebuild` and the GUI smoke are left to the orchestrator.
+

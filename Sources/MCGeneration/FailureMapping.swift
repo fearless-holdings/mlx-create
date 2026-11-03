@@ -29,26 +29,26 @@ public enum FailureMapping {
                 return JobFailure(message: "This job has an unreadable seed setting.", detail: nil, retryable: false)
             case .unsupportedMode:
                 return JobFailure(message: "This job uses a mode this version cannot generate yet.", detail: nil, retryable: false)
-            case .loraMissing(let name, let modelID):
+            case .loraMissing(let name, _):
                 return JobFailure(
-                    message: "LoRA \"\(name)\" is missing from the LoRA library, so \(modelID) can't use it. Re-import it and retry.",
+                    message: "LoRA \"\(name)\" is no longer in your LoRA library. Import it again, then press Try Again.",
                     detail: nil, retryable: true)
-            case .loraChanged(let name, let modelID):
+            case .loraChanged(let name, _):
                 return JobFailure(
                     message:
-                        "LoRA \"\(name)\" changed after it was imported, so \(modelID) can't use it. Remove it or replace it, then queue the job again.",
+                        "LoRA \"\(name)\" changed after it was imported. Remove it from the stack or import it again, then generate again.",
                     detail: nil, retryable: false)
-            case .loraLimitExceeded(let count, let limit, let modelID):
+            case .loraLimitExceeded(let count, let limit, _):
                 return JobFailure(
                     message:
-                        "\(modelID) can use at most \(limit) LoRAs, and this job carries \(count). Remove some from the stack, then queue the job again.",
+                        "This job carries \(count) LoRAs and a job can use at most \(limit). Remove some from the stack, then generate again.",
                     detail: nil, retryable: false)
             }
         }
         return JobFailure(message: "The image could not be generated.", detail: nil, retryable: false)
     }
 
-    /// The failure for a job's attempt. Where the engine rejected a LoRA, the message names the job's LoRAs and model.
+    /// The failure for a job's attempt. Where the engine rejected a LoRA, the message names the job's LoRAs.
     public static func failure(for error: Error, request: JobRequest) -> JobFailure {
         guard let engine = error as? EngineError, case .loraRejected = engine else {
             return failure(for: error)
@@ -56,7 +56,7 @@ public enum FailureMapping {
         let loras = request.loras ?? []
         let named = loras.isEmpty ? "a LoRA" : loras.map { "\"\($0.name)\"" }.joined(separator: ", ")
         return JobFailure(
-            message: "The model \(request.modelID) cannot use \(named). Remove or replace the LoRA and try again.",
+            message: "This model can't use \(named). Remove it from the LoRA stack, then generate again.",
             detail: engineDetail(engine),
             retryable: false)
     }

@@ -69,11 +69,15 @@ public struct JobItem: Equatable, Sendable, Identifiable {
     public var canMoveDown: Bool
     public var canCancel: Bool
     public var canRetry: Bool
+    /// The LoRAs the job carries, as frozen when it was queued.
+    public var loraIDs: [String]
+    public var loraNames: [String]
 
     public init(
         id: UUID, status: JobStatus, promptSnippet: String, savedCount: Int, batchCount: Int,
         step: Int? = nil, total: Int? = nil, failure: JobFailure? = nil,
-        canMoveUp: Bool = false, canMoveDown: Bool = false, canCancel: Bool = false, canRetry: Bool = false
+        canMoveUp: Bool = false, canMoveDown: Bool = false, canCancel: Bool = false, canRetry: Bool = false,
+        loraIDs: [String] = [], loraNames: [String] = []
     ) {
         self.id = id
         self.status = status
@@ -87,6 +91,8 @@ public struct JobItem: Equatable, Sendable, Identifiable {
         self.canMoveDown = canMoveDown
         self.canCancel = canCancel
         self.canRetry = canRetry
+        self.loraIDs = loraIDs
+        self.loraNames = loraNames
     }
 }
 
