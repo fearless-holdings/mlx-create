@@ -5,11 +5,11 @@ import Testing
 @Suite struct A1111ParametersTests {
     @Test func unclosedLoRATagsKeepTheTextAndFinishQuickly() {
         let hostile = String(repeating: "<lora:x ", count: 20_000)
-        let started = ContinuousClock.now
+        let started = SuspendingClock.now
         let parsed = A1111Parameters.parse("\(hostile)\nSteps: 20")
         #expect(parsed?.steps == 20)
         #expect(parsed?.loras.isEmpty == true)
-        #expect(ContinuousClock.now - started < .seconds(5))
+        #expect(SuspendingClock.now - started < .seconds(5))
     }
 
     @Test func plainTextParsesEveryField() {

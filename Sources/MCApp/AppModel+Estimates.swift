@@ -43,15 +43,25 @@ extension AppModel {
     }
 
     /// Rebuilds the browser's per-model estimates and tells views to re-read the composer's. Overlapping calls
-    /// coalesce into one more pass, so an older, slower pass never overwrites a newer result.
+    /// coalesce into one more pass, so an older, slower pass never overwrites a newer result. Every call returns only
+    /// after a pass that started after it has landed.
     func refreshEstimates() async {
-        guard let engineVersion else { return }
-        if browser.estimatesRefreshing {
+        guard engineVersion != nil else { return }
+        if let running = browser.estimatesRefresh {
             browser.estimatesRefreshPending = true
+            await running.value
             return
         }
-        browser.estimatesRefreshing = true
-        defer { browser.estimatesRefreshing = false }
+        let passes = Task { await self.runEstimatePasses() }
+        browser.estimatesRefresh = passes
+        await passes.value
+    }
+
+    /// Runs passes until no call asked for another. The slot clears in the same main-actor step as the last check, so
+    /// a call that finds it set is always served by a later pass.
+    private func runEstimatePasses() async {
+        defer { browser.estimatesRefresh = nil }
+        guard let engineVersion else { return }
         repeat {
             browser.estimatesRefreshPending = false
             let baseline = try? await store.baseline(engineVersion: engineVersion)

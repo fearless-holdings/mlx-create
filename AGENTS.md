@@ -117,6 +117,10 @@ HLD Appendix A lists the files worth reusing. The rules:
 - Enhancer gate: `scripts/enhancer-gate/run_gate.py`, run from an Eval Python cell. Method, results and removal conditions are in `docs/lld/enhancer.md`.
 - LoRA gate: `scripts/lora-gate/run_gate.py`, run from an Eval Python cell with `--engine "$MLXC_ENGINE_BIN" --weights DIR --model-id ORG/NAME --scratch DIR` and one of `--candidates list.json` or `--local-dir DIR`. It pre-screens each candidate through `mc-catalog lora classify FILE [--family ID]` (header fit from `families.json`, never a Python copy), engine load, same-seed reproducibility and strength 0 against the no-LoRA baseline, and writes one verdict JSON per candidate to `scripts/lora-gate/results/`; images and engine state stay in the scratch dir. Invocation, candidate schema and verdict fields are in `scripts/lora-gate/README.md`.
 - Tests that drive `AppModel` must `await model.start()` before `refreshModels()`. `refreshModels` waits on the engine gate, which opens only after `start`.
+- Test sync rules (each one fixed a real flake):
+  - Before `EngineStubProtocol.finishHeld`, call `harness.engineHasReceived(path, count:)`. Releasing before the request arrives finds nothing held, and the test times out.
+  - After waiting on the store, wait on the model's projection (`queueHeader`, `runningProgress`, gallery) too, because it lands later.
+  - Put test deadlines on `SuspendingClock`, never `Date()` or `ContinuousClock`. This Mac DarkWakes mid-run, and a wall-clock deadline then expires 0.3 s into a 10 s wait.
 - `swift test` takes about 40 s here. Past 2 minutes it is hung: `pkill -f swiftpm-testing-helper; pkill -f swift-test`, then bisect with `--filter` per suite.
 - App project: `xcodegen generate` (needs XcodeGen 2.46+, `brew install xcodegen`), then `xcodebuild -project MLXCreate.xcodeproj -scheme MLXCreate -configuration Debug -derivedDataPath build build`. The generated `MLXCreate.xcodeproj` and `build/` are git-ignored.
 - Engine embed runs as a post-compile script from `project.yml` (`scripts/embed-engine.sh`, pinned by `engine.lock`).

@@ -288,10 +288,9 @@ private func startedHarness(
         await model.generate()
         try await eventually { try await harness.store.jobs(status: .done).count == 2 }
         // Jobs run in order, so once the matching image has joined, the lighthouse has already been checked and left out.
-        try await eventually { model.galleryImages.count == 1 }
+        try await eventually { model.galleryImages.count == 1 && model.galleryMatchCount == 1 }
 
         #expect(model.galleryImages.map(\.prompt) == ["zebra herd at dusk"])
-        #expect(model.galleryMatchCount == 1)
     }
 
     // MARK: Move and export

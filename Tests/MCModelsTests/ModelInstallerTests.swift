@@ -22,9 +22,10 @@ func caught<T>(_ body: () async throws -> T) async -> (any Error)? {
 
 /// Polls `condition` until it holds, or fails the test after `timeout`.
 func waitUntil(timeout: Duration = .seconds(15), _ condition: () async -> Bool) async throws {
-    let deadline = ContinuousClock.now + timeout
+    // The suspending clock stops while the Mac sleeps, so a nap mid-run (DarkWake) does not use up the timeout.
+    let deadline = SuspendingClock.now + timeout
     while !(await condition()) {
-        if ContinuousClock.now > deadline { throw InstallerTestFailure.timedOut }
+        if SuspendingClock.now > deadline { throw InstallerTestFailure.timedOut }
         try await Task.sleep(for: .milliseconds(10))
     }
 }

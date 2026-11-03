@@ -24,8 +24,8 @@ import Testing
         let harness = try await AppHarness.make(supervisor: supervisor)
 
         await supervisor.start()
-        let deadline = ContinuousClock.now + .seconds(10)
-        while PidFile.read(at: paths.pidFile) == nil, ContinuousClock.now < deadline {
+        let deadline = SuspendingClock.now + .seconds(10)
+        while PidFile.read(at: paths.pidFile) == nil, SuspendingClock.now < deadline {
             try await Task.sleep(for: .milliseconds(50))
         }
         let record = try #require(PidFile.read(at: paths.pidFile))

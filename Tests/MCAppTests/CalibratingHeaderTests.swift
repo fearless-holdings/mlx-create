@@ -20,6 +20,7 @@ final class CalibratingHeaderTests {
         #expect(!harness.model.queueHeader.offersPause)
         #expect(!harness.model.queueHeader.offersResume)
 
+        try await harness.engineHasReceived("v1/load-model")
         EngineStubProtocol.finishHeld(harness.endpoint)
         try await eventually { harness.model.isCalibrating == false }
         try await eventually { harness.model.queueHeader == .idle }
