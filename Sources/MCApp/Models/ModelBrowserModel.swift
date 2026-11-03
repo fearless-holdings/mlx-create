@@ -249,6 +249,11 @@ final class ModelBrowserModel {
         rows.filter { $0.model?.kind == kind }
     }
 
+    /// The catalog row whose model is published under `repo` (the engine's model id), if the catalog lists one.
+    func row(forRepo repo: String) -> ModelBrowserRow? {
+        rows.first { $0.model?.repo == repo }
+    }
+
     /// The catalog's enhancer, or nil when the catalog lists none. Installed means the record and its folder exist (R11).
     /// `engineModelID` is the catalog repo, the id the engine lists the model under; it is set only when the engine lists it.
     var enhancerStatus: EnhancerStatus? {

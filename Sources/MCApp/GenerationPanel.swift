@@ -59,7 +59,6 @@ struct GenerationPanel: View {
             originalPromptField
             enhanceRow
             EnhanceResultCard(model: model)
-            ModelChip(model: model)
             settings
             LoRASection(model: model)
         }

@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// The three-panel main window: toolbar with the collection switcher and model chip, engine banner,
-/// generation panel (left), canvas over the queue strip (middle), and the gallery (right).
+/// The three-panel main window: the current collection on the window title, with its menu, the model chip on the
+/// trailing toolbar edge, engine banner, generation panel (left), canvas over the queue strip (middle), and the gallery
+/// (right).
 public struct MainWindow: View {
     @Bindable var model: AppModel
 
@@ -35,9 +36,16 @@ public struct MainWindow: View {
         }
         .frame(minWidth: 1100, minHeight: 640)
         .focusedSceneValue(\.appModel, model)
+        .navigationTitle(model.currentCollection.name)
+        .navigationSubtitle(imageCountSubtitle)
+        .toolbar(removing: .title)
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 CollectionMenu(model: model)
+            }
+            ToolbarSpacer(.flexible, placement: .primaryAction)
+            ToolbarItem(placement: .primaryAction) {
+                ModelChip(model: model)
             }
         }
         .sheet(isPresented: $model.isBrowserPresented) {
@@ -51,6 +59,16 @@ public struct MainWindow: View {
         }
         .sheet(isPresented: $model.isEnhancerInstallPresented) {
             EnhancerInstallSheet(model: model)
+        }
+    }
+
+    /// The image count under the title: "1 image" for one, none at zero.
+    private var imageCountSubtitle: String {
+        let count = model.currentCollectionSummary?.imageCount ?? 0
+        switch count {
+        case 0: return ""
+        case 1: return "1 image"
+        default: return "\(count) images"
         }
     }
 }
