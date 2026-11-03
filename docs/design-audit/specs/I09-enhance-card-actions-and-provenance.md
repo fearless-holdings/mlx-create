@@ -116,3 +116,13 @@ With the capture kit and the enhancer installed (capture kit §3). If the engine
 6. Press Use This Prompt, then set the prompt to "a paper boat on a puddle" (`ax setvalue`). `ax dump` no longer shows "Original prompt".
 7. Repeat 5 and press Use This Prompt, then press Restore. The prompt is back to "a cozy reading nook by a rainy window".
 8. Captures `I09_card_small_light.png` and `I09_original_small_light.png` are attached to the PR.
+
+## Resolution
+
+Done. The ready card reads Regenerate, Discard and Use This Prompt; the failed card reads Dismiss and Try Again; the "Original prompt" box carries a Restore link that puts the replaced text back, and the box disappears once the prompt no longer shares a word of four or more letters or digits with the accepted enhancement. The HLD §8.8 wording was updated in the same change.
+
+Differs from the edit steps in four places. The provenance rule is `promptDidChange()` plus `significantWords(_:)` in `Sources/MCApp/AppModel+Enhance.swift`, called from the `prompt` `didSet` with one line: `AppModel.swift` sits at the file-size budget the pre-commit check enforces, so it gained only the stored `acceptedEnhancedPrompt`. `restoreOriginalPrompt()` also lives in that extension and clears both the provenance and the accepted text before putting the original back. `acceptEnhance()` records the accepted text before assigning the prompt, so the `didSet` sees the new text as related. `applyPromptHistoryEntry(_:)` is untouched: the accepted text is read only while a provenance exists, and every site that sets a provenance also sets the accepted text (the two reuse paths in `AppModel+Reuse.swift`).
+
+Tests are in `EnhanceTests`: the spec's three become `anEditThatKeepsTheEnhancementKeepsTheOriginal`, `aDifferentPromptDropsTheOriginal` and `restorePutsTheOriginalBackAndDropsTheProvenance` (which also checks a second Restore changes nothing), plus `anEditThatSharesOneWordOfFourLettersKeepsTheOriginalWhateverItsCase` (case-insensitive match, then a prompt with only short words drops it), `anImageMadeAfterThePromptStopsDerivingFromTheEnhancementStoresNoOriginal` (the saved PNG's metadata and the job row's request both carry no original prompt) and `reusingSettingsThatCarryAnOriginalPromptRestoresItAndAnUnrelatedEditDropsIt`. Every existing `EnhanceTests` test passes unchanged.
+
+Exercised: `swift build`, `swift test` (270 tests in 28 suites), `swift format lint --strict` over every tracked Swift file, and `node scripts/check-file-size.mjs` on the changed files. Not exercised here: acceptance 4 to 8 — the Debug `xcodebuild`, the `ax dump` of the ready card, the two captures and the GUI smoke — which need the app and the enhancer installed.

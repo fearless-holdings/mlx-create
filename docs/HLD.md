@@ -465,7 +465,7 @@ The initial packs follow the structure of mlx-serve's `PromptRewriter.swift` (MI
 
 **Behaviour:**
 
-- Thinking is disabled. The enhancer is never blocking: the user can keep editing, and the result is offered in a result card with Accept, Revert and Regenerate. After Accept, the replaced prompt stays visible read-only under the editor. There is no word-level diff.
+- Thinking is disabled. The enhancer is never blocking: the user can keep editing, and the result is offered in a result card with Use This Prompt, Discard and Regenerate. After Use This Prompt, the replaced prompt stays visible read-only under the editor with a Restore button that puts it back, and the box goes once the prompt no longer shares a word of four letters or more with the accepted enhancement. There is no word-level diff.
 - **Memory policy:** on the 16 GB tier the enhancer and image model are not co-resident. Enhance unloads the LLM afterwards and re-warms the diffusion model in the background, and the UI shows a one-time note about the reload. On 24 GB+ both stay resident under the engine's memory budget.
 - **Model choice:** abliterated instruct models from families the engine runs natively (Gemma / Qwen classes). The specific picks per tier are selected by an offline evaluation: blind A/B of generations with and without enhancement, plus a refusal probe. They ship via the catalog. Until that evaluation runs, D36 sets one provisional model for every tier.
 

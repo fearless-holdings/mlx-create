@@ -104,9 +104,17 @@ struct GenerationPanel: View {
     private var originalPromptField: some View {
         if let original = model.originalPrompt {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Original prompt")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                HStack {
+                    Text("Original prompt")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                    Button("Restore") { model.restoreOriginalPrompt() }
+                        .buttonStyle(.link)
+                        .controlSize(.small)
+                        .help("Put the original prompt back")
+                        .accessibilityLabel("Restore original prompt")
+                }
                 ScrollView {
                     Text(original)
                         .font(.callout)
@@ -115,12 +123,12 @@ struct GenerationPanel: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .frame(maxHeight: 72)
+                .accessibilityLabel("Original prompt, read only: \(original)")
             }
             .padding(8)
             .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
             .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(nsColor: .separatorColor)))
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("Original prompt, read only: \(original)")
+            .accessibilityElement(children: .contain)
         }
     }
 
