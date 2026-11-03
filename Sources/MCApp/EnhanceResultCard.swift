@@ -100,8 +100,8 @@ struct EnhanceResultCard: View {
             HStack {
                 Button("Regenerate") { Task { await model.pressEnhance() } }
                 Spacer()
-                Button("Revert") { model.revertEnhance() }
-                Button("Accept") { model.acceptEnhance() }
+                Button("Discard") { model.revertEnhance() }
+                Button("Use This Prompt") { model.acceptEnhance() }
                     .buttonStyle(.borderedProminent)
                     .disabled(isStale)
             }
@@ -109,7 +109,7 @@ struct EnhanceResultCard: View {
             HStack {
                 Button("Dismiss") { model.revertEnhance() }
                 Spacer()
-                Button("Regenerate") { Task { await model.pressEnhance() } }
+                Button("Try Again") { Task { await model.pressEnhance() } }
             }
         }
     }

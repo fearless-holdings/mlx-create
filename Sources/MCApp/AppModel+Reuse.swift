@@ -28,6 +28,7 @@ extension AppModel {
     func applyStoredSettings(_ settings: ImageSettings) {
         prompt = settings.prompt
         originalPrompt = settings.originalPrompt
+        acceptedEnhancedPrompt = originalPrompt == nil ? nil : prompt
         negativePrompt = settings.negativePrompt ?? ""
         size = ImageSize(width: settings.requestedWidth, height: settings.requestedHeight)
         steps = settings.requestedSteps
@@ -42,6 +43,7 @@ extension AppModel {
     public func reusePrompt(of image: LibraryImage) {
         prompt = image.settings.prompt
         originalPrompt = image.settings.originalPrompt
+        acceptedEnhancedPrompt = originalPrompt == nil ? nil : prompt
         negativePrompt = image.settings.negativePrompt ?? ""
     }
 }

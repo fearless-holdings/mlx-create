@@ -32,6 +32,8 @@ public final class AppModel {
     private static let lastUsedModelKey = "lastUsedModelID"
     /// The defaults key for a user pause (KTD14). Set by `pauseQueue`, cleared by `resumeQueue`.
     static let queuePausedDefaultsKey = "queuePaused"
+    /// The defaults key for failed and cancelled jobs the user removed from the strip (I05).
+    static let dismissedQueueJobsDefaultsKey = "dismissedQueueJobIDs"
     /// The defaults key for the collection the app shows (D35). A stored id that no longer exists falls back to the default.
     static let currentCollectionDefaultsKey = "currentCollectionID"
     /// The defaults key for the Civitai NSFW opt-in (plan U6, R7). Persisted across launches.
@@ -73,6 +75,10 @@ public final class AppModel {
     var collectionEditor: CollectionEditor?
     /// The queue strip in display order: the running job, the queue in order, then paused, failed and cancelled jobs.
     public internal(set) var queueJobs: [JobItem] = []
+    /// Failed and cancelled jobs the user removed from the strip (I05). A view preference: the job rows are unchanged.
+    var dismissedJobIDs: Set<UUID> = [] {
+        didSet { defaults.set(dismissedJobIDs.map(\.uuidString), forKey: Self.dismissedQueueJobsDefaultsKey) }
+    }
     /// Finished images loaded so far, newest first. Later pages load through `loadMoreImages()`.
     public internal(set) var galleryImages: [LibraryImage] = []
     /// Whether the library holds images past those in `galleryImages`.
@@ -90,10 +96,7 @@ public final class AppModel {
     }
 
     public var prompt = "" {
-        didSet {
-            // Emptying the prompt drops the provenance: a later image is not made from an enhancement (KTD7).
-            if prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { originalPrompt = nil }
-        }
+        didSet { promptDidChange() }
     }
     public var negativePrompt = ""
     /// The Enhance run in progress or the result card it left (U7). Nil when no card is up.
@@ -102,6 +105,8 @@ public final class AppModel {
     var enhanceTask: Task<Void, Never>?
     /// The prompt an accepted enhancement replaced (KTD7, R17). The next generation records it in the image's metadata.
     var originalPrompt: String?
+    /// The enhanced text the user used; the provenance holds while the prompt still derives from it.
+    var acceptedEnhancedPrompt: String?
     /// The memory tier the engine residency follows (KTD5). Below 24 GiB an Enhance unloads the image model.
     let memoryTier: MemoryTier
     public var size = ImageSize(width: 1024, height: 1024)
@@ -274,6 +279,9 @@ public final class AppModel {
             self.addToLoRAStack(id: id, weight: scale)
         }
         alwaysOnLoRACount = { [weak self] family in self?.alwaysOnCounts[family] ?? 0 }
+        // Last, so every stored property is initialized before the property's observer writes the defaults.
+        let storedDismissals = defaults.stringArray(forKey: Self.dismissedQueueJobsDefaultsKey) ?? []
+        dismissedJobIDs = Set(storedDismissals.compactMap { UUID(uuidString: $0) })
         targetSource.model = self
     }
 

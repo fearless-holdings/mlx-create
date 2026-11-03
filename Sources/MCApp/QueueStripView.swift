@@ -23,18 +23,34 @@ struct QueueStripView: View {
 }
 
 /// Queue header: Running with Pause, Pausing… while the current generation finishes, Paused with Resume, and
-/// Measuring this Mac's speed… during calibration (no controls).
+/// Measuring this Mac's speed… during calibration (no controls). Failed and cancelled cells left on the strip are Clearable.
 struct QueueHeaderView: View {
     let model: AppModel
+
+    private var waiting: Int {
+        model.queueJobs.filter { $0.status == .queued }.count
+    }
 
     var body: some View {
         HStack(spacing: 8) {
             switch model.queueHeader {
             case .idle:
-                Text("Queue empty")
-                    .foregroundStyle(.secondary)
+                switch QueuePresentation.idleSummary(model.queueJobs) {
+                case .empty:
+                    Text("Queue empty")
+                        .foregroundStyle(.secondary)
+                case .finished(let count):
+                    Text(verbatim: "\(count) finished")
+                        .foregroundStyle(.secondary)
+                case .waiting(let count):
+                    Text(verbatim: "\(count) waiting")
+                        .foregroundStyle(.secondary)
+                }
             case .running:
                 Label("Running", systemImage: "circle.dotted")
+                if waiting > 0 {
+                    Text(verbatim: "· \(waiting) waiting")
+                }
             case .pausing:
                 ProgressView()
                     .controlSize(.small)
@@ -58,14 +74,21 @@ struct QueueHeaderView: View {
                 }
                 .buttonStyle(.link)
             }
+            if !model.finishedJobIDs.isEmpty {
+                Button("Clear") {
+                    Task { await model.dismissJobs(model.finishedJobIDs) }
+                }
+                .buttonStyle(.link)
+            }
         }
-        .font(.caption)
+        .font(.callout)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
-/// A queue placeholder. Context menu and VoiceOver actions offer Move Up, Move Down, Cancel and Retry;
-/// ⌥↑ and ⌥↓ move the selected placeholder from the keyboard.
+/// A queue cell: its status in words, the prompt it will generate, and how far it has got. The context menu offers Move
+/// Up, Move Down, Retry and Cancel; once the job has finished, a corner button and a VoiceOver action also offer Remove
+/// from the queue. ⌥↑ and ⌥↓ move the selected cell from the keyboard.
 struct JobCell: View {
     let model: AppModel
     let job: JobItem
@@ -75,34 +98,25 @@ struct JobCell: View {
         Button {
             model.selectJob(job.id)
         } label: {
-            VStack(spacing: 6) {
-                Spacer(minLength: 0)
-                statusContent
-                Text("\(job.savedCount) of \(job.batchCount) saved")
-                    .font(.caption2)
+            VStack(alignment: .leading, spacing: 3) {
+                statusLine
+                Text(job.promptSnippet)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
-                    .accessibilityHidden(true)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                progressLine
             }
-            .padding(6)
-            .frame(width: 96, height: 96)
-            .background(RoundedRectangle(cornerRadius: 8).fill(.quaternary))
+            .padding(8)
+            .frame(width: 176, height: 64, alignment: .topLeading)
+            .background(RoundedRectangle(cornerRadius: 10).fill(.quaternary))
             .overlay(
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: 10)
                     .stroke(selected ? Color.accentColor : Color.clear, lineWidth: 3)
             )
         }
         .buttonStyle(.plain)
-        .contextMenu {
-            Button("Move Up") { Task { await model.move(job.id, by: -1) } }
-                .disabled(!job.canMoveUp)
-            Button("Move Down") { Task { await model.move(job.id, by: 1) } }
-                .disabled(!job.canMoveDown)
-            Divider()
-            Button("Retry") { Task { await model.retry(job.id) } }
-                .disabled(!job.canRetry)
-            Button("Cancel", role: .destructive) { Task { await model.cancel(job.id) } }
-                .disabled(!job.canCancel)
-        }
+        // The cell reads as one element. This sits before the Remove overlay so that button stays an element of its own.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(job.promptSnippet), \(accessibleStatus)")
         .accessibilityAddTraits(selected ? .isSelected : [])
@@ -122,6 +136,38 @@ struct JobCell: View {
             guard job.canCancel else { return }
             Task { await model.cancel(job.id) }
         }
+        .accessibilityActions {
+            if job.isDismissible {
+                Button("Remove from the queue") { Task { await model.dismissJobs([job.id]) } }
+            }
+        }
+        // A sibling of the button, not part of its label, so removing a cell does not select it first.
+        .overlay(alignment: .topTrailing) {
+            if job.isDismissible {
+                Button {
+                    Task { await model.dismissJobs([job.id]) }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                        .frame(width: 24, height: 24)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.borderless)
+                .help("Remove from the queue")
+                .accessibilityLabel("Remove from the queue")
+            }
+        }
+        .contextMenu {
+            Button("Move Up") { Task { await model.move(job.id, by: -1) } }
+                .disabled(!job.canMoveUp)
+            Button("Move Down") { Task { await model.move(job.id, by: 1) } }
+                .disabled(!job.canMoveDown)
+            Divider()
+            Button("Retry") { Task { await model.retry(job.id) } }
+                .disabled(!job.canRetry)
+            Button("Cancel", role: .destructive) { Task { await model.cancel(job.id) } }
+                .disabled(!job.canCancel)
+        }
         .onKeyPress(phases: .down) { press in
             guard press.modifiers.contains(.option) else { return .ignored }
             switch press.key {
@@ -137,40 +183,59 @@ struct JobCell: View {
         }
     }
 
+    /// The status in words. Only the symbol carries colour; the text stays primary.
     @ViewBuilder
-    private var statusContent: some View {
+    private var statusLine: some View {
         switch job.status {
         case .running:
             if let step = job.step, let total = job.total {
-                ProgressView(value: Double(step), total: Double(max(total, 1)))
-                    .progressViewStyle(.linear)
-                Text("Step \(step) of \(total)")
-                    .font(.caption)
+                Text(verbatim: "Step \(step) of \(total)")
+                    .font(.callout)
                     .monospacedDigit()
             } else {
-                ProgressView().controlSize(.small)
-                Text("Starting")
-                    .font(.caption)
+                HStack(spacing: 4) {
+                    ProgressView().controlSize(.mini)
+                    Text("Running")
+                }
+                .font(.callout)
             }
         case .queued:
-            Text("Queued").font(.caption)
+            statusRow("clock", "Waiting")
         case .paused:
-            Label("Paused", systemImage: "pause.circle").font(.caption)
+            statusRow("pause.circle", "Paused")
         case .failed:
-            Label("Failed", systemImage: "exclamationmark.triangle")
-                .font(.caption)
-                .foregroundStyle(.red)
-            if let message = job.failure?.message {
-                Text(message)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(3)
+            HStack(spacing: 4) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.red)
+                Text("Couldn't be made")
             }
+            .font(.callout)
         case .cancelled:
-            Label("Cancelled", systemImage: "xmark.circle").font(.caption)
+            statusRow("xmark.circle", "Cancelled")
         case .done:
-            Label("Done", systemImage: "checkmark.circle").font(.caption)
+            statusRow("checkmark.circle", "Done")
+        }
+    }
+
+    private func statusRow(_ symbol: String, _ text: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: symbol)
+            Text(text)
+        }
+        .font(.callout)
+    }
+
+    /// A running job with steps shows the bar; every other cell says how many images of its batch it has saved. A
+    /// single-image job that is not running has nothing to add.
+    @ViewBuilder
+    private var progressLine: some View {
+        if job.status == .running, let step = job.step, let total = job.total {
+            ProgressView(value: Double(step), total: Double(max(total, 1)))
+                .progressViewStyle(.linear)
+        } else if job.batchCount > 1 || job.status == .running {
+            Text(verbatim: "\(job.savedCount) of \(job.batchCount) saved")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 

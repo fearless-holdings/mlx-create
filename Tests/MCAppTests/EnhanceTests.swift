@@ -358,6 +358,119 @@ private func generateOne(_ harness: AppHarness) async throws -> ImageSettings {
         #expect(model.originalPrompt == "a misty lighthouse at dusk, rain")
     }
 
+    @Test func aSecondAcceptWithNoFourLetterWordStillDropsTheOriginalOnAnUnrelatedEdit() async throws {
+        let harness = try await enhancerHarness(chat: { number, _ in
+            chatReply(number == 1 ? "a misty lighthouse at dusk" : "red fox")
+        })
+        let model = await readyKrea(harness, prompt: "a lighthouse")
+        #expect(await model.startEnhance() == .started)
+        await model.enhanceTask?.value
+        model.acceptEnhance()
+
+        #expect(await model.startEnhance() == .started)
+        await model.enhanceTask?.value
+        model.acceptEnhance()
+        #expect(model.prompt == "red fox")
+        #expect(model.originalPrompt == "a misty lighthouse at dusk")
+
+        model.prompt = "a paper boat on a puddle"
+        #expect(model.originalPrompt == nil)
+    }
+
+    @Test func anEditThatKeepsTheEnhancementKeepsTheOriginal() async throws {
+        let harness = try await enhancerHarness(chat: { _, _ in chatReply("a misty lighthouse at dusk") })
+        let model = await readyKrea(harness, prompt: "a lighthouse")
+        #expect(await model.startEnhance() == .started)
+        await model.enhanceTask?.value
+        model.acceptEnhance()
+
+        model.prompt = "a misty lighthouse at dawn"
+
+        #expect(model.originalPrompt == "a lighthouse")
+    }
+
+    @Test func aDifferentPromptDropsTheOriginal() async throws {
+        let harness = try await enhancerHarness(chat: { _, _ in chatReply("a misty lighthouse at dusk") })
+        let model = await readyKrea(harness, prompt: "a lighthouse")
+        #expect(await model.startEnhance() == .started)
+        await model.enhanceTask?.value
+        model.acceptEnhance()
+
+        model.prompt = "a paper boat on a puddle"
+
+        #expect(model.originalPrompt == nil)
+    }
+
+    @Test func anEditThatSharesOneWordOfFourLettersKeepsTheOriginalWhateverItsCase() async throws {
+        let harness = try await enhancerHarness(chat: { _, _ in chatReply("a misty lighthouse at dusk") })
+        let model = await readyKrea(harness, prompt: "a lighthouse")
+        #expect(await model.startEnhance() == .started)
+        await model.enhanceTask?.value
+        model.acceptEnhance()
+
+        model.prompt = "LIGHTHOUSE"
+        #expect(model.originalPrompt == "a lighthouse")
+
+        model.prompt = "a pale lamp"
+        #expect(model.originalPrompt == nil)
+    }
+
+    @Test func restorePutsTheOriginalBackAndDropsTheProvenance() async throws {
+        let harness = try await enhancerHarness(chat: { _, _ in chatReply("a misty lighthouse at dusk") })
+        let model = await readyKrea(harness, prompt: "a lighthouse")
+        #expect(await model.startEnhance() == .started)
+        await model.enhanceTask?.value
+        model.acceptEnhance()
+
+        model.restoreOriginalPrompt()
+
+        #expect(model.prompt == "a lighthouse")
+        #expect(model.originalPrompt == nil)
+
+        model.restoreOriginalPrompt()
+        #expect(model.prompt == "a lighthouse")
+        #expect(model.originalPrompt == nil)
+    }
+
+    @Test func anImageMadeAfterThePromptStopsDerivingFromTheEnhancementStoresNoOriginal() async throws {
+        let harness = try await enhancerHarness(
+            script: immediateImage,
+            chat: { _, _ in
+                chatReply("a misty lighthouse at dusk")
+            })
+        let model = await readyKrea(harness, prompt: "a lighthouse")
+        #expect(await model.startEnhance() == .started)
+        await model.enhanceTask?.value
+        model.acceptEnhance()
+
+        model.prompt = "a paper boat on a puddle"
+        #expect(model.originalPrompt == nil)
+
+        let settings = try await generateOne(harness)
+        let doneJobs = try await harness.store.jobs(status: .done)
+        let job = try #require(doneJobs.first)
+
+        #expect(settings.prompt == "a paper boat on a puddle")
+        #expect(settings.originalPrompt == nil)
+        #expect(job.request.originalPrompt == nil)
+    }
+
+    @Test func reusingSettingsThatCarryAnOriginalPromptRestoresItAndAnUnrelatedEditDropsIt() async throws {
+        let harness = try await AppHarness.make()
+        let model = harness.model
+        await model.start()
+        await model.refreshModels()
+        var image = try await harness.saveImage(prompt: "a misty lighthouse at dusk")
+        image.settings.originalPrompt = "a lighthouse"
+
+        model.reuseSettings(of: image)
+        #expect(model.prompt == "a misty lighthouse at dusk")
+        #expect(model.originalPrompt == "a lighthouse")
+
+        model.prompt = "a paper boat on a puddle"
+        #expect(model.originalPrompt == nil)
+    }
+
     @Test func aDisabledLoRAContributesNoTriggerWordsAndAnEnabledOneDoes() async throws {
         let harness = try await enhancerHarness(chat: { _, _ in chatReply("a misty lighthouse") })
         let model = await readyKrea(harness, prompt: "a lighthouse")

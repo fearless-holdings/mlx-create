@@ -41,7 +41,7 @@ struct LoRAExecutorTests {
         #expect(failed.id == job.id)
         let failure = try #require(failed.failure)
         #expect(failure.message.contains("Pixel art"))
-        #expect(failure.message.contains(kreaModel))
+        #expect(!failure.message.contains(kreaModel))
         #expect(failure.retryable)
         #expect(harness.requests(to: "v1/images/generations").isEmpty)
 
@@ -51,7 +51,7 @@ struct LoRAExecutorTests {
         #expect(try await harness.store.savedImageCount(jobID: job.id) == 1)
     }
 
-    @Test func engineRejectingALoRANamesTheLoRAAndModelAndIsNotRetryable() async throws {
+    @Test func engineRejectingALoRANamesTheLoRAWithoutTheModelAndIsNotRetryable() async throws {
         let harness = try await Harness.make { _, _ in
             .init(
                 status: 400,
@@ -66,7 +66,7 @@ struct LoRAExecutorTests {
         let failed = try #require(try await harness.store.jobs(status: .failed).first)
         let failure = try #require(failed.failure)
         #expect(failure.message.contains("Pixel art"))
-        #expect(failure.message.contains(kreaModel))
+        #expect(!failure.message.contains(kreaModel))
         #expect(failure.retryable == false)
     }
 
@@ -82,7 +82,7 @@ struct LoRAExecutorTests {
         let failed = try #require(try await harness.store.jobs(status: .failed).first)
         let failure = try #require(failed.failure)
         #expect(failure.message.contains("Pixel art"))
-        #expect(failure.message.contains(kreaModel))
+        #expect(!failure.message.contains(kreaModel))
         #expect(failure.retryable == false)
         #expect(harness.requests(to: "v1/images/generations").isEmpty)
     }
@@ -128,6 +128,7 @@ struct LoRAExecutorTests {
         #expect(failed.id == job.id)
         let failure = try #require(failed.failure)
         #expect(failure.message.contains("at most 8"))
+        #expect(!failure.message.contains(kreaModel))
         #expect(failure.retryable == false)
         #expect(harness.requests(to: "v1/images/generations").isEmpty)
     }

@@ -6,7 +6,7 @@ The user's brief shaped the bar. They chose mlx-create over Draw Things because 
 
 ## Progress
 
-**10 of 28 done, 3 in progress, 1 deferred, 2 blocked on an HLD decision, 12 open.** Last updated 2026-11-03. Findings, evidence and line references describe `633e737`; they are not rewritten as the code moves. Progress lives in two places only:
+**16 of 28 done, 0 in progress, 1 deferred, 2 blocked on an HLD decision, 9 open.** Last updated 2026-11-03. Findings, evidence and line references describe `633e737`; they are not rewritten as the code moves. Progress lives in two places only:
 
 - the **Status** column in [§2](#2-all-findings), which is the tracker;
 - a **Resolution** section at the end of a spec once it ships: the PR and commits, where the result differs from the spec, and what was and was not exercised.
@@ -57,19 +57,19 @@ The order is STRUCTURE, then INTERACTION, then VISUAL, as requested. Severity fo
 | [S03](specs/S03-model-chip-in-toolbar.md) | open | Model chip in the toolbar, exact model name | STRUCTURE | 2 | Every session | a, b | S | — | No (follows §10) |
 | [S04](specs/S04-collection-as-window-title.md) | open | The window title is the collection, with its menu | STRUCTURE | 2 | Every switch | f | S | — | No |
 | [S05](specs/S05-menu-bar-commands-single-window.md) | open | Commands in the menu bar; single window | STRUCTURE | 3 | Every session | b, c, e | M | — | No |
-| [S06](specs/S06-canvas-image-bar.md) | in progress (branch `feat/audit-s06-canvas-image-bar`, PR pending) | Canvas shows the image's prompt, facts and actions | STRUCTURE | 3 | Every kept image | a, b, c | M | — | No |
+| [S06](specs/S06-canvas-image-bar.md) | done ([#28](https://github.com/fearless-holdings/mlx-create/pull/28)) | Canvas shows the image's prompt, facts and actions | STRUCTURE | 3 | Every kept image | a, b, c | M | — | No |
 | [S07](specs/S07-lora-sheet-entry-and-order.md) | open | LoRAs: one entry point; opens on the curated list | STRUCTURE | 3 | Every LoRA add | d | S | — | No (wording only) |
 | [S08](specs/S08-civitai-download-adds-to-stack.md) | blocked (needs the D34 decision) | A Civitai download goes on the stack | STRUCTURE | 3 | Every Civitai LoRA | d | M | S07 | **Yes: D34 amendment** |
 | [S09](specs/S09-gallery-mode-decision.md) | blocked (needs the D33 decision) | Gallery mode: decide D33's open question | STRUCTURE | 2 | Finding old images | c | L | S05, I08 | **Yes: resolves D33/§10 open question** |
 | [I01](specs/I01-install-progress-visible.md) | done ([#26](https://github.com/fearless-holdings/mlx-create/pull/26)) | Download progress and time left in the main window | INTERACTION | 4 | Every download | a | M | S01 | No |
-| [I02](specs/I02-canvas-follows-generation.md) | in progress (branch `fix/audit-results-recovery-plan`, PR pending) | Canvas keeps the last image; shows every new one | INTERACTION | 3 | Every generation | a, b | M | — | No |
-| [I03](specs/I03-out-of-memory-recovery.md) | in progress (branch `fix/audit-results-recovery-plan`, PR pending) | Out of memory: failure card with Try Again; right copy | INTERACTION | 4 | When memory is short | e | M | I02 | No |
-| [I04](specs/I04-lora-rejection-recovery.md) | open | LoRA rejected: no internal ids; one-click fix | INTERACTION | 3 | Rare | e | S | I03 | No |
-| [I05](specs/I05-queue-strip-legible-cells.md) | open | Queue cells you can tell apart; Clear | INTERACTION | 3 | Batches, failures | b, e | M | I02 | No |
+| [I02](specs/I02-canvas-follows-generation.md) | done ([#27](https://github.com/fearless-holdings/mlx-create/pull/27)) | Canvas keeps the last image; shows every new one | INTERACTION | 3 | Every generation | a, b | M | — | No |
+| [I03](specs/I03-out-of-memory-recovery.md) | done ([#27](https://github.com/fearless-holdings/mlx-create/pull/27)) | Out of memory: failure card with Try Again; right copy | INTERACTION | 4 | When memory is short | e | M | I02 | No |
+| [I04](specs/I04-lora-rejection-recovery.md) | done ([#32](https://github.com/fearless-holdings/mlx-create/pull/32)) | LoRA rejected: no internal ids; one-click fix | INTERACTION | 3 | Rare | e | S | I03 | No |
+| [I05](specs/I05-queue-strip-legible-cells.md) | done ([#32](https://github.com/fearless-holdings/mlx-create/pull/32)) | Queue cells you can tell apart; Clear | INTERACTION | 3 | Batches, failures | b, e | M | I02 | No |
 | [I06](specs/I06-engine-failure-banner.md) | deferred (acceptance needs a live engine kill) | Engine failure: one recovery action | INTERACTION | 2 | Rare | e | S | — | No |
 | [I07](specs/I07-prompt-tab-key-trap.md) | done ([#25](https://github.com/fearless-holdings/mlx-create/pull/25)) | Prompt: Tab moves focus (keyboard trap) | INTERACTION | 3 | Every keyboard user | all | S | — | No |
-| [I08](specs/I08-gallery-keyboard-and-labels.md) | done (PR pending) | Gallery arrow keys; distinct tile labels | INTERACTION | 2 | Batch review | b, c | S | — | No |
-| [I09](specs/I09-enhance-card-actions-and-provenance.md) | open | Enhance: clear labels, Restore, no stale provenance | INTERACTION | 2 | Every Enhance | b | S | — | No (§8.8 wording) |
+| [I08](specs/I08-gallery-keyboard-and-labels.md) | done ([#31](https://github.com/fearless-holdings/mlx-create/pull/31)) | Gallery arrow keys; distinct tile labels | INTERACTION | 2 | Batch review | b, c | S | — | No |
+| [I09](specs/I09-enhance-card-actions-and-provenance.md) | done ([#30](https://github.com/fearless-holdings/mlx-create/pull/30)) | Enhance: clear labels, Restore, no stale provenance | INTERACTION | 2 | Every Enhance | b | S | — | No (§8.8 wording) |
 | [I10](specs/I10-license-sheet-single-action.md) | done ([#26](https://github.com/fearless-holdings/mlx-create/pull/26)) | Licence sheets: one "Accept and Download" | INTERACTION | 2 | Every download | a, d | S | — | No (see spec on the legal read) |
 | [I11](specs/I11-interrupted-download-size.md) | done ([#25](https://github.com/fearless-holdings/mlx-create/pull/25)) | Interrupted download reports real bytes | INTERACTION | 2 | Cancelled downloads | a | S | — | No |
 | [I12](specs/I12-generate-disabled-reason.md) | done ([#26](https://github.com/fearless-holdings/mlx-create/pull/26)) | Generate says why it is disabled | INTERACTION | 2 | First launch, empty prompt | a | S | (I01) | No |
