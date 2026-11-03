@@ -72,6 +72,18 @@ extension AppModel {
         await reload()
     }
 
+    /// Hides failed or cancelled jobs from the strip (I05). The job rows keep their state, so a retried job comes back.
+    func dismissJobs(_ ids: [UUID]) async {
+        dismissedJobIDs.formUnion(ids)
+        if let selection, ids.contains(selection) { dismissFailureCard() }
+        await reload()
+    }
+
+    /// The failed and cancelled cells on screen, which Clear removes together.
+    var finishedJobIDs: [UUID] {
+        queueJobs.filter { $0.status == .failed || $0.status == .cancelled }.map(\.id)
+    }
+
     /// Opens the model browser sheet and refreshes its rows from the installer and the folders.
     func openBrowser() {
         isBrowserPresented = true

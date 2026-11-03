@@ -58,8 +58,12 @@ extension AppModel {
                 let running = snapshot.running.flatMap { (job: Job) -> Job? in job.collectionID == collectionID ? job : nil }
                 let queued = snapshot.queued.filter { $0.collectionID == collectionID }
                 let paused = try await store.jobs(status: .paused).filter { $0.collectionID == collectionID }
-                let failed = try await store.jobs(status: .failed).filter { $0.collectionID == collectionID }
-                let cancelled = try await store.jobs(status: .cancelled).filter { $0.collectionID == collectionID }
+                let failedEverywhere = try await store.jobs(status: .failed)
+                let cancelledEverywhere = try await store.jobs(status: .cancelled)
+                let failed = failedEverywhere.filter { $0.collectionID == collectionID }
+                let cancelled = cancelledEverywhere.filter { $0.collectionID == collectionID }
+                // A dismissal is remembered against every collection's finished jobs, so one made elsewhere survives.
+                let finishedIDs = Set((failedEverywhere + cancelledEverywhere).map(\.id))
 
                 var items: [JobItem] = []
                 if let running {
@@ -70,12 +74,14 @@ extension AppModel {
                         try await placeholder(
                             for: job, canMoveUp: index > 0, canMoveDown: index < queued.count - 1))
                 }
-                for job in paused + failed + cancelled {
+                for job in paused + (failed + cancelled).filter({ !dismissedJobIDs.contains($0.id) }) {
                     items.append(try await placeholder(for: job))
                 }
                 guard collectionID == currentCollection.id else { return }
                 guard revision == galleryRevision else { continue }
                 queueJobs = items
+                // A retried job left the finished states, so its old dismissal is forgotten and a later failure shows again.
+                if !dismissedJobIDs.isSubset(of: finishedIDs) { dismissedJobIDs.formIntersection(finishedIDs) }
                 // A followed job that failed takes the canvas, so the failure shows where the user is looking (I03).
                 if let failed = items.first(where: { $0.status == .failed && canvasFollowedJobs.contains($0.id) }) {
                     canvasFollowedJobs.remove(failed.id)

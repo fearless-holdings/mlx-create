@@ -128,3 +128,11 @@ With the capture kit, one model, window at 1100×692: queue two jobs with differ
 7. Press "Remove from the queue" on the cancelled cell: its cell disappears. After quitting and relaunching, it is still gone.
 8. `contrast.py` on the status text of a failed or cancelled cell (light and dark): ≥ 4.5:1.
 9. Captures `I05_strip_small_light.png` and `I05_strip_small_dark.png` are attached to the PR.
+
+## Resolution
+
+Done on branch `work/queue-cells-i05`. Edit steps describe the as-built change, with four differences. The dismissal set persists through its own observer, and `init` reads the stored ids last, after every other stored property is set, so the observer can write the defaults. `reloadQueue` reads the failed and the cancelled jobs once each for every collection and filters them for the strip, so the prune sees the other collections without extra reads, and it prunes after `queueJobs` is assigned; a retried job leaves the finished states and loses its dismissal, so a later failure shows again. The idle header with cells reports the finished count rather than every cell, and Clear sits after Pause and Resume. The cell keeps the existing context menu (Move Up, Move Down, Retry, Cancel) unchanged; removal is the corner button and a "Remove from the queue" accessibility action, as the spec asks. `AppModel.swift` grew by the stored set, its defaults key and the init line only; `dismissJobs` and `finishedJobIDs` live in `AppModel+Queue.swift`, and HLD §10 now names the header states and the removable cells.
+
+Exercised: `swift build`; `swift test`, 270 tests in 29 suites including the new `QueueDismissTests` (six tests: a dismissed cancelled cell leaves the strip while the job row stays cancelled, the dismissal survives a relaunch, a retried job and its second failure both show again, a dismissal survives switching collections in both directions, Clear removes only failed and cancelled cells, and dismissing the failed job on the canvas returns to the kept image); `swift format lint --strict` on the changed files prints nothing; `node scripts/check-file-size.mjs` on the changed files exits 0.
+
+Not run here: the `xcodebuild` build, the GUI smoke, the `ax dump` and `contrast.py` checks, and the two captures for the PR; the orchestrator runs the app and the live checks.
