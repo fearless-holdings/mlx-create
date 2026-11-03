@@ -40,6 +40,16 @@ enum GalleryNavigation {
         if let older = order[(index + 1)...].first(where: isEligible) { return older }
         return order[..<index].last(where: isEligible)
     }
+
+    /// Where an arrow key goes from the image `current` in `order`: `offset` places along the grid, clamped to the ends
+    /// so a move never wraps. Nil when nothing moves, which is the first image at either end of a row too. With
+    /// nothing selected, or a selection the gallery does not list (a running job), any arrow starts at the first image.
+    static func move(from current: UUID?, in order: [UUID], by offset: Int) -> UUID? {
+        guard let first = order.first else { return nil }
+        guard let index = current.flatMap({ order.firstIndex(of: $0) }) else { return first }
+        let target = min(max(index + offset, 0), order.count - 1)
+        return target == index ? nil : order[target]
+    }
 }
 
 /// The wording of the gallery's status line.

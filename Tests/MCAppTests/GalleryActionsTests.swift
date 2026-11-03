@@ -80,6 +80,33 @@ private func startedHarness(
         #expect(model.selection == order[1])
     }
 
+    @Test func arrowsStepFromTheHighlightedTileEvenWhenTheCanvasShowsAnotherImage() async throws {
+        let harness = try await startedHarness()
+        let model = harness.model
+        for n in 1...5 { _ = try await save(harness, prompt: "image \(n)") }
+        await model.reload()
+        let order = model.galleryImages.map(\.id)
+
+        // Only order[3] is highlighted now, while the canvas still shows order[0].
+        model.selectGalleryImage(order[0], click: .plain)
+        model.selectGalleryImage(order[3], click: .toggle)
+        model.selectGalleryImage(order[0], click: .toggle)
+        #expect(model.gallerySelection == [order[3]])
+        #expect(model.selection == order[0])
+        #expect(GalleryNavigation.move(from: model.galleryArrowOrigin, in: order, by: -1) == order[2])
+
+        // Several highlighted: the arrow steps from the anchor, the last tile clicked.
+        model.selectGalleryImage(order[1], click: .toggle)
+        #expect(model.gallerySelection == [order[1], order[3]])
+        #expect(GalleryNavigation.move(from: model.galleryArrowOrigin, in: order, by: 1) == order[2])
+
+        // After the canvas image is deleted from the gallery while a tile stays highlighted, the arrow does not jump to the
+        // first image of the library.
+        model.selectGalleryImage(order[2], click: .plain)
+        model.selection = nil
+        #expect(GalleryNavigation.move(from: model.galleryArrowOrigin, in: order, by: 1) == order[3])
+    }
+
     @Test func rightClickKeepsASelectedImagesSelectionAndReplacesItForAnUnselectedOne() async throws {
         let harness = try await startedHarness()
         let model = harness.model
@@ -404,5 +431,27 @@ private func startedHarness(
         #expect(GalleryNavigation.range(from: ids[1], to: ids[3], in: ids) == Array(ids[1...3]))
         #expect(GalleryNavigation.range(from: ids[3], to: ids[1], in: ids) == Array(ids[1...3]))
         #expect(GalleryNavigation.range(from: ids[1], to: UUID(), in: ids) == nil)
+    }
+
+    private let ten = (0..<10).map { _ in UUID() }
+
+    @Test func arrowingStepsOneImageAndStopsAtTheEnds() {
+        #expect(GalleryNavigation.move(from: ten[5], in: ten, by: 1) == ten[6])
+        #expect(GalleryNavigation.move(from: ten[5], in: ten, by: -1) == ten[4])
+        #expect(GalleryNavigation.move(from: ten[0], in: ten, by: -1) == nil)
+        #expect(GalleryNavigation.move(from: ten[9], in: ten, by: 1) == nil)
+    }
+
+    @Test func arrowingDownARowClampsToTheLastImage() {
+        #expect(GalleryNavigation.move(from: ten[6], in: ten, by: 2) == ten[8])
+        #expect(GalleryNavigation.move(from: ten[8], in: ten, by: 2) == ten[9])
+        #expect(GalleryNavigation.move(from: ten[9], in: ten, by: 2) == nil)
+    }
+
+    @Test func arrowingWithNothingSelectedSelectsTheFirstImage() {
+        #expect(GalleryNavigation.move(from: nil, in: ten, by: 1) == ten[0])
+        #expect(GalleryNavigation.move(from: nil, in: ten, by: -1) == ten[0])
+        #expect(GalleryNavigation.move(from: UUID(), in: ten, by: 1) == ten[0])
+        #expect(GalleryNavigation.move(from: nil, in: [], by: 1) == nil)
     }
 }

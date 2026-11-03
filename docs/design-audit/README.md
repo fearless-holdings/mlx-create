@@ -6,7 +6,7 @@ The user's brief shaped the bar. They chose mlx-create over Draw Things because 
 
 ## Progress
 
-**9 of 28 done, 3 in progress, 1 deferred, 2 blocked on an HLD decision, 13 open.** Last updated 2026-11-02. Findings, evidence and line references describe `633e737`; they are not rewritten as the code moves. Progress lives in two places only:
+**10 of 28 done, 3 in progress, 1 deferred, 2 blocked on an HLD decision, 12 open.** Last updated 2026-11-03. Findings, evidence and line references describe `633e737`; they are not rewritten as the code moves. Progress lives in two places only:
 
 - the **Status** column in [§2](#2-all-findings), which is the tracker;
 - a **Resolution** section at the end of a spec once it ships: the PR and commits, where the result differs from the spec, and what was and was not exercised.
@@ -68,7 +68,7 @@ The order is STRUCTURE, then INTERACTION, then VISUAL, as requested. Severity fo
 | [I05](specs/I05-queue-strip-legible-cells.md) | open | Queue cells you can tell apart; Clear | INTERACTION | 3 | Batches, failures | b, e | M | I02 | No |
 | [I06](specs/I06-engine-failure-banner.md) | deferred (acceptance needs a live engine kill) | Engine failure: one recovery action | INTERACTION | 2 | Rare | e | S | — | No |
 | [I07](specs/I07-prompt-tab-key-trap.md) | done ([#25](https://github.com/fearless-holdings/mlx-create/pull/25)) | Prompt: Tab moves focus (keyboard trap) | INTERACTION | 3 | Every keyboard user | all | S | — | No |
-| [I08](specs/I08-gallery-keyboard-and-labels.md) | open | Gallery arrow keys; distinct tile labels | INTERACTION | 2 | Batch review | b, c | S | — | No |
+| [I08](specs/I08-gallery-keyboard-and-labels.md) | done (PR pending) | Gallery arrow keys; distinct tile labels | INTERACTION | 2 | Batch review | b, c | S | — | No |
 | [I09](specs/I09-enhance-card-actions-and-provenance.md) | open | Enhance: clear labels, Restore, no stale provenance | INTERACTION | 2 | Every Enhance | b | S | — | No (§8.8 wording) |
 | [I10](specs/I10-license-sheet-single-action.md) | done ([#26](https://github.com/fearless-holdings/mlx-create/pull/26)) | Licence sheets: one "Accept and Download" | INTERACTION | 2 | Every download | a, d | S | — | No (see spec on the legal read) |
 | [I11](specs/I11-interrupted-download-size.md) | done ([#25](https://github.com/fearless-holdings/mlx-create/pull/25)) | Interrupted download reports real bytes | INTERACTION | 2 | Cancelled downloads | a | S | — | No |
