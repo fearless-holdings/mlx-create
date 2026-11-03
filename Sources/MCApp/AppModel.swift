@@ -38,6 +38,8 @@ public final class AppModel {
     static let currentCollectionDefaultsKey = "currentCollectionID"
     /// The defaults key for the Civitai NSFW opt-in (plan U6, R7). Persisted across launches.
     static let civitaiIncludeNSFWKey = "civitaiIncludeNSFW"
+    /// The defaults key for whether the composer's "More options" is open.
+    static let moreOptionsDefaultsKey = "composerShowsMoreOptions"
     /// Gallery images per page. Pages load on demand, so every image in the library can be reached.
     static let galleryPageSize = 60
     private static let shutdownLimit: Duration = .seconds(3)
@@ -113,6 +115,16 @@ public final class AppModel {
     public var steps: Int?
     public var guidance: Double?
     public var batchCount = 1
+    /// Whether the composer's "More options" (seed, steps, CFG, negative prompt) is open. Stored, so it opens as the user
+    /// left it; ``applyStoredSettings(_:)`` opens it for the current composer without storing that.
+    public var showsMoreOptions = false {
+        didSet {
+            guard !opensMoreOptionsTransiently else { return }
+            defaults.set(showsMoreOptions, forKey: Self.moreOptionsDefaultsKey)
+        }
+    }
+    /// Set only while ``applyStoredSettings(_:)`` opens the disclosure, so a reuse does not pin it open for the next launch.
+    var opensMoreOptionsTransiently = false
     public var seedChoice: SeedChoice = .random
     public var seedText = ""
     public var lastError: String?
@@ -242,6 +254,7 @@ public final class AppModel {
         self.composer = GenerationComposer(registry: registry, store: store)
         self.libraryPaths = libraryPaths
         self.selectedModelID = defaults.string(forKey: Self.lastUsedModelKey)
+        self.showsMoreOptions = defaults.bool(forKey: Self.moreOptionsDefaultsKey)
         queueHeader = QueuePresentation.header(
             isRunning: false, pauseRequested: defaults.bool(forKey: Self.queuePausedDefaultsKey))
         let civitaiClient = CivitaiClient(

@@ -20,6 +20,17 @@ extension SmokeSession {
 
     func seedPolicy(_ name: String) -> XCUIElement { app.radioButtons[name] }
 
+    var moreOptionsButton: XCUIElement { app.buttons["More options"] }
+
+    /// Opens "More options" when the seed policy is hidden behind it (docs/design-audit/specs/S02).
+    func showMoreOptions() {
+        if !seedPolicy("Random").exists {
+            require(moreOptionsButton, "the More options button is missing")
+            moreOptionsButton.click()
+        }
+        require(seedPolicy("Fixed"), "the seed policy did not appear after opening More options")
+    }
+
     func setPrompt(_ text: String) {
         promptField.click()
         promptField.typeKey("a", modifierFlags: .command)
@@ -48,6 +59,7 @@ extension SmokeSession {
             XCTAssertEqual(promptField.value as? String, prompt, "the Prompt field did not take the typed text")
         }
         step("Choose a fixed seed") {
+            showMoreOptions()
             seedPolicy("Fixed").click()
             require(seedField, "the Seed field did not appear after choosing Fixed")
         }

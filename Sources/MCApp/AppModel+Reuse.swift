@@ -37,6 +37,11 @@ extension AppModel {
         seedText = String(UInt32(truncatingIfNeeded: settings.seed))
         restoreLoRAStack(from: settings.loras ?? [])
         fitComposerToSelectedFamily()
+        // The restored image pins a fixed seed the user should see, so open the disclosure. This is a view state, not the
+        // stored preference: reuse must not pin it open for the next launch.
+        opensMoreOptionsTransiently = true
+        showsMoreOptions = true
+        opensMoreOptionsTransiently = false
     }
 
     /// Gallery tile menu: only the prompt and negative prompt are copied. Model, size, steps and seed stay as they are.

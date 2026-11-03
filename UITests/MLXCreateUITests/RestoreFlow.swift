@@ -43,6 +43,7 @@ extension SmokeSession {
         let changedSeed = "999999"
 
         step("Change prompt, seed, seed policy and size") {
+            showMoreOptions()
             setPrompt(changedPrompt)
             XCTAssertEqual(promptField.value as? String, changedPrompt, "the Prompt field did not take the changed text")
             seedPolicy("Fixed").click()
