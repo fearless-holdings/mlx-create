@@ -100,7 +100,10 @@ Two specs need a decision from you before any code: **S08** changes the D34 amen
 
    This is the shortest path to moving time to first kept image.
 3. **Window structure:** S05 (menus, single window) → S04 (title) → S03 (chip to toolbar) → S02 (composer). Do S02 after S03 so the at-rest count lands at its target.
-4. **Results and recovery:** I02 → S06 → I03 → I04 → I05 → I08 → I09.
+4. **Results and recovery** (done, [#27](https://github.com/fearless-holdings/mlx-create/pull/27), [#28](https://github.com/fearless-holdings/mlx-create/pull/28), [#30](https://github.com/fearless-holdings/mlx-create/pull/30), [#31](https://github.com/fearless-holdings/mlx-create/pull/31), [#32](https://github.com/fearless-holdings/mlx-create/pull/32)):
+   - [x] I02, S06 and I03;
+   - [x] I04 and I05;
+   - [x] I08 and I09.
 5. **LoRAs:** S07, then S08 once you have decided on the D34 change.
 6. **Gallery:** S09, once you have decided on D33.
 7. **Visual layer:** V01 tokens → V02 → V05 → V06.
@@ -337,7 +340,7 @@ These were reviewed and deliberately left alone. Most are already Apple-like, or
 
 ## 12. Verification status
 
-- **Spec execution by fresh agents: no trial recorded.** The audit's brief was "we'll take care of the execution afterwards"; the random pick (seed `1793377315`) was **V04**, **I08** and **V01**. V04 has since shipped through the normal workflow, not as a recorded blind trial, so I08 and V01 are the remaining suggested trial. Which specs have shipped is in [Progress](#progress).
+- **Spec execution by fresh agents: no trial recorded.** The audit's brief was "we'll take care of the execution afterwards"; the random pick (seed `1793377315`) was **V04**, **I08** and **V01**. V04 and I08 have since shipped through the normal workflow, not as recorded blind trials, so V01 is the remaining suggested trial. Which specs have shipped is in [Progress](#progress).
 - **Static check of all 28 specs, done.** Every repository path a spec names exists, except the 15 new files the specs themselves create. Every type, function and property a spec names exists in the code, unless the spec defines it, it is an accessibility role, or it is an Apple API.
 - **Verified by experiment while writing:**
   - I07's Tab and ⇧Tab handler (a scratch SwiftUI app; ⇧Tab arrives as U+0019);
