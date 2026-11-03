@@ -273,7 +273,7 @@ struct ImageCell: View {
         }
         .contextMenu { actions }
         .onHover { isHovering = $0 }
-        .accessibilityLabel("Image: \(image.prompt)")
+        .accessibilityLabel("Image: \(image.prompt), \(String(image.width)) × \(String(image.height)), seed \(String(image.seed))")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityAction(named: "Reuse prompt") { if canReuse { onReusePrompt() } }
         .accessibilityAction(named: "Reuse all settings") { if canReuse { onReuseSettings() } }

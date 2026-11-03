@@ -67,6 +67,7 @@ struct GalleryCollection: NSViewRepresentable {
             self.collectionView = collectionView
             collectionView.onDelete = { [model = self.model] in Task { await model.deleteSelected() } }
             collectionView.onSelectAll = { [model = self.model] in model.selectAllGalleryImages() }
+            collectionView.onMove = { [weak self] offset in self?.moveSelection(by: offset) }
             dataSource = NSCollectionViewDiffableDataSource(collectionView: collectionView) { [weak self] collectionView, indexPath, id in
                 self?.makeItem(collectionView, indexPath: indexPath, id: id)
             }
@@ -137,6 +138,18 @@ struct GalleryCollection: NSViewRepresentable {
             collectionView?.window?.makeFirstResponder(collectionView)
         }
 
+        /// An arrow key: a plain click on the neighbour `offset` places away from the highlighted tile, scrolled into
+        /// view, so the canvas shows it too. The ends clamp, so nothing wraps, and with nothing selected the first image
+        /// is picked.
+        private func moveSelection(by offset: Int) {
+            let ids = model.galleryImages.map(\.id)
+            guard let target = GalleryNavigation.move(from: model.galleryArrowOrigin, in: ids, by: offset) else { return }
+            model.selectGalleryImage(target, click: .plain)
+            if let indexPath = dataSource?.indexPath(for: target) {
+                collectionView?.scrollToItems(at: [indexPath], scrollPosition: .nearestVerticalEdge)
+            }
+        }
+
         /// Applies without animation and then restores the scroll position. The data source does not keep the visible
         /// content in place when rows are inserted above it, so a prepended image would push the view down. The anchor
         /// is the top visible item and its offset from the top of the clip view, and it is captured only when scrolled
@@ -201,17 +214,41 @@ struct GalleryCollection: NSViewRepresentable {
 final class GalleryCollectionView: NSCollectionView {
     var onDelete: (() -> Void)?
     var onSelectAll: (() -> Void)?
+    /// An arrow key's move in the grid: -1 is the previous image, +1 the next, and a full row is the column count.
+    var onMove: ((Int) -> Void)?
 
     override var acceptsFirstResponder: Bool { true }
 
     override func keyDown(with event: NSEvent) {
-        // Delete (51) and forward delete (117), with no modifier that would mean another shortcut.
-        let plain = event.modifierFlags.intersection([.command, .option, .control]).isEmpty
-        if plain, event.keyCode == 51 || event.keyCode == 117 {
-            onDelete?()
-        } else {
-            super.keyDown(with: event)
+        // Delete, the arrow keys and the shortcuts each need no modifier that would mean another command. A shifted arrow
+        // is left to the system: it does not mean "select the neighbour", and a ⇧-range must not collapse to one tile.
+        let flags = event.modifierFlags
+        let plain = flags.intersection([.command, .option, .control]).isEmpty
+        if plain {
+            let row = (collectionViewLayout as? GalleryLayout)?.columns ?? 1
+            switch event.keyCode {
+            // Delete (51) and forward delete (117).
+            case 51, 117:
+                onDelete?()
+                return
+            // ← → ↑ ↓ move one image, like a plain click on it. The ends clamp, so nothing wraps.
+            case 123 where !flags.contains(.shift):
+                onMove?(-1)
+                return
+            case 124 where !flags.contains(.shift):
+                onMove?(1)
+                return
+            case 125 where !flags.contains(.shift):
+                onMove?(row)
+                return
+            case 126 where !flags.contains(.shift):
+                onMove?(-row)
+                return
+            default:
+                break
+            }
         }
+        super.keyDown(with: event)
     }
 
     override func selectAll(_ sender: Any?) {
@@ -242,17 +279,23 @@ final class GalleryLayout: NSCollectionViewFlowLayout {
     static let minSide: CGFloat = 100
     static let maxSide: CGFloat = 120
 
+    /// The columns the last fit chose, so an up or down arrow can move by one row.
+    private(set) var columns = 1
+
     /// Sets the item and section sizes. Each property is written only when it changes, because a write invalidates the
     /// layout and would otherwise repeat forever.
     func fit(width: CGFloat) {
         // A scroll view that is not sized yet has no width, and a zero item size makes AppKit raise.
         guard width > 0 else { return }
         let available = max(0, width - 2 * Self.inset)
-        let columns = max(1, Int((available + Self.spacing) / (Self.minSide + Self.spacing)))
-        let side = min(Self.maxSide, (available - Self.spacing * CGFloat(columns - 1)) / CGFloat(columns))
-        let used = side * CGFloat(columns) + Self.spacing * CGFloat(columns - 1)
+        let fitted = max(1, Int((available + Self.spacing) / (Self.minSide + Self.spacing)))
+        let side = min(Self.maxSide, (available - Self.spacing * CGFloat(fitted - 1)) / CGFloat(fitted))
+        let used = side * CGFloat(fitted) + Self.spacing * CGFloat(fitted - 1)
         let margin = Self.inset + max(0, available - used) / 2
 
+        if columns != fitted {
+            columns = fitted
+        }
         let size = NSSize(width: side, height: side)
         if itemSize != size {
             itemSize = size

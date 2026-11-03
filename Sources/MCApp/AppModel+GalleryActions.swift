@@ -168,6 +168,14 @@ extension AppModel {
         }
     }
 
+    /// The tile an arrow key steps from: the one the gallery highlights, which a ⌘-click can move away from the canvas
+    /// image. A lone selected tile wins, then the anchor when it is still selected, and the canvas image otherwise.
+    var galleryArrowOrigin: UUID? {
+        if gallerySelection.count == 1 { return gallerySelection.first }
+        if let anchor = galleryAnchor, gallerySelection.contains(anchor) { return anchor }
+        return selection
+    }
+
     /// A right-click: an unselected image replaces the selection and becomes the anchor; a selected one leaves the
     /// selection as it is, so the menu acts on all of it (R2).
     func prepareGalleryMenu(for id: UUID) {

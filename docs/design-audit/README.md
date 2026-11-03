@@ -6,7 +6,7 @@ The user's brief shaped the bar. They chose mlx-create over Draw Things because 
 
 ## Progress
 
-**15 of 28 done, 0 in progress, 1 deferred, 2 blocked on an HLD decision, 10 open.** Last updated 2026-11-03. Findings, evidence and line references describe `633e737`; they are not rewritten as the code moves. Progress lives in two places only:
+**16 of 28 done, 0 in progress, 1 deferred, 2 blocked on an HLD decision, 9 open.** Last updated 2026-11-03. Findings, evidence and line references describe `633e737`; they are not rewritten as the code moves. Progress lives in two places only:
 
 - the **Status** column in [§2](#2-all-findings), which is the tracker;
 - a **Resolution** section at the end of a spec once it ships: the PR and commits, where the result differs from the spec, and what was and was not exercised.
@@ -64,12 +64,12 @@ The order is STRUCTURE, then INTERACTION, then VISUAL, as requested. Severity fo
 | [I01](specs/I01-install-progress-visible.md) | done ([#26](https://github.com/fearless-holdings/mlx-create/pull/26)) | Download progress and time left in the main window | INTERACTION | 4 | Every download | a | M | S01 | No |
 | [I02](specs/I02-canvas-follows-generation.md) | done ([#27](https://github.com/fearless-holdings/mlx-create/pull/27)) | Canvas keeps the last image; shows every new one | INTERACTION | 3 | Every generation | a, b | M | — | No |
 | [I03](specs/I03-out-of-memory-recovery.md) | done ([#27](https://github.com/fearless-holdings/mlx-create/pull/27)) | Out of memory: failure card with Try Again; right copy | INTERACTION | 4 | When memory is short | e | M | I02 | No |
-| [I04](specs/I04-lora-rejection-recovery.md) | done (PR pending) | LoRA rejected: no internal ids; one-click fix | INTERACTION | 3 | Rare | e | S | I03 | No |
-| [I05](specs/I05-queue-strip-legible-cells.md) | done (PR pending) | Queue cells you can tell apart; Clear | INTERACTION | 3 | Batches, failures | b, e | M | I02 | No |
+| [I04](specs/I04-lora-rejection-recovery.md) | done ([#32](https://github.com/fearless-holdings/mlx-create/pull/32)) | LoRA rejected: no internal ids; one-click fix | INTERACTION | 3 | Rare | e | S | I03 | No |
+| [I05](specs/I05-queue-strip-legible-cells.md) | done ([#32](https://github.com/fearless-holdings/mlx-create/pull/32)) | Queue cells you can tell apart; Clear | INTERACTION | 3 | Batches, failures | b, e | M | I02 | No |
 | [I06](specs/I06-engine-failure-banner.md) | deferred (acceptance needs a live engine kill) | Engine failure: one recovery action | INTERACTION | 2 | Rare | e | S | — | No |
 | [I07](specs/I07-prompt-tab-key-trap.md) | done ([#25](https://github.com/fearless-holdings/mlx-create/pull/25)) | Prompt: Tab moves focus (keyboard trap) | INTERACTION | 3 | Every keyboard user | all | S | — | No |
-| [I08](specs/I08-gallery-keyboard-and-labels.md) | open | Gallery arrow keys; distinct tile labels | INTERACTION | 2 | Batch review | b, c | S | — | No |
-| [I09](specs/I09-enhance-card-actions-and-provenance.md) | done (PR pending) | Enhance: clear labels, Restore, no stale provenance | INTERACTION | 2 | Every Enhance | b | S | — | No (§8.8 wording) |
+| [I08](specs/I08-gallery-keyboard-and-labels.md) | done ([#31](https://github.com/fearless-holdings/mlx-create/pull/31)) | Gallery arrow keys; distinct tile labels | INTERACTION | 2 | Batch review | b, c | S | — | No |
+| [I09](specs/I09-enhance-card-actions-and-provenance.md) | done ([#30](https://github.com/fearless-holdings/mlx-create/pull/30)) | Enhance: clear labels, Restore, no stale provenance | INTERACTION | 2 | Every Enhance | b | S | — | No (§8.8 wording) |
 | [I10](specs/I10-license-sheet-single-action.md) | done ([#26](https://github.com/fearless-holdings/mlx-create/pull/26)) | Licence sheets: one "Accept and Download" | INTERACTION | 2 | Every download | a, d | S | — | No (see spec on the legal read) |
 | [I11](specs/I11-interrupted-download-size.md) | done ([#25](https://github.com/fearless-holdings/mlx-create/pull/25)) | Interrupted download reports real bytes | INTERACTION | 2 | Cancelled downloads | a | S | — | No |
 | [I12](specs/I12-generate-disabled-reason.md) | done ([#26](https://github.com/fearless-holdings/mlx-create/pull/26)) | Generate says why it is disabled | INTERACTION | 2 | First launch, empty prompt | a | S | (I01) | No |
