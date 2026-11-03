@@ -60,6 +60,11 @@ extension AppModel {
     public func retry(_ jobID: UUID) async {
         do {
             try await queue.retry(jobID)
+            // A queue read that began before the retry still holds the job as failed. Making it read again keeps that
+            // stale snapshot from taking the canvas back to the old failure.
+            galleryRevision += 1
+            // The retried job's images take the canvas again (I03, I02).
+            canvasFollowedJobs.insert(jobID)
         } catch {
             lastError = message(for: error)
         }

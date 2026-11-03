@@ -154,3 +154,7 @@ With the capture kit, one model, one image already generated, window at 1100×69
 6. Set batch ×3 and press Generate. Poll `ax dump` every second: the text "Select an image in the gallery, or generate one." never appears, and an `AXImage` whose desc starts with "Selected image:" is present at every poll.
 7. After the batch finishes, the canvas image desc equals the newest gallery tile's desc ("Image: …" minus the prefix).
 8. Captures `I02_running_small_light.png` (old image plus step bar) and `I02_running_large_dark.png` are attached to the PR.
+
+## Resolution
+
+Done on branch `fix/audit-results-recovery-plan`, commit `0e4d109`. The reuse functions moved out of `AppModel.swift` into `AppModel+Reuse.swift` first (commit `8a7ef15`), because that file was at the size budget. Differs from the edit steps in three places: `isStartingJob` is false while the queue is paused or held, so a job that is merely queued does not blank the canvas; every gallery click, including ⌘ and ⇧, ends following; and `canvasImage` (not `canvasFallbackImageID`) is what the view binds to, which S06 and I03 reuse. Exercised: `swift build`, `swift test`, lint, the Debug `xcodebuild`, GUI smoke (`TEST SUCCEEDED`), and acceptance 6 to 8 on a live engine (no "Select an image" at any 1 s poll; the canvas image desc equals the newest tile's). Captures: `screens/I02_running_small_light.png`, `screens/I02_running_large_dark.png`. Not exercised: a sub-second blank between jobs, which a 1 s poll cannot see.

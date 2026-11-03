@@ -268,8 +268,7 @@ private func writeTurboIndex(under weightsRoot: URL) throws {
 
         harness.states.yield(.ready(harness.endpoint))
         try await eventually { try await harness.store.jobs(status: .done).count == 2 }
-        #expect(model.banner == nil)
-        #expect(model.queueHeader == .idle)
+        try await eventually { model.banner == nil && model.queueHeader == .idle }
     }
 
     @Test func cancellingShowsTheJobCancelledWithItsFinishedImagesRetained() async throws {
@@ -294,8 +293,7 @@ private func writeTurboIndex(under weightsRoot: URL) throws {
         try await eventually { jobItem(model, jobID)?.status == .cancelled }
         #expect(jobItem(model, jobID)?.savedCount == 1)
         #expect(imageCount(model) == 1)
-        #expect(model.runningProgress == nil)
-        #expect(model.queueHeader == .idle)
+        try await eventually { model.runningProgress == nil && model.queueHeader == .idle }
     }
 
     @Test func queueStripListsTheRunningJobThenQueuedJobsInOrderWithoutImages() async throws {
@@ -504,5 +502,127 @@ private func writeTurboIndex(under weightsRoot: URL) throws {
 
         model.prompt = "a teapot"
         #expect(model.emptyHintText == "Press ⌘↩ to make your first image")
+    }
+
+    // MARK: Canvas follows generation (I02)
+
+    /// A harness whose first generation completes and whose later generations wait for `EngineStubProtocol.finishHeld`.
+    private static func heldAfterTheFirstImage() async throws -> AppHarness {
+        try await AppHarness.make(script: { number, _ in
+            if number == 1 {
+                return .init(status: 200, body: PNGFixture.sseReply(width: 512, height: 512), tail: nil)
+            }
+            return .init(status: 200, body: PNGFixture.sseHead(steps: 2), tail: PNGFixture.sseTail(width: 512, height: 512))
+        })
+    }
+
+    /// Waits until the engine has been asked for `count` images, so a held reply exists for `finishHeld` to release.
+    private static func engineHasBeenAskedForImages(_ count: Int, _ harness: AppHarness) async throws {
+        try await eventually {
+            EngineStubProtocol.requests(harness.endpoint).filter { $0.path == "v1/images/generations" }.count >= count
+        }
+    }
+
+    @Test func theCanvasKeepsThePreviousImageWhileTheNextJobRuns() async throws {
+        let harness = try await Self.heldAfterTheFirstImage()
+        let model = harness.model
+        await model.start()
+        await model.refreshModels()
+        model.prompt = "a lighthouse at dusk"
+
+        await model.generate()
+        try await eventually { model.selectedImage != nil }
+        let firstID = try #require(model.selectedImage?.id)
+
+        model.prompt = "a lighthouse at noon"
+        await model.generate()
+        let secondJobID = try #require(model.selection)
+        try await eventually { model.runningProgress?.jobID == secondJobID }
+
+        // The new job's placeholder is selected, so the canvas has no selection to draw and keeps the earlier image.
+        #expect(model.selectedImage?.id == nil)
+        #expect(model.canvasImage?.id == firstID)
+        EngineStubProtocol.finishHeld(harness.endpoint)
+    }
+
+    @Test func everyImageOfABatchTakesTheCanvas() async throws {
+        let harness = try await AppHarness.make(script: { _, _ in
+            .init(status: 200, body: PNGFixture.sseReply(width: 512, height: 512), tail: nil)
+        })
+        let model = harness.model
+        await model.start()
+        await model.refreshModels()
+        model.prompt = "a lighthouse at dusk"
+        model.batchCount = 2
+
+        await model.generate()
+        try await eventually { imageCount(model) == 2 && model.canvasImage?.id == model.galleryImages.first?.id }
+        // The second image of the batch, not only the first, is what the canvas shows.
+        #expect(model.selection == model.galleryImages.first?.id)
+    }
+
+    @Test func aGalleryClickStopsFollowing() async throws {
+        let harness = try await Self.heldAfterTheFirstImage()
+        let model = harness.model
+        await model.start()
+        await model.refreshModels()
+        let older = try await harness.saveImage(prompt: "an older image")
+        await model.reload()
+
+        model.prompt = "a lighthouse at dusk"
+        model.batchCount = 2
+        await model.generate()
+        try await eventually { imageCount(model) == 2 && model.selectedImage != nil }
+
+        model.selectGalleryImage(older.id, click: .plain)
+        #expect(model.selection == older.id)
+
+        try await Self.engineHasBeenAskedForImages(2, harness)
+        EngineStubProtocol.finishHeld(harness.endpoint)
+        try await eventually { imageCount(model) == 3 }
+        #expect(model.selection == older.id)
+        #expect(model.canvasImage?.id == older.id)
+    }
+
+    @Test func aCommandClickAlsoStopsFollowing() async throws {
+        let harness = try await Self.heldAfterTheFirstImage()
+        let model = harness.model
+        await model.start()
+        await model.refreshModels()
+        let older = try await harness.saveImage(prompt: "an older image")
+        await model.reload()
+
+        model.prompt = "a lighthouse at dusk"
+        model.batchCount = 2
+        await model.generate()
+        try await eventually { imageCount(model) == 2 && model.selectedImage != nil }
+        let firstID = try #require(model.selection)
+
+        // ⌘-click leaves the canvas image alone, but it still hands the canvas back to the user.
+        model.selectGalleryImage(older.id, click: .toggle)
+        #expect(model.selection == firstID)
+
+        try await Self.engineHasBeenAskedForImages(2, harness)
+        EngineStubProtocol.finishHeld(harness.endpoint)
+        try await eventually { imageCount(model) == 3 }
+        #expect(model.selection == firstID)
+        #expect(model.canvasImage?.id == firstID)
+    }
+
+    @Test func aPausedQueueWithAQueuedJobIsNotStartingAJob() async throws {
+        let harness = try await AppHarness.make()
+        let model = harness.model
+        await model.start()
+        await model.refreshModels()
+        await model.pauseQueue()
+        _ = try await harness.enqueue(batch: 1)
+        await model.reload()
+
+        try await eventually { !model.queueJobs.isEmpty }
+        #expect(model.queueHeader == .paused)
+        #expect(model.queueJobs.contains { $0.status == .queued })
+        // The header says the queue is paused, so the canvas must not announce a job that is not about to run.
+        #expect(model.canvasImage == nil)
+        #expect(!model.isStartingJob)
     }
 }

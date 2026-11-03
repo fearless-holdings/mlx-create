@@ -13,6 +13,8 @@ public enum EngineError: Error, Equatable, Sendable {
     case enhancerOutOfMemory(engineMessage: String?)
     /// Chat call 503 `model_not_loaded`: the prompt enhancer model is not installed or not resident.
     case enhancerModelNotLoaded(engineMessage: String?)
+    /// Chat call 400: the prompt enhancer rejected the request body.
+    case enhancerBadRequest(engineMessage: String?)
     /// 503 `no_model`: there is no default model and none was named.
     case noModel(engineMessage: String?)
     /// 400: the engine rejected the request body.
@@ -37,8 +39,11 @@ public enum EngineError: Error, Equatable, Sendable {
         case .unauthorized: "The image engine rejected its access key. Restart the engine and try again."
         case .outOfMemory: OutOfMemoryFailure.message
         case .modelNotLoaded: "The model is not loaded. Load it and try again."
-        case .enhancerOutOfMemory: "Not enough free memory to run the prompt enhancer. Close other apps or models and try again."
+        case .enhancerOutOfMemory:
+            "There isn't enough free memory to run the prompt enhancer right now. "
+                + "Quit apps you aren't using, then try again."
         case .enhancerModelNotLoaded: "The prompt enhancer model is not installed or not loaded. Install it or load it, then try again."
+        case .enhancerBadRequest: "The prompt enhancer rejected the request."
         case .noModel: "No model is loaded to generate with. Load a model first."
         case .badRequest: "The image engine rejected the request."
         case .loraRejected: "The image engine could not use a LoRA with this model. Remove or replace it and try again."
@@ -55,7 +60,7 @@ public enum EngineError: Error, Equatable, Sendable {
         switch self {
         case .unauthorized(let m), .outOfMemory(let m), .modelNotLoaded(let m),
             .noModel(let m), .badRequest(let m), .loraRejected(let m),
-            .enhancerOutOfMemory(let m), .enhancerModelNotLoaded(let m):
+            .enhancerOutOfMemory(let m), .enhancerModelNotLoaded(let m), .enhancerBadRequest(let m):
             m
         case .engineFailure(_, let m):
             m
@@ -90,9 +95,16 @@ public enum EngineError: Error, Equatable, Sendable {
         }
     }
 
-    /// Maps a non-200 chat response. Out-of-memory and model-not-loaded get enhancer copy; the rest map as image routes do.
+    /// Maps a non-200 chat response. Out-of-memory, model-not-loaded and a rejected request get enhancer copy; the rest map as image routes do.
     static func fromChatResponse(status: Int, body: Data) -> EngineError {
         let parsed = ErrorEnvelope.parse(body)
+        // The engine's admission guard refuses a chat that does not fit with HTTP 400 and a message about GPU memory
+        // (upstream src/server.zig memoryRefusalMessage / prefillNoFitMessage). That is a memory refusal, not a bad request.
+        if status == 400, let message = parsed.message, message.contains("GPU memory") {
+            return .enhancerOutOfMemory(engineMessage: message)
+        }
+        // A chat route never generates an image, so its 400 is the prompt enhancer's rejection, not the image engine's.
+        if status == 400 { return .enhancerBadRequest(engineMessage: parsed.message) }
         return enhancerSpecific(type: parsed.type, message: parsed.message) ?? fromResponse(status: status, body: body)
     }
 
@@ -114,7 +126,9 @@ public enum EngineError: Error, Equatable, Sendable {
 /// so the copy and the retry rule cannot drift between the crash path and the 503 path.
 public enum OutOfMemoryFailure {
     /// Plain-language copy for a job's failure and the engine status.
-    public static let message = "Not enough free memory to run this model. Close other apps or models and try again."
+    public static let message =
+        "There isn't enough free memory for this model right now. mlx-create has already freed its own memory. "
+        + "Quit apps you aren't using, then press Try Again."
     /// Retry can help once memory frees up.
     public static let retryable = true
     /// The 503 path unloads resident models before the job fails: the engine refused to load with them resident.

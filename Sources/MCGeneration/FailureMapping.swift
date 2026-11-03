@@ -67,7 +67,7 @@ public enum FailureMapping {
         case .modelNotLoaded, .enhancerModelNotLoaded, .noModel, .engineFailure,
             .connectionLost, .timedOut, .streamEndedWithoutComplete:
             true
-        case .unauthorized, .badRequest, .loraRejected, .malformedResponse, .chatOutputTruncated:
+        case .unauthorized, .badRequest, .loraRejected, .malformedResponse, .chatOutputTruncated, .enhancerBadRequest:
             false
         }
     }
@@ -76,7 +76,7 @@ public enum FailureMapping {
     private static func engineDetail(_ error: EngineError) -> String? {
         switch error {
         case .unauthorized(let message), .outOfMemory(let message), .modelNotLoaded(let message),
-            .enhancerOutOfMemory(let message), .enhancerModelNotLoaded(let message),
+            .enhancerOutOfMemory(let message), .enhancerModelNotLoaded(let message), .enhancerBadRequest(let message),
             .noModel(let message), .badRequest(let message), .loraRejected(let message):
             message
         case .engineFailure(_, let message):

@@ -140,8 +140,14 @@ extension AppModel {
     // MARK: Selection (KTD4)
 
     /// A click on an image: plain selects it alone and shows it in the canvas; ⌘ toggles it and ⇧ selects the range
-    /// from the anchor, and neither changes the canvas (R1).
+    /// from the anchor, and neither changes the canvas (R1). Every click kind hands the canvas back to the user until the
+    /// next Generate (I02). A modifier-click before the followed job has saved its first image freezes the canvas on the
+    /// image it shows now, so that first image does not take it back.
     func selectGalleryImage(_ id: UUID, click: GalleryClick) {
+        if click != .plain, let pending = selection, canvasFollowedJobs.contains(pending) {
+            selection = canvasImage?.id
+        }
+        canvasFollowedJobs.removeAll()
         switch click {
         case .plain:
             gallerySelection = [id]
@@ -325,10 +331,13 @@ extension AppModel {
     /// a page read that started before cannot put them back.
     private func removeFromGallery(_ ids: Set<UUID>, canvasToNeighbour: Bool) {
         if let canvas = selection, ids.contains(canvas) {
-            selection =
-                canvasToNeighbour
-                ? GalleryNavigation.neighbour(of: canvas, in: galleryImages.map(\.id), where: { !ids.contains($0) })
-                : nil
+            if canvasToNeighbour {
+                selection = GalleryNavigation.neighbour(of: canvas, in: galleryImages.map(\.id), where: { !ids.contains($0) })
+            } else {
+                // The user emptied the canvas on purpose, so the image kept from before the last Generate does not return.
+                selection = nil
+                canvasFallbackImageID = nil
+            }
         }
         galleryRevision += 1
         galleryImages.removeAll { ids.contains($0.id) }

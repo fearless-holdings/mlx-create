@@ -74,6 +74,31 @@ struct EngineErrorMappingTests {
         }
     }
 
+    /// The engine's 400 admission refusal body, as upstream `src/server.zig` writes it (I03).
+    private static let admissionRefusalJSON =
+        #"{"error":{"message":"Prompt (596 tokens) requires ~1001MB GPU memory but only ~510MB is available and the hot "#
+        + #"prefix cache holds ~0MB more, all of which can be reclaimed (~0MB — the shortfall is elsewhere), which is not "#
+        + #"enough. Reduce prompt size, lower --ctx-size, or use a smaller model.","type":"invalid_request_error"}}"#
+
+    @Test("a 400 admission refusal on a chat route maps to enhancerOutOfMemory")
+    func chatAdmissionRefusal() {
+        let body = Data(Self.admissionRefusalJSON.utf8)
+        guard case .enhancerOutOfMemory = EngineError.fromChatResponse(status: 400, body: body) else {
+            Issue.record("expected enhancerOutOfMemory")
+            return
+        }
+    }
+
+    @Test("the same 400 on an image route is still badRequest")
+    func imageRouteAdmissionRefusalStaysBadRequest() {
+        let body = Data(Self.admissionRefusalJSON.utf8)
+        guard case .badRequest(let message) = EngineError.fromResponse(status: 400, body: body) else {
+            Issue.record("expected badRequest")
+            return
+        }
+        #expect(message?.contains("GPU memory") == true)
+    }
+
     @Test("the engine message is kept separate from the user message")
     func engineMessageKept() {
         let error = EngineError.outOfMemory(engineMessage: "needs 17.6 GB")

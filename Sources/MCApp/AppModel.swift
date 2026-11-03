@@ -116,6 +116,11 @@ public final class AppModel {
     /// Counts drops so a slow earlier read cannot overwrite a newer drop's result.
     var dropCounter = 0
     public var selection: UUID?
+    /// Jobs whose saved images take the canvas as they land (I02). Generate adds its job; a click in the gallery or the
+    /// queue strip clears the set, handing the canvas back to the user.
+    var canvasFollowedJobs: Set<UUID> = []
+    /// The image the canvas keeps showing while a followed job has not saved one yet (I02).
+    var canvasFallbackImageID: UUID?
     /// The images the gallery actions work on (D37). Separate from `selection`, which is what the canvas shows.
     var gallerySelection: Set<UUID> = []
     /// The last image clicked without ⇧, where a ⇧-click range starts.
@@ -596,7 +601,9 @@ public final class AppModel {
             originalPrompt: originalPrompt)
         do {
             let job = try await composer.enqueue(draft, collectionID: currentCollection.id)
+            if let shown = selectedImage?.id { canvasFallbackImageID = shown }
             selection = job.id
+            canvasFollowedJobs.insert(job.id)
             lastError = nil
             dropNotice = nil
             await reload()
@@ -616,45 +623,5 @@ public final class AppModel {
         case .increment:
             return UInt32(seedText.trimmingCharacters(in: .whitespaces)).map { SeedPolicy.increment(base: $0) }
         }
-    }
-
-    /// ⌘R: the reusable image's settings go back into the composer.
-    public func reuseSelectedImageSettings() async {
-        guard let image = reuseTarget else { return }
-        reuseSettings(of: image)
-    }
-
-    /// Gallery tile menu: the image's prompt, model, size, steps, seed (pinned as fixed) and LoRA stack go back into the composer.
-    /// The selection does not change.
-    public func reuseSettings(of image: LibraryImage) {
-        let settings = image.settings
-        if let model = models.first(where: { $0.id == settings.modelID }), ModelSelection.isSelectable(model) {
-            selectedModelID = settings.modelID
-        } else {
-            lastError = "The model that made this image is not installed."
-        }
-        applyStoredSettings(settings)
-    }
-
-    /// Puts a stored image's settings into the composer, except the model, which the caller has already chosen.
-    /// Gallery Reuse and a dropped `mlx-create` image both use it. The family's rules apply last, through `fitComposerToSelectedFamily`.
-    func applyStoredSettings(_ settings: ImageSettings) {
-        prompt = settings.prompt
-        originalPrompt = settings.originalPrompt
-        negativePrompt = settings.negativePrompt ?? ""
-        size = ImageSize(width: settings.requestedWidth, height: settings.requestedHeight)
-        steps = settings.requestedSteps
-        guidance = settings.guidance
-        seedChoice = .fixed
-        seedText = String(UInt32(truncatingIfNeeded: settings.seed))
-        restoreLoRAStack(from: settings.loras ?? [])
-        fitComposerToSelectedFamily()
-    }
-
-    /// Gallery tile menu: only the prompt and negative prompt are copied. Model, size, steps and seed stay as they are.
-    public func reusePrompt(of image: LibraryImage) {
-        prompt = image.settings.prompt
-        originalPrompt = image.settings.originalPrompt
-        negativePrompt = image.settings.negativePrompt ?? ""
     }
 }

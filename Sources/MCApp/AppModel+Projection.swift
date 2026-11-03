@@ -76,6 +76,11 @@ extension AppModel {
                 guard collectionID == currentCollection.id else { return }
                 guard revision == galleryRevision else { continue }
                 queueJobs = items
+                // A followed job that failed takes the canvas, so the failure shows where the user is looking (I03).
+                if let failed = items.first(where: { $0.status == .failed && canvasFollowedJobs.contains($0.id) }) {
+                    canvasFollowedJobs.remove(failed.id)
+                    selection = failed.id
+                }
                 queueHeader = QueuePresentation.header(
                     isRunning: snapshot.running != nil, pauseRequested: snapshot.isPauseRequested,
                     isCalibrating: isCalibrating)
@@ -159,7 +164,10 @@ extension AppModel {
                 if query.collectionID == currentCollection.id { await refreshGalleryMeta() }
                 return
             }
-            if selection == jobID { selection = imageID }
+            if selection == jobID || canvasFollowedJobs.contains(jobID) {
+                selection = imageID
+                canvasFallbackImageID = imageID
+            }
             galleryRevision += 1
             // Before the first gallery load there is nothing to prepend to, and that load reads the image anyway.
             if galleryLoaded, !galleryImages.contains(where: { $0.id == imageID }) {
