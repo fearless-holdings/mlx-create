@@ -274,7 +274,8 @@ struct ChatStreamTests {
                 return true
             }
             group.addTask {
-                try? await Task.sleep(for: .seconds(5))
+                // On the suspending clock, so a sleep of the Mac mid-run does not count toward the timeout.
+                try? await Task.sleep(for: .seconds(5), clock: .suspending)
                 return false
             }
             let first = await group.next() ?? false
