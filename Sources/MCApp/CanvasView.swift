@@ -220,7 +220,7 @@ private struct CanvasImageBar: View {
             .accessibilityLabel("Reuse Settings")
             .disabled(isBusy)
             Button {
-                act { await model.exportSelected() }
+                act { await model.exportSelected(only: image.id) }
             } label: {
                 if labelled {
                     Label("Export…", systemImage: "square.and.arrow.up")
@@ -233,7 +233,7 @@ private struct CanvasImageBar: View {
             .accessibilityLabel("Export")
             .disabled(isBusy)
             Button {
-                act { await model.revealSelected() }
+                act { await model.revealSelected(only: image.id) }
             } label: {
                 Image(systemName: "folder")
             }
@@ -242,7 +242,7 @@ private struct CanvasImageBar: View {
             .accessibilityLabel("Show in Finder")
             .disabled(isBusy)
             Button(role: .destructive) {
-                act { await model.deleteSelected() }
+                act { await model.deleteSelected(only: image.id) }
             } label: {
                 Image(systemName: "trash")
             }
@@ -254,7 +254,8 @@ private struct CanvasImageBar: View {
         .fixedSize()
     }
 
-    /// Makes this image the only gallery selection, then runs a D37 action on it. The canvas keeps following the running
+    /// Makes this image the only gallery selection, then runs a D37 action on it. The action names the image itself, so a
+    /// selection that changes before it runs cannot redirect it. The canvas keeps following the running
     /// batch: acting on an image is not the click that hands the canvas back to the user (I02).
     private func act(_ action: @escaping @MainActor () async -> Void) {
         guard !isBusy else { return }

@@ -372,6 +372,22 @@ private func startedHarness(
 
         #expect(revealed == [model.fileURL(for: a)])
     }
+
+    @Test func anActionNamedForOneImageIgnoresTheSelection() async throws {
+        let harness = try await startedHarness()
+        let model = harness.model
+        let a = try await save(harness, prompt: "a")
+        _ = try await save(harness, prompt: "b")
+        await model.reload()
+        // The canvas bar names its image, and the selection may change between the click and the action running.
+        model.selectAllGalleryImages()
+        var revealed: [URL] = []
+        model.revealFiles = { revealed = $0 }
+
+        await model.revealSelected(only: a.id)
+
+        #expect(revealed == [model.fileURL(for: a)])
+    }
 }
 
 @Suite struct GalleryNavigationTests {
