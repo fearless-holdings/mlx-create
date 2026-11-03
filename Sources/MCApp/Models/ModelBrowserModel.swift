@@ -129,9 +129,10 @@ final class ModelBrowserModel {
     private(set) var engineModelIDs: Set<String>
     /// Estimated time per model repo for its family's default size and steps. `AppModel` refreshes it (KTD6).
     var estimates: [String: SpeedEstimate] = [:]
-    /// `AppModel.refreshEstimates` coalescing: one pass runs at a time and a call during it asks for one more.
-    var estimatesRefreshing = false
-    var estimatesRefreshPending = false
+    /// `AppModel.refreshEstimates` coalescing: one pass runs at a time, and a call during it asks for one more and waits
+    /// for it, so every caller returns with estimates at least as new as its call.
+    @ObservationIgnored var estimatesRefresh: Task<Void, Never>?
+    @ObservationIgnored var estimatesRefreshPending = false
 
     private(set) var active: ModelInstaller.Snapshot.Active?
     /// Recent byte counts of the active download, for its time left.
