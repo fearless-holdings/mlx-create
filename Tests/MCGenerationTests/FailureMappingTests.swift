@@ -38,6 +38,7 @@ import Testing
     /// Failures that repeat unchanged on retry: the request itself or its response is the problem.
     @Test(arguments: [
         EngineError.badRequest(engineMessage: nil),
+        .enhancerBadRequest(engineMessage: nil),
         .unauthorized(engineMessage: nil),
         .malformedResponse(detail: "unexpected shape"),
     ])

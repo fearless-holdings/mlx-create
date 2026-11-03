@@ -6,7 +6,7 @@ The user's brief shaped the bar. They chose mlx-create over Draw Things because 
 
 ## Progress
 
-**9 of 28 done, 2 in progress, 1 deferred, 2 blocked on an HLD decision, 14 open.** Last updated 2026-11-02. Findings, evidence and line references describe `633e737`; they are not rewritten as the code moves. Progress lives in two places only:
+**9 of 28 done, 3 in progress, 1 deferred, 2 blocked on an HLD decision, 13 open.** Last updated 2026-11-02. Findings, evidence and line references describe `633e737`; they are not rewritten as the code moves. Progress lives in two places only:
 
 - the **Status** column in [§2](#2-all-findings), which is the tracker;
 - a **Resolution** section at the end of a spec once it ships: the PR and commits, where the result differs from the spec, and what was and was not exercised.
@@ -57,7 +57,7 @@ The order is STRUCTURE, then INTERACTION, then VISUAL, as requested. Severity fo
 | [S03](specs/S03-model-chip-in-toolbar.md) | open | Model chip in the toolbar, exact model name | STRUCTURE | 2 | Every session | a, b | S | — | No (follows §10) |
 | [S04](specs/S04-collection-as-window-title.md) | open | The window title is the collection, with its menu | STRUCTURE | 2 | Every switch | f | S | — | No |
 | [S05](specs/S05-menu-bar-commands-single-window.md) | open | Commands in the menu bar; single window | STRUCTURE | 3 | Every session | b, c, e | M | — | No |
-| [S06](specs/S06-canvas-image-bar.md) | open | Canvas shows the image's prompt, facts and actions | STRUCTURE | 3 | Every kept image | a, b, c | M | — | No |
+| [S06](specs/S06-canvas-image-bar.md) | in progress (branch `feat/audit-s06-canvas-image-bar`, PR pending) | Canvas shows the image's prompt, facts and actions | STRUCTURE | 3 | Every kept image | a, b, c | M | — | No |
 | [S07](specs/S07-lora-sheet-entry-and-order.md) | open | LoRAs: one entry point; opens on the curated list | STRUCTURE | 3 | Every LoRA add | d | S | — | No (wording only) |
 | [S08](specs/S08-civitai-download-adds-to-stack.md) | blocked (needs the D34 decision) | A Civitai download goes on the stack | STRUCTURE | 3 | Every Civitai LoRA | d | M | S07 | **Yes: D34 amendment** |
 | [S09](specs/S09-gallery-mode-decision.md) | blocked (needs the D33 decision) | Gallery mode: decide D33's open question | STRUCTURE | 2 | Finding old images | c | L | S05, I08 | **Yes: resolves D33/§10 open question** |

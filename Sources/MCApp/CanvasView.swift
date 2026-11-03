@@ -44,8 +44,9 @@ struct CanvasView: View {
     }
 }
 
-/// The canvas image scaled to fit, with the failure card and the running generation's step bar stacked over its bottom
-/// edge in one overlay, so a failure in a batch never covers the next job's progress (I03).
+/// The canvas image scaled to fit, with the failure card and the running generation's step bar stacked over the image's
+/// bottom edge in one overlay, so a failure in a batch never covers the next job's progress (I03) and neither covers the
+/// image bar below it (S06). With no image the stack is centred on the canvas instead.
 private struct ContentCanvas: View {
     let model: AppModel
 
@@ -54,13 +55,17 @@ private struct ContentCanvas: View {
             if let image = model.canvasImage {
                 SelectedImageView(model: model, image: image)
                     .id(image.id)
+                    .overlay(alignment: .bottom) {
+                        CanvasStatusStack(model: model)
+                    }
+                CanvasImageBar(model: model, image: image)
             } else if model.selectedFailedJob == nil, model.isStartingJob {
                 VStack(spacing: 8) {
                     ProgressView().controlSize(.small)
                     Text("Starting…").font(.callout)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if model.selectedFailedJob == nil {
+            } else if model.selectedFailedJob == nil, model.runningProgress == nil {
                 Text("Select an image in the gallery, or generate one.")
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -68,8 +73,10 @@ private struct ContentCanvas: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .overlay(alignment: model.canvasImage == nil ? .center : .bottom) {
-            CanvasStatusStack(model: model)
+        .overlay(alignment: .center) {
+            if model.canvasImage == nil {
+                CanvasStatusStack(model: model)
+            }
         }
     }
 }
@@ -118,7 +125,7 @@ struct FailureCard: View {
             HStack(spacing: 8) {
                 Spacer(minLength: 0)
                 Button("Dismiss") {
-                    model.selection = model.canvasFallbackImageID
+                    model.dismissFailureCard()
                 }
                 .buttonStyle(.bordered)
                 if job.canRetry {
@@ -164,6 +171,98 @@ private struct SelectedImageView: View {
                     .accessibilityLabel("Loading image: \(image.prompt)")
             }
         }
+    }
+}
+
+/// The canvas image's prompt, facts and actions (docs/design-audit/specs/S06). Actions target this image only.
+private struct CanvasImageBar: View {
+    let model: AppModel
+    let image: LibraryImage
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(image.prompt)
+                    .font(.body)
+                    .lineLimit(2)
+                    .truncationMode(.tail)
+                    .textSelection(.enabled)
+                    .help(image.prompt)
+                Text(facts)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            ViewThatFits(in: .horizontal) {
+                buttons(labelled: true)
+                buttons(labelled: false)
+            }
+        }
+    }
+
+    private var isBusy: Bool { model.galleryBulk != nil }
+
+    private var facts: String {
+        let size = "\(String(image.width)) × \(String(image.height))"
+        let name = model.displayName(for: image.settings.modelID)
+        return "\(size) · \(name) · Seed \(String(image.seed))"
+    }
+
+    private func buttons(labelled: Bool) -> some View {
+        HStack(spacing: 8) {
+            Button {
+                model.reuseSettings(of: image)
+            } label: {
+                if labelled { Text("Reuse Settings") } else { Image(systemName: "arrow.uturn.backward") }
+            }
+            .buttonStyle(.bordered)
+            .help("Reuse Settings (⌘R)")
+            .accessibilityLabel("Reuse Settings")
+            .disabled(isBusy)
+            Button {
+                act { await model.exportSelected(only: image.id) }
+            } label: {
+                if labelled {
+                    Label("Export…", systemImage: "square.and.arrow.up")
+                } else {
+                    Image(systemName: "square.and.arrow.up")
+                }
+            }
+            .buttonStyle(.bordered)
+            .help("Export…")
+            .accessibilityLabel("Export")
+            .disabled(isBusy)
+            Button {
+                act { await model.revealSelected(only: image.id) }
+            } label: {
+                Image(systemName: "folder")
+            }
+            .buttonStyle(.borderless)
+            .help("Show in Finder")
+            .accessibilityLabel("Show in Finder")
+            .disabled(isBusy)
+            Button(role: .destructive) {
+                act { await model.deleteSelected(only: image.id) }
+            } label: {
+                Image(systemName: "trash")
+            }
+            .buttonStyle(.borderless)
+            .help("Move to Trash")
+            .accessibilityLabel("Move to Trash")
+            .disabled(isBusy)
+        }
+        .fixedSize()
+    }
+
+    /// Makes this image the only gallery selection, then runs a D37 action on it. The action names the image itself, so a
+    /// selection that changes before it runs cannot redirect it. The canvas keeps following the running
+    /// batch: acting on an image is not the click that hands the canvas back to the user (I02).
+    private func act(_ action: @escaping @MainActor () async -> Void) {
+        guard !isBusy else { return }
+        let followed = model.canvasFollowedJobs
+        model.selectGalleryImage(image.id, click: .plain)
+        model.canvasFollowedJobs = followed
+        Task { await action() }
     }
 }
 

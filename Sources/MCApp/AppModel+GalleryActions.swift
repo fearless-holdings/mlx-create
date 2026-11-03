@@ -192,7 +192,7 @@ extension AppModel {
     var reuseTarget: LibraryImage? {
         if gallerySelection.count > 1 { return nil }
         if let id = gallerySelection.first { return galleryImages.first { $0.id == id } }
-        return selectedImage
+        return canvasImage
     }
 
     /// The status line under the grid: the selection count, then the last action's result (R18).
@@ -201,9 +201,12 @@ extension AppModel {
         return [selected, galleryStatus].compactMap { $0 }.joined(separator: " ").nilIfEmpty
     }
 
-    /// The selected images that the current query still matches, in gallery order.
-    private func actionableSelection() async -> [LibraryImage] {
-        let chosen = galleryImages.filter { gallerySelection.contains($0.id) }
+    /// The selected images that the current query still matches, in gallery order. `only` replaces the selection with
+    /// one image, for a control that acts on the image it sits under whatever the selection becomes meanwhile.
+    private func actionableSelection(only imageID: UUID? = nil) async -> [LibraryImage] {
+        let chosen = galleryImages.filter { image in
+            if let imageID { image.id == imageID } else { gallerySelection.contains(image.id) }
+        }
         guard !chosen.isEmpty else { return [] }
         do {
             let visible = try await store.ids(chosen.map(\.id), matching: galleryQuery)
@@ -218,13 +221,13 @@ extension AppModel {
 
     /// Moves the selection's PNGs and thumbnails to the Trash and removes their rows. Images whose job has not finished
     /// are skipped (R4, R5, R17).
-    func deleteSelected() async {
+    func deleteSelected(only imageID: UUID? = nil) async {
         guard galleryBulk == nil else { return }
         galleryStatus = nil
         galleryBulk = GalleryBulkProgress(done: 0, total: 0)
         defer { galleryBulk = nil }
         let collection = currentCollection.id
-        let targets = await actionableSelection()
+        let targets = await actionableSelection(only: imageID)
         guard !targets.isEmpty else { return }
         let ids = targets.map(\.id)
         galleryBulk = GalleryBulkProgress(done: 0, total: ids.count)
@@ -254,20 +257,20 @@ extension AppModel {
     }
 
     /// Selects the selection's PNG files in a Finder window (R6).
-    func revealSelected() async {
-        let targets = await actionableSelection()
+    func revealSelected(only imageID: UUID? = nil) async {
+        let targets = await actionableSelection(only: imageID)
         guard !targets.isEmpty else { return }
         revealFiles(targets.map { fileURL(for: $0) })
     }
 
     /// Copies the selection's PNGs, metadata intact, to a place the user picks (R7).
-    func exportSelected() async {
+    func exportSelected(only imageID: UUID? = nil) async {
         guard galleryBulk == nil else { return }
         galleryStatus = nil
         galleryBulk = GalleryBulkProgress(done: 0, total: 0)
         defer { galleryBulk = nil }
         let collection = currentCollection.id
-        let targets = await actionableSelection()
+        let targets = await actionableSelection(only: imageID)
         guard !targets.isEmpty else { return }
         let single = targets.count == 1
         let request = ExportRequest(

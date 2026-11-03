@@ -25,7 +25,7 @@ After a generation the image fills the canvas. To export it, the user must know 
 
 ## Target behavior
 
-Under the image (only when `model.selectedImage` is non-nil), inside `ContentCanvas` and above the step bar:
+Under the image (only when `model.canvasImage` is non-nil, so it stays under the kept image while a followed job runs), inside `ContentCanvas` and above the step bar:
 
 ```
 a lighthouse on a rocky coast at dusk, warm window light…            [Reuse Settings] [⬆︎ Export…] [📁] [🗑]
@@ -128,14 +128,13 @@ a lighthouse on a rocky coast at dusk, warm window light…            [Reuse Se
    }
    ```
 
-2. In `ContentCanvas.body`, change the `if let image = model.selectedImage { … }` branch to:
+2. In `ContentCanvas.body`, change the `if let image = model.canvasImage { … }` branch to:
 
    ```swift
-   if let image = model.selectedImage {
+   if let image = model.canvasImage {
        SelectedImageView(model: model, image: image)
            .id(image.id)
        CanvasImageBar(model: model, image: image)
-           .padding(.top, 12)
    }
    ```
 
@@ -173,3 +172,9 @@ With the capture kit, one model, one generated image selected, window at 1100×6
 8. The facts line contains `× ` and no "." or "," between digits: run `ax dump | grep "Seed "` and check the value matches the regex `^[0-9]+ × [0-9]+ · .+ · Seed [0-9]+$`.
 9. Press Export (`ax press <pid> "=Export"`): an `AXSheet` or a save panel window appears whose name field holds the image's base name. Press Escape to cancel.
 10. Captures `S06_small_light.png` and `S06_large_dark.png` are attached to the PR.
+
+## Resolution
+
+Done on branch `feat/audit-s06-canvas-image-bar`, commits `84be0d9` (bar) and `6e0c69a` (status stack moved off the bar). The bar binds to `canvasImage` (I02), not the selected gallery image, and its four buttons are disabled while a bulk gallery action runs. A GUI pass found the step bar overlapping the bar's prompt by 32 pt; `6e0c69a` anchors the status stack to the image's bottom edge. Code review then found that Export, Show in Finder and Move to Trash ended the canvas following the running batch (they route through `selectGalleryImage`), so the bar now restores the follow set after selecting its image. Exercised: `swift test`, lint, the Debug `xcodebuild`, GUI smoke (`TEST SUCCEEDED`, one added canvas assertion in `GenerateFlow.swift`), and acceptance 7 and 8 plus captures (`screens/S06_small_light.png`, `screens/S06_large_dark.png`). Not exercised: the Export panel (acceptance 9) was not separately recorded, and no test drives the bar's three gallery actions (the bar's `act` is a private view method).
+
+Cross-model review also found that the bar's Export, Show in Finder and Move to Trash ran in a task that read the gallery selection when it started, so a selection change in between could redirect them. They now name the image (`exportSelected(only:)` and its siblings), and `anActionNamedForOneImageIgnoresTheSelection` covers Show in Finder.

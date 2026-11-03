@@ -89,6 +89,8 @@ extension SmokeSession {
             require(
                 element(labelPrefix: "Selected image: ", containing: token), within: 240, "the generated image never reached the canvas")
             require(element(labelPrefix: "Image: ", containing: token), within: 30, "the generated image never reached the gallery")
+            require(app.buttons["Reuse Settings"], "the canvas has no Reuse Settings button for the new image")
+            require(app.buttons["Export"], "the canvas has no Export button for the new image")
         }
         return GeneratedImage(prompt: prompt, token: token, seed: seed, size: size)
     }

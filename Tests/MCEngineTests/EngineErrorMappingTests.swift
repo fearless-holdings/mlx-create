@@ -63,6 +63,9 @@ struct EngineErrorMappingTests {
             .modelNotLoaded(engineMessage: nil),
             .noModel(engineMessage: nil),
             .badRequest(engineMessage: nil),
+            .enhancerOutOfMemory(engineMessage: nil),
+            .enhancerModelNotLoaded(engineMessage: nil),
+            .enhancerBadRequest(engineMessage: nil),
             .engineFailure(type: nil, engineMessage: nil),
             .connectionLost,
             .streamEndedWithoutComplete,
@@ -87,6 +90,12 @@ struct EngineErrorMappingTests {
             Issue.record("expected enhancerOutOfMemory")
             return
         }
+    }
+
+    @Test("a plain 400 on a chat route is the enhancer's rejection, not the image engine's")
+    func chatBadRequest() throws {
+        let body = httpBody(try fixtureData("gen-400-missing-prompt", "http"))
+        #expect(EngineError.fromChatResponse(status: 400, body: body) == .enhancerBadRequest(engineMessage: "missing 'prompt'"))
     }
 
     @Test("the same 400 on an image route is still badRequest")
