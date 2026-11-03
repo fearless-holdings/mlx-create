@@ -309,7 +309,6 @@ struct GenerationPanel: View {
                 Button("Generate") {
                     Task { await model.generate() }
                 }
-                .keyboardShortcut(.return, modifiers: .command)
                 .disabled(!model.canGenerate)
                 .buttonStyle(.borderedProminent)
                 .help(model.generateBlockReason ?? "Generate (⌘↩)")

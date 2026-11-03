@@ -34,12 +34,12 @@ public struct MainWindow: View {
             }
         }
         .frame(minWidth: 1100, minHeight: 640)
+        .focusedSceneValue(\.appModel, model)
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 CollectionMenu(model: model)
             }
         }
-        .background(ShortcutButtons(model: model))
         .sheet(isPresented: $model.isBrowserPresented) {
             ModelBrowserView(browser: model.browser)
         }
@@ -52,34 +52,5 @@ public struct MainWindow: View {
         .sheet(isPresented: $model.isEnhancerInstallPresented) {
             EnhancerInstallSheet(model: model)
         }
-    }
-}
-
-/// Keyboard shortcuts for actions that are not on a visible control: ⌘. cancel, ⌘R reuse and ⌘E enhance.
-/// ⌘↩ lives on the Generate button in ``GenerationPanel``. The buttons are zero-size and hidden from VoiceOver.
-private struct ShortcutButtons: View {
-    let model: AppModel
-
-    var body: some View {
-        HStack {
-            Button("Cancel") {
-                Task { await model.cancelRunningOrSelected() }
-            }
-            .keyboardShortcut(".", modifiers: .command)
-
-            Button("Reuse Settings") {
-                Task { await model.reuseSelectedImageSettings() }
-            }
-            .keyboardShortcut("r", modifiers: .command)
-            .disabled(!model.canReuse)
-            Button("Enhance") {
-                Task { await model.pressEnhance() }
-            }
-            .keyboardShortcut("e", modifiers: .command)
-            .disabled(!model.canEnhance)
-        }
-        .opacity(0)
-        .frame(width: 0, height: 0)
-        .accessibilityHidden(true)
     }
 }
