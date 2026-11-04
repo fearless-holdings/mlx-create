@@ -1,7 +1,7 @@
 import MCCatalog
 import SwiftUI
 
-/// The Shelf tab of the LoRA sheet (D43): the vouched LoRAs for the selected model, grouped by role. Picking one opens its
+/// The Recommended tab of the LoRA sheet (D43): the vouched LoRAs for the selected model, grouped by role. Picking one opens its
 /// license, then downloads it and puts it on the stack at the scale it was tested at.
 struct ShelfView: View {
     @Bindable var model: AppModel

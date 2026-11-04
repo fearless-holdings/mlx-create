@@ -5,20 +5,20 @@ import UniformTypeIdentifiers
 
 /// The sections of the LoRA sheet.
 private enum LoRASheetTab: String, CaseIterable, Identifiable {
-    case installed = "Installed"
-    case shelf = "Shelf"
-    case browse = "Browse Civitai"
+    case shelf = "Recommended"
+    case installed = "Your LoRAs"
+    case browse = "Civitai"
 
     var id: Self { self }
 }
 
-/// The LoRA library sheet (plan U7): the manager and the picker. Installed holds search, a compatibility filter, import
+/// The LoRA library sheet (plan U7): the manager and the picker. Your LoRAs holds search, a compatibility filter, import
 /// (button or drop), import progress and summary, and a detail pane for rename, trigger words, notes, reveal and delete.
-/// Browse Civitai finds LoRAs for the selected model and downloads them into the library.
+/// Civitai finds LoRAs for the selected model and downloads them into the library.
 struct LoRALibraryView: View {
     @Bindable var model: AppModel
     @Environment(\.dismiss) private var dismiss
-    @State private var tab: LoRASheetTab = .installed
+    @State private var tab: LoRASheetTab
     @State private var query = ""
     @State private var compatibleOnly = true
     @State private var selectedID: String?
@@ -26,8 +26,26 @@ struct LoRALibraryView: View {
     @State private var message: String?
     /// The LoRA sources by LoRA id, loaded from the store. A local import has no entry.
     @State private var sources: [String: LoRASource] = [:]
-    /// The Civitai model IDs stored by the Browse tab since the Installed tab was last shown.
+    /// The Civitai model IDs stored by the Civitai tab since Your LoRAs was last shown.
     @State private var justAddedModelIDs: Set<Int> = []
+
+    init(model: AppModel) {
+        self.model = model
+        _tab = State(initialValue: Self.initialTab(model))
+    }
+
+    /// The tab the sheet opens on: Your LoRAs when the import summary has something to explain or a library LoRA fits the
+    /// selected model, else Recommended when the shelf has a row for the model, else Civitai.
+    private static func initialTab(_ model: AppModel) -> LoRASheetTab {
+        if let summary = model.loraImportSummary, !summary.refused.isEmpty || !summary.duplicates.isEmpty {
+            return .installed
+        }
+        // Recommended and Civitai both need a selected model, so with none Your LoRAs is the only tab that works.
+        guard let family = model.loraFamily else { return .installed }
+        if model.loraLibrary.contains(where: \.fitsSelectedModel) { return .installed }
+        let rows = model.shelf.rows(family: family.id, includeNSFW: model.civitai.includeNSFW)
+        return rows.isEmpty ? .browse : .shelf
+    }
 
     private var selectedModelName: String? {
         model.selectedModel.map { ModelChip.title(for: $0) }
@@ -60,7 +78,7 @@ struct LoRALibraryView: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .frame(width: 380)
+                .frame(width: 360)
                 Spacer()
                 Button("Done") {
                     dismiss()
@@ -85,10 +103,26 @@ struct LoRALibraryView: View {
         .onChange(of: selectedID) {
             message = nil
         }
+        .onDrop(of: [.fileURL], isTargeted: nil) { providers in
+            tab = .installed
+            return LoRADrop.handle(providers, model: model)
+        }
+        .onDisappear {
+            // A refusal or duplicate opens Your LoRAs to explain itself; closing the sheet ends that, so it does not pin
+            // every later opening to the same tab.
+            guard let summary = model.loraImportSummary else { return }
+            guard !summary.refused.isEmpty || !summary.duplicates.isEmpty else { return }
+            model.dismissLoRAImportSummary()
+        }
     }
 
     private var installedContent: some View {
         VStack(alignment: .leading, spacing: 0) {
+            if let summary = model.loraImportSummary {
+                importSummary(summary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+            }
             if model.loraLibrary.isEmpty {
                 emptyState
             } else {
@@ -96,11 +130,6 @@ struct LoRALibraryView: View {
                     .padding(12)
                 if let progress = model.loraImportProgress {
                     importProgress(progress)
-                        .padding(.horizontal, 12)
-                        .padding(.bottom, 8)
-                }
-                if let summary = model.loraImportSummary {
-                    importSummary(summary)
                         .padding(.horizontal, 12)
                         .padding(.bottom, 8)
                 }
@@ -118,14 +147,11 @@ struct LoRALibraryView: View {
             guard case .success(let urls) = result else { return }
             Task { _ = await model.importLoRAs(urls: urls) }
         }
-        .onDrop(of: [.fileURL], isTargeted: nil) { providers in
-            LoRADrop.handle(providers, model: model)
-        }
         .task(id: model.loraLibrary) {
             sources = await model.loadLoRASources()
         }
         .onAppear {
-            // Marks from Browse show once, on the first Installed view after the add; showing this tab clears them.
+            // Marks from Civitai show once, on the first Your LoRAs view after the add; showing this tab clears them.
             justAddedModelIDs = model.civitai.addedModelIDs
             model.civitai.installedTabShown()
         }
@@ -155,6 +181,12 @@ struct LoRALibraryView: View {
             Text("No LoRAs yet.")
                 .foregroundStyle(.secondary)
             importButton
+            HStack(spacing: 12) {
+                if !model.shelf.rows(family: model.loraFamily?.id, includeNSFW: model.civitai.includeNSFW).isEmpty {
+                    Button("See Recommended LoRAs") { tab = .shelf }
+                }
+                Button("Browse Civitai") { tab = .browse }
+            }
             Text("Drop .safetensors files here, or import them.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
