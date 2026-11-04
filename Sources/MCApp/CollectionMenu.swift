@@ -14,45 +14,49 @@ enum CollectionEditor: Identifiable, Equatable {
     }
 }
 
-/// The toolbar's collection switcher (D35): the current collection's name opens a menu of every collection, with the
-/// actions that act on collections. Delete is disabled, with its reason shown, when the store would refuse it (R6-R8).
-struct CollectionMenu: View {
+/// The collection menu's items (D35), shown from the toolbar's collection pill. The current collection is a `Picker`
+/// row, so the system draws its check mark. Delete is disabled, with its reason shown as help, when the store would
+/// refuse it.
+struct CollectionMenuItems: View {
     @Bindable var model: AppModel
 
     var body: some View {
         let current = model.currentCollection
         let blockedReason = model.currentCollectionSummary?.deleteBlockedReason
-        Menu {
+        Picker(
+            "Collection",
+            selection: Binding(
+                get: { model.currentCollection.id },
+                set: { id in Task { await model.switchCollection(to: id) } })
+        ) {
             ForEach(model.collections) { entry in
-                Button {
-                    Task { await model.switchCollection(to: entry.id) }
-                } label: {
-                    if entry.id == current.id {
-                        Label(entry.collection.name, systemImage: "checkmark")
-                    } else {
-                        Text(entry.collection.name)
-                    }
-                }
+                Text(entry.collection.name).tag(entry.id)
             }
-            Divider()
-            Button("New Collection…") {
-                model.collectionEditor = .create
-            }
-            Button("Rename…") {
-                model.collectionEditor = .rename(id: current.id, currentName: current.name)
-            }
-            Button("Delete Collection") {
-                Task { await model.deleteCollection(id: current.id) }
-            }
+        }
+        .pickerStyle(.inline)
+        .labelsHidden()
+        Divider()
+        Button("New Collection…") { model.collectionEditor = .create }
+        Button("Rename…") { model.collectionEditor = .rename(id: current.id, currentName: current.name) }
+        Button("Delete Collection") { Task { await model.deleteCollection(id: current.id) } }
             .disabled(blockedReason != nil)
             .help(blockedReason ?? "Delete this empty collection")
-            if let blockedReason {
-                Text(blockedReason)
-            }
-            Divider()
-            Button("Save Current Settings as Collection Defaults") {
-                Task { await model.saveCurrentSettingsAsCollectionDefaults() }
-            }
+        Divider()
+        Button("Remember These Settings for This Collection") {
+            Task { await model.saveCurrentSettingsAsCollectionDefaults() }
+        }
+    }
+}
+
+/// The collection pill in the toolbar. `toolbarTitleMenu` opened no menu from the window title on this macOS version
+/// (checked by a real click and by hover), so the pill carries the name and the window title is hidden.
+struct CollectionMenu: View {
+    @Bindable var model: AppModel
+
+    var body: some View {
+        let current = model.currentCollection
+        Menu {
+            CollectionMenuItems(model: model)
         } label: {
             Text(current.name)
                 .font(.headline)
@@ -103,7 +107,7 @@ struct CollectionNameSheet: View {
                     save()
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(isSaving)
+                .disabled(isSaving || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .padding(20)

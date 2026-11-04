@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// The three-panel main window: toolbar with the collection switcher and model chip, engine banner,
-/// generation panel (left), canvas over the queue strip (middle), and the gallery (right).
+/// The three-panel main window: the collection pill (name and menu) on the leading toolbar edge, the model chip on the
+/// trailing edge, engine banner, generation panel (left), canvas over the queue strip (middle), and the gallery
+/// (right).
 public struct MainWindow: View {
     @Bindable var model: AppModel
 
@@ -34,12 +35,19 @@ public struct MainWindow: View {
             }
         }
         .frame(minWidth: 1100, minHeight: 640)
+        .focusedSceneValue(\.appModel, model)
+        .navigationTitle(model.currentCollection.name)
+        .navigationSubtitle(imageCountSubtitle)
+        .toolbar(removing: .title)
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 CollectionMenu(model: model)
             }
+            ToolbarSpacer(.flexible, placement: .primaryAction)
+            ToolbarItem(placement: .primaryAction) {
+                ModelChip(model: model)
+            }
         }
-        .background(ShortcutButtons(model: model))
         .sheet(isPresented: $model.isBrowserPresented) {
             ModelBrowserView(browser: model.browser)
         }
@@ -53,33 +61,14 @@ public struct MainWindow: View {
             EnhancerInstallSheet(model: model)
         }
     }
-}
 
-/// Keyboard shortcuts for actions that are not on a visible control: ⌘. cancel, ⌘R reuse and ⌘E enhance.
-/// ⌘↩ lives on the Generate button in ``GenerationPanel``. The buttons are zero-size and hidden from VoiceOver.
-private struct ShortcutButtons: View {
-    let model: AppModel
-
-    var body: some View {
-        HStack {
-            Button("Cancel") {
-                Task { await model.cancelRunningOrSelected() }
-            }
-            .keyboardShortcut(".", modifiers: .command)
-
-            Button("Reuse Settings") {
-                Task { await model.reuseSelectedImageSettings() }
-            }
-            .keyboardShortcut("r", modifiers: .command)
-            .disabled(!model.canReuse)
-            Button("Enhance") {
-                Task { await model.pressEnhance() }
-            }
-            .keyboardShortcut("e", modifiers: .command)
-            .disabled(!model.canEnhance)
+    /// The image count under the title: "1 image" for one, none at zero.
+    private var imageCountSubtitle: String {
+        let count = model.currentCollectionSummary?.imageCount ?? 0
+        switch count {
+        case 0: return ""
+        case 1: return "1 image"
+        default: return "\(count) images"
         }
-        .opacity(0)
-        .frame(width: 0, height: 0)
-        .accessibilityHidden(true)
     }
 }

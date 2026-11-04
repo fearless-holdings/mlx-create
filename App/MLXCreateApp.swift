@@ -34,7 +34,7 @@ struct MLXCreateApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
+        Window("mlx-create", id: "main") {
             switch launch.phase {
             case .loading:
                 LaunchLoadingView()
@@ -44,6 +44,7 @@ struct MLXCreateApp: App {
                 LaunchFailureView(error: error)
             }
         }
+        .commands { MainCommands() }
     }
 }
 
@@ -83,6 +84,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             sender.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater
+    }
+
+    /// One window (D28, D33): closing it quits, and the queue resumes on the next launch (D29).
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        true
     }
 }
 

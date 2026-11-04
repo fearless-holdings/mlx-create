@@ -1,8 +1,9 @@
+import MCCatalog
 import MCGeneration
 import SwiftUI
 
-/// Toolbar model chip. Opening it rescans the engine's models (U8 step 5), then lists available models
-/// as selectable rows and unavailable ones as disabled rows below a separator, each with its reason (R9).
+/// Toolbar model chip. Opening it rescans the engine's models, then lists available models as selectable rows
+/// and unavailable ones as disabled rows below a separator, each with its reason.
 struct ModelChip: View {
     @Bindable var model: AppModel
     @State private var isOpen = false
@@ -11,18 +12,18 @@ struct ModelChip: View {
         Button {
             isOpen.toggle()
         } label: {
-            HStack {
-                Label(chipTitle, systemImage: "cpu")
-                Spacer(minLength: 8)
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .accessibilityHidden(true)
+            HStack(spacing: 6) {
+                Image(systemName: "cpu")
+                Text(chipTitle)
+                if let fit = selectedFit, fit == .tight || fit == .exceeds {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                }
             }
-            .frame(maxWidth: .infinity)
         }
-        .help("Choose the image model")
+        .help(helpText)
         .accessibilityLabel("Model: \(chipTitle)")
+        .accessibilityValue(fitWarning ?? "")
         .popover(isPresented: $isOpen, arrowEdge: .bottom) {
             modelList
                 .padding(8)
@@ -35,7 +36,33 @@ struct ModelChip: View {
 
     private var chipTitle: String {
         guard let selected = model.selectedModel else { return "No model" }
-        return Self.title(for: selected)
+        return title(selected)
+    }
+
+    /// The catalog's model name ("FLUX.2 klein 4B") when the catalog lists this model, else the family name.
+    private func title(_ installed: InstalledModel) -> String {
+        model.browser.row(forRepo: installed.id)?.title ?? Self.title(for: installed)
+    }
+
+    private var selectedFit: FitBand? {
+        model.selectedModel.flatMap { model.browser.row(forRepo: $0.id)?.fit }
+    }
+
+    private var fitWarning: String? {
+        switch selectedFit {
+        case .tight: "Tight fit"
+        case .exceeds: "Needs more memory than this Mac has"
+        default: nil
+        }
+    }
+
+    /// The fit warning, when the selected model has one; otherwise what the chip does.
+    private var helpText: String {
+        switch selectedFit {
+        case .tight: "Tight fit on this Mac: other apps may need to be closed"
+        case .exceeds: "Needs more memory than this Mac has"
+        default: "Choose the image model"
+        }
     }
 
     private var availableModels: [InstalledModel] {
@@ -68,7 +95,14 @@ struct ModelChip: View {
                         Image(systemName: "checkmark")
                             .opacity(installed.id == model.selectedModelID ? 1 : 0)
                             .accessibilityHidden(true)
-                        Text(Self.title(for: installed))
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(title(installed))
+                            if let estimate = model.browser.estimates[installed.id] {
+                                Text(estimate.label)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                         Spacer(minLength: 12)
                     }
                     .contentShape(Rectangle())
@@ -85,7 +119,7 @@ struct ModelChip: View {
                         Image(systemName: "xmark.circle")
                             .accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: 1) {
-                            Text(Self.title(for: row.model))
+                            Text(title(row.model))
                             Text(row.reason)
                                 .font(.caption)
                         }
@@ -95,7 +129,7 @@ struct ModelChip: View {
                     .padding(.horizontal, 6)
                     .padding(.vertical, 4)
                     .accessibilityElement(children: .combine)
-                    .accessibilityLabel("\(Self.title(for: row.model)), unavailable: \(row.reason)")
+                    .accessibilityLabel("\(title(row.model)), unavailable: \(row.reason)")
                 }
             }
             Divider().padding(.vertical, 4)

@@ -1,5 +1,4 @@
 import AppKit
-import MCCatalog
 import MCGeneration
 import SwiftUI
 
@@ -59,7 +58,6 @@ struct GenerationPanel: View {
             originalPromptField
             enhanceRow
             EnhanceResultCard(model: model)
-            ModelChip(model: model)
             settings
             LoRASection(model: model)
         }
@@ -166,118 +164,10 @@ struct GenerationPanel: View {
     @ViewBuilder
     private var settings: some View {
         if let controls = model.controls {
-            Form {
-                seedSection
-                sizeSection(controls)
-                stepsSection(controls)
-                if let guidance = controls.guidance {
-                    guidanceSection(guidance)
-                }
-                if controls.showsNegativePrompt {
-                    Section("Negative prompt") {
-                        TextField("Things to avoid", text: $model.negativePrompt, axis: .vertical)
-                            .lineLimit(1...4)
-                            .accessibilityLabel("Negative prompt")
-                    }
-                }
-            }
-            .formStyle(.grouped)
-            .scrollDisabled(true)
-            .fixedSize(horizontal: false, vertical: true)
+            ComposerSettings(model: model, controls: controls)
         } else {
             Text("Choose an available model to see its settings.")
-                .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    private var seedSection: some View {
-        Section("Seed") {
-            Picker("Seed policy", selection: $model.seedChoice) {
-                Text("Random").tag(SeedChoice.random)
-                Text("Fixed").tag(SeedChoice.fixed)
-                Text("Increment").tag(SeedChoice.increment)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            if model.seedChoice != .random {
-                TextField(
-                    model.seedChoice == .fixed ? "Seed" : "Base seed",
-                    text: $model.seedText
-                )
-                .monospacedDigit()
-                .accessibilityLabel(model.seedChoice == .fixed ? "Seed" : "Base seed")
-            }
-        }
-    }
-
-    private func sizeSection(_ controls: SettingsControls) -> some View {
-        Section("Size") {
-            Picker("Size", selection: $model.size) {
-                ForEach(controls.sizes, id: \.self) { size in
-                    Text(verbatim: "\(size.width) × \(size.height)").tag(size)
-                }
-            }
-        }
-    }
-
-    private func stepsSection(_ controls: SettingsControls) -> some View {
-        Section("Steps") {
-            if controls.stepsAreFixed {
-                Text("\(controls.steps.defaultSteps) steps, set by the model")
-                    .foregroundStyle(.secondary)
-            } else {
-                LabeledContent {
-                    HStack(spacing: 8) {
-                        Text(model.steps.map(String.init) ?? "Default")
-                            .monospacedDigit()
-                            .foregroundStyle(model.steps == nil ? .secondary : .primary)
-                        Stepper(
-                            "Steps",
-                            value: Binding(
-                                get: { model.steps ?? controls.steps.defaultSteps },
-                                set: { model.steps = $0 }
-                            ),
-                            in: controls.steps.min...controls.steps.max
-                        )
-                        .labelsHidden()
-                        if model.steps != nil {
-                            Button("Use Default") { model.steps = nil }
-                                .buttonStyle(.link)
-                        }
-                    }
-                } label: {
-                    Text("Steps")
-                }
-                .accessibilityValue(model.steps.map { "\($0)" } ?? "Default")
-            }
-        }
-    }
-
-    private func guidanceSection(_ guidance: GuidanceCapability) -> some View {
-        Section("Guidance") {
-            LabeledContent {
-                HStack(spacing: 8) {
-                    Slider(
-                        value: Binding(
-                            get: { model.guidance ?? guidance.defaultValue },
-                            set: { model.guidance = $0 }
-                        ),
-                        in: guidance.min...guidance.max,
-                        step: 0.1
-                    )
-                    .frame(width: 160)
-                    Text(model.guidance.map { $0.formatted(.number.precision(.fractionLength(1))) } ?? "Default")
-                        .monospacedDigit()
-                        .foregroundStyle(model.guidance == nil ? .secondary : .primary)
-                    if model.guidance != nil {
-                        Button("Use Default") { model.guidance = nil }
-                            .buttonStyle(.link)
-                    }
-                }
-            } label: {
-                Text("CFG scale")
-            }
         }
     }
 
@@ -309,7 +199,6 @@ struct GenerationPanel: View {
                 Button("Generate") {
                     Task { await model.generate() }
                 }
-                .keyboardShortcut(.return, modifiers: .command)
                 .disabled(!model.canGenerate)
                 .buttonStyle(.borderedProminent)
                 .help(model.generateBlockReason ?? "Generate (⌘↩)")

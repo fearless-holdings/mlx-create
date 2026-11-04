@@ -6,7 +6,7 @@ The user's brief shaped the bar. They chose mlx-create over Draw Things because 
 
 ## Progress
 
-**16 of 28 done, 0 in progress, 1 deferred, 2 blocked on an HLD decision, 9 open.** Last updated 2026-11-03. Findings, evidence and line references describe `633e737`; they are not rewritten as the code moves. Progress lives in two places only:
+**20 of 28 done, 0 in progress, 1 deferred, 2 blocked on an HLD decision, 5 open.** Last updated 2026-11-04. Findings, evidence and line references describe `633e737`; they are not rewritten as the code moves. Progress lives in two places only:
 
 - the **Status** column in [§2](#2-all-findings), which is the tracker;
 - a **Resolution** section at the end of a spec once it ships: the PR and commits, where the result differs from the spec, and what was and was not exercised.
@@ -53,10 +53,10 @@ The order is STRUCTURE, then INTERACTION, then VISUAL, as requested. Severity fo
 | ID | Status | Title | Tag | Sev. | Frequency | Task | Size | Depends on | HLD change first? |
 |---|---|---|---|---|---|---|---|---|---|
 | [S01](specs/S01-first-run-single-primary-action.md) | done ([#26](https://github.com/fearless-holdings/mlx-create/pull/26)) | First launch: one primary action | STRUCTURE | 4 | First minute, every user | a | S | — | No |
-| [S02](specs/S02-composer-progressive-disclosure.md) | open | Composer: rarely used settings behind "More options" | STRUCTURE | 3 | Every session | a, b | M | — | No (stays inline, D33) |
-| [S03](specs/S03-model-chip-in-toolbar.md) | open | Model chip in the toolbar, exact model name | STRUCTURE | 2 | Every session | a, b | S | — | No (follows §10) |
-| [S04](specs/S04-collection-as-window-title.md) | open | The window title is the collection, with its menu | STRUCTURE | 2 | Every switch | f | S | — | No |
-| [S05](specs/S05-menu-bar-commands-single-window.md) | open | Commands in the menu bar; single window | STRUCTURE | 3 | Every session | b, c, e | M | — | No |
+| [S02](specs/S02-composer-progressive-disclosure.md) | done ([#36](https://github.com/fearless-holdings/mlx-create/pull/36)) | Composer: rarely used settings behind "More options" | STRUCTURE | 3 | Every session | a, b | M | — | No (stays inline, D33) |
+| [S03](specs/S03-model-chip-in-toolbar.md) | done ([#35](https://github.com/fearless-holdings/mlx-create/pull/35)) | Model chip in the toolbar, exact model name | STRUCTURE | 2 | Every session | a, b | S | — | No (follows §10) |
+| [S04](specs/S04-collection-as-window-title.md) | done ([#35](https://github.com/fearless-holdings/mlx-create/pull/35)) | The window title is the collection, with its menu | STRUCTURE | 2 | Every switch | f | S | — | No |
+| [S05](specs/S05-menu-bar-commands-single-window.md) | done ([#34](https://github.com/fearless-holdings/mlx-create/pull/34)) | Commands in the menu bar; single window | STRUCTURE | 3 | Every session | b, c, e | M | — | No |
 | [S06](specs/S06-canvas-image-bar.md) | done ([#28](https://github.com/fearless-holdings/mlx-create/pull/28)) | Canvas shows the image's prompt, facts and actions | STRUCTURE | 3 | Every kept image | a, b, c | M | — | No |
 | [S07](specs/S07-lora-sheet-entry-and-order.md) | open | LoRAs: one entry point; opens on the curated list | STRUCTURE | 3 | Every LoRA add | d | S | — | No (wording only) |
 | [S08](specs/S08-civitai-download-adds-to-stack.md) | blocked (needs the D34 decision) | A Civitai download goes on the stack | STRUCTURE | 3 | Every Civitai LoRA | d | M | S07 | **Yes: D34 amendment** |

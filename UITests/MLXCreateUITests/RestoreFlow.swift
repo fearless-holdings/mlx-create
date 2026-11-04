@@ -43,6 +43,7 @@ extension SmokeSession {
         let changedSeed = "999999"
 
         step("Change prompt, seed, seed policy and size") {
+            showMoreOptions()
             setPrompt(changedPrompt)
             XCTAssertEqual(promptField.value as? String, changedPrompt, "the Prompt field did not take the changed text")
             seedPolicy("Fixed").click()
@@ -69,7 +70,7 @@ extension SmokeSession {
             XCTAssertEqual(promptField.value as? String, changedPrompt, "the Prompt field did not take the changed text")
         }
         step("Reuse all settings") {
-            // ⌘R is bound to a hidden zero-size view (MainWindow.swift); the tile menu item is the fallback.
+            // ⌘R is the Image ▸ Reuse All Settings menu command; the tile menu item is the fallback.
             app.typeKey("r", modifierFlags: .command)
             if eventually(within: 5, { promptField.value as? String == image.prompt }) {
                 XCTContext.runActivity(named: "Restored through the ⌘R shortcut") { _ in }
