@@ -56,7 +56,6 @@ The four app shortcuts work only for people who already know them. The menu bar 
        @Entry var appModel: AppModel?
    }
 
-   /// The menu bar commands (HIG, The menu bar). Every app action with a shortcut is listed here.
    public struct MainCommands: Commands {
        @FocusedValue(\.appModel) private var model
 
@@ -173,3 +172,7 @@ With the capture kit and one model installed:
 8. The File menu has a "New Collection…" item and no "New Window" item.
 9. Type a prompt (`ax setvalue <pid> AXTextArea "Prompt" "a teapot"`), bring the app to the front, and send ⌘↩ (`osascript -e 'tell application "System Events" to key code 36 using command down'`). Within 10 s, `ax dump` shows an element whose desc starts with "Generation progress" or a queue cell whose desc contains "a teapot".
 10. Close the window (`ax press <pid> AXCloseButton` does not work through `press`; use `osascript -e 'tell application "System Events" to tell (first process whose unix id is <pid>) to click button 1 of window 1'`). Within 6 s, `pgrep -f "MLXCSmokeHome <home>"` prints nothing, and `pgrep -f "<home>/"` prints nothing (the engine stopped too).
+
+## Resolution
+
+Done on branch `window-structure/menu-commands`, commits `1450d2d` and `4d625bb` (PR [#34](https://github.com/fearless-holdings/mlx-create/pull/34), the bottom layer of a three-PR stack). Differs from the edit steps in one place: the Generate button keeps its `.help(model.generateBlockReason ?? "Generate (⌘↩)")` and `.accessibilityHint` from I12, so only `.keyboardShortcut(.return, …)` came off it, because the Image menu owns ⌘↩. Code review by a second model found that Export…, Show in Finder and Move to Trash read `selectedImage` instead of the image on the canvas, so they were disabled while a freshly generated job was still running, and running one with nothing selected ended the canvas following the queued jobs; `4d625bb` makes them act on `canvasImage` by id, as the canvas image bar does. Exercised on the real engine with FLUX.2 klein 4B 4-bit: `swift build`, `swift test`, `swift format lint --strict`, the Debug `xcodebuild`, GUI smoke (exit 0), and a throwaway-home run of acceptance check 10 with a job running: closing the window stopped the app and its engine child (checked by home path in argv). Not exercised: the fix in `4d625bb` in the running app (it was reviewed and built, not driven), Export…'s save panel, and Show in Finder and Move to Trash through the menu on a live image.
