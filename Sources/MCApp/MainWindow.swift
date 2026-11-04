@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// The three-panel main window: the current collection on the window title, with its menu, the model chip on the
-/// trailing toolbar edge, engine banner, generation panel (left), canvas over the queue strip (middle), and the gallery
+/// The three-panel main window: the collection pill (name and menu) on the leading toolbar edge, the model chip on the
+/// trailing edge, engine banner, generation panel (left), canvas over the queue strip (middle), and the gallery
 /// (right).
 public struct MainWindow: View {
     @Bindable var model: AppModel
