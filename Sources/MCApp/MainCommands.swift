@@ -31,12 +31,12 @@ public struct MainCommands: Commands {
             Button("Reuse All Settings") { run { await $0.reuseSelectedImageSettings() } }
                 .keyboardShortcut("r", modifiers: .command)
                 .disabled(!(model?.canReuse ?? false))
-            Button("Export…") { runOnImages { await $0.exportSelected() } }
+            Button("Export…") { runOnImages { await $0.exportSelected(only: $1) } }
                 .keyboardShortcut("e", modifiers: [.command, .shift])
                 .disabled(!hasImageTarget)
-            Button("Show in Finder") { runOnImages { await $0.revealSelected() } }
+            Button("Show in Finder") { runOnImages { await $0.revealSelected(only: $1) } }
                 .disabled(!hasImageTarget)
-            Button("Move to Trash") { runOnImages { await $0.deleteSelected() } }
+            Button("Move to Trash") { runOnImages { await $0.deleteSelected(only: $1) } }
                 .disabled(!hasImageTarget)
             Divider()
             Button(model?.queueHeader == .paused ? "Resume Queue" : "Pause Queue") {
@@ -60,7 +60,7 @@ public struct MainCommands: Commands {
     /// An image to act on: the gallery selection, or else the image on the canvas.
     private var hasImageTarget: Bool {
         guard let model else { return false }
-        return !model.gallerySelection.isEmpty || model.selectedImage != nil
+        return !model.gallerySelection.isEmpty || model.canvasImage != nil
     }
 
     private func run(_ action: @escaping @MainActor (AppModel) async -> Void) {
@@ -68,12 +68,11 @@ public struct MainCommands: Commands {
         Task { await action(model) }
     }
 
-    /// With nothing selected in the gallery, the canvas image becomes the selection first, so the action has a target.
-    private func runOnImages(_ action: @escaping @MainActor (AppModel) async -> Void) {
+    /// With nothing selected in the gallery the action targets the canvas image by id, as the canvas action bar does, so
+    /// it neither disturbs the gallery selection nor stops the canvas following queued jobs.
+    private func runOnImages(_ action: @escaping @MainActor (AppModel, UUID?) async -> Void) {
         guard let model else { return }
-        if model.gallerySelection.isEmpty, let image = model.selectedImage {
-            model.selectGalleryImage(image.id, click: .plain)
-        }
-        Task { await action(model) }
+        let target = model.gallerySelection.isEmpty ? model.canvasImage?.id : nil
+        Task { await action(model, target) }
     }
 }
