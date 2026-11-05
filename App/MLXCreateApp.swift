@@ -93,14 +93,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 /// Shown while the library opens. The open runs off the main actor, so this is all the window has to show (R15).
+/// The two launch views keep literal spacing: the app target cannot see MCApp's internal design tokens.
 private struct LaunchLoadingView: View {
     var body: some View {
-        VStack(spacing: MCSpacing.group) {
+        VStack(spacing: 12) {
             ProgressView()
             Text("Opening library…")
                 .foregroundStyle(.secondary)
         }
-        .padding(MCSpacing.emptyState)
+        .padding(32)
         .frame(minWidth: 480, minHeight: 200)
     }
 }
@@ -110,16 +111,15 @@ private struct LaunchFailureView: View {
     let error: Error
 
     var body: some View {
-        VStack(spacing: MCSpacing.group) {
+        VStack(spacing: 12) {
             Text("mlx-create could not start")
-                // no token: a plain title2 has no token; it is not a sheet or empty-state title
                 .font(.title2)
             Text(error.localizedDescription)
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
                 .multilineTextAlignment(.center)
         }
-        .padding(MCSpacing.emptyState)
+        .padding(32)
         .frame(minWidth: 480, minHeight: 200)
     }
 }
