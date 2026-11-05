@@ -93,3 +93,14 @@ Standard checks, all must pass:
 With the capture kit (light network use; Civitai rate limits apply), FLUX.2 klein 4B selected:
 
 6. In the Civitai tab, every result row's button reads "Download and Add". Download one small LoRA (under 30 MB, e.g. a "Slider" LoRA). Afterwards the row reads "Added to the stack", and the left panel's LoRA section shows it as a stack row (`ax dump` shows an `AXCheckBox` whose desc starts with its name).
+
+## Resolution
+
+Approved by the author on 2026-11-05 as D51 (the D34 amendment is marked superseded for the stack rule, and D43's "Civitai downloads keep that rule" now says D51 reversed it). Done in [#40](https://github.com/fearless-holdings/mlx-create/pull/40). The row reads "Download and Add" / "Retry", then "Added to the stack" or "Added to your LoRAs"; the footer reads "Downloads keep going if you close this sheet." The code follows the spec's edit steps, with these differences:
+
+- The commit outcome is switched exhaustively, so `.restored` (a file the user had deleted) counts as added like `.added`. A duplicate keeps no "just added" mark unless it goes on the stack.
+- The `loraCommitted` closure body lives in `AppModel.attachDownloadedLoRA(_:)` (`AppModel+LoRA.swift`), not inline in `AppModel.init`: `AppModel.swift` was at its file-size budget.
+- `CivitaiRowStatus.isStoredThisSession` covers both `.added` and `.addedToStack`, so the Installed tab clears and reads both marks. The status label sets the green only on the symbol; the text keeps the default colour.
+- When the stack is full, `addToLoRAStack` still shows its usual "A job can use up to N LoRAs" notice in the panel. The row then reads "Added to your LoRAs".
+
+Exercised: `swift test` (the three `.added` assertions in `CivitaiDownloadModelTests` now expect `.addedToStack`; one new test checks that a LoRA for another family than the selected model stays off the stack), strict format lint, the Debug `xcodebuild`. Not exercised: acceptance check 6 (a live Civitai download in the real app) and the GUI smoke, whose test runner needs a system authentication prompt that nobody answered at the Mac.

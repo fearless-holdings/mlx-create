@@ -6,7 +6,7 @@ The user's brief shaped the bar. They chose mlx-create over Draw Things because 
 
 ## Progress
 
-**21 of 28 done, 0 in progress, 1 deferred, 2 blocked on an HLD decision, 4 open.** Last updated 2026-11-04. Findings, evidence and line references describe `633e737`; they are not rewritten as the code moves. Progress lives in two places only:
+**22 of 28 done, 0 in progress, 1 deferred, 1 blocked on an HLD decision, 4 open.** Last updated 2026-11-05. Findings, evidence and line references describe `633e737`; they are not rewritten as the code moves. Progress lives in two places only:
 
 - the **Status** column in [§2](#2-all-findings), which is the tracker;
 - a **Resolution** section at the end of a spec once it ships: the PR and commits, where the result differs from the spec, and what was and was not exercised.
@@ -59,7 +59,7 @@ The order is STRUCTURE, then INTERACTION, then VISUAL, as requested. Severity fo
 | [S05](specs/S05-menu-bar-commands-single-window.md) | done ([#34](https://github.com/fearless-holdings/mlx-create/pull/34)) | Commands in the menu bar; single window | STRUCTURE | 3 | Every session | b, c, e | M | — | No |
 | [S06](specs/S06-canvas-image-bar.md) | done ([#28](https://github.com/fearless-holdings/mlx-create/pull/28)) | Canvas shows the image's prompt, facts and actions | STRUCTURE | 3 | Every kept image | a, b, c | M | — | No |
 | [S07](specs/S07-lora-sheet-entry-and-order.md) | done ([#39](https://github.com/fearless-holdings/mlx-create/pull/39)) | LoRAs: one entry point; opens on the curated list | STRUCTURE | 3 | Every LoRA add | d | S | — | No (wording only) |
-| [S08](specs/S08-civitai-download-adds-to-stack.md) | blocked (needs the D34 decision) | A Civitai download goes on the stack | STRUCTURE | 3 | Every Civitai LoRA | d | M | S07 | **Yes: D34 amendment** |
+| [S08](specs/S08-civitai-download-adds-to-stack.md) | done ([#40](https://github.com/fearless-holdings/mlx-create/pull/40)) | A Civitai download goes on the stack | STRUCTURE | 3 | Every Civitai LoRA | d | M | S07 | Yes: D51, approved 2026-11-05 |
 | [S09](specs/S09-gallery-mode-decision.md) | blocked (needs the D33 decision) | Gallery mode: decide D33's open question | STRUCTURE | 2 | Finding old images | c | L | S05, I08 | **Yes: resolves D33/§10 open question** |
 | [I01](specs/I01-install-progress-visible.md) | done ([#26](https://github.com/fearless-holdings/mlx-create/pull/26)) | Download progress and time left in the main window | INTERACTION | 4 | Every download | a | M | S01 | No |
 | [I02](specs/I02-canvas-follows-generation.md) | done ([#27](https://github.com/fearless-holdings/mlx-create/pull/27)) | Canvas keeps the last image; shows every new one | INTERACTION | 3 | Every generation | a, b | M | — | No |
@@ -81,7 +81,7 @@ The order is STRUCTURE, then INTERACTION, then VISUAL, as requested. Severity fo
 | [V05](specs/V05-badges-and-redundant-labels.md) | open | One badge style; no label that repeats its button | VISUAL | 2 | Browser, LoRA sheet | a, d | M | V01, S01, S03 | No |
 | [V06](specs/V06-sheet-consistency.md) | open | Sheets: one title style, one inset, two widths | VISUAL | 1 | Every sheet | a, d, f | S | V01, I10, S04 | No |
 
-Two specs need a decision from you before any code: **S08** changes the D34 amendment, and **S09** resolves D33's open question. Both carry the exact decision-log text to add.
+The two decisions the audit needed were approved on 2026-11-05 and recorded in the HLD decision log: **D51** (S08, a finished Civitai download goes on the stack) and **D52** (S09, Gallery as a view mode of the main window).
 
 ## 3. Recommended execution order
 
@@ -104,8 +104,8 @@ Two specs need a decision from you before any code: **S08** changes the D34 amen
    - [x] I02, S06 and I03;
    - [x] I04 and I05;
    - [x] I08 and I09.
-5. **LoRAs:** S07, then S08 once you have decided on the D34 change.
-6. **Gallery:** S09, once you have decided on D33.
+5. **LoRAs** (done, [#39](https://github.com/fearless-holdings/mlx-create/pull/39), [#40](https://github.com/fearless-holdings/mlx-create/pull/40)): S07, then S08 under D51.
+6. **Gallery:** S09 under D52.
 7. **Visual layer:** V01 tokens → V02 → V05 → V06.
 
 **VISUAL work that must wait for STRUCTURE.**
