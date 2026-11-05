@@ -101,7 +101,7 @@ Measured with the capture kit (`contrast.py`, 1x captures, so the true ratio is 
    - `LoRALibraryRow` `addBlockReason` and "File missing";
    - `ShelfView` "Trigger words: …" stays metadata: keep it `.secondary`, but at `.mcSupporting`.
 4. Leave `.secondary` where the text repeats information: the `InstallRow` facts line, `CivitaiResultRowView.detailLine`, LoRA sizes, the gallery status line, placeholders, and the canvas empty hint (`.title3`, large text, where 3:1 applies).
-5. Remove the two notes V01 left in `MCTokens.swift`: the sentence on `Font.mcMetadata` saying the reasons and status lines still sit on it, and the one on `MCTone` saying red, orange and green text keeps its tone. Format the touched files.
+5. Format the touched files.
 
 ## Do not touch
 
