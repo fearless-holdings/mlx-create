@@ -7,24 +7,6 @@ import MCLibrary
 import MCModels
 import Observation
 
-/// Which seed the next job uses. `fixed` and `increment` read ``AppModel/seedText``.
-public enum SeedChoice: Sendable, Equatable, CaseIterable {
-    case random, fixed, increment
-}
-
-/// The step bar of the generation the engine is running now.
-public struct RunningProgress: Equatable, Sendable {
-    public let jobID: UUID
-    public let step: Int
-    public let total: Int
-
-    public init(jobID: UUID, step: Int, total: Int) {
-        self.jobID = jobID
-        self.step = step
-        self.total = total
-    }
-}
-
 /// The app's state and actions. Views read it and call its actions; the engine, library and queue actors do the work.
 @MainActor
 @Observable
