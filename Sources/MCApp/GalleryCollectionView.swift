@@ -10,7 +10,6 @@ struct GalleryCollection: NSViewRepresentable {
     /// Passed by value so SwiftUI re-runs `updateNSView` when the gallery or the selection changes.
     let images: [LibraryImage]
     let selection: Set<UUID>
-    /// True in Gallery mode, where the tiles are larger (D52).
     let fullWindow: Bool
 
     func makeCoordinator() -> Coordinator {
@@ -71,7 +70,7 @@ struct GalleryCollection: NSViewRepresentable {
             collectionView.onSelectAll = { [model = self.model] in model.selectAllGalleryImages() }
             collectionView.onMove = { [weak self] offset in self?.moveSelection(by: offset) }
             collectionView.onOpen = { [model = self.model] in
-                if let id = model.selection { model.openInCanvas(id) }
+                if let id = model.galleryArrowOrigin { model.openInCanvas(id) }
             }
             dataSource = NSCollectionViewDiffableDataSource(collectionView: collectionView) { [weak self] collectionView, indexPath, id in
                 self?.makeItem(collectionView, indexPath: indexPath, id: id)
@@ -84,8 +83,9 @@ struct GalleryCollection: NSViewRepresentable {
         func update(images: [LibraryImage], selection: Set<UUID>, fullWindow: Bool) {
             guard let dataSource else { return }
             if let layout = collectionView?.collectionViewLayout as? GalleryLayout {
-                layout.minSide = fullWindow ? 160 : 100
-                layout.maxSide = fullWindow ? 200 : 120
+                let sides = fullWindow ? GalleryLayout.fullWindowSides : GalleryLayout.panelSides
+                layout.minSide = sides.min
+                layout.maxSide = sides.max
             }
 
             var ids: [UUID] = []
@@ -225,8 +225,18 @@ final class GalleryCollectionView: NSCollectionView {
     var onSelectAll: (() -> Void)?
     /// An arrow key's move in the grid: -1 is the previous image, +1 the next, and a full row is the column count.
     var onMove: ((Int) -> Void)?
-    /// Return on the grid: opens the highlighted image in the canvas (D52).
     var onOpen: (() -> Void)?
+
+    private enum KeyCode {
+        static let returnKey: UInt16 = 36
+        static let keypadEnter: UInt16 = 76
+        static let delete: UInt16 = 51
+        static let forwardDelete: UInt16 = 117
+        static let left: UInt16 = 123
+        static let right: UInt16 = 124
+        static let down: UInt16 = 125
+        static let up: UInt16 = 126
+    }
 
     override var acceptsFirstResponder: Bool { true }
 
@@ -237,27 +247,24 @@ final class GalleryCollectionView: NSCollectionView {
         let plain = flags.intersection([.command, .option, .control]).isEmpty
         if plain {
             let row = (collectionViewLayout as? GalleryLayout)?.columns ?? 1
-            // Return (36) and keypad Enter (76) open the highlighted image.
-            if event.keyCode == 36 || event.keyCode == 76 {
+            switch event.keyCode {
+            case KeyCode.returnKey, KeyCode.keypadEnter:
                 onOpen?()
                 return
-            }
-            switch event.keyCode {
-            // Delete (51) and forward delete (117).
-            case 51, 117:
+            case KeyCode.delete, KeyCode.forwardDelete:
                 onDelete?()
                 return
             // ← → ↑ ↓ move one image, like a plain click on it. The ends clamp, so nothing wraps.
-            case 123 where !flags.contains(.shift):
+            case KeyCode.left where !flags.contains(.shift):
                 onMove?(-1)
                 return
-            case 124 where !flags.contains(.shift):
+            case KeyCode.right where !flags.contains(.shift):
                 onMove?(1)
                 return
-            case 125 where !flags.contains(.shift):
+            case KeyCode.down where !flags.contains(.shift):
                 onMove?(row)
                 return
-            case 126 where !flags.contains(.shift):
+            case KeyCode.up where !flags.contains(.shift):
                 onMove?(-row)
                 return
             default:
@@ -287,14 +294,13 @@ final class GalleryCollectionView: NSCollectionView {
     }
 }
 
-/// A square-tile flow layout that re-fits the columns to the width. Columns are 8 pt apart, and the leftover width is
-/// split as side margins, so the grid stays centred as the panel resizes.
 final class GalleryLayout: NSCollectionViewFlowLayout {
     static let inset: CGFloat = 12
     static let spacing: CGFloat = 8
-    /// Tile side limits: 100–120 pt in the right panel, 160–200 pt when Gallery mode gives the grid the window (D52).
-    var minSide: CGFloat = 100 { didSet { if minSide != oldValue { invalidateLayout() } } }
-    var maxSide: CGFloat = 120 { didSet { if maxSide != oldValue { invalidateLayout() } } }
+    static let panelSides = (min: CGFloat(100), max: CGFloat(120))
+    static let fullWindowSides = (min: CGFloat(160), max: CGFloat(200))
+    var minSide: CGFloat = GalleryLayout.panelSides.min { didSet { if minSide != oldValue { invalidateLayout() } } }
+    var maxSide: CGFloat = GalleryLayout.panelSides.max { didSet { if maxSide != oldValue { invalidateLayout() } } }
 
     /// The columns the last fit chose, so an up or down arrow can move by one row.
     private(set) var columns = 1

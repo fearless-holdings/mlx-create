@@ -1,8 +1,5 @@
 import SwiftUI
 
-/// The main window: the collection pill (name and menu) on the leading toolbar edge, the model chip on the trailing
-/// edge, the engine banner, and either three panels (D33) — generation panel (left), canvas over the queue strip
-/// (middle), gallery (right) — or, in Gallery mode (D52), the gallery alone at full width.
 public struct MainWindow: View {
     @Bindable var model: AppModel
 
@@ -18,7 +15,6 @@ public struct MainWindow: View {
             }
             if model.showsGalleryOnly {
                 GalleryView(model: model)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 HSplitView {
                     GenerationPanel(model: model)

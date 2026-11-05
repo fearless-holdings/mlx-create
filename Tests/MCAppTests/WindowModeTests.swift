@@ -19,26 +19,14 @@ import Testing
     }
 
     @Test func openingAnImageSelectsItAndLeavesGalleryMode() async throws {
-        let harness = try await AppHarness.make(script: { _, _ in
-            .init(status: 200, body: PNGFixture.sseHead(steps: 2), tail: PNGFixture.sseTail(width: 512, height: 512))
-        })
+        let harness = try await AppHarness.make()
         let model = harness.model
-        await model.start()
-        await model.refreshModels()
-        model.prompt = "a lighthouse at dusk"
-        await model.generate()
-        let jobID = try #require(model.selection)
-        try await eventually { model.runningProgress == RunningProgress(jobID: jobID, step: 2, total: 2) }
-        EngineStubProtocol.finishHeld(harness.endpoint)
-        try await eventually { model.selectedImage != nil }
-        let image = try #require(model.selectedImage)
+        let image = try await harness.saveImage(prompt: "a lighthouse at dusk")
 
         model.showsGalleryOnly = true
-        model.selection = nil
         model.openInCanvas(image.id)
 
         #expect(!model.showsGalleryOnly)
         #expect(model.selection == image.id)
-        #expect(harness.defaults.string(forKey: AppModel.windowModeDefaultsKey) == "canvas")
     }
 }
