@@ -6,7 +6,7 @@ The user's brief shaped the bar. They chose mlx-create over Draw Things because 
 
 ## Progress
 
-**23 of 28 done, 0 in progress, 1 deferred, 0 blocked, 4 open.** Last updated 2026-11-05. Findings, evidence and line references describe `633e737`; they are not rewritten as the code moves. Progress lives in two places only:
+**24 of 28 done, 0 in progress, 1 deferred, 0 blocked, 3 open.** Last updated 2026-11-05. Findings, evidence and line references describe `633e737`; they are not rewritten as the code moves. Progress lives in two places only:
 
 - the **Status** column in [§2](#2-all-findings), which is the tracker;
 - a **Resolution** section at the end of a spec once it ships: the PR and commits, where the result differs from the spec, and what was and was not exercised.
@@ -74,7 +74,7 @@ The order is STRUCTURE, then INTERACTION, then VISUAL, as requested. Severity fo
 | [I11](specs/I11-interrupted-download-size.md) | done ([#25](https://github.com/fearless-holdings/mlx-create/pull/25)) | Interrupted download reports real bytes | INTERACTION | 2 | Cancelled downloads | a | S | — | No |
 | [I12](specs/I12-generate-disabled-reason.md) | done ([#26](https://github.com/fearless-holdings/mlx-create/pull/26)) | Generate says why it is disabled | INTERACTION | 2 | First launch, empty prompt | a | S | (I01) | No |
 | [I13](specs/I13-empty-state-copy.md) | done ([#25](https://github.com/fearless-holdings/mlx-create/pull/25)) | Empty states that match the state | INTERACTION | 1 | First run | a, f | S | — | No |
-| [V01](specs/V01-design-tokens.md) | open | One design-token file (with inventory and migration list) | VISUAL | 2 | Every screen | all | M | see §3 | No |
+| [V01](specs/V01-design-tokens.md) | done (branch `feat/design-tokens`, PR number to follow) | One design-token file (with inventory and migration list) | VISUAL | 2 | Every screen | all | M | see §3 | No |
 | [V02](specs/V02-text-contrast-and-status-colour.md) | open | Status and error text ≥ 4.5:1; colour on symbols only | VISUAL | 2 | Every error | e, d | M | V01 | No |
 | [V03](specs/V03-number-formatting.md) | done ([#23](https://github.com/fearless-holdings/mlx-create/pull/23)) | "1024 × 1024", not "1.024 × 1.024"; one decimal style | VISUAL | 2 | Every session (EU locales) | a, b | S | — | No |
 | [V04](specs/V04-gallery-column-layout-bug.md) | done ([#21](https://github.com/fearless-holdings/mlx-create/pull/21)) | Gallery shows one column after launch | VISUAL | 2 | Every launch | c | S | — | No |
@@ -106,7 +106,7 @@ The two decisions the audit needed were approved on 2026-11-05 and recorded in t
    - [x] I08 and I09.
 5. **LoRAs** (done, [#39](https://github.com/fearless-holdings/mlx-create/pull/39), [#40](https://github.com/fearless-holdings/mlx-create/pull/40)): S07, then S08 under D51.
 6. **Gallery** (done, [#41](https://github.com/fearless-holdings/mlx-create/pull/41)): S09 under D52.
-7. **Visual layer:** V01 tokens → V02 → V05 → V06.
+7. **Visual layer:** V01 tokens (done, branch `feat/design-tokens`) → V02 → V05 → V06.
 
 **VISUAL work that must wait for STRUCTURE.**
 
@@ -340,7 +340,7 @@ These were reviewed and deliberately left alone. Most are already Apple-like, or
 
 ## 12. Verification status
 
-- **Spec execution by fresh agents: no trial recorded.** The audit's brief was "we'll take care of the execution afterwards"; the random pick (seed `1793377315`) was **V04**, **I08** and **V01**. V04 and I08 have since shipped through the normal workflow, not as recorded blind trials, so V01 is the remaining suggested trial. Which specs have shipped is in [Progress](#progress).
+- **Spec execution by fresh agents: no trial recorded.** The audit's brief was "we'll take care of the execution afterwards"; the random pick (seed `1793377315`) was **V04**, **I08** and **V01**. All three have since shipped through the normal workflow, not as recorded blind trials. Which specs have shipped is in [Progress](#progress).
 - **Static check of all 28 specs, done.** Every repository path a spec names exists, except the 15 new files the specs themselves create. Every type, function and property a spec names exists in the code, unless the spec defines it, it is an accessibility role, or it is an Apple API.
 - **Verified by experiment while writing:**
   - I07's Tab and ⇧Tab handler (a scratch SwiftUI app; ⇧Tab arrives as U+0019);

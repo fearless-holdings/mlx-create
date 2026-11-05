@@ -237,3 +237,18 @@ Line numbers move as other specs land. Re-run the `rg` in step 2 to locate them.
 **QueueStripView.swift**: 9: spacing `6`; 11: padding `.horizontal, 12`; 13: spacing `8`; 18: padding `.horizontal, 12`; 21: padding `.vertical, 8`; 31: spacing `8`; 62: font `.caption`; 78: spacing `6`; 82: font `.caption2`; 86: padding `6`; 88: radius `8`, color `.quaternary`; 90: radius `8`; 91: color `lineWidth: 3`; 148: font `.caption`; 153: font `.caption`; 156: font `.caption`; 158: font `.caption`; 161: font `.caption`; 162: color `.foregroundStyle(.red)`; 165: font `.caption2`; 171: font `.caption`; 173: font `.caption`
 
 **Shelf/ShelfView.swift**: 60: spacing `12`; 61: spacing `2`; 62: font `.headline`; 64: font `.callout`; 68: font `.caption`; 75: padding `.vertical, 4`; 84: font `.callout`; 93: font `.callout`; 95: spacing `4`; 96: font `.caption`, color `.foregroundStyle(.red)`; 110: spacing `12`; 111: font `.title3.bold()`; 114: font `.callout`; 128: padding `20`
+
+## Resolution
+
+Done on branch `feat/design-tokens` (the PR number goes here when it opens). `Sources/MCApp/Design/MCTokens.swift` is the spec's file plus one token, `Font.mcMetadataMonospaced`, because `.caption.monospaced()` appeared twice, both on file paths in `InstallRow`. Every view in `Sources/MCApp` takes its spacing, radii, strokes and type from it, and the closing `rg` from the spec prints nothing. The result differs from the spec in these ways:
+
+- **Layout may move.** The author lifted the spec's 4 pt cap, so odd spacings snapped by role to the nearest token. In the captures at 1100×692 the pixel change against the unmigrated build is under 1.1 % of each window in every state, light and dark; nothing clipped.
+- **Status colour stays on the text.** Red, orange and green text keep their colour through `MCTone.critical`, `.warning` and `.success`. V02 moves the colour to the symbol; its search commands now look for `MCTone`.
+- **10 pt lines stay 10 pt.** Every `.caption` and `.caption2` became `.mcMetadata`, reasons and status lines included. V02 promotes the reasons to `.mcSupporting` and removes the two notes V01 left in `MCTokens.swift` (V02 step 5).
+- **Titles moved with their token.** `.title3.bold()` titles (Civitai licence, shelf licence) grew from 15 to 17 pt as `.mcSheetTitle`; `.callout.bold()` row titles grew from 12 to 13 pt as `.mcRowTitle`; the collection-name sheet's title is `.mcRowTitle` with a comment that V06 upgrades it.
+- **The two launch views in `App/MLXCreateApp.swift` keep their literals.** The app target cannot see MCApp's internal tokens; making the tokens `public` for two views was not worth the surface. A comment says so.
+- **Sheet widths and `MCSize.sheetNarrow` and `.sheetStandard` are untouched**; V06 assigns them.
+
+Literals kept with a `// no token:` reason: the gallery tile chip's white glyph and black fill, `.caption.bold()` on the licence-notice name, `.caption.weight(.semibold)` on the "More options" chevron, `.title3` and `.title2` and `.body.monospaced()` in `CanvasView`, and `.body.weight(.medium)` on the Civitai result name. `.font(.body)` on the prompt editor stays with its own comment.
+
+Exercised: `swift build`, `swift test` (295 tests), `swift format lint --strict` over all tracked Swift files, `xcodebuild` (BUILD SUCCEEDED), GUI smoke (exit 0), and seven before and after captures in light and dark with the capture kit: first launch, populated gallery, image selected, Models sheet, LoRA sheet, model chip popover, prompt-history popover. Not exercised: Increase Contrast and Reduce Transparency.
