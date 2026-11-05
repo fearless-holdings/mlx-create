@@ -158,11 +158,18 @@ enum CivitaiRowStatus: Equatable, Sendable {
     case downloading(fraction: Double)
     /// Stored in the library this session. Cleared when the Installed tab is next shown.
     case added
+    /// Stored in the library and put on the generation stack (D51). Cleared like `added`.
+    case addedToStack
     /// Civitai wants a key for this file, or refused the saved one.
     case needsKey
     /// The downloaded file was turned away by the fit check. The reason is plain language.
     case refused(reason: String)
     case failed(message: String)
+}
+
+extension CivitaiRowStatus {
+    /// True for both "stored this session" states.
+    var isStoredThisSession: Bool { self == .added || self == .addedToStack }
 }
 
 /// The state of the results area. `noModel` is derived from the selection, never stored.

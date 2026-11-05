@@ -258,6 +258,14 @@ extension AppModel {
         loraNotice = nil
     }
 
+    /// Puts a LoRA that just finished downloading on the stack when it fits the selected model's family and the stack has
+    /// room (D51). Returns whether it is on the stack. The library has already been refreshed, which `addToLoRAStack` needs.
+    func attachDownloadedLoRA(_ record: LoRARecord) -> Bool {
+        guard record.family == loraFamily?.id else { return false }
+        addToLoRAStack(id: record.id, weight: 1.0)
+        return loraSlots.contains { $0.id == record.id }
+    }
+
     public func removeFromLoRAStack(id: String) {
         loraSlots.removeAll { $0.id == id }
     }

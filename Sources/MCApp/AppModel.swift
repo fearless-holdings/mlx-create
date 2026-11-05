@@ -285,7 +285,8 @@ public final class AppModel {
             selection: { [weak self] in self?.civitaiSelection },
             libraryChanged: { [weak self] in
                 if let self { await self.refreshLoRALibrary() }
-            })
+            },
+            loraCommitted: { [weak self] record in self?.attachDownloadedLoRA(record) ?? false })
         shelf.connect { [weak self] id, scale in
             guard let self else { return }
             await self.refreshLoRALibrary()

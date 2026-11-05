@@ -254,7 +254,7 @@ struct CivitaiBrowseView: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
             } else {
-                Text("Downloads keep going if you close this sheet. A downloaded LoRA goes to your library, not the stack.")
+                Text("Downloads keep going if you close this sheet.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
@@ -404,6 +404,14 @@ private struct CivitaiResultRowView: View {
             Label("Added to your LoRAs", systemImage: "checkmark.circle")
                 .font(.caption)
                 .foregroundStyle(.green)
+        case .addedToStack:
+            Label {
+                Text("Added to the stack")
+            } icon: {
+                Image(systemName: "checkmark.circle")
+                    .foregroundStyle(.green)
+            }
+            .font(.caption)
         case .needsKey:
             Text("Needs a Civitai key to download")
                 .font(.caption)
@@ -431,12 +439,12 @@ private struct CivitaiResultRowView: View {
             .controlSize(.small)
             .accessibilityLabel("Cancel download of \(row.name)")
         default:
-            Button(isFailed ? "Retry" : "Download") {
+            Button(isFailed ? "Retry" : "Download and Add") {
                 browse.requestDownload(modelID: row.id)
             }
             .controlSize(.small)
             .disabled(!row.canDownload)
-            .accessibilityLabel("\(isFailed ? "Retry" : "Download") \(row.name)")
+            .accessibilityLabel("\(isFailed ? "Retry" : "Download and Add") \(row.name)")
         }
     }
 
