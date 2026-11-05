@@ -47,7 +47,8 @@ struct GalleryView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         } else {
-            GalleryCollection(model: model, images: model.galleryImages, selection: highlighted)
+            GalleryCollection(
+                model: model, images: model.galleryImages, selection: highlighted, fullWindow: model.showsGalleryOnly)
         }
     }
 
@@ -275,6 +276,7 @@ struct ImageCell: View {
         .onHover { isHovering = $0 }
         .accessibilityLabel("Image: \(image.prompt), \(String(image.width)) × \(String(image.height)), seed \(String(image.seed))")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityAction(named: "Open in Canvas") { model.openInCanvas(image.id) }
         .accessibilityAction(named: "Reuse prompt") { if canReuse { onReusePrompt() } }
         .accessibilityAction(named: "Reuse all settings") { if canReuse { onReuseSettings() } }
         .accessibilityAction(named: "Reveal in Finder") { act { await model.revealSelected() } }
@@ -291,6 +293,8 @@ struct ImageCell: View {
 
     @ViewBuilder
     private var actions: some View {
+        Button("Open in Canvas") { model.openInCanvas(image.id) }
+        Divider()
         Button("Reuse prompt", action: onReusePrompt)
             .disabled(!canReuse)
         Button("Reuse all settings", action: onReuseSettings)

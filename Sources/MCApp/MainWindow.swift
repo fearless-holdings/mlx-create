@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// The three-panel main window: the collection pill (name and menu) on the leading toolbar edge, the model chip on the
-/// trailing edge, engine banner, generation panel (left), canvas over the queue strip (middle), and the gallery
-/// (right).
+/// The main window: the collection pill (name and menu) on the leading toolbar edge, the model chip on the trailing
+/// edge, the engine banner, and either three panels (D33) — generation panel (left), canvas over the queue strip
+/// (middle), gallery (right) — or, in Gallery mode (D52), the gallery alone at full width.
 public struct MainWindow: View {
     @Bindable var model: AppModel
 
@@ -16,22 +16,27 @@ public struct MainWindow: View {
                 EngineStatusBanner(banner: banner, onRestart: { Task { await model.restartEngine() } })
                 Divider()
             }
-            HSplitView {
-                GenerationPanel(model: model)
-                    .frame(minWidth: 320, idealWidth: 340)
-                VStack(spacing: 0) {
-                    CanvasView(model: model)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    if model.showsQueueStrip {
-                        Divider()
-                        QueueStripView(model: model)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-                .frame(minWidth: 400, maxWidth: .infinity, maxHeight: .infinity)
-                .layoutPriority(1)
+            if model.showsGalleryOnly {
                 GalleryView(model: model)
-                    .frame(minWidth: 200, idealWidth: 260)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                HSplitView {
+                    GenerationPanel(model: model)
+                        .frame(minWidth: 320, idealWidth: 340)
+                    VStack(spacing: 0) {
+                        CanvasView(model: model)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        if model.showsQueueStrip {
+                            Divider()
+                            QueueStripView(model: model)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .frame(minWidth: 400, maxWidth: .infinity, maxHeight: .infinity)
+                    .layoutPriority(1)
+                    GalleryView(model: model)
+                        .frame(minWidth: 200, idealWidth: 260)
+                }
             }
         }
         .frame(minWidth: 1100, minHeight: 640)

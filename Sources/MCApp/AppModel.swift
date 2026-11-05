@@ -22,6 +22,8 @@ public final class AppModel {
     static let civitaiIncludeNSFWKey = "civitaiIncludeNSFW"
     /// The defaults key for whether the composer's "More options" is open.
     static let moreOptionsDefaultsKey = "composerShowsMoreOptions"
+    /// The defaults key for the main window's mode, "canvas" or "gallery" (D52).
+    static let windowModeDefaultsKey = "mainWindowMode"
     /// Gallery images per page. Pages load on demand, so every image in the library can be reached.
     static let galleryPageSize = 60
     private static let shutdownLimit: Duration = .seconds(3)
@@ -104,6 +106,10 @@ public final class AppModel {
             guard !opensMoreOptionsTransiently else { return }
             defaults.set(showsMoreOptions, forKey: Self.moreOptionsDefaultsKey)
         }
+    }
+    /// Gallery mode (D52): the window shows only the gallery at full width. Stored as "canvas" or "gallery".
+    public var showsGalleryOnly = false {
+        didSet { defaults.set(showsGalleryOnly ? "gallery" : "canvas", forKey: Self.windowModeDefaultsKey) }
     }
     /// Set only while ``applyStoredSettings(_:)`` opens the disclosure, so a reuse does not pin it open for the next launch.
     var opensMoreOptionsTransiently = false
@@ -237,6 +243,7 @@ public final class AppModel {
         self.libraryPaths = libraryPaths
         self.selectedModelID = defaults.string(forKey: Self.lastUsedModelKey)
         self.showsMoreOptions = defaults.bool(forKey: Self.moreOptionsDefaultsKey)
+        self.showsGalleryOnly = defaults.string(forKey: Self.windowModeDefaultsKey) == "gallery"
         queueHeader = QueuePresentation.header(
             isRunning: false, pauseRequested: defaults.bool(forKey: Self.queuePausedDefaultsKey))
         let civitaiClient = CivitaiClient(

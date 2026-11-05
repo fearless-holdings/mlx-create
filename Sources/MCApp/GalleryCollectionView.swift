@@ -10,6 +10,8 @@ struct GalleryCollection: NSViewRepresentable {
     /// Passed by value so SwiftUI re-runs `updateNSView` when the gallery or the selection changes.
     let images: [LibraryImage]
     let selection: Set<UUID>
+    /// True in Gallery mode, where the tiles are larger (D52).
+    let fullWindow: Bool
 
     func makeCoordinator() -> Coordinator {
         Coordinator(model: model)
@@ -20,7 +22,7 @@ struct GalleryCollection: NSViewRepresentable {
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
-        context.coordinator.update(images: images, selection: selection)
+        context.coordinator.update(images: images, selection: selection, fullWindow: fullWindow)
     }
 
     @MainActor
@@ -68,6 +70,9 @@ struct GalleryCollection: NSViewRepresentable {
             collectionView.onDelete = { [model = self.model] in Task { await model.deleteSelected() } }
             collectionView.onSelectAll = { [model = self.model] in model.selectAllGalleryImages() }
             collectionView.onMove = { [weak self] offset in self?.moveSelection(by: offset) }
+            collectionView.onOpen = { [model = self.model] in
+                if let id = model.selection { model.openInCanvas(id) }
+            }
             dataSource = NSCollectionViewDiffableDataSource(collectionView: collectionView) { [weak self] collectionView, indexPath, id in
                 self?.makeItem(collectionView, indexPath: indexPath, id: id)
             }
@@ -76,8 +81,12 @@ struct GalleryCollection: NSViewRepresentable {
 
         /// Brings the grid in line with the model. Only the ids that changed are sent to the data source; an item whose
         /// image record or selection state changed is reconfigured, which re-runs the item provider for it.
-        func update(images: [LibraryImage], selection: Set<UUID>) {
+        func update(images: [LibraryImage], selection: Set<UUID>, fullWindow: Bool) {
             guard let dataSource else { return }
+            if let layout = collectionView?.collectionViewLayout as? GalleryLayout {
+                layout.minSide = fullWindow ? 160 : 100
+                layout.maxSide = fullWindow ? 200 : 120
+            }
 
             var ids: [UUID] = []
             var newByID: [UUID: LibraryImage] = [:]
@@ -216,6 +225,8 @@ final class GalleryCollectionView: NSCollectionView {
     var onSelectAll: (() -> Void)?
     /// An arrow key's move in the grid: -1 is the previous image, +1 the next, and a full row is the column count.
     var onMove: ((Int) -> Void)?
+    /// Return on the grid: opens the highlighted image in the canvas (D52).
+    var onOpen: (() -> Void)?
 
     override var acceptsFirstResponder: Bool { true }
 
@@ -226,6 +237,11 @@ final class GalleryCollectionView: NSCollectionView {
         let plain = flags.intersection([.command, .option, .control]).isEmpty
         if plain {
             let row = (collectionViewLayout as? GalleryLayout)?.columns ?? 1
+            // Return (36) and keypad Enter (76) open the highlighted image.
+            if event.keyCode == 36 || event.keyCode == 76 {
+                onOpen?()
+                return
+            }
             switch event.keyCode {
             // Delete (51) and forward delete (117).
             case 51, 117:
@@ -271,13 +287,14 @@ final class GalleryCollectionView: NSCollectionView {
     }
 }
 
-/// A square-tile flow layout that re-fits the columns to the width. Columns are 100–120 pt, 8 pt apart, and the
-/// leftover width is split as side margins, so the grid stays centred as the panel resizes.
+/// A square-tile flow layout that re-fits the columns to the width. Columns are 8 pt apart, and the leftover width is
+/// split as side margins, so the grid stays centred as the panel resizes.
 final class GalleryLayout: NSCollectionViewFlowLayout {
     static let inset: CGFloat = 12
     static let spacing: CGFloat = 8
-    static let minSide: CGFloat = 100
-    static let maxSide: CGFloat = 120
+    /// Tile side limits: 100–120 pt in the right panel, 160–200 pt when Gallery mode gives the grid the window (D52).
+    var minSide: CGFloat = 100 { didSet { if minSide != oldValue { invalidateLayout() } } }
+    var maxSide: CGFloat = 120 { didSet { if maxSide != oldValue { invalidateLayout() } } }
 
     /// The columns the last fit chose, so an up or down arrow can move by one row.
     private(set) var columns = 1
@@ -288,8 +305,8 @@ final class GalleryLayout: NSCollectionViewFlowLayout {
         // A scroll view that is not sized yet has no width, and a zero item size makes AppKit raise.
         guard width > 0 else { return }
         let available = max(0, width - 2 * Self.inset)
-        let fitted = max(1, Int((available + Self.spacing) / (Self.minSide + Self.spacing)))
-        let side = min(Self.maxSide, (available - Self.spacing * CGFloat(fitted - 1)) / CGFloat(fitted))
+        let fitted = max(1, Int((available + Self.spacing) / (minSide + Self.spacing)))
+        let side = min(maxSide, (available - Self.spacing * CGFloat(fitted - 1)) / CGFloat(fitted))
         let used = side * CGFloat(fitted) + Self.spacing * CGFloat(fitted - 1)
         let margin = Self.inset + max(0, available - used) / 2
 

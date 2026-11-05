@@ -17,6 +17,19 @@ public struct MainCommands: Commands {
                 .keyboardShortcut("n", modifiers: [.command, .shift])
                 .disabled(model == nil)
         }
+        CommandGroup(before: .toolbar) {
+            Picker(
+                "Show",
+                selection: Binding(
+                    get: { model?.showsGalleryOnly ?? false },
+                    set: { model?.showsGalleryOnly = $0 })
+            ) {
+                Text("Canvas").tag(false).keyboardShortcut("1", modifiers: .command)
+                Text("Gallery").tag(true).keyboardShortcut("2", modifiers: .command)
+            }
+            .pickerStyle(.inline)
+            .disabled(model == nil)
+        }
         CommandMenu("Image") {
             Button("Generate") { run { await $0.generate() } }
                 .keyboardShortcut(.return, modifiers: .command)
