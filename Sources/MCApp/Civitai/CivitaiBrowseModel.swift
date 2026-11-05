@@ -58,7 +58,6 @@ final class CivitaiBrowseModel {
     private let previewFetch: @Sendable (URL) async -> Data?
     private var selectionProvider: @MainActor () -> CivitaiSelection? = { nil }
     private var libraryChanged: @MainActor () async -> Void = {}
-    /// Offers a committed LoRA to the generation stack (D51). Returns true when it went on.
     private var loraCommitted: @MainActor (LoRARecord) async -> Bool = { _ in false }
 
     init(
@@ -100,7 +99,7 @@ final class CivitaiBrowseModel {
     func connect(
         selection: @escaping @MainActor () -> CivitaiSelection?,
         libraryChanged: @escaping @MainActor () async -> Void,
-        loraCommitted: @escaping @MainActor (LoRARecord) async -> Bool = { _ in false }
+        loraCommitted: @escaping @MainActor (LoRARecord) async -> Bool
     ) {
         selectionProvider = selection
         self.libraryChanged = libraryChanged
@@ -365,7 +364,7 @@ final class CivitaiBrowseModel {
 
     /// Model IDs stored this session and not yet cleared. The Installed tab reads them before it clears the marks.
     var addedModelIDs: Set<Int> {
-        Set(statuses.compactMap { $0.value.isStoredThisSession ? $0.key : nil })
+        Set(statuses.filter { $0.value.isStoredThisSession }.keys)
     }
 
     /// One line for the download in progress and how many wait behind it, or nil when the queue is empty.
@@ -543,6 +542,7 @@ final class CivitaiBrowseModel {
             license: spec.license, acceptedAt: acceptedAt, previewNSFWLevel: spec.previewNSFWLevel,
             examplePrompts: spec.examplePrompts)
         var record: LoRARecord?
+        var storedNew = true
         do {
             let outcome = try await store.commitStagedLoRA(
                 staged: result.stagedURL, sha256: result.sha256, sizeBytes: result.byteCount,
@@ -554,13 +554,16 @@ final class CivitaiBrowseModel {
                 statuses[modelID] = .added
             case .duplicate(let existing):
                 record = existing
+                storedNew = false
                 statuses[modelID] = nil
             }
         } catch {
             statuses[modelID] = .failed(message: error.localizedDescription)
         }
-        await refreshInstalled()
-        await libraryChanged()
+        if storedNew {
+            await refreshInstalled()
+            await libraryChanged()
+        }
         if let record, await loraCommitted(record) {
             statuses[modelID] = .addedToStack
         }

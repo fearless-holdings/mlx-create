@@ -107,7 +107,6 @@ import Testing
         let harness = try await browseHarness(
             api: api, files: files, keychain: keychain, models: [(kleinModelID, kleinArchitecture), (kreaModel, "krea2_turbo")])
         await harness.model.civitai.search()
-        // The row was searched for Klein, then the selection moves to Krea before the download finishes.
         harness.model.civitai.requestDownload(modelID: 42)
         harness.model.selectedModelID = kreaModel
         harness.model.civitai.acceptPendingLicense()

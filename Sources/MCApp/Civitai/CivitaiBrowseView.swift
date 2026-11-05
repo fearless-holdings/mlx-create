@@ -439,12 +439,13 @@ private struct CivitaiResultRowView: View {
             .controlSize(.small)
             .accessibilityLabel("Cancel download of \(row.name)")
         default:
-            Button(isFailed ? "Retry" : "Download and Add") {
+            let title = isFailed ? "Retry" : "Download and Add"
+            Button(title) {
                 browse.requestDownload(modelID: row.id)
             }
             .controlSize(.small)
             .disabled(!row.canDownload)
-            .accessibilityLabel("\(isFailed ? "Retry" : "Download and Add") \(row.name)")
+            .accessibilityLabel("\(title) \(row.name)")
         }
     }
 
