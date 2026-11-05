@@ -32,7 +32,6 @@ enum MCRadius {
     static let card: CGFloat = 10
 }
 
-/// Line widths.
 enum MCStroke {
     /// The ring of a selected tile or cell, and the drop-target ring.
     static let selection: CGFloat = 3
@@ -40,7 +39,6 @@ enum MCStroke {
     static let hairline: CGFloat = 1
 }
 
-/// Fixed sizes that recur.
 enum MCSize {
     static let emptyStateSymbol: CGFloat = 44
     static let civitaiThumbnail: CGFloat = 64
@@ -62,8 +60,7 @@ extension Font {
     static let mcBody = Font.body
     /// Status lines, reasons and explanations: anything the user must read to act.
     static let mcSupporting = Font.callout
-    /// Sizes, counts and dates only. Never a reason, a status or an error. Until V02 moves them, the reasons and status
-    /// lines that were 10 pt before the token file still sit on this style.
+    /// Sizes, counts and dates only. Never a reason, a status or an error.
     static let mcMetadata = Font.caption
     /// File paths and other identifiers shown as metadata.
     static let mcMetadataMonospaced = Font.caption.monospaced()
@@ -72,8 +69,7 @@ extension Font {
 }
 
 /// Semantic colours. Text uses `.primary` for anything essential and `.secondary` only for supplementary metadata;
-/// the tones below colour SF Symbols, fills and rings, never text (V02). Until V02 moves the colour to the symbol, the
-/// red, orange and green text that existed before the token file keeps its matching tone.
+/// the tones below colour SF Symbols, fills and rings, never text (V02).
 enum MCTone {
     static let critical = Color.red
     static let warning = Color.orange

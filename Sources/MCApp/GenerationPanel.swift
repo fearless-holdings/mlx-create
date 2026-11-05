@@ -68,11 +68,11 @@ struct GenerationPanel: View {
 
     private var promptEditor: some View {
         TextEditor(text: $model.prompt)
-            .font(.body)  // The prompt is body text; system body is its font.
+            .font(.mcBody)
             .scrollContentBackground(.hidden)
             .padding(MCSpacing.compact)
             .background(MCTone.textBackground, in: RoundedRectangle(cornerRadius: MCRadius.field))
-            .overlay(RoundedRectangle(cornerRadius: MCRadius.field).stroke(MCTone.separator))
+            .overlay(RoundedRectangle(cornerRadius: MCRadius.field).stroke(MCTone.separator, lineWidth: MCStroke.hairline))
             .overlay(alignment: .topLeading) {
                 if model.prompt.isEmpty {
                     Text("Describe an image")
@@ -125,7 +125,7 @@ struct GenerationPanel: View {
             }
             .padding(MCSpacing.regular)
             .background(MCTone.controlBackground, in: RoundedRectangle(cornerRadius: MCRadius.field))
-            .overlay(RoundedRectangle(cornerRadius: MCRadius.field).stroke(MCTone.separator))
+            .overlay(RoundedRectangle(cornerRadius: MCRadius.field).stroke(MCTone.separator, lineWidth: MCStroke.hairline))
             .accessibilityElement(children: .contain)
         }
     }

@@ -357,7 +357,7 @@ private struct CivitaiResultRowView: View {
                 }
                 statusView
             }
-            Spacer(minLength: 6)
+            Spacer(minLength: MCSpacing.compact)
             actionView
         }
         .padding(.vertical, MCSpacing.hairline)

@@ -98,7 +98,7 @@ struct LoRARowView: View {
                 .controlSize(.small)
                 .lineLimit(1)
                 .truncationMode(.middle)
-                Spacer(minLength: 4)
+                Spacer(minLength: MCSpacing.tight)
                 if row.isEnabled {
                     Text(row.weight == 0 ? "not used" : Self.weightText(row.weight))
                         .font(.mcMetadata)

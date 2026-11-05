@@ -109,7 +109,7 @@ struct JobCell: View {
             }
             .padding(MCSpacing.regular)
             .frame(width: 176, height: 64, alignment: .topLeading)
-            .background(RoundedRectangle(cornerRadius: MCRadius.card).fill(MCTone.cardFill))
+            .background(MCTone.cardFill, in: RoundedRectangle(cornerRadius: MCRadius.card))
             .overlay(
                 RoundedRectangle(cornerRadius: MCRadius.card)
                     .stroke(selected ? MCTone.selection : Color.clear, lineWidth: MCStroke.selection)

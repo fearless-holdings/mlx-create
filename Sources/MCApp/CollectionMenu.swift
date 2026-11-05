@@ -87,7 +87,6 @@ struct CollectionNameSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: MCSpacing.group) {
-            // V06 upgrades this sheet title to the sheet-title style.
             Text(title)
                 .font(.mcRowTitle)
             TextField("Name", text: $name)

@@ -88,7 +88,7 @@ private struct RecommendedInstallCard: View {
                         )
                         .font(.mcSupporting)
                     }
-                    Spacer(minLength: 12)
+                    Spacer(minLength: MCSpacing.group)
                     Button("Download…") {
                         browser.beginInstall(row.id)
                     }

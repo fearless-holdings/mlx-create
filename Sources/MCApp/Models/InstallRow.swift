@@ -46,7 +46,7 @@ struct InstallRow: View {
                         .foregroundStyle(MCTone.warning)
                 }
             }
-            Spacer(minLength: 12)
+            Spacer(minLength: MCSpacing.group)
             VStack(alignment: .trailing, spacing: MCSpacing.tight) {
                 actionButton
                 if let reason = row.actionBlockedReason {

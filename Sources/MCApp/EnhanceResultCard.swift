@@ -28,7 +28,7 @@ struct EnhanceResultCard: View {
         .padding(MCSpacing.group)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(MCTone.controlBackground, in: RoundedRectangle(cornerRadius: MCRadius.card))
-        .overlay(RoundedRectangle(cornerRadius: MCRadius.card).stroke(MCTone.selection.opacity(0.5)))
+        .overlay(RoundedRectangle(cornerRadius: MCRadius.card).stroke(MCTone.selection.opacity(0.5), lineWidth: MCStroke.hairline))
         .accessibilityElement(children: .contain)
         .accessibilityLabel(accessibilityLabel)
     }

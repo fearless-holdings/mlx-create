@@ -366,7 +366,7 @@ private struct LoRALibraryRow: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            Spacer(minLength: 4)
+            Spacer(minLength: MCSpacing.tight)
             Button("Add") {
                 model.addToLoRAStack(id: item.id)
             }
@@ -441,7 +441,7 @@ private struct LoRADetailView: View {
                     TextEditor(text: $notes)
                         .font(.mcBody)
                         .frame(height: 70)
-                        .overlay(RoundedRectangle(cornerRadius: MCRadius.field).stroke(MCTone.separator))
+                        .overlay(RoundedRectangle(cornerRadius: MCRadius.field).stroke(MCTone.separator, lineWidth: MCStroke.hairline))
                 }
                 HStack {
                     Button("Save") { save() }

@@ -103,7 +103,7 @@ struct ModelChip: View {
                                     .foregroundStyle(.secondary)
                             }
                         }
-                        Spacer(minLength: 12)
+                        Spacer(minLength: MCSpacing.group)
                     }
                     .contentShape(Rectangle())
                 }
@@ -123,7 +123,7 @@ struct ModelChip: View {
                             Text(row.reason)
                                 .font(.mcMetadata)
                         }
-                        Spacer(minLength: 12)
+                        Spacer(minLength: MCSpacing.group)
                     }
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, MCSpacing.compact)

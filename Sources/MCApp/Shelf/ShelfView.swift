@@ -69,7 +69,7 @@ private struct ShelfRowView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            Spacer(minLength: 12)
+            Spacer(minLength: MCSpacing.group)
             trailing
         }
         .padding(.vertical, MCSpacing.tight)

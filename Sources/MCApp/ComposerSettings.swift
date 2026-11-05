@@ -54,7 +54,7 @@ struct ComposerSettings: View {
         } label: {
             HStack(spacing: MCSpacing.compact) {
                 Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))  // no token: weight-only chevron
+                    .font(.caption.weight(.semibold))  // no token: same font as mcBadge, but that token is for badge text
                     .rotationEffect(.degrees(model.showsMoreOptions ? 90 : 0))
                     .accessibilityHidden(true)
                 Text("More options")
