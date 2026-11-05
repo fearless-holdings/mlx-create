@@ -19,7 +19,7 @@ struct PromptHistoryButton: View {
         .accessibilityLabel("Recent prompts")
         .popover(isPresented: $isOpen, arrowEdge: .bottom) {
             list
-                .padding(8)
+                .padding(MCSpacing.regular)
                 .frame(width: 320)
                 .onAppear {
                     filter = ""
@@ -44,26 +44,26 @@ struct PromptHistoryButton: View {
     }
 
     private var list: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: MCSpacing.compact) {
             TextField("Filter", text: $filter)
                 .textFieldStyle(.roundedBorder)
                 .accessibilityLabel("Filter recent prompts")
             if let entries, entries.isEmpty {
                 Text("No prompts yet")
                     .foregroundStyle(.secondary)
-                    .padding(6)
+                    .padding(MCSpacing.compact)
             } else if entries == nil {
                 ProgressView()
                     .controlSize(.small)
                     .frame(maxWidth: .infinity)
-                    .padding(6)
+                    .padding(MCSpacing.compact)
             } else if matches.isEmpty {
                 Text("No matching prompts")
                     .foregroundStyle(.secondary)
-                    .padding(6)
+                    .padding(MCSpacing.compact)
             } else {
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 2) {
+                    LazyVStack(alignment: .leading, spacing: MCSpacing.hairline) {
                         ForEach(matches) { entry in
                             row(entry)
                         }
@@ -79,12 +79,12 @@ struct PromptHistoryButton: View {
             model.applyPromptHistoryEntry(entry)
             isOpen = false
         } label: {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: MCSpacing.hairline) {
                 Text(entry.prompt)
                     .lineLimit(2)
                 if !entry.negativePrompt.isEmpty {
                     Text("Negative: \(entry.negativePrompt)")
-                        .font(.caption)
+                        .font(.mcMetadata)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
@@ -93,7 +93,7 @@ struct PromptHistoryButton: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .padding(.horizontal, MCSpacing.compact)
+        .padding(.vertical, MCSpacing.tight)
     }
 }

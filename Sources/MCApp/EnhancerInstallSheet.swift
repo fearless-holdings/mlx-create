@@ -12,16 +12,16 @@ struct EnhancerInstallSheet: View {
     private var phase: EnhancerInstallPhase { .phase(for: row) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: MCSpacing.section) {
             Text("Prompt enhancer")
-                .font(.title2.bold())
+                .font(.mcSheetTitle)
             content
             HStack {
                 Spacer()
                 buttons
             }
         }
-        .padding(24)
+        .padding(MCSpacing.emptyState)
         .frame(width: 480)
         .sheet(isPresented: licensePresented) {
             if let pending = model.license.pending {
@@ -39,34 +39,34 @@ struct EnhancerInstallSheet: View {
                 .foregroundStyle(.secondary)
         case .ready:
             if let catalogModel = row?.model {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: MCSpacing.compact) {
                     Text(catalogModel.name)
-                        .font(.headline)
+                        .font(.mcRowTitle)
                     Text("\(catalogModel.downloadBytes.formatted(.byteCount(style: .file))) download · \(catalogModel.license.name)")
-                        .font(.callout)
+                        .font(.mcSupporting)
                         .foregroundStyle(.secondary)
                 }
             }
             if let blocked = row?.actionBlockedReason {
                 Text(blocked)
-                    .font(.callout)
+                    .font(.mcSupporting)
                     .foregroundStyle(.secondary)
             }
         case .downloading(let progress):
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: MCSpacing.compact) {
                 ProgressView(value: progress.fraction)
                 Text("Installing the enhancer. \(Int(progress.fraction * 100))% done.")
-                    .font(.callout)
+                    .font(.mcSupporting)
                     .foregroundStyle(.secondary)
             }
         case .failed(let message, _):
             Text(message)
-                .font(.callout)
-                .foregroundStyle(.red)
+                .font(.mcSupporting)
+                .foregroundStyle(MCTone.critical)
                 .fixedSize(horizontal: false, vertical: true)
         case .installed:
             Label("Installed. Enhance is ready for the selected model.", systemImage: "checkmark.seal")
-                .font(.callout)
+                .font(.mcSupporting)
         }
     }
 

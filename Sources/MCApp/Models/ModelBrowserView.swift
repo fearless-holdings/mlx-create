@@ -10,14 +10,14 @@ struct ModelBrowserView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text("Models")
-                    .font(.title2.bold())
+                    .font(.mcSheetTitle)
                 Spacer()
                 Button("Done") {
                     dismiss()
                 }
                 .keyboardShortcut(.cancelAction)
             }
-            .padding(16)
+            .padding(MCSpacing.section)
             Divider()
             if browser.rows.isEmpty {
                 ContentUnavailableView(
