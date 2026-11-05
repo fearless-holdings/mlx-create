@@ -74,7 +74,7 @@ The order is STRUCTURE, then INTERACTION, then VISUAL, as requested. Severity fo
 | [I11](specs/I11-interrupted-download-size.md) | done ([#25](https://github.com/fearless-holdings/mlx-create/pull/25)) | Interrupted download reports real bytes | INTERACTION | 2 | Cancelled downloads | a | S | — | No |
 | [I12](specs/I12-generate-disabled-reason.md) | done ([#26](https://github.com/fearless-holdings/mlx-create/pull/26)) | Generate says why it is disabled | INTERACTION | 2 | First launch, empty prompt | a | S | (I01) | No |
 | [I13](specs/I13-empty-state-copy.md) | done ([#25](https://github.com/fearless-holdings/mlx-create/pull/25)) | Empty states that match the state | INTERACTION | 1 | First run | a, f | S | — | No |
-| [V01](specs/V01-design-tokens.md) | done (branch `feat/design-tokens`, PR number to follow) | One design-token file (with inventory and migration list) | VISUAL | 2 | Every screen | all | M | see §3 | No |
+| [V01](specs/V01-design-tokens.md) | done ([#43](https://github.com/fearless-holdings/mlx-create/pull/43)) | One design-token file (with inventory and migration list) | VISUAL | 2 | Every screen | all | M | see §3 | No |
 | [V02](specs/V02-text-contrast-and-status-colour.md) | open | Status and error text ≥ 4.5:1; colour on symbols only | VISUAL | 2 | Every error | e, d | M | V01 | No |
 | [V03](specs/V03-number-formatting.md) | done ([#23](https://github.com/fearless-holdings/mlx-create/pull/23)) | "1024 × 1024", not "1.024 × 1.024"; one decimal style | VISUAL | 2 | Every session (EU locales) | a, b | S | — | No |
 | [V04](specs/V04-gallery-column-layout-bug.md) | done ([#21](https://github.com/fearless-holdings/mlx-create/pull/21)) | Gallery shows one column after launch | VISUAL | 2 | Every launch | c | S | — | No |
@@ -106,7 +106,7 @@ The two decisions the audit needed were approved on 2026-11-05 and recorded in t
    - [x] I08 and I09.
 5. **LoRAs** (done, [#39](https://github.com/fearless-holdings/mlx-create/pull/39), [#40](https://github.com/fearless-holdings/mlx-create/pull/40)): S07, then S08 under D51.
 6. **Gallery** (done, [#41](https://github.com/fearless-holdings/mlx-create/pull/41)): S09 under D52.
-7. **Visual layer:** V01 tokens (done, branch `feat/design-tokens`) → V02 → V05 → V06.
+7. **Visual layer:** V01 tokens (done, [#43](https://github.com/fearless-holdings/mlx-create/pull/43)) → V02 → V05 → V06.
 
 **VISUAL work that must wait for STRUCTURE.**
 

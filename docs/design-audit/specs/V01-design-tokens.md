@@ -240,7 +240,7 @@ Line numbers move as other specs land. Re-run the `rg` in step 2 to locate them.
 
 ## Resolution
 
-Done on branch `feat/design-tokens` (the PR number goes here when it opens). `Sources/MCApp/Design/MCTokens.swift` is the spec's file plus one token, `Font.mcMetadataMonospaced`, because `.caption.monospaced()` appeared twice, both on file paths in `InstallRow`. Every view in `Sources/MCApp` takes its spacing, radii, strokes and type from it, and the closing `rg` from the spec prints nothing. The result differs from the spec in these ways:
+Done in [#43](https://github.com/fearless-holdings/mlx-create/pull/43). `Sources/MCApp/Design/MCTokens.swift` is the spec's file plus one token, `Font.mcMetadataMonospaced`, because `.caption.monospaced()` appeared twice, both on file paths in `InstallRow`. Every view in `Sources/MCApp` takes its spacing, radii, strokes and type from it, and the closing `rg` from the spec prints nothing. The result differs from the spec in these ways:
 
 - **Layout may move.** The author lifted the spec's 4 pt cap, so odd spacings snapped by role to the nearest token. In the captures at 1100×692 the pixel change against the unmigrated build is under 1.1 % of each window in every state, light and dark; nothing clipped.
 - **Status colour stays on the text.** Red, orange and green text keep their colour through `MCTone.critical`, `.warning` and `.success`. V02 moves the colour to the symbol; its search commands now look for `MCTone`.
