@@ -37,9 +37,9 @@ struct GenerationPanel: View {
         .frame(minWidth: 320, idealWidth: 340, maxHeight: .infinity)
         .overlay {
             if isLoRADropTargeted {
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.accentColor, lineWidth: 2)
-                    .padding(4)
+                RoundedRectangle(cornerRadius: MCRadius.card)
+                    .stroke(MCTone.selection, lineWidth: MCStroke.selection)
+                    .padding(MCSpacing.tight)
                     .allowsHitTesting(false)
             }
         }
@@ -49,7 +49,7 @@ struct GenerationPanel: View {
     }
 
     private func layout(promptFillsHeight: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: MCSpacing.group) {
             promptEditor
                 .frame(
                     minHeight: Self.promptMinHeight,
@@ -61,24 +61,24 @@ struct GenerationPanel: View {
             settings
             LoRASection(model: model)
         }
-        .padding(12)
+        .padding(MCSpacing.group)
     }
 
     // MARK: Prompt
 
     private var promptEditor: some View {
         TextEditor(text: $model.prompt)
-            .font(.body)
+            .font(.body)  // The prompt is body text; system body is its font.
             .scrollContentBackground(.hidden)
-            .padding(6)
-            .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
-            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(nsColor: .separatorColor)))
+            .padding(MCSpacing.compact)
+            .background(MCTone.textBackground, in: RoundedRectangle(cornerRadius: MCRadius.field))
+            .overlay(RoundedRectangle(cornerRadius: MCRadius.field).stroke(MCTone.separator))
             .overlay(alignment: .topLeading) {
                 if model.prompt.isEmpty {
                     Text("Describe an image")
                         .foregroundStyle(.secondary)
-                        .padding(.horizontal, 11)
-                        .padding(.vertical, 7)
+                        .padding(.horizontal, MCSpacing.group)
+                        .padding(.vertical, MCSpacing.compact)
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                 }
@@ -101,10 +101,10 @@ struct GenerationPanel: View {
     @ViewBuilder
     private var originalPromptField: some View {
         if let original = model.originalPrompt {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: MCSpacing.tight) {
                 HStack {
                     Text("Original prompt")
-                        .font(.caption)
+                        .font(.mcMetadata)
                         .foregroundStyle(.secondary)
                     Spacer(minLength: 0)
                     Button("Restore") { model.restoreOriginalPrompt() }
@@ -115,7 +115,7 @@ struct GenerationPanel: View {
                 }
                 ScrollView {
                     Text(original)
-                        .font(.callout)
+                        .font(.mcSupporting)
                         .foregroundStyle(.secondary)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -123,9 +123,9 @@ struct GenerationPanel: View {
                 .frame(maxHeight: 72)
                 .accessibilityLabel("Original prompt, read only: \(original)")
             }
-            .padding(8)
-            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
-            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(nsColor: .separatorColor)))
+            .padding(MCSpacing.regular)
+            .background(MCTone.controlBackground, in: RoundedRectangle(cornerRadius: MCRadius.field))
+            .overlay(RoundedRectangle(cornerRadius: MCRadius.field).stroke(MCTone.separator))
             .accessibilityElement(children: .contain)
         }
     }
@@ -133,11 +133,11 @@ struct GenerationPanel: View {
     /// The Enhance button with its caption: the reason it can't run, else the reason the last press was refused, and the
     /// note about the image model reload (U8). The caption is the button's accessibility hint too.
     private var enhanceRow: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
+        VStack(alignment: .leading, spacing: MCSpacing.compact) {
+            HStack(alignment: .firstTextBaseline, spacing: MCSpacing.regular) {
                 if let caption = model.enhanceBlockReason ?? model.enhanceRefusal {
                     Text(caption)
-                        .font(.caption)
+                        .font(.mcMetadata)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -152,7 +152,7 @@ struct GenerationPanel: View {
             }
             if let note = model.enhanceReloadNote {
                 Text(note)
-                    .font(.caption)
+                    .font(.mcMetadata)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -174,8 +174,8 @@ struct GenerationPanel: View {
     // MARK: Bottom row
 
     private var bottomRow: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: MCSpacing.compact) {
+            HStack(spacing: MCSpacing.regular) {
                 Stepper(value: $model.batchCount, in: 1...16) {
                     Text("×\(model.batchCount)")
                         .monospacedDigit()
@@ -186,12 +186,12 @@ struct GenerationPanel: View {
 
                 if let reason = model.generateBlockReason {
                     Text(reason)
-                        .font(.callout)
+                        .font(.mcSupporting)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                 } else if let estimate {
                     Text(SpeedEstimate.scaled(estimate, by: model.batchCount).label)
-                        .font(.caption)
+                        .font(.mcMetadata)
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
@@ -209,11 +209,11 @@ struct GenerationPanel: View {
             }
             if let error = model.lastError {
                 Text(error)
-                    .font(.caption)
-                    .foregroundStyle(.red)
+                    .font(.mcMetadata)
+                    .foregroundStyle(MCTone.critical)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(12)
+        .padding(MCSpacing.group)
     }
 }

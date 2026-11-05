@@ -15,9 +15,9 @@ struct CanvasView: View {
             }
             .overlay {
                 if isDropTargeted {
-                    RoundedRectangle(cornerRadius: 8)
-                        .strokeBorder(Color.accentColor, lineWidth: 3)
-                        .padding(4)
+                    RoundedRectangle(cornerRadius: MCRadius.card)
+                        .strokeBorder(MCTone.selection, lineWidth: MCStroke.selection)
+                        .padding(MCSpacing.tight)
                         .allowsHitTesting(false)
                 }
             }
@@ -35,7 +35,7 @@ struct CanvasView: View {
             UnavailableModelsView(rows: rows)
         case .emptyHint:
             Text(model.emptyHintText)
-                .font(.title3)
+                .font(.title3)  // no token: empty-state hint style
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .content:
@@ -51,7 +51,7 @@ private struct ContentCanvas: View {
     let model: AppModel
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: MCSpacing.group) {
             if let image = model.canvasImage {
                 SelectedImageView(model: model, image: image)
                     .id(image.id)
@@ -60,9 +60,9 @@ private struct ContentCanvas: View {
                     }
                 CanvasImageBar(model: model, image: image)
             } else if model.selectedFailedJob == nil, model.isStartingJob {
-                VStack(spacing: 8) {
+                VStack(spacing: MCSpacing.regular) {
                     ProgressView().controlSize(.small)
-                    Text("Starting…").font(.callout)
+                    Text("Starting…").font(.mcSupporting)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if model.selectedFailedJob == nil, model.runningProgress == nil {
@@ -71,7 +71,7 @@ private struct ContentCanvas: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .padding(16)
+        .padding(MCSpacing.section)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay(alignment: .center) {
             if model.canvasImage == nil {
@@ -86,18 +86,18 @@ private struct CanvasStatusStack: View {
     let model: AppModel
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: MCSpacing.group) {
             if let job = model.selectedFailedJob {
                 FailureCard(model: model, job: job)
-                    .padding(16)
+                    .padding(MCSpacing.section)
             }
             if let progress = model.runningProgress {
                 StepProgressView(progress: progress)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, MCSpacing.section)
+                    .padding(.vertical, MCSpacing.regular)
                     .frame(maxWidth: 420)
                     .background(.regularMaterial, in: Capsule())
-                    .padding(.bottom, 12)
+                    .padding(.bottom, MCSpacing.group)
             }
         }
     }
@@ -109,20 +109,20 @@ struct FailureCard: View {
     let job: JobItem
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
+        VStack(alignment: .leading, spacing: MCSpacing.group) {
+            HStack(alignment: .firstTextBaseline, spacing: MCSpacing.regular) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.title2)
-                    .foregroundStyle(.red)
+                    .font(.title2)  // no token: failure icon size
+                    .foregroundStyle(MCTone.critical)
                     .accessibilityHidden(true)
                 Text("This image couldn't be made")
-                    .font(.headline)
+                    .font(.mcRowTitle)
             }
             Text(job.failure?.message ?? "The image could not be generated.")
-                .font(.body)
+                .font(.mcBody)
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
-            HStack(spacing: 8) {
+            HStack(spacing: MCSpacing.regular) {
                 Spacer(minLength: 0)
                 Button("Dismiss") {
                     model.dismissFailureCard()
@@ -142,9 +142,9 @@ struct FailureCard: View {
                 }
             }
         }
-        .padding(16)
+        .padding(MCSpacing.section)
         .frame(maxWidth: 460, alignment: .leading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: MCRadius.card))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("This image couldn't be made")
     }
@@ -186,16 +186,16 @@ private struct CanvasImageBar: View {
     let image: LibraryImage
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
+        HStack(alignment: .top, spacing: MCSpacing.group) {
+            VStack(alignment: .leading, spacing: MCSpacing.hairline) {
                 Text(image.prompt)
-                    .font(.body)
+                    .font(.mcBody)
                     .lineLimit(2)
                     .truncationMode(.tail)
                     .textSelection(.enabled)
                     .help(image.prompt)
                 Text(facts)
-                    .font(.callout)
+                    .font(.mcSupporting)
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -215,7 +215,7 @@ private struct CanvasImageBar: View {
     }
 
     private func buttons(labelled: Bool) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: MCSpacing.regular) {
             Button {
                 model.reuseSettings(of: image)
             } label: {
@@ -277,12 +277,12 @@ struct StepProgressView: View {
     let progress: RunningProgress
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: MCSpacing.tight) {
             ProgressView(value: Double(progress.step), total: Double(max(progress.total, 1)))
                 .accessibilityLabel("Generation progress")
                 .accessibilityValue("step \(progress.step) of \(progress.total)")
             Text("Step \(progress.step) of \(progress.total)")
-                .font(.caption)
+                .font(.mcMetadata)
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
@@ -295,22 +295,22 @@ private struct UnavailableModelsView: View {
     let rows: [UnavailableModelRow]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: MCSpacing.group) {
             Label("No installed model can be used", systemImage: "exclamationmark.triangle")
-                .font(.title3.bold())
+                .font(.mcSheetTitle)
             ForEach(rows) { row in
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: MCSpacing.hairline) {
                     Text(row.id)
-                        .font(.body.monospaced())
+                        .font(.body.monospaced())  // no token: monospaced model identifier
                         .textSelection(.enabled)
                     Text(row.reason)
-                        .font(.callout)
+                        .font(.mcSupporting)
                         .foregroundStyle(.secondary)
                 }
                 .accessibilityElement(children: .combine)
             }
         }
-        .padding(24)
+        .padding(MCSpacing.emptyState)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 }

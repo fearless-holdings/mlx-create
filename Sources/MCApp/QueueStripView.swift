@@ -6,19 +6,19 @@ struct QueueStripView: View {
     @Bindable var model: AppModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: MCSpacing.compact) {
             QueueHeaderView(model: model)
-                .padding(.horizontal, 12)
+                .padding(.horizontal, MCSpacing.group)
             ScrollView(.horizontal) {
-                LazyHStack(spacing: 8) {
+                LazyHStack(spacing: MCSpacing.regular) {
                     ForEach(model.queueJobs) { job in
                         JobCell(model: model, job: job)
                     }
                 }
-                .padding(.horizontal, 12)
+                .padding(.horizontal, MCSpacing.group)
             }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, MCSpacing.regular)
     }
 }
 
@@ -32,7 +32,7 @@ struct QueueHeaderView: View {
     }
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: MCSpacing.regular) {
             switch model.queueHeader {
             case .idle:
                 switch QueuePresentation.idleSummary(model.queueJobs) {
@@ -81,7 +81,7 @@ struct QueueHeaderView: View {
                 .buttonStyle(.link)
             }
         }
-        .font(.callout)
+        .font(.mcSupporting)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
@@ -98,21 +98,21 @@ struct JobCell: View {
         Button {
             model.selectJob(job.id)
         } label: {
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: MCSpacing.hairline) {
                 statusLine
                 Text(job.promptSnippet)
-                    .font(.caption)
+                    .font(.mcMetadata)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.tail)
                 progressLine
             }
-            .padding(8)
+            .padding(MCSpacing.regular)
             .frame(width: 176, height: 64, alignment: .topLeading)
-            .background(RoundedRectangle(cornerRadius: 10).fill(.quaternary))
+            .background(RoundedRectangle(cornerRadius: MCRadius.card).fill(MCTone.cardFill))
             .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(selected ? Color.accentColor : Color.clear, lineWidth: 3)
+                RoundedRectangle(cornerRadius: MCRadius.card)
+                    .stroke(selected ? MCTone.selection : Color.clear, lineWidth: MCStroke.selection)
             )
         }
         .buttonStyle(.plain)
@@ -190,26 +190,26 @@ struct JobCell: View {
         case .running:
             if let step = job.step, let total = job.total {
                 Text(verbatim: "Step \(step) of \(total)")
-                    .font(.callout)
+                    .font(.mcSupporting)
                     .monospacedDigit()
             } else {
-                HStack(spacing: 4) {
+                HStack(spacing: MCSpacing.tight) {
                     ProgressView().controlSize(.mini)
                     Text("Running")
                 }
-                .font(.callout)
+                .font(.mcSupporting)
             }
         case .queued:
             statusRow("clock", "Waiting")
         case .paused:
             statusRow("pause.circle", "Paused")
         case .failed:
-            HStack(spacing: 4) {
+            HStack(spacing: MCSpacing.tight) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.red)
+                    .foregroundStyle(MCTone.critical)
                 Text("Couldn't be made")
             }
-            .font(.callout)
+            .font(.mcSupporting)
         case .cancelled:
             statusRow("xmark.circle", "Cancelled")
         case .done:
@@ -218,11 +218,11 @@ struct JobCell: View {
     }
 
     private func statusRow(_ symbol: String, _ text: String) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: MCSpacing.tight) {
             Image(systemName: symbol)
             Text(text)
         }
-        .font(.callout)
+        .font(.mcSupporting)
     }
 
     /// A running job with steps shows the bar; every other cell says how many images of its batch it has saved. A
@@ -234,7 +234,7 @@ struct JobCell: View {
                 .progressViewStyle(.linear)
         } else if job.batchCount > 1 || job.status == .running {
             Text(verbatim: "\(job.savedCount) of \(job.batchCount) saved")
-                .font(.caption)
+                .font(.mcMetadata)
                 .foregroundStyle(.secondary)
         }
     }
