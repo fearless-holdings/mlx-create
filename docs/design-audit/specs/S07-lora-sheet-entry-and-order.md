@@ -104,3 +104,15 @@ With the capture kit, FLUX.2 klein 4B symlinked in, **no** LoRA imported, `civit
 7. Press Add LoRA… (`ax press <pid> "=Add LoRA…"`). In the sheet, `AXRadioButton` "Recommended" has `value="1"` (selected), and the radio buttons appear in the order Recommended, Your LoRAs, Civitai (by frame x).
 8. Add the shelf entry (Add to stack, accept the license, Download and add), close and reopen the sheet: "Your LoRAs" is now selected.
 9. Captures `S07_sheet_small_light.png` and `S07_panel_small_light.png` are attached to the PR.
+
+## Resolution
+
+Done in [#39](https://github.com/fearless-holdings/mlx-create/pull/39), commits `a70f670` (panel and sheet) and `7a20ab9` (wording in AGENTS.md, the HLD and the LoRA LLD, plus `docs/plans/2026-11-04-1326-feat-lora-sheet-entry-and-order-plan.md`). The panel has one Add LoRA… button, the tabs read Recommended, Your LoRAs, Civitai, and the opening rule is the spec's, with three differences:
+
+- A refused or duplicate drop opens Your LoRAs whatever the rule says, and the empty state renders the import summary. Closing the sheet clears that summary so it does not pin later openings.
+- With no model selected the sheet opens on Your LoRAs, because the other two tabs need a model.
+- The drop target moved from the Your LoRAs content to the sheet root, and a drop switches to Your LoRAs. The spec's "still imports as today" held only because the sheet always opened there.
+
+With Library… gone, Image ▸ LoRA Library… (S05) is the only way into the sheet when the selected model takes no LoRAs.
+
+Exercised: `swift test`, strict format lint, the Debug `xcodebuild`, the GUI smoke (the first run hit an engine out-of-memory 503, the retry passed), and in the real app the panel (check 6), the Recommended opening (check 7), both empty-state shortcuts, the Your LoRAs opening after adding the shelf entry (check 8), and Krea 2 Turbo with the opt-in off (Civitai) and on (Recommended). Check 9's captures are attached in a PR comment (`gh pr comment --attach`). Not exercised: a dropped file, the no-model opening, and a Krea selection with a FLUX LoRA installed. The tab rule has no permanent test.

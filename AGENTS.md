@@ -13,7 +13,7 @@ mlx-create is a commercial, native macOS app (macOS 26.2+, Apple Silicon, 16 GB 
 
 Rules 2–6 describe mlx-serve, today's only engine. HLD D41 allows a second bundled engine (e.g. for SDXL/Pony) once its own decision entry exists. Any such engine inherits the same rules: a separate child process, stock upstream pinned by release, loopback-only behind a per-launch key, its own `HOME` under `<AppSupport>`, and `.safetensors` only. Do not start engine work without that decision.
 
-1. **No content filtering anywhere:** no prompt filters, no output classifiers, no refusal paths (D3/G6). The only content-related UI is NSFW opt-in and blur in the model browser and the LoRA library's Browse Civitai tab (D15, D34).
+1. **No content filtering anywhere:** no prompt filters, no output classifiers, no refusal paths (D3/G6). The only content-related UI is NSFW opt-in and blur in the model browser and the LoRA library's Civitai tab (D15, D34).
 2. **No inference in the app process.** All generation and LLM work goes through an engine child process.
 3. **The engine is stock upstream.** Never vendor, patch, or commit mlx-serve source. Engine changes go upstream as PRs (HLD §7.2). The app consumes them only through a tagged release pinned in `engine.lock`.
 4. **The engine is private:**

@@ -1,7 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// The LoRA section of the generation panel (R5-R13): one compact row per stacked LoRA, the Library button, and the
+/// The LoRA section of the generation panel (R5-R13): one compact row per stacked LoRA, the Add LoRA… button, and the
 /// neutral notices. Shown when the stack or library has entries, or when the selected model takes LoRAs, so that
 /// import stays reachable from an empty stack.
 struct LoRASection: View {
@@ -40,15 +40,7 @@ struct LoRASection: View {
                         }
                     }
                 } header: {
-                    HStack {
-                        Text("LoRAs")
-                        Spacer()
-                        Button("Library…") {
-                            model.isLoRALibraryPresented = true
-                        }
-                        .buttonStyle(.link)
-                        .textCase(nil)
-                    }
+                    Text("LoRAs")
                 }
             }
             .formStyle(.grouped)
