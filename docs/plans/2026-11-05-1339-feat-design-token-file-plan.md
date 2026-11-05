@@ -123,7 +123,7 @@ The audit counted 25 distinct padding values, 16 font styles, three hand-made ba
   1. In each file, run V01's step-2 `rg` and replace every hit by KTD2 to KTD6.
   2. Sheet and empty-state titles follow KTD3: `.title2.bold()` and `.title3.bold()` titles take `.mcSheetTitle`, and `CollectionNameSheet`'s `.headline` title takes `.mcRowTitle`. V06 unifies insets, widths and the remaining titles later; V01 substitutes the token that matches each inset.
   3. `ShelfView` holds two sheets' worth of views (the row and the shelf licence sheet); migrate both.
-  4. `App/MLXCreateApp.swift`: `LaunchLoadingView` has no title font, so only its stack spacing takes a token. The failure view's `.title2` title stays literal with a reason comment (KTD6). Leave `Text("Opening library...")`'s `.secondary` as it is.
+  4. `App/MLXCreateApp.swift`: the app target cannot see MCApp's internal tokens, so both launch views keep their literals and a comment says so (this replaces the planned spacing token; the failure view's `.title2` also stays literal, KTD6). Leave `Text("Opening library...")`'s `.secondary` as is.
   5. Sheet `.frame(width:)` literals (340, 480, 500, 520) stay as they are, and `MCSize.sheetNarrow` and `.sheetStandard` stay unused; V06 assigns the two widths. Frames the spec's mapping table names for non-sheet views (the 44 pt empty-state symbol, the 64 pt Civitai thumbnail, the 24 pt tile-menu button, the 520 pt empty-state max width) take their `MCSize` token in the unit that owns that file.
 - **Patterns to follow:** V01 spec, "Mapping rules for the migration".
 - **Test expectation:** none -- substitution of constants with no behaviour change; the build and the captures are the proof.

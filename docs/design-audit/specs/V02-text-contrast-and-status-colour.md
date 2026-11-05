@@ -95,7 +95,7 @@ Measured with the capture kit (`contrast.py`, 1x captures, so the true ratio is 
    - `CollectionNameSheet`, `if let errorMessage`: `MCStatusText(.critical, errorMessage)`.
    - `LoRARowView.summary`, `if let reason = row.fit.reason`: `row.fit == .fileMissing ? MCStatusText(.critical, reason) : MCStatusText(.warning, reason)`.
    - `QueueStripView.JobCell.statusContent` `.failed`, if I05 has not already done it: the symbol `.red`, the text `.primary`.
-3. Promote reasons from `.mcMetadata` (V01 moved every `.caption` and `.caption2` there, keeping them 10 pt) to `.mcSupporting` and `.primary`. Remove `.foregroundStyle(.secondary)` at:
+3. Promote reasons from `.mcMetadata` (V01 moved the `.caption` reasons and metadata there, keeping them 10 pt, and left badge text on `.mcBadge`) to `.mcSupporting` and `.primary`. Remove `.foregroundStyle(.secondary)` at:
    - `GenerationPanel.enhanceRow` (the caption and the reload note);
    - `LoRASection` ("None of these will be used.", `loraNotice`, the memory hint);
    - `LoRALibraryRow` `addBlockReason` and "File missing";

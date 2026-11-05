@@ -244,8 +244,8 @@ Done in [#43](https://github.com/fearless-holdings/mlx-create/pull/43). `Sources
 
 - **Layout may move.** The author lifted the spec's 4 pt cap, so odd spacings snapped by role to the nearest token. In the captures at 1100×692 the pixel change against the unmigrated build is under 1.1 % of each window in every state, light and dark; nothing clipped.
 - **Status colour stays on the text.** Red, orange and green text keep their colour through `MCTone.critical`, `.warning` and `.success`. V02 moves the colour to the symbol; its search commands now look for `MCTone`.
-- **10 pt lines stay 10 pt.** Every `.caption` and `.caption2` became `.mcMetadata`, reasons and status lines included. V02 promotes the reasons to `.mcSupporting`.
-- **Titles moved with their token.** `.title3.bold()` titles (Civitai licence, shelf licence) grew from 15 to 17 pt as `.mcSheetTitle`; `.callout.bold()` row titles grew from 12 to 13 pt as `.mcRowTitle`; the collection-name sheet's title is `.mcRowTitle` with a comment that V06 upgrades it.
+- **10 pt lines stay 10 pt.** `.caption`/`.caption2` text (metadata, reasons, status lines) became `.mcMetadata`, while the six badge capsules became `.mcBadge` (`CivitaiBrowseView.badge()`, three sites in `LoRALibraryView`, two in `InstallRow`), all staying 10 pt. V05 still replaces those badge capsules with the MCBadge component; V02 promotes the reasons to `.mcSupporting`.
+- **Titles moved with their token.** `.title3.bold()` titles (Civitai licence, shelf licence) grew from 15 to 17 pt as `.mcSheetTitle`; `.callout.bold()` row titles grew from 12 to 13 pt as `.mcRowTitle`; the collection-name sheet's title is `.mcRowTitle`, which V06 step 1 upgrades to `.mcSheetTitle`.
 - **The two launch views in `App/MLXCreateApp.swift` keep their literals.** The app target cannot see MCApp's internal tokens; making the tokens `public` for two views was not worth the surface. A comment says so.
 - **Sheet widths and `MCSize.sheetNarrow` and `.sheetStandard` are untouched**; V06 assigns them.
 

@@ -20,7 +20,7 @@ enum MCSpacing {
     static let section: CGFloat = 16
     /// Sheet content inset.
     static let sheet: CGFloat = 20
-    /// Empty-state and launch-view inset.
+    /// Empty-state inset, and the content inset of single-purpose sheets.
     static let emptyState: CGFloat = 24
 }
 

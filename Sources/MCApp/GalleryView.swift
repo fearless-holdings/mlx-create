@@ -258,8 +258,8 @@ struct ImageCell: View {
                     actions
                 } label: {
                     Image(systemName: "ellipsis")
-                        .font(.mcSupporting.weight(.semibold))
-                        // no token: the glyph keeps fixed contrast over any thumbnail.
+                        .font(.system(size: 12, weight: .semibold))
+                        // no token: glyph sized to the fixed 24 pt chip, so it must not scale with text size.
                         .foregroundStyle(.white)
                         .frame(width: MCSize.tileMenuButton, height: MCSize.tileMenuButton)
                         // no token: the chip keeps fixed contrast over any thumbnail.
