@@ -100,3 +100,13 @@ With the capture kit, 25+ images, window 1680×1050:
 7. ⌘2: `ax dump` shows no `AXTextArea` "Prompt" and no `AXSplitter`. The grid shows at least 7 columns: count distinct tile x positions in the first row.
 8. Select a tile, press Return: `ax dump` shows the "Prompt" text area again, and the canvas `AXImage` desc contains that tile's prompt.
 9. Captures `S09_gallery_large_light.png` and `S09_gallery_large_dark.png` are attached to the PR.
+
+## Resolution
+
+Option A, approved by the author on 2026-11-05 as D52 (§10's open question now points at it). Done in [#41](https://github.com/fearless-holdings/mlx-create/pull/41), stacked on [#40](https://github.com/fearless-holdings/mlx-create/pull/40). View ▸ Canvas (⌘1) and View ▸ Gallery (⌘2) switch the mode, Return on a highlighted tile and the tile menu's **Open in Canvas** return to Canvas with that image selected, and the mode is stored as `mainWindowMode`. The code follows the spec's edit steps, with these differences:
+
+- `GalleryCollection` takes a `fullWindow` parameter from `GalleryView` (which reads `model.showsGalleryOnly`), so SwiftUI re-runs `updateNSView` on a mode change; the tile limits (`minSide`/`maxSide`, now instance properties of `GalleryLayout`) are set there.
+- Return (36) and keypad Enter (76) both open the image. Open in Canvas is also an accessibility action on the tile.
+- `SeedChoice` and `RunningProgress` moved out of `AppModel.swift` into files of their own, in a separate commit before the feature: the file was over its size budget.
+
+Exercised: `swift test` (293 tests; `WindowModeTests` checks the mode survives a relaunch and that `openInCanvas` selects the image, leaves Gallery mode and stores `canvas`), strict format lint, the Debug `xcodebuild`, and the real app in a scratch home with 30 images and FLUX.2 klein 4B linked in, at 1680×1050, driven through accessibility and System Events: View ▸ Gallery and ⌘2 give a grid with no `AXTextArea` "Prompt" and no `AXSplitter` and 9 tile columns (check 7); a tile pressed then Return brings the Prompt text area back with `AXImage "Selected image: scratch image 25"` on the canvas (check 8); launching with the stored `gallery` mode opens in Gallery mode. Not exercised: the GUI smoke (its test runner needs a system authentication prompt that nobody answered at the Mac), and the Open in Canvas menu item with the mouse. The dark and light captures (check 9) are attached in a PR comment; the dark capture's pixels were not inspected by hand, only the accessibility tree behind it.
