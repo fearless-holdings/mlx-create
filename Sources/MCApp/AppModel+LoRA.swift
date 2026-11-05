@@ -247,15 +247,28 @@ extension AppModel {
 
     /// Adds a library LoRA to the stack, enabled at `weight` (1.0 unless a shelf item supplies its tested scale). A LoRA
     /// already in the stack is ignored; an add past the family's cap is refused with a notice that states the cap (R10).
-    public func addToLoRAStack(id: String, weight: Double = 1.0) {
-        guard loraRecords.contains(where: { $0.id == id }), !loraSlots.contains(where: { $0.id == id }) else { return }
+    /// Returns whether the LoRA is on the stack afterwards.
+    @discardableResult
+    public func addToLoRAStack(id: String, weight: Double = 1.0) -> Bool {
+        guard loraRecords.contains(where: { $0.id == id }) else { return false }
+        return pushLoRASlot(id: id, weight: weight)
+    }
+
+    func attachDownloadedLoRA(_ record: LoRARecord) -> Bool {
+        guard loraFit(for: record, selected: loraFamily, installed: installedLoRAFamilyIDs) == .fits else { return false }
+        return pushLoRASlot(id: record.id, weight: 1.0)
+    }
+
+    private func pushLoRASlot(id: String, weight: Double) -> Bool {
+        if loraSlots.contains(where: { $0.id == id }) { return true }
         let capacity = loraCapacity
         guard loraSlots.count < capacity else {
             loraNotice = "A job can use up to \(capacity) LoRAs. Remove one to add another."
-            return
+            return false
         }
         loraSlots.append(LoRAStackSlot(id: id, requestedWeight: weight))
         loraNotice = nil
+        return true
     }
 
     public func removeFromLoRAStack(id: String) {

@@ -86,6 +86,7 @@ Status: built per `docs/plans/2026-10-19-1605-feat-civitai-lora-browse-download-
 - Commit: a staged-file entry point in `LibraryStore` shares the import's commit routine (duplicate, name-clash suffix, restored handling) and moves the file to `Models/LoRAs/<family>/<sha10>-<slug>.safetensors`. The staging directory lives outside `Models/LoRAs/`, so `sweepUnreferencedLoRAs` cannot delete a download in progress. It is swept at store open.
 - A duplicate or restored commit adds no second LoRA row, but when the commit carries a Civitai source and the existing LoRA has none, the `lora_source` row is attached to the existing LoRA in the same write. An existing source is never overwritten.
 - Cancel works until the commit's database write: a cancel that arrives after the transfer staged, or during the preview fetch, deletes the staged file and stores nothing.
+- Stack (D51): after the commit and the library refresh, `loraCommitted` offers the stored (or duplicate) LoRA to `AppModel.attachDownloadedLoRA`. It goes on the stack at weight 1.0 when its family is the selected model's family and the stack has room; the row then reads "Added to the stack" (`CivitaiRowStatus.addedToStack`). Otherwise it stays in the library and the row reads "Added to your LoRAs". The row's action reads "Download and Add".
 
 ### Size variant
 

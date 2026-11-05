@@ -92,9 +92,80 @@ import Testing
         #expect(source.previewRelativePath == nil)
         #expect(harness.model.loraLibrary.map(\.name) == ["Watercolor Fox"])
 
-        #expect(harness.model.civitai.rows.first?.status == .added)
+        #expect(harness.model.civitai.rows.first?.status == .addedToStack)
+        #expect(harness.model.loraSlots.map(\.id) == [record.id])
+        #expect(harness.model.civitai.addedModelIDs == [42])
         harness.model.civitai.installedTabShown()
+        #expect(harness.model.civitai.addedModelIDs.isEmpty)
         #expect(harness.model.civitai.rows.first?.status == .installed)
+    }
+
+    @Test func aDownloadForAnotherFamilyThanTheSelectedModelStaysInTheLibraryOffTheStack() async throws {
+        let payload = try safetensorsFile(klein4BTensors(), tag: "fox")
+        let api = ScriptedCivitaiAPI(reply: searchReply([foxListing(id: 42, versionID: 420, payload: payload)]))
+        let files = ScriptedCivitaiFileHost(payload: payload)
+        let keychain = testKeychain()
+        defer { try? keychain.delete() }
+        let harness = try await browseHarness(
+            api: api, files: files, keychain: keychain, models: [(kleinModelID, kleinArchitecture), (kreaModel, "krea2_turbo")])
+        await harness.model.civitai.search()
+        harness.model.civitai.requestDownload(modelID: 42)
+        harness.model.selectedModelID = kreaModel
+        harness.model.civitai.acceptPendingLicense()
+        await harness.model.civitai.waitForDownloads()
+
+        #expect(try await harness.store.loras().count == 1)
+        #expect(harness.model.loraSlots.isEmpty)
+        #expect(harness.model.civitai.rows.first?.status == .added)
+    }
+
+    @Test func aDownloadIntoAFullStackStaysInTheLibraryWithTheCapNotice() async throws {
+        let payload = try safetensorsFile(klein4BTensors(), tag: "fox")
+        let api = ScriptedCivitaiAPI(reply: searchReply([foxListing(id: 42, versionID: 420, payload: payload)]))
+        let files = ScriptedCivitaiFileHost(payload: payload)
+        let keychain = testKeychain()
+        defer { try? keychain.delete() }
+        let harness = try await browseHarness(api: api, files: files, keychain: keychain)
+        let model = harness.model
+        model.alwaysOnLoRACount = { _ in 7 }
+        let first = try await importLoRA(harness, .flux, name: "Already Stacked")
+        model.addToLoRAStack(id: first.id)
+        await model.civitai.search()
+
+        model.civitai.requestDownload(modelID: 42)
+        model.civitai.acceptPendingLicense()
+        await model.civitai.waitForDownloads()
+
+        #expect(try await harness.store.loras().count == 2)
+        #expect(model.loraSlots.map(\.id) == [first.id])
+        #expect(model.loraNotice?.contains("1") == true)
+        #expect(model.civitai.rows.first?.status == .added)
+    }
+
+    @Test func aDuplicateDownloadStoresNothingNewAndStillGoesOnTheStack() async throws {
+        let payload = try safetensorsFile(klein4BTensors(), tag: "fox")
+        let api = ScriptedCivitaiAPI(
+            reply: searchReply([
+                foxListing(id: 42, versionID: 420, payload: payload),
+                foxListing(id: 43, versionID: 430, payload: payload, name: "Watercolor Fox Again"),
+            ]))
+        let files = ScriptedCivitaiFileHost(payload: payload)
+        let keychain = testKeychain()
+        defer { try? keychain.delete() }
+        let harness = try await browseHarness(api: api, files: files, keychain: keychain)
+        let model = harness.model
+        await model.civitai.search()
+        model.civitai.requestDownload(modelID: 42)
+        model.civitai.acceptPendingLicense()
+        model.civitai.requestDownload(modelID: 43)
+        model.civitai.acceptPendingLicense()
+        await model.civitai.waitForDownloads()
+
+        let stored = try await harness.store.loras()
+        #expect(stored.count == 1)
+        #expect(model.loraSlots.map(\.id) == stored.map(\.id))
+        #expect(model.civitai.rows.first { $0.id == 42 }?.status == .addedToStack)
+        #expect(model.civitai.rows.first { $0.id == 43 }?.status == .addedToStack)
     }
 
     @Test func aPreviewIsFetchedOnceAndStoredWithTheLoRA() async throws {
@@ -117,7 +188,7 @@ import Testing
         let source = try #require(try await harness.store.loraSource(loraID: record.id))
         #expect(source.previewRelativePath != nil)
         #expect(await counter.calls == 1)
-        #expect(harness.model.civitai.rows.first?.status == .added)
+        #expect(harness.model.civitai.rows.first?.status == .addedToStack)
     }
 
     @Test func aFailedPreviewNeverFailsTheDownload() async throws {
@@ -135,7 +206,7 @@ import Testing
         await harness.model.civitai.waitForDownloads()
 
         #expect(try await harness.store.loras().count == 1)
-        #expect(harness.model.civitai.rows.first?.status == .added)
+        #expect(harness.model.civitai.rows.first?.status == .addedToStack)
     }
 
     @Test func aFileMatchingNoFamilyIsRefusedWithAReasonAndLeavesNoPartial() async throws {

@@ -7,24 +7,6 @@ import MCLibrary
 import MCModels
 import Observation
 
-/// Which seed the next job uses. `fixed` and `increment` read ``AppModel/seedText``.
-public enum SeedChoice: Sendable, Equatable, CaseIterable {
-    case random, fixed, increment
-}
-
-/// The step bar of the generation the engine is running now.
-public struct RunningProgress: Equatable, Sendable {
-    public let jobID: UUID
-    public let step: Int
-    public let total: Int
-
-    public init(jobID: UUID, step: Int, total: Int) {
-        self.jobID = jobID
-        self.step = step
-        self.total = total
-    }
-}
-
 /// The app's state and actions. Views read it and call its actions; the engine, library and queue actors do the work.
 @MainActor
 @Observable
@@ -40,6 +22,7 @@ public final class AppModel {
     static let civitaiIncludeNSFWKey = "civitaiIncludeNSFW"
     /// The defaults key for whether the composer's "More options" is open.
     static let moreOptionsDefaultsKey = "composerShowsMoreOptions"
+    static let windowModeDefaultsKey = "mainWindowMode"
     /// Gallery images per page. Pages load on demand, so every image in the library can be reached.
     static let galleryPageSize = 60
     private static let shutdownLimit: Duration = .seconds(3)
@@ -122,6 +105,9 @@ public final class AppModel {
             guard !opensMoreOptionsTransiently else { return }
             defaults.set(showsMoreOptions, forKey: Self.moreOptionsDefaultsKey)
         }
+    }
+    public var showsGalleryOnly = false {
+        didSet { defaults.set(showsGalleryOnly, forKey: Self.windowModeDefaultsKey) }
     }
     /// Set only while ``applyStoredSettings(_:)`` opens the disclosure, so a reuse does not pin it open for the next launch.
     var opensMoreOptionsTransiently = false
@@ -255,6 +241,7 @@ public final class AppModel {
         self.libraryPaths = libraryPaths
         self.selectedModelID = defaults.string(forKey: Self.lastUsedModelKey)
         self.showsMoreOptions = defaults.bool(forKey: Self.moreOptionsDefaultsKey)
+        self.showsGalleryOnly = defaults.bool(forKey: Self.windowModeDefaultsKey)
         queueHeader = QueuePresentation.header(
             isRunning: false, pauseRequested: defaults.bool(forKey: Self.queuePausedDefaultsKey))
         let civitaiClient = CivitaiClient(
@@ -285,7 +272,8 @@ public final class AppModel {
             selection: { [weak self] in self?.civitaiSelection },
             libraryChanged: { [weak self] in
                 if let self { await self.refreshLoRALibrary() }
-            })
+            },
+            loraCommitted: { [weak self] record in self?.attachDownloadedLoRA(record) ?? false })
         shelf.connect { [weak self] id, scale in
             guard let self else { return }
             await self.refreshLoRALibrary()

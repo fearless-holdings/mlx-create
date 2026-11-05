@@ -1,8 +1,5 @@
 import SwiftUI
 
-/// The three-panel main window: the collection pill (name and menu) on the leading toolbar edge, the model chip on the
-/// trailing edge, engine banner, generation panel (left), canvas over the queue strip (middle), and the gallery
-/// (right).
 public struct MainWindow: View {
     @Bindable var model: AppModel
 
@@ -16,22 +13,25 @@ public struct MainWindow: View {
                 EngineStatusBanner(banner: banner, onRestart: { Task { await model.restartEngine() } })
                 Divider()
             }
+            // One split view for both modes, so the gallery keeps its search text, scroll position and focus on a mode switch.
             HSplitView {
-                GenerationPanel(model: model)
-                    .frame(minWidth: 320, idealWidth: 340)
-                VStack(spacing: 0) {
-                    CanvasView(model: model)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    if model.showsQueueStrip {
-                        Divider()
-                        QueueStripView(model: model)
-                            .fixedSize(horizontal: false, vertical: true)
+                if !model.showsGalleryOnly {
+                    GenerationPanel(model: model)
+                        .frame(minWidth: 320, idealWidth: 340)
+                    VStack(spacing: 0) {
+                        CanvasView(model: model)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        if model.showsQueueStrip {
+                            Divider()
+                            QueueStripView(model: model)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
+                    .frame(minWidth: 400, maxWidth: .infinity, maxHeight: .infinity)
+                    .layoutPriority(1)
                 }
-                .frame(minWidth: 400, maxWidth: .infinity, maxHeight: .infinity)
-                .layoutPriority(1)
                 GalleryView(model: model)
-                    .frame(minWidth: 200, idealWidth: 260)
+                    .frame(minWidth: 200, idealWidth: 260, maxWidth: model.showsGalleryOnly ? .infinity : nil)
             }
         }
         .frame(minWidth: 1100, minHeight: 640)

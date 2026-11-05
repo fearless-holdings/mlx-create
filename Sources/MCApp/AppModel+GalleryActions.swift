@@ -168,6 +168,11 @@ extension AppModel {
         }
     }
 
+    func openInCanvas(_ id: UUID) {
+        selectGalleryImage(id, click: .plain)
+        if showsGalleryOnly { showsGalleryOnly = false }
+    }
+
     /// The tile an arrow key steps from: the one the gallery highlights, which a ⌘-click can move away from the canvas
     /// image. A lone selected tile wins, then the anchor when it is still selected, and the canvas image otherwise.
     var galleryArrowOrigin: UUID? {

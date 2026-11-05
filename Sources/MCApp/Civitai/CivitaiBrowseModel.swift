@@ -58,6 +58,7 @@ final class CivitaiBrowseModel {
     private let previewFetch: @Sendable (URL) async -> Data?
     private var selectionProvider: @MainActor () -> CivitaiSelection? = { nil }
     private var libraryChanged: @MainActor () async -> Void = {}
+    private var loraCommitted: @MainActor (LoRARecord) async -> Bool = { _ in false }
 
     init(
         client: CivitaiClient,
@@ -97,10 +98,12 @@ final class CivitaiBrowseModel {
     /// closures read its state. Until then no model is selected.
     func connect(
         selection: @escaping @MainActor () -> CivitaiSelection?,
-        libraryChanged: @escaping @MainActor () async -> Void
+        libraryChanged: @escaping @MainActor () async -> Void,
+        loraCommitted: @escaping @MainActor (LoRARecord) async -> Bool
     ) {
         selectionProvider = selection
         self.libraryChanged = libraryChanged
+        self.loraCommitted = loraCommitted
     }
 
     // MARK: Derived state
@@ -356,12 +359,12 @@ final class CivitaiBrowseModel {
 
     /// The Installed tab was shown: the "just added" marks clear.
     func installedTabShown() {
-        statuses = statuses.filter { $0.value != .added }
+        statuses = statuses.filter { !$0.value.showsAddedMark }
     }
 
-    /// Model IDs stored this session and not yet cleared. The Installed tab reads them before it clears the marks.
+    /// Model IDs that carry the "just added" mark and have not been cleared. The Installed tab reads them before it clears the marks.
     var addedModelIDs: Set<Int> {
-        Set(statuses.compactMap { $0.value == .added ? $0.key : nil })
+        Set(statuses.filter { $0.value.showsAddedMark }.keys)
     }
 
     /// One line for the download in progress and how many wait behind it, or nil when the queue is empty.
@@ -538,21 +541,32 @@ final class CivitaiBrowseModel {
             civitaiModelID: spec.modelID, civitaiVersionID: spec.versionID, pageURL: spec.pageURL,
             license: spec.license, acceptedAt: acceptedAt, previewNSFWLevel: spec.previewNSFWLevel,
             examplePrompts: spec.examplePrompts)
+        var record: LoRARecord?
+        var storedNew = true
         do {
             let outcome = try await store.commitStagedLoRA(
                 staged: result.stagedURL, sha256: result.sha256, sizeBytes: result.byteCount,
                 family: match.family, variant: match.variant, name: spec.modelName,
                 triggerWords: spec.trainedWords, source: source, previewImage: preview)
-            if case .duplicate = outcome {
-                statuses[modelID] = nil
-            } else {
+            switch outcome {
+            case .added(let stored), .restored(let stored):
+                record = stored
                 statuses[modelID] = .added
+            case .duplicate(let existing):
+                record = existing
+                storedNew = false
+                statuses[modelID] = nil
             }
         } catch {
             statuses[modelID] = .failed(message: error.localizedDescription)
         }
-        await refreshInstalled()
-        await libraryChanged()
+        if storedNew {
+            await refreshInstalled()
+            await libraryChanged()
+        }
+        if let record, await loraCommitted(record) {
+            statuses[modelID] = .addedToStack
+        }
     }
 
     private func isCancelled(_ modelID: Int) -> Bool {
