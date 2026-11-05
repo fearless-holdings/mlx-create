@@ -39,6 +39,16 @@ struct GalleryCollection: NSViewRepresentable {
         private var imagesByID: [UUID: LibraryImage] = [:]
         /// The selection the items were last configured with, so changes reconfigure only the affected items.
         private var appliedSelection: Set<UUID> = []
+        private var isFullWindow = false
+
+        /// Gallery mode opens with the grid focused, so Return and the arrow keys work before the first click. The view may not
+        /// be in a window yet when the mode is restored at launch, so the focus move waits for the next run-loop turn.
+        private func focusGridOnceInWindow() {
+            DispatchQueue.main.async { [weak self] in
+                guard let collectionView = self?.collectionView else { return }
+                collectionView.window?.makeFirstResponder(collectionView)
+            }
+        }
 
         init(model: AppModel) {
             self.model = model
@@ -82,6 +92,10 @@ struct GalleryCollection: NSViewRepresentable {
         /// image record or selection state changed is reconfigured, which re-runs the item provider for it.
         func update(images: [LibraryImage], selection: Set<UUID>, fullWindow: Bool) {
             guard let dataSource else { return }
+            if fullWindow != isFullWindow {
+                isFullWindow = fullWindow
+                if fullWindow { focusGridOnceInWindow() }
+            }
             if let layout = collectionView?.collectionViewLayout as? GalleryLayout {
                 let sides = fullWindow ? GalleryLayout.fullWindowSides : GalleryLayout.panelSides
                 layout.minSide = sides.min

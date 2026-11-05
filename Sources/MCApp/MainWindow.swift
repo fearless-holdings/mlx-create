@@ -13,10 +13,9 @@ public struct MainWindow: View {
                 EngineStatusBanner(banner: banner, onRestart: { Task { await model.restartEngine() } })
                 Divider()
             }
-            if model.showsGalleryOnly {
-                GalleryView(model: model)
-            } else {
-                HSplitView {
+            // One split view for both modes, so the gallery keeps its search text, scroll position and focus on a mode switch.
+            HSplitView {
+                if !model.showsGalleryOnly {
                     GenerationPanel(model: model)
                         .frame(minWidth: 320, idealWidth: 340)
                     VStack(spacing: 0) {
@@ -30,9 +29,9 @@ public struct MainWindow: View {
                     }
                     .frame(minWidth: 400, maxWidth: .infinity, maxHeight: .infinity)
                     .layoutPriority(1)
-                    GalleryView(model: model)
-                        .frame(minWidth: 200, idealWidth: 260)
                 }
+                GalleryView(model: model)
+                    .frame(minWidth: 200, idealWidth: 260, maxWidth: model.showsGalleryOnly ? .infinity : nil)
             }
         }
         .frame(minWidth: 1100, minHeight: 640)
