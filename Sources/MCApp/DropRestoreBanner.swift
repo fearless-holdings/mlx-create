@@ -24,15 +24,15 @@ struct DropRestoreBanner: View {
     let dismiss: () -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .top, spacing: MCSpacing.regular) {
             Image(
                 systemName: notice.level == .warning
                     ? "exclamationmark.triangle.fill" : "info.circle.fill"
             )
-            .foregroundStyle(notice.level == .warning ? Color.orange : Color.accentColor)
+            .foregroundStyle(notice.level == .warning ? MCTone.warning : MCTone.selection)
             .accessibilityHidden(true)
             Text(notice.message)
-                .font(.callout)
+                .font(.mcSupporting)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .textSelection(.enabled)
             Button(action: dismiss) {
@@ -41,9 +41,9 @@ struct DropRestoreBanner: View {
             .buttonStyle(.borderless)
             .accessibilityLabel("Dismiss")
         }
-        .padding(10)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-        .padding(12)
+        .padding(MCSpacing.group)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: MCRadius.card))
+        .padding(MCSpacing.group)
         .accessibilityElement(children: .contain)
     }
 }

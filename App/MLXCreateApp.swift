@@ -95,12 +95,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 /// Shown while the library opens. The open runs off the main actor, so this is all the window has to show (R15).
 private struct LaunchLoadingView: View {
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: MCSpacing.group) {
             ProgressView()
             Text("Opening library…")
                 .foregroundStyle(.secondary)
         }
-        .padding(32)
+        .padding(MCSpacing.emptyState)
         .frame(minWidth: 480, minHeight: 200)
     }
 }
@@ -110,15 +110,16 @@ private struct LaunchFailureView: View {
     let error: Error
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: MCSpacing.group) {
             Text("mlx-create could not start")
+                // no token: a plain title2 has no token; it is not a sheet or empty-state title
                 .font(.title2)
             Text(error.localizedDescription)
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
                 .multilineTextAlignment(.center)
         }
-        .padding(32)
+        .padding(MCSpacing.emptyState)
         .frame(minWidth: 480, minHeight: 200)
     }
 }

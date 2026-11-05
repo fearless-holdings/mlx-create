@@ -7,13 +7,13 @@ struct EngineStatusBanner: View {
     let onRestart: () -> Void
 
     var body: some View {
-        HStack(spacing: 8) {
-            HStack(spacing: 8) {
+        HStack(spacing: MCSpacing.regular) {
+            HStack(spacing: MCSpacing.regular) {
                 Image(systemName: symbol)
                     .foregroundStyle(tint)
                     .accessibilityHidden(true)
                 Text(text)
-                    .font(.callout)
+                    .font(.mcSupporting)
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
@@ -24,8 +24,8 @@ struct EngineStatusBanner: View {
                     .controlSize(.small)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .padding(.horizontal, MCSpacing.group)
+        .padding(.vertical, MCSpacing.compact)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(tint.opacity(0.12))
     }
@@ -53,8 +53,8 @@ struct EngineStatusBanner: View {
 
     private var tint: Color {
         switch banner {
-        case .starting, .warmingModel, .restarting: .orange
-        case .failed: .red
+        case .starting, .warmingModel, .restarting: MCTone.warning
+        case .failed: MCTone.critical
         }
     }
 }
