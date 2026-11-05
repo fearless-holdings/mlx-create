@@ -1,5 +1,0 @@
-modelRoles:
-  default: anthropic/claude-sonnet-5-5
-  smol: anthropic/claude-haiku-5-5:auto
-  task: anthropic/claude-haiku-5-5:auto
-  slow: anthropic/claude-opus-5-5:auto
