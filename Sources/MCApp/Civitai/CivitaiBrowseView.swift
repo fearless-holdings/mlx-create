@@ -39,7 +39,8 @@ enum CivitaiLicenseText {
 }
 
 /// The Civitai tab of the LoRA library sheet (plan U7). State and downloads live on `CivitaiBrowseModel`, which
-/// `AppModel` owns, so a download keeps running after the sheet closes. Nothing here attaches a download to the stack (R5).
+/// `AppModel` owns, so a download keeps running after the sheet closes. A finished download goes on the generation stack
+/// when it fits the selected model's family and the stack has room (D51).
 struct CivitaiBrowseView: View {
     @Bindable var model: AppModel
     @State private var showingKey = false

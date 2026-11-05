@@ -359,12 +359,12 @@ final class CivitaiBrowseModel {
 
     /// The Installed tab was shown: the "just added" marks clear.
     func installedTabShown() {
-        statuses = statuses.filter { !$0.value.isStoredThisSession }
+        statuses = statuses.filter { !$0.value.showsAddedMark }
     }
 
-    /// Model IDs stored this session and not yet cleared. The Installed tab reads them before it clears the marks.
+    /// Model IDs that carry the "just added" mark and have not been cleared. The Installed tab reads them before it clears the marks.
     var addedModelIDs: Set<Int> {
-        Set(statuses.filter { $0.value.isStoredThisSession }.keys)
+        Set(statuses.filter { $0.value.showsAddedMark }.keys)
     }
 
     /// One line for the download in progress and how many wait behind it, or nil when the queue is empty.
