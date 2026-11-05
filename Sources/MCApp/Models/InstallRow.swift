@@ -9,55 +9,55 @@ struct InstallRow: View {
     let browser: ModelBrowserModel
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
+        HStack(alignment: .top, spacing: MCSpacing.group) {
+            VStack(alignment: .leading, spacing: MCSpacing.tight) {
+                HStack(spacing: MCSpacing.compact) {
                     Text(row.title)
-                        .font(.headline)
+                        .font(.mcRowTitle)
                     if let label = fitLabel {
                         Text(label)
-                            .font(.caption.bold())
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(.quaternary, in: Capsule())
+                            .font(.mcBadge)
+                            .padding(.horizontal, MCSpacing.compact)
+                            .padding(.vertical, MCSpacing.hairline)
+                            .background(MCTone.cardFill, in: Capsule())
                     }
                     if row.isRecommended {
                         Text("Recommended")
-                            .font(.caption.bold())
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.accentColor.opacity(0.2), in: Capsule())
+                            .font(.mcBadge)
+                            .padding(.horizontal, MCSpacing.compact)
+                            .padding(.vertical, MCSpacing.hairline)
+                            .background(MCTone.selection.opacity(0.2), in: Capsule())
                     }
                 }
                 if let model = row.model {
                     Text(facts(for: model))
-                        .font(.caption)
+                        .font(.mcMetadata)
                         .foregroundStyle(.secondary)
                 }
                 if let model = row.model, let estimate = browser.estimates[model.repo] {
                     Text(estimate.label)
-                        .font(.caption)
+                        .font(.mcMetadata)
                         .foregroundStyle(.secondary)
                 }
                 stateView
                 if let warning = row.fitWarning {
                     Label(warning, systemImage: "exclamationmark.triangle")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
+                        .font(.mcMetadata)
+                        .foregroundStyle(MCTone.warning)
                 }
             }
             Spacer(minLength: 12)
-            VStack(alignment: .trailing, spacing: 4) {
+            VStack(alignment: .trailing, spacing: MCSpacing.tight) {
                 actionButton
                 if let reason = row.actionBlockedReason {
                     Text(reason)
-                        .font(.caption)
+                        .font(.mcMetadata)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
             }
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, MCSpacing.compact)
     }
 
     private var fitLabel: String? {
@@ -80,10 +80,10 @@ struct InstallRow: View {
         switch row.state {
         case .available:
             Text("Not installed")
-                .font(.callout)
+                .font(.mcSupporting)
                 .foregroundStyle(.secondary)
         case .installing(let progress):
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: MCSpacing.hairline) {
                 ProgressView(value: progress.fraction)
                 Text(
                     [
@@ -91,39 +91,39 @@ struct InstallRow: View {
                         browser.remainingText(for: row.id),
                     ].compactMap { $0 }.joined(separator: " · ")
                 )
-                .font(.caption)
+                .font(.mcMetadata)
                 .foregroundStyle(.secondary)
             }
         case .installed:
             Label("Installed", systemImage: "checkmark.circle")
-                .font(.callout)
+                .font(.mcSupporting)
                 .foregroundStyle(.secondary)
         case .unverified(let path):
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: MCSpacing.hairline) {
                 Text("Unverified local files")
-                    .font(.callout)
+                    .font(.mcSupporting)
                 Text(path)
-                    .font(.caption.monospaced())
+                    .font(.mcMetadataMonospaced)
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
             }
         case .missingFiles(let path):
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: MCSpacing.hairline) {
                 Text("Model files are missing")
-                    .font(.callout)
+                    .font(.mcSupporting)
                 Text(path)
-                    .font(.caption.monospaced())
+                    .font(.mcMetadataMonospaced)
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
             }
         case .interrupted(let bytesOnDisk, let bytesTotal):
             Text("Interrupted at \(bytes(bytesOnDisk)) of \(bytes(bytesTotal)). Resume to continue.")
-                .font(.callout)
+                .font(.mcSupporting)
                 .foregroundStyle(.secondary)
         case .failed(let message):
             Text(message)
-                .font(.callout)
-                .foregroundStyle(.red)
+                .font(.mcSupporting)
+                .foregroundStyle(MCTone.critical)
         }
     }
 

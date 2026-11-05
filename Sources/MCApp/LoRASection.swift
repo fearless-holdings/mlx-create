@@ -16,7 +16,7 @@ struct LoRASection: View {
                     }
                     if !model.loraStack.isEmpty && model.loraStack.allSatisfy({ $0.fit != .fits }) {
                         Text("None of these will be used.")
-                            .font(.caption)
+                            .font(.mcMetadata)
                             .foregroundStyle(.secondary)
                     }
                     if let progress = model.loraImportProgress {
@@ -24,13 +24,13 @@ struct LoRASection: View {
                     }
                     if let notice = model.loraNotice {
                         Text(notice)
-                            .font(.caption)
+                            .font(.mcMetadata)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     if model.loraMemoryHint {
                         Text("Many LoRAs use extra memory on this Mac.")
-                            .font(.caption)
+                            .font(.mcMetadata)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -50,11 +50,11 @@ struct LoRASection: View {
     }
 
     private func importProgress(_ progress: LoRAImportProgress) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: MCSpacing.tight) {
             ProgressView(value: progress.fraction)
             HStack {
                 Text("Importing \(progress.currentFile) (\(progress.index) of \(progress.total))")
-                    .font(.caption)
+                    .font(.mcMetadata)
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Spacer()
@@ -75,7 +75,7 @@ struct LoRARowView: View {
     @State private var isExpanded = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: MCSpacing.compact) {
             summary
             if isExpanded {
                 details
@@ -85,8 +85,8 @@ struct LoRARowView: View {
     }
 
     private var summary: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: MCSpacing.hairline) {
+            HStack(spacing: MCSpacing.regular) {
                 Toggle(
                     row.name,
                     isOn: Binding(
@@ -101,7 +101,7 @@ struct LoRARowView: View {
                 Spacer(minLength: 4)
                 if row.isEnabled {
                     Text(row.weight == 0 ? "not used" : Self.weightText(row.weight))
-                        .font(.caption)
+                        .font(.mcMetadata)
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
                 }
@@ -109,15 +109,15 @@ struct LoRARowView: View {
                     isExpanded.toggle()
                 } label: {
                     Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.caption)
+                        .font(.mcMetadata)
                 }
                 .buttonStyle(.plain)
                 .accessibilityHidden(true)
             }
             if let reason = row.fit.reason {
                 Text(reason)
-                    .font(.caption)
-                    .foregroundStyle(row.fit == .fileMissing ? Color.red : Color.secondary)
+                    .font(.mcMetadata)
+                    .foregroundStyle(row.fit == .fileMissing ? MCTone.critical : Color.secondary)
             }
         }
         .accessibilityElement(children: .combine)
@@ -134,9 +134,9 @@ struct LoRARowView: View {
     }
 
     private var details: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: MCSpacing.regular) {
             LabeledContent("Weight") {
-                HStack(spacing: 8) {
+                HStack(spacing: MCSpacing.regular) {
                     Slider(
                         value: Binding(
                             get: { row.weight },
@@ -148,7 +148,7 @@ struct LoRARowView: View {
                     .frame(width: 150)
                     .accessibilityLabel("Weight, \(row.name)")
                     Text(Self.weightText(row.weight))
-                        .font(.caption)
+                        .font(.mcMetadata)
                         .monospacedDigit()
                         .frame(width: 44, alignment: .trailing)
                 }
@@ -163,9 +163,9 @@ struct LoRARowView: View {
             .controlSize(.small)
             if !row.triggerWords.isEmpty {
                 LazyVGrid(
-                    columns: [GridItem(.adaptive(minimum: 70), spacing: 6, alignment: .leading)],
+                    columns: [GridItem(.adaptive(minimum: 70), spacing: MCSpacing.compact, alignment: .leading)],
                     alignment: .leading,
-                    spacing: 6
+                    spacing: MCSpacing.compact
                 ) {
                     ForEach(row.triggerWords, id: \.self) { word in
                         Button(word) {
@@ -179,16 +179,16 @@ struct LoRARowView: View {
             }
             if row.missingTriggerHint {
                 Text("Trigger word missing from the prompt.")
-                    .font(.caption)
+                    .font(.mcMetadata)
                     .foregroundStyle(.secondary)
             }
             Button("Remove from stack", role: .destructive) {
                 model.removeFromLoRAStack(id: row.id)
             }
             .buttonStyle(.link)
-            .font(.caption)
+            .font(.mcMetadata)
         }
-        .padding(.leading, 4)
+        .padding(.leading, MCSpacing.tight)
     }
 
     private var weightRange: ClosedRange<Double> {

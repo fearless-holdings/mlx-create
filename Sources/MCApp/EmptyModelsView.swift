@@ -8,25 +8,25 @@ struct EmptyModelsView: View {
     let model: AppModel
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: MCSpacing.group) {
             Image(systemName: "arrow.down.circle")
-                .font(.system(size: 44))
+                .font(.system(size: MCSize.emptyStateSymbol))
                 .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
             if let installing = model.browser.installingRow {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: MCSpacing.regular) {
                     Text("Downloading \(installing.title)")
-                        .font(.headline)
+                        .font(.mcRowTitle)
                     InstallRow(row: installing, browser: model.browser)
                 }
-                .padding(16)
-                .frame(maxWidth: 520)
-                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
+                .padding(MCSpacing.section)
+                .frame(maxWidth: MCSize.emptyStateMaxWidth)
+                .background(MCTone.cardFill.opacity(0.5), in: RoundedRectangle(cornerRadius: MCRadius.card))
             } else {
                 Text("Download a model to start")
-                    .font(.title2.bold())
+                    .font(.mcSheetTitle)
                 Text("mlx-create makes images on this Mac. It needs one image model first.")
-                    .font(.body)
+                    .font(.mcBody)
                     .multilineTextAlignment(.center)
                 if let recommended = model.browser.recommendedRow {
                     RecommendedInstallCard(row: recommended, browser: model.browser)
@@ -44,7 +44,7 @@ struct EmptyModelsView: View {
                 }
             }
         }
-        .padding(24)
+        .padding(MCSpacing.emptyState)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task {
             await model.refreshModels()
@@ -79,14 +79,14 @@ private struct RecommendedInstallCard: View {
     var body: some View {
         Group {
             if row.action == .install, let catalogModel = row.model {
-                HStack(alignment: .center, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .center, spacing: MCSpacing.group) {
+                    VStack(alignment: .leading, spacing: MCSpacing.tight) {
                         Text(row.title)
-                            .font(.headline)
+                            .font(.mcRowTitle)
                         Text(
                             "Recommended for this Mac · \(catalogModel.downloadBytes.formatted(.byteCount(style: .file))) download"
                         )
-                        .font(.callout)
+                        .font(.mcSupporting)
                     }
                     Spacer(minLength: 12)
                     Button("Download…") {
@@ -101,8 +101,8 @@ private struct RecommendedInstallCard: View {
                 InstallRow(row: row, browser: browser)
             }
         }
-        .padding(16)
-        .frame(maxWidth: 520)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
+        .padding(MCSpacing.section)
+        .frame(maxWidth: MCSize.emptyStateMaxWidth)
+        .background(MCTone.cardFill.opacity(0.5), in: RoundedRectangle(cornerRadius: MCRadius.card))
     }
 }

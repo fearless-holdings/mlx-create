@@ -12,12 +12,12 @@ struct ModelChip: View {
         Button {
             isOpen.toggle()
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: MCSpacing.compact) {
                 Image(systemName: "cpu")
                 Text(chipTitle)
                 if let fit = selectedFit, fit == .tight || fit == .exceeds {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(MCTone.warning)
                 }
             }
         }
@@ -26,7 +26,7 @@ struct ModelChip: View {
         .accessibilityValue(fitWarning ?? "")
         .popover(isPresented: $isOpen, arrowEdge: .bottom) {
             modelList
-                .padding(8)
+                .padding(MCSpacing.regular)
                 .frame(minWidth: 260, alignment: .leading)
         }
         .onChange(of: isOpen) { _, open in
@@ -80,11 +80,11 @@ struct ModelChip: View {
 
     @ViewBuilder
     private var modelList: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: MCSpacing.hairline) {
             if availableModels.isEmpty && unavailableModels.isEmpty {
                 Text("No image models installed")
                     .foregroundStyle(.secondary)
-                    .padding(6)
+                    .padding(MCSpacing.compact)
             }
             ForEach(availableModels, id: \.id) { installed in
                 Button {
@@ -95,11 +95,11 @@ struct ModelChip: View {
                         Image(systemName: "checkmark")
                             .opacity(installed.id == model.selectedModelID ? 1 : 0)
                             .accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 1) {
+                        VStack(alignment: .leading, spacing: MCSpacing.hairline) {
                             Text(title(installed))
                             if let estimate = model.browser.estimates[installed.id] {
                                 Text(estimate.label)
-                                    .font(.caption)
+                                    .font(.mcMetadata)
                                     .foregroundStyle(.secondary)
                             }
                         }
@@ -108,45 +108,45 @@ struct ModelChip: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 4)
+                .padding(.horizontal, MCSpacing.compact)
+                .padding(.vertical, MCSpacing.tight)
                 .accessibilityAddTraits(installed.id == model.selectedModelID ? .isSelected : [])
             }
             if !unavailableModels.isEmpty {
-                Divider().padding(.vertical, 4)
+                Divider().padding(.vertical, MCSpacing.tight)
                 ForEach(unavailableModels, id: \.model.id) { row in
                     HStack {
                         Image(systemName: "xmark.circle")
                             .accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 1) {
+                        VStack(alignment: .leading, spacing: MCSpacing.hairline) {
                             Text(title(row.model))
                             Text(row.reason)
-                                .font(.caption)
+                                .font(.mcMetadata)
                         }
                         Spacer(minLength: 12)
                     }
                     .foregroundStyle(.secondary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 4)
+                    .padding(.horizontal, MCSpacing.compact)
+                    .padding(.vertical, MCSpacing.tight)
                     .accessibilityElement(children: .combine)
                     .accessibilityLabel("\(title(row.model)), unavailable: \(row.reason)")
                 }
             }
-            Divider().padding(.vertical, 4)
+            Divider().padding(.vertical, MCSpacing.tight)
             if let installing = model.browser.installingRow, case .installing(let progress) = installing.state {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: MCSpacing.tight) {
                     Text(
                         [
                             "Downloading \(installing.title) · \(Int(progress.fraction * 100))%",
                             model.browser.remainingText(for: installing.id),
                         ].compactMap { $0 }.joined(separator: " · ")
                     )
-                    .font(.callout)
+                    .font(.mcSupporting)
                     ProgressView(value: progress.fraction)
                         .frame(width: 220)
                 }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 4)
+                .padding(.horizontal, MCSpacing.compact)
+                .padding(.vertical, MCSpacing.tight)
                 .accessibilityElement(children: .combine)
             }
             Button("Browse models…") {
@@ -154,8 +154,8 @@ struct ModelChip: View {
                 model.openBrowser()
             }
             .buttonStyle(.plain)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 4)
+            .padding(.horizontal, MCSpacing.compact)
+            .padding(.vertical, MCSpacing.tight)
         }
     }
 

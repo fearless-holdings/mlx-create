@@ -65,6 +65,8 @@ extension Font {
     /// Sizes, counts and dates only. Never a reason, a status or an error. Until V02 moves them, the reasons and status
     /// lines that were 10 pt before the token file still sit on this style.
     static let mcMetadata = Font.caption
+    /// File paths and other identifiers shown as metadata.
+    static let mcMetadataMonospaced = Font.caption.monospaced()
     /// Badge text.
     static let mcBadge = Font.caption.weight(.semibold)
 }

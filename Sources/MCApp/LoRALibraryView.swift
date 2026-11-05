@@ -68,9 +68,9 @@ struct LoRALibraryView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 12) {
+            HStack(spacing: MCSpacing.group) {
                 Text("LoRAs")
-                    .font(.title2.bold())
+                    .font(.mcSheetTitle)
                 Picker("Section", selection: $tab) {
                     ForEach(LoRASheetTab.allCases) { section in
                         Text(section.rawValue).tag(section)
@@ -85,7 +85,7 @@ struct LoRALibraryView: View {
                 }
                 .keyboardShortcut(.cancelAction)
             }
-            .padding(16)
+            .padding(MCSpacing.section)
             Divider()
             switch tab {
             case .installed:
@@ -120,24 +120,24 @@ struct LoRALibraryView: View {
         VStack(alignment: .leading, spacing: 0) {
             if let summary = model.loraImportSummary {
                 importSummary(summary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, MCSpacing.group)
+                    .padding(.vertical, MCSpacing.regular)
             }
             if model.loraLibrary.isEmpty {
                 emptyState
             } else {
                 toolbar
-                    .padding(12)
+                    .padding(MCSpacing.group)
                 if let progress = model.loraImportProgress {
                     importProgress(progress)
-                        .padding(.horizontal, 12)
-                        .padding(.bottom, 8)
+                        .padding(.horizontal, MCSpacing.group)
+                        .padding(.bottom, MCSpacing.regular)
                 }
                 content
             }
             Divider()
             footer
-                .padding(12)
+                .padding(MCSpacing.group)
         }
         .fileImporter(
             isPresented: $isImporting,
@@ -160,7 +160,7 @@ struct LoRALibraryView: View {
     // MARK: Toolbar and content
 
     private var toolbar: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: MCSpacing.regular) {
             TextField("Search LoRAs", text: $query)
                 .textFieldStyle(.roundedBorder)
                 .frame(maxWidth: 220)
@@ -177,18 +177,18 @@ struct LoRALibraryView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: MCSpacing.regular) {
             Text("No LoRAs yet.")
                 .foregroundStyle(.secondary)
             importButton
-            HStack(spacing: 12) {
+            HStack(spacing: MCSpacing.group) {
                 if !model.shelf.rows(family: model.loraFamily?.id, includeNSFW: model.civitai.includeNSFW).isEmpty {
                     Button("See Recommended LoRAs") { tab = .shelf }
                 }
                 Button("Browse Civitai") { tab = .browse }
             }
             Text("Drop .safetensors files here, or import them.")
-                .font(.caption)
+                .font(.mcMetadata)
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -204,7 +204,7 @@ struct LoRALibraryView: View {
     @ViewBuilder
     private var content: some View {
         if visibleItems.isEmpty {
-            VStack(spacing: 8) {
+            VStack(spacing: MCSpacing.regular) {
                 if hiddenByFilter && query.isEmpty {
                     Text("Nothing here fits \(selectedModelName ?? "the selected model").")
                         .foregroundStyle(.secondary)
@@ -248,7 +248,7 @@ struct LoRALibraryView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(12)
+                .padding(MCSpacing.group)
         }
     }
 
@@ -260,11 +260,11 @@ struct LoRALibraryView: View {
     // MARK: Import feedback
 
     private func importProgress(_ progress: LoRAImportProgress) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: MCSpacing.regular) {
             ProgressView(value: progress.fraction)
                 .frame(width: 120)
             Text("Importing \(progress.currentFile) (\(progress.index) of \(progress.total))")
-                .font(.callout)
+                .font(.mcSupporting)
                 .lineLimit(1)
                 .truncationMode(.middle)
             Spacer()
@@ -275,7 +275,7 @@ struct LoRALibraryView: View {
     }
 
     private func importSummary(_ summary: LoRAImportSummary) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: MCSpacing.tight) {
             if summary.added.isEmpty && summary.duplicates.isEmpty && summary.refused.isEmpty {
                 Text("Nothing was imported.")
             }
@@ -295,21 +295,21 @@ struct LoRALibraryView: View {
                 }
             }
         }
-        .font(.callout)
+        .font(.mcSupporting)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+        .padding(MCSpacing.group)
+        .background(MCTone.cardFill, in: RoundedRectangle(cornerRadius: MCRadius.card))
     }
 
     private var footer: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: MCSpacing.regular) {
             Text("Using \(ByteCountFormatter.string(fromByteCount: model.loraTotalBytes, countStyle: .file)) on disk")
-                .font(.caption)
+                .font(.mcMetadata)
                 .foregroundStyle(.secondary)
             Spacer()
             if let message {
                 Text(message)
-                    .font(.caption)
+                    .font(.mcMetadata)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
             }
@@ -331,38 +331,38 @@ private struct LoRALibraryRow: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
+        HStack(alignment: .top, spacing: MCSpacing.regular) {
+            VStack(alignment: .leading, spacing: MCSpacing.hairline) {
+                HStack(spacing: MCSpacing.compact) {
                     Text(item.name)
                         .lineLimit(1)
                         .truncationMode(.middle)
                     if item.inStack {
                         Text("In stack")
-                            .font(.caption2)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1)
-                            .background(.quaternary, in: Capsule())
+                            .font(.mcBadge)
+                            .padding(.horizontal, MCSpacing.tight)
+                            .padding(.vertical, MCSpacing.hairline)
+                            .background(MCTone.cardFill, in: Capsule())
                     }
                     if justAdded {
                         Text("Just added")
-                            .font(.caption2)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1)
-                            .background(.quaternary, in: Capsule())
+                            .font(.mcBadge)
+                            .padding(.horizontal, MCSpacing.tight)
+                            .padding(.vertical, MCSpacing.hairline)
+                            .background(MCTone.cardFill, in: Capsule())
                     }
                 }
                 Text("\(item.familyName) · \(ByteCountFormatter.string(fromByteCount: item.sizeBytes, countStyle: .file))")
-                    .font(.caption)
+                    .font(.mcMetadata)
                     .foregroundStyle(.secondary)
                 if item.fileMissing {
                     Text("File missing")
-                        .font(.caption)
+                        .font(.mcMetadata)
                         .foregroundStyle(.secondary)
                 }
                 if let reason = addBlockReason {
                     Text(reason)
-                        .font(.caption)
+                        .font(.mcMetadata)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -374,7 +374,7 @@ private struct LoRALibraryRow: View {
             .controlSize(.small)
             .accessibilityLabel("Add \(item.name) to stack")
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, MCSpacing.hairline)
     }
 }
 
@@ -410,7 +410,7 @@ private struct LoRADetailView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: MCSpacing.group) {
                 LabeledContent("Name") {
                     TextField("Name", text: $name)
                         .onSubmit {
@@ -418,11 +418,11 @@ private struct LoRADetailView: View {
                         }
                 }
                 Text("\(item.familyName) · \(ByteCountFormatter.string(fromByteCount: item.sizeBytes, countStyle: .file))")
-                    .font(.callout)
+                    .font(.mcSupporting)
                     .foregroundStyle(.secondary)
                 if item.fileMissing {
                     Text("The file is missing from the LoRA library folder. Reveal it to check, or delete it here.")
-                        .font(.callout)
+                        .font(.mcSupporting)
                         .foregroundStyle(.secondary)
                 }
                 if let source {
@@ -433,15 +433,15 @@ private struct LoRADetailView: View {
                         .onSubmit { save() }
                 }
                 Text("Trigger words are inserted into the prompt only when you click them.")
-                    .font(.caption)
+                    .font(.mcMetadata)
                     .foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: MCSpacing.tight) {
                     Text("Notes")
-                        .font(.callout)
+                        .font(.mcSupporting)
                     TextEditor(text: $notes)
-                        .font(.body)
+                        .font(.mcBody)
                         .frame(height: 70)
-                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(nsColor: .separatorColor)))
+                        .overlay(RoundedRectangle(cornerRadius: MCRadius.field).stroke(MCTone.separator))
                 }
                 HStack {
                     Button("Save") { save() }
@@ -457,7 +457,7 @@ private struct LoRADetailView: View {
                     }
                 }
             }
-            .padding(12)
+            .padding(MCSpacing.group)
         }
         .confirmationDialog(
             "Delete \(item.name)?",
@@ -528,16 +528,16 @@ private struct CivitaiSourceSection: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: MCSpacing.regular) {
+            HStack(spacing: MCSpacing.compact) {
                 Text("From Civitai")
-                    .font(.headline)
+                    .font(.mcRowTitle)
                 if justAdded {
                     Text("Just added")
-                        .font(.caption2)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1)
-                        .background(.quaternary, in: Capsule())
+                        .font(.mcBadge)
+                        .padding(.horizontal, MCSpacing.tight)
+                        .padding(.vertical, MCSpacing.hairline)
+                        .background(MCTone.cardFill, in: Capsule())
                 }
             }
             if let preview {
@@ -558,26 +558,26 @@ private struct CivitaiSourceSection: View {
             }
             if let url = URL(string: source.pageURL) {
                 Link("View on Civitai", destination: url)
-                    .font(.callout)
+                    .font(.mcSupporting)
             }
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: MCSpacing.hairline) {
                 ForEach(CivitaiLicenseText.lines(source.license), id: \.self) { line in
                     Text("• \(line)")
                 }
                 Text("Accepted \(source.acceptedAt.formatted(date: .abbreviated, time: .shortened))")
-                    .padding(.top, 2)
+                    .padding(.top, MCSpacing.hairline)
             }
-            .font(.callout)
+            .font(.mcSupporting)
             .foregroundStyle(.secondary)
             if !source.examplePrompts.isEmpty {
                 Text("Example prompts (click to copy)")
-                    .font(.callout)
+                    .font(.mcSupporting)
                 ForEach(source.examplePrompts, id: \.self) { prompt in
                     Button {
                         copy(prompt)
                     } label: {
                         Text(prompt)
-                            .font(.caption)
+                            .font(.mcMetadata)
                             .multilineTextAlignment(.leading)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }

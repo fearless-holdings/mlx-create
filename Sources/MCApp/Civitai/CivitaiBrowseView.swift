@@ -54,17 +54,17 @@ struct CivitaiBrowseView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
-                .padding(12)
+                .padding(MCSpacing.group)
             if showingKey || browse.keyError != nil {
                 CivitaiKeyField(browse: browse)
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 10)
+                    .padding(.horizontal, MCSpacing.group)
+                    .padding(.bottom, MCSpacing.group)
             }
             Divider()
             content
             Divider()
             footer
-                .padding(12)
+                .padding(MCSpacing.group)
         }
         .task(id: browse.selectionKey) {
             await browse.showTab()
@@ -87,8 +87,8 @@ struct CivitaiBrowseView: View {
     // MARK: Header
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: MCSpacing.regular) {
+            HStack(spacing: MCSpacing.regular) {
                 TextField(
                     "Search Civitai LoRAs",
                     text: Binding(
@@ -119,7 +119,7 @@ struct CivitaiBrowseView: View {
                 .controlSize(.small)
                 .accessibilityLabel(showingKey ? "Hide Civitai key field" : "Show Civitai key field")
             }
-            HStack(spacing: 14) {
+            HStack(spacing: MCSpacing.section) {
                 Toggle(
                     "Show incompatible",
                     isOn: Binding(
@@ -137,7 +137,7 @@ struct CivitaiBrowseView: View {
                 Spacer(minLength: 0)
                 if let name = selectedModelName {
                     Text("Fits \(name) by default")
-                        .font(.caption)
+                        .font(.mcMetadata)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -179,10 +179,10 @@ struct CivitaiBrowseView: View {
         case .results:
             resultsList
         case .empty:
-            VStack(spacing: 8) {
+            VStack(spacing: MCSpacing.regular) {
                 Text("No LoRAs match this search.")
                     .foregroundStyle(.secondary)
-                HStack(spacing: 10) {
+                HStack(spacing: MCSpacing.regular) {
                     if !browse.showIncompatible {
                         Button("Show incompatible") {
                             Task { await browse.setShowIncompatible(true) }
@@ -195,7 +195,7 @@ struct CivitaiBrowseView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .needsKey(let text):
-            VStack(spacing: 10) {
+            VStack(spacing: MCSpacing.regular) {
                 Text(text ?? "Civitai needs an API key to download this LoRA.")
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -203,11 +203,11 @@ struct CivitaiBrowseView: View {
                     .frame(maxWidth: 420)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding(12)
+            .padding(MCSpacing.group)
         case .regionLimited:
             message("Civitai is not available in your region for this search.")
         case .failed(let text):
-            VStack(spacing: 8) {
+            VStack(spacing: MCSpacing.regular) {
                 Text(text)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -216,7 +216,7 @@ struct CivitaiBrowseView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding(12)
+            .padding(MCSpacing.group)
         }
     }
 
@@ -225,7 +225,7 @@ struct CivitaiBrowseView: View {
             .foregroundStyle(.secondary)
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding(12)
+            .padding(MCSpacing.group)
     }
 
     private var resultsList: some View {
@@ -248,15 +248,15 @@ struct CivitaiBrowseView: View {
     // MARK: Footer
 
     private var footer: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: MCSpacing.regular) {
             if let line = browse.activeDownloadLine {
                 Text(line)
-                    .font(.caption)
+                    .font(.mcMetadata)
                     .lineLimit(1)
                     .truncationMode(.middle)
             } else {
                 Text("Downloads keep going if you close this sheet.")
-                    .font(.caption)
+                    .font(.mcMetadata)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
             }
@@ -276,8 +276,8 @@ struct CivitaiKeyField: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: MCSpacing.tight) {
+            HStack(spacing: MCSpacing.regular) {
                 SecureField(browse.hasSavedKey ? "Replace saved Civitai key" : "Civitai API key", text: $key)
                     .textFieldStyle(.roundedBorder)
                     .frame(maxWidth: 260)
@@ -294,17 +294,17 @@ struct CivitaiKeyField: View {
                 .disabled(isBlank)
                 if browse.hasSavedKey {
                     Text("A key is saved in the Keychain.")
-                        .font(.caption)
+                        .font(.mcMetadata)
                         .foregroundStyle(.secondary)
                 }
             }
             if let error = browse.keyError {
                 Text(error)
-                    .font(.caption)
-                    .foregroundStyle(.red)
+                    .font(.mcMetadata)
+                    .foregroundStyle(MCTone.critical)
             }
             Text("The key is sent only to civitai.com.")
-                .font(.caption)
+                .font(.mcMetadata)
                 .foregroundStyle(.secondary)
         }
     }
@@ -334,12 +334,12 @@ private struct CivitaiResultRowView: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: MCSpacing.regular) {
             preview
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: MCSpacing.hairline) {
+                HStack(spacing: MCSpacing.compact) {
                     Text(row.name)
-                        .font(.body.weight(.medium))
+                        .font(.body.weight(.medium))  // no token: medium-weight row title
                         .lineLimit(1)
                         .truncationMode(.middle)
                     if row.matchesSelectedModel {
@@ -351,7 +351,7 @@ private struct CivitaiResultRowView: View {
                 }
                 if !detailLine.isEmpty {
                     Text(detailLine)
-                        .font(.caption)
+                        .font(.mcMetadata)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
@@ -360,7 +360,7 @@ private struct CivitaiResultRowView: View {
             Spacer(minLength: 6)
             actionView
         }
-        .padding(.vertical, 3)
+        .padding(.vertical, MCSpacing.hairline)
     }
 
     private var preview: some View {
@@ -375,17 +375,17 @@ private struct CivitaiResultRowView: View {
                 .accessibilityLabel("Show NSFW preview of \(row.name)")
             }
         }
-        .frame(width: 64, height: 64)
-        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .frame(width: MCSize.civitaiThumbnail, height: MCSize.civitaiThumbnail)
+        .clipShape(RoundedRectangle(cornerRadius: MCRadius.field))
         .accessibilityLabel(blurred ? "Hidden NSFW preview" : "Preview of \(row.name)")
     }
 
     private func badge(_ text: String) -> some View {
         Text(text)
-            .font(.caption2)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 1)
-            .background(.quaternary, in: Capsule())
+            .font(.mcBadge)
+            .padding(.horizontal, MCSpacing.tight)
+            .padding(.vertical, MCSpacing.hairline)
+            .background(MCTone.cardFill, in: Capsule())
     }
 
     @ViewBuilder
@@ -403,29 +403,29 @@ private struct CivitaiResultRowView: View {
                 .accessibilityLabel("Downloading \(row.name)")
         case .added:
             Label("Added to your LoRAs", systemImage: "checkmark.circle")
-                .font(.caption)
-                .foregroundStyle(.green)
+                .font(.mcMetadata)
+                .foregroundStyle(MCTone.success)
         case .addedToStack:
             Label {
                 Text("Added to the stack")
             } icon: {
                 Image(systemName: "checkmark.circle")
-                    .foregroundStyle(.green)
+                    .foregroundStyle(MCTone.success)
             }
-            .font(.caption)
+            .font(.mcMetadata)
         case .needsKey:
             Text("Needs a Civitai key to download")
-                .font(.caption)
-                .foregroundStyle(.orange)
+                .font(.mcMetadata)
+                .foregroundStyle(MCTone.warning)
         case .refused(let reason):
             Text(reason)
-                .font(.caption)
-                .foregroundStyle(.red)
+                .font(.mcMetadata)
+                .foregroundStyle(MCTone.critical)
                 .lineLimit(2)
         case .failed(let text):
             Text(text)
-                .font(.caption)
-                .foregroundStyle(.red)
+                .font(.mcMetadata)
+                .foregroundStyle(MCTone.critical)
                 .lineLimit(2)
         }
     }
@@ -457,7 +457,7 @@ private struct CivitaiResultRowView: View {
 
     private func caption(_ text: String) -> some View {
         Text(text)
-            .font(.caption)
+            .font(.mcMetadata)
             .foregroundStyle(.secondary)
     }
 }
@@ -469,7 +469,7 @@ private struct CivitaiThumbnail: View {
 
     var body: some View {
         ZStack {
-            Rectangle().fill(.quaternary)
+            Rectangle().fill(MCTone.cardFill)
             if let image {
                 Image(nsImage: image).resizable().scaledToFill()
             } else if url == nil {
@@ -478,7 +478,7 @@ private struct CivitaiThumbnail: View {
                     .help("Civitai has no preview image for this LoRA.")
             }
         }
-        .frame(width: 64, height: 64)
+        .frame(width: MCSize.civitaiThumbnail, height: MCSize.civitaiThumbnail)
         .clipped()
         .task(id: url) {
             guard let url else {
@@ -499,21 +499,21 @@ struct CivitaiLicenseSheet: View {
     let pending: CivitaiDownloadSpec
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: MCSpacing.group) {
             Text("License for \(pending.modelName)")
-                .font(.title3.bold())
+                .font(.mcSheetTitle)
             Text("The creator on Civitai set these terms for this LoRA. They apply to the copy you download.")
-                .font(.callout)
+                .font(.mcSupporting)
                 .foregroundStyle(.secondary)
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: MCSpacing.compact) {
                 ForEach(CivitaiLicenseText.lines(pending.license), id: \.self) { line in
                     Text("• \(line)")
-                        .font(.callout)
+                        .font(.mcSupporting)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
             Text("By choosing Accept and Download you accept this license. The time you accepted is recorded with the LoRA.")
-                .font(.callout)
+                .font(.mcSupporting)
                 .fixedSize(horizontal: false, vertical: true)
             HStack {
                 Spacer()
@@ -528,7 +528,7 @@ struct CivitaiLicenseSheet: View {
                 .buttonStyle(.borderedProminent)
             }
         }
-        .padding(20)
+        .padding(MCSpacing.sheet)
         .frame(width: 480)
     }
 }
