@@ -21,14 +21,14 @@ struct EnhanceResultCard: View {
     }
 
     private var card: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: MCSpacing.regular) {
             content
             actions
         }
-        .padding(10)
+        .padding(MCSpacing.group)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.accentColor.opacity(0.5)))
+        .background(MCTone.controlBackground, in: RoundedRectangle(cornerRadius: MCRadius.card))
+        .overlay(RoundedRectangle(cornerRadius: MCRadius.card).stroke(MCTone.selection.opacity(0.5), lineWidth: MCStroke.hairline))
         .accessibilityElement(children: .contain)
         .accessibilityLabel(accessibilityLabel)
     }
@@ -39,31 +39,31 @@ struct EnhanceResultCard: View {
         case .idle:
             EmptyView()
         case .waiting:
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: MCSpacing.tight) {
                 Text(model.enhanceWaitsForImage ? "Enhance starts after the current image." : "Loading the enhancer…")
-                    .font(.callout)
+                    .font(.mcSupporting)
                 if model.hasQueuedJobs {
                     Text("Queued images start after the enhancement.")
-                        .font(.callout)
+                        .font(.mcSupporting)
                         .foregroundStyle(.secondary)
                 }
                 staleNote
             }
         case .streaming(let text, _):
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: MCSpacing.tight) {
                 Text(text.isEmpty ? "Writing the enhanced prompt." : text)
-                    .font(.body)
+                    .font(.mcBody)
                     .textSelection(.enabled)
                 staleNote
             }
         case .ready(let result, _):
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: MCSpacing.tight) {
                 Text(result.prompt)
-                    .font(.body)
+                    .font(.mcBody)
                     .textSelection(.enabled)
                 if let negative = result.negativePrompt {
                     Text("Negative: \(negative)")
-                        .font(.callout)
+                        .font(.mcSupporting)
                         .foregroundStyle(.secondary)
                         .textSelection(.enabled)
                 }
@@ -71,8 +71,8 @@ struct EnhanceResultCard: View {
             }
         case .failed(let message):
             Text(message)
-                .font(.callout)
-                .foregroundStyle(.red)
+                .font(.mcSupporting)
+                .foregroundStyle(MCTone.critical)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -81,7 +81,7 @@ struct EnhanceResultCard: View {
     private var staleNote: some View {
         if isStale {
             Text("Built on earlier text. Regenerate to update it.")
-                .font(.caption)
+                .font(.mcMetadata)
                 .foregroundStyle(.secondary)
         }
     }

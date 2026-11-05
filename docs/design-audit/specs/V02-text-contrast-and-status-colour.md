@@ -84,7 +84,7 @@ Measured with the capture kit (`contrast.py`, 1x captures, so the true ratio is 
    }
    ```
 
-2. Replace these call sites (find each with `rg -n 'foregroundStyle\(\.(red|orange|green)\)|Color\.red' Sources/MCApp`):
+2. Replace these call sites (V01 swapped the red, orange and green literals for `MCTone`, so find each with `rg -n 'foregroundStyle\(MCTone\.(critical|warning|success)\)|MCTone\.(critical|warning|success)' Sources/MCApp`):
    - `GenerationPanel.bottomRow`, `if let error = model.lastError`: `MCStatusText(.critical, error)`.
    - `EnhanceResultCard.content`, `.failed(let message)`: `MCStatusText(.critical, message)`.
    - `EnhancerInstallSheet.content`, `.failed(let message, _)`: `MCStatusText(.critical, message)`.
@@ -95,7 +95,7 @@ Measured with the capture kit (`contrast.py`, 1x captures, so the true ratio is 
    - `CollectionNameSheet`, `if let errorMessage`: `MCStatusText(.critical, errorMessage)`.
    - `LoRARowView.summary`, `if let reason = row.fit.reason`: `row.fit == .fileMissing ? MCStatusText(.critical, reason) : MCStatusText(.warning, reason)`.
    - `QueueStripView.JobCell.statusContent` `.failed`, if I05 has not already done it: the symbol `.red`, the text `.primary`.
-3. Promote reasons from `.caption` to `.mcSupporting` and `.primary`. Remove `.foregroundStyle(.secondary)` at:
+3. Promote reasons from `.mcMetadata` (V01 moved the `.caption` reasons and metadata there, keeping them 10 pt, and left badge text on `.mcBadge`) to `.mcSupporting` and `.primary`. Remove `.foregroundStyle(.secondary)` at:
    - `GenerationPanel.enhanceRow` (the caption and the reload note);
    - `LoRASection` ("None of these will be used.", `loraNotice`, the memory hint);
    - `LoRALibraryRow` `addBlockReason` and "File missing";
@@ -117,7 +117,7 @@ Standard checks, all must pass:
 3. `git ls-files '*.swift' | xargs swift format lint --strict --configuration .swift-format` prints nothing.
 4. `xcodegen generate && xcodebuild -project MLXCreate.xcodeproj -scheme MLXCreate -configuration Debug -derivedDataPath build build` prints `** BUILD SUCCEEDED **`.
 5. GUI smoke exits 0.
-6. `rg -n 'Text\([^)]*\)[^\n]*\n?[^\n]*foregroundStyle\(\.(red|orange|green)\)|Color\.red' --multiline Sources/MCApp` prints nothing. As a simpler line check, `rg -n 'foregroundStyle\(\.(red|orange|green)\)' Sources/MCApp` may list only `Image(systemName:)` lines (inspect each hit).
+6. `rg -n 'foregroundStyle\(MCTone\.(critical|warning|success)\)' Sources/MCApp` may list only `Image(systemName:)` lines (inspect each hit), and `rg -n 'Text\([^)]*\)[^\n]*\n?[^\n]*foregroundStyle\(MCTone\.' --multiline Sources/MCApp` prints nothing.
 
 With the capture kit:
 

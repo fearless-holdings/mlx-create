@@ -9,11 +9,11 @@ struct ComposerSettings: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: MCSpacing.group) {
             LabeledContent("Size") { sizePicker }
             moreOptionsToggle
             if model.showsMoreOptions {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: MCSpacing.group) {
                     seedRows
                     stepsRow
                     if let guidance = controls.guidance {
@@ -28,7 +28,7 @@ struct ComposerSettings: View {
                         }
                     }
                 }
-                .padding(.leading, 16)
+                .padding(.leading, MCSpacing.section)
             }
         }
     }
@@ -52,9 +52,9 @@ struct ComposerSettings: View {
                 withAnimation(.easeInOut(duration: 0.2)) { model.showsMoreOptions.toggle() }
             }
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: MCSpacing.compact) {
                 Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
+                    .font(.caption.weight(.semibold))  // no token: same font as mcBadge, but that token is for badge text
                     .rotationEffect(.degrees(model.showsMoreOptions ? 90 : 0))
                     .accessibilityHidden(true)
                 Text("More options")
@@ -104,7 +104,7 @@ struct ComposerSettings: View {
                 .foregroundStyle(.secondary)
         } else {
             LabeledContent {
-                HStack(spacing: 8) {
+                HStack(spacing: MCSpacing.regular) {
                     Text(model.steps.map(String.init) ?? "Default")
                         .monospacedDigit()
                         .foregroundStyle(model.steps == nil ? .secondary : .primary)
@@ -131,7 +131,7 @@ struct ComposerSettings: View {
 
     private func guidanceRow(_ guidance: GuidanceCapability) -> some View {
         LabeledContent {
-            HStack(spacing: 8) {
+            HStack(spacing: MCSpacing.regular) {
                 Slider(
                     value: Binding(
                         get: { model.guidance ?? guidance.defaultValue },

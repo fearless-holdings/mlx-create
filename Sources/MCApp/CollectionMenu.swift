@@ -59,7 +59,7 @@ struct CollectionMenu: View {
             CollectionMenuItems(model: model)
         } label: {
             Text(current.name)
-                .font(.headline)
+                .font(.mcRowTitle)
         }
         .help("Switch or manage collections")
         .accessibilityLabel("Collection: \(current.name)")
@@ -86,16 +86,16 @@ struct CollectionNameSheet: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: MCSpacing.group) {
             Text(title)
-                .font(.headline)
+                .font(.mcRowTitle)
             TextField("Name", text: $name)
                 .textFieldStyle(.roundedBorder)
                 .onSubmit { save() }
             if let errorMessage {
                 Text(errorMessage)
-                    .font(.callout)
-                    .foregroundStyle(.red)
+                    .font(.mcSupporting)
+                    .foregroundStyle(MCTone.critical)
             }
             HStack {
                 Spacer()
@@ -110,7 +110,7 @@ struct CollectionNameSheet: View {
                 .disabled(isSaving || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
-        .padding(20)
+        .padding(MCSpacing.sheet)
         .frame(width: 340)
     }
 

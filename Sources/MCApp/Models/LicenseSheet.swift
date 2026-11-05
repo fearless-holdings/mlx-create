@@ -8,28 +8,28 @@ struct LicenseSheet: View {
     let pending: PendingLicense
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: MCSpacing.section) {
             Text(pending.model.name)
-                .font(.title2.bold())
+                .font(.mcSheetTitle)
             Text(Self.licenseTitle(name: pending.content.licenseName, version: pending.content.version))
-                .font(.callout.bold())
+                .font(.mcRowTitle)
             Label(
                 pending.content.commercialUse
                     ? "This license allows commercial use."
                     : "This license does not allow commercial use.",
                 systemImage: pending.content.commercialUse ? "checkmark.seal" : "xmark.seal"
             )
-            .font(.callout)
+            .font(.mcSupporting)
             ScrollView {
                 Text(pending.content.summary)
-                    .font(.callout)
+                    .font(.mcSupporting)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .textSelection(.enabled)
             }
             .frame(maxHeight: 180)
             if let url = pending.content.url {
                 Link("Read the full license", destination: url)
-                    .font(.callout)
+                    .font(.mcSupporting)
             }
             if !pending.notices.isEmpty {
                 notices
@@ -39,7 +39,7 @@ struct LicenseSheet: View {
                     ? "By choosing Accept and Download you accept the \(pending.content.licenseName)."
                     : "By choosing Accept and Download you accept the \(pending.content.licenseName) and the notices above."
             )
-            .font(.callout)
+            .font(.mcSupporting)
             .fixedSize(horizontal: false, vertical: true)
             HStack {
                 Spacer()
@@ -55,7 +55,7 @@ struct LicenseSheet: View {
                 .buttonStyle(.borderedProminent)
             }
         }
-        .padding(24)
+        .padding(MCSpacing.emptyState)
         .frame(width: 500)
     }
 
@@ -68,20 +68,21 @@ struct LicenseSheet: View {
     /// The measures mlx-create takes for this model's family, with the license of each file it uses (D45). This screen and
     /// `NOTICE` are the only places that name them (D46).
     private var notices: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: MCSpacing.compact) {
             Text("Refusal reduction and quality improvement")
-                .font(.callout.bold())
+                .font(.mcRowTitle)
             Text(
                 "mlx-create takes these measures for \(pending.model.name), using the files below under the licenses their authors published."
             )
-            .font(.callout)
+            .font(.mcSupporting)
             .foregroundStyle(.secondary)
             ScrollView {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: MCSpacing.regular) {
                     ForEach(pending.notices, id: \.name) { notice in
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: MCSpacing.hairline) {
+                            // no token: the license-notice name has no bold metadata style in the token set.
                             Text(notice.name).font(.caption.bold())
-                            Text(notice.license).font(.caption)
+                            Text(notice.license).font(.mcMetadata)
                         }
                     }
                 }

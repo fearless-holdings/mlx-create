@@ -309,8 +309,8 @@ final class GalleryCollectionView: NSCollectionView {
 }
 
 final class GalleryLayout: NSCollectionViewFlowLayout {
-    static let inset: CGFloat = 12
-    static let spacing: CGFloat = 8
+    static let inset: CGFloat = MCSpacing.group
+    static let spacing: CGFloat = MCSpacing.regular
     static let panelSides = (min: CGFloat(100), max: CGFloat(120))
     static let fullWindowSides = (min: CGFloat(160), max: CGFloat(200))
     var minSide: CGFloat = GalleryLayout.panelSides.min { didSet { if minSide != oldValue { invalidateLayout() } } }

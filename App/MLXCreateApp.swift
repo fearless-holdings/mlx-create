@@ -93,6 +93,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 /// Shown while the library opens. The open runs off the main actor, so this is all the window has to show (R15).
+/// The two launch views keep literal spacing: the app target cannot see MCApp's internal design tokens.
 private struct LaunchLoadingView: View {
     var body: some View {
         VStack(spacing: 12) {

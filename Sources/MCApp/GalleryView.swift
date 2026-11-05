@@ -32,7 +32,7 @@ struct GalleryView: View {
     private var content: some View {
         if model.galleryImages.isEmpty {
             if model.galleryCriteriaCount > 0 {
-                VStack(spacing: 8) {
+                VStack(spacing: MCSpacing.regular) {
                     Text("No matches")
                         .foregroundStyle(.secondary)
                     Button("Clear search and filters") {
@@ -42,7 +42,7 @@ struct GalleryView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 Text("Your images will appear here")
-                    .font(.callout)
+                    .font(.mcSupporting)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -70,7 +70,7 @@ private struct GalleryHeader: View {
     private var criteria: Int { model.galleryCriteriaCount }
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: MCSpacing.compact) {
             TextField("Search prompts", text: $searchText)
                 .textFieldStyle(.roundedBorder)
                 .disabled(isBusy)
@@ -92,7 +92,7 @@ private struct GalleryHeader: View {
                 .disabled(isBusy)
             }
         }
-        .padding(8)
+        .padding(MCSpacing.regular)
         // Typing waits a moment before it reads, and a newer keystroke cancels the wait.
         .task(id: searchText) {
             try? await Task.sleep(for: .milliseconds(200))
@@ -116,7 +116,7 @@ private struct GalleryFilterList: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: MCSpacing.group) {
                 section("Models (any of)", isEmpty: model.galleryFacets.modelIDs.isEmpty, empty: "No models used yet") {
                     ForEach(model.galleryFacets.modelIDs, id: \.self) { id in
                         row(model.galleryModelName(id), isOn: model.galleryModelFilter.contains(id)) {
@@ -132,7 +132,7 @@ private struct GalleryFilterList: View {
                     }
                 }
             }
-            .padding(12)
+            .padding(MCSpacing.group)
         }
         .frame(width: 260)
         .frame(maxHeight: 360)
@@ -141,10 +141,10 @@ private struct GalleryFilterList: View {
     private func section<Rows: View>(
         _ title: String, isEmpty: Bool, empty: String, @ViewBuilder rows: () -> Rows
     ) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.caption).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: MCSpacing.tight) {
+            Text(title).font(.mcMetadata).foregroundStyle(.secondary)
             if isEmpty {
-                Text(empty).font(.callout).foregroundStyle(.tertiary)
+                Text(empty).font(.mcSupporting).foregroundStyle(.tertiary)
             } else {
                 rows()
             }
@@ -155,7 +155,7 @@ private struct GalleryFilterList: View {
         Button(action: action) {
             HStack {
                 Image(systemName: isOn ? "checkmark.square.fill" : "square")
-                    .foregroundStyle(isOn ? Color.accentColor : Color.secondary)
+                    .foregroundStyle(isOn ? MCTone.selection : Color.secondary)
                 Text(title).lineLimit(1)
                 Spacer(minLength: 0)
             }
@@ -171,23 +171,23 @@ private struct GalleryStatusLine: View {
     let model: AppModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: MCSpacing.tight) {
             if let bulk = model.galleryBulk, bulk.showsProgress {
                 ProgressView(value: Double(bulk.done), total: Double(max(bulk.total, 1)))
                 Text("Working on \(bulk.done) of \(bulk.total)…")
-                    .font(.caption)
+                    .font(.mcMetadata)
                     .foregroundStyle(.secondary)
             }
             if let line = model.galleryStatusLine {
                 Text(line)
-                    .font(.caption)
+                    .font(.mcMetadata)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
+        .padding(.horizontal, MCSpacing.group)
+        .padding(.vertical, MCSpacing.compact)
         .accessibilityElement(children: .combine)
     }
 }
@@ -244,10 +244,10 @@ struct ImageCell: View {
                         }
                     }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .clipShape(RoundedRectangle(cornerRadius: MCRadius.card))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 3)
+                    RoundedRectangle(cornerRadius: MCRadius.card)
+                        .stroke(isSelected ? MCTone.selection : Color.clear, lineWidth: MCStroke.selection)
                 )
         }
         .buttonStyle(.plain)
@@ -259,15 +259,17 @@ struct ImageCell: View {
                 } label: {
                     Image(systemName: "ellipsis")
                         .font(.system(size: 12, weight: .semibold))
+                        // no token: glyph sized to the fixed 24 pt chip, so it must not scale with text size.
                         .foregroundStyle(.white)
-                        .frame(width: 24, height: 24)
-                        .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 6))
+                        .frame(width: MCSize.tileMenuButton, height: MCSize.tileMenuButton)
+                        // no token: the chip keeps fixed contrast over any thumbnail.
+                        .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: MCRadius.field))
                 }
                 .menuStyle(.button)
                 .buttonStyle(.plain)
                 .menuIndicator(.hidden)
                 .fixedSize()
-                .padding(6)
+                .padding(MCSpacing.compact)
                 .help("Actions for this image")
                 .accessibilityLabel("Actions")
             }

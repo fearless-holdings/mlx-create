@@ -57,22 +57,22 @@ private struct ShelfRowView: View {
     }
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(row.entry.role.capitalized).font(.headline)
+        HStack(alignment: .firstTextBaseline, spacing: MCSpacing.group) {
+            VStack(alignment: .leading, spacing: MCSpacing.hairline) {
+                Text(row.entry.role.capitalized).font(.mcRowTitle)
                 Text(row.entry.displayName)
-                    .font(.callout)
+                    .font(.mcSupporting)
                     .foregroundStyle(.secondary)
                 if !row.entry.triggerWords.isEmpty {
                     Text("Trigger words: " + row.entry.triggerWords.joined(separator: ", "))
-                        .font(.caption)
+                        .font(.mcMetadata)
                         .foregroundStyle(.secondary)
                 }
             }
-            Spacer(minLength: 12)
+            Spacer(minLength: MCSpacing.group)
             trailing
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, MCSpacing.tight)
     }
 
     @ViewBuilder
@@ -81,7 +81,7 @@ private struct ShelfRowView: View {
         case .available:
             if inStack {
                 Label("In stack", systemImage: "checkmark")
-                    .font(.callout)
+                    .font(.mcSupporting)
                     .foregroundStyle(.secondary)
             } else {
                 Button("Add to stack") { Task { await model.shelf.pick(row.entry) } }
@@ -90,10 +90,10 @@ private struct ShelfRowView: View {
         case .downloading(let fraction):
             ProgressView(value: fraction).frame(width: 120)
         case .unavailable:
-            Text("No longer available").font(.callout).foregroundStyle(.secondary)
+            Text("No longer available").font(.mcSupporting).foregroundStyle(.secondary)
         case .failed(let message):
-            VStack(alignment: .trailing, spacing: 4) {
-                Text(message).font(.caption).foregroundStyle(.red).lineLimit(2)
+            VStack(alignment: .trailing, spacing: MCSpacing.tight) {
+                Text(message).font(.mcMetadata).foregroundStyle(MCTone.critical).lineLimit(2)
                 Button("Try again") { Task { await model.shelf.pick(row.entry) } }
             }
         }
@@ -106,16 +106,16 @@ private struct ShelfLicenseSheet: View {
     let entry: LoRAShelfEntry
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(entry.displayName).font(.title3.bold())
+        VStack(alignment: .leading, spacing: MCSpacing.group) {
+            Text(entry.displayName).font(.mcSheetTitle)
             ScrollView {
                 Text(entry.license)
-                    .font(.callout)
+                    .font(.mcSupporting)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .frame(minHeight: 120, maxHeight: 280)
             Text("By choosing Accept and Download you accept this license.")
-                .font(.callout)
+                .font(.mcSupporting)
                 .fixedSize(horizontal: false, vertical: true)
             HStack {
                 Spacer()
@@ -126,7 +126,7 @@ private struct ShelfLicenseSheet: View {
                     .buttonStyle(.borderedProminent)
             }
         }
-        .padding(20)
+        .padding(MCSpacing.sheet)
         .frame(width: 520)
     }
 }

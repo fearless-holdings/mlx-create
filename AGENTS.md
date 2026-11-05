@@ -95,6 +95,7 @@ HLD Appendix A lists the files worth reusing. The rules:
   - No `@MainActor` on domain services; keep it in the UI layer.
 - **UI:** SwiftUI first. Use AppKit bridges where SwiftUI falls short: an `NSCollectionView` gallery for 10k+ items, and the zoomable canvas.
 - **Locale-sensitive numbers:** SwiftUI's `Text("\(x)")` localizes an `Int` ("1.024" in a Germany region), so print pixel sizes and identifiers with `Text(verbatim:)`. Format decimals with `.formatted(.number.precision(.fractionLength(1)))`, never `String(format: "%.1f", …)`, which ignores the locale (audit V03). This Mac's locale (`en_US@rg=dezzzz`) reproduces both.
+- **Design tokens:** views take spacing, radii, type and colour from `Sources/MCApp/Design/MCTokens.swift` (docs/design-audit/specs/V01). A literal spacing, radius, font or colour in a view needs a reason in a comment.
 - **Persistence:** SQLite via GRDB, with explicit migrations and FTS5 for prompt search. No SwiftData.
 - **Image I/O:**
   - Inject PNG metadata chunks without re-encoding: an A1111 `parameters` `tEXt` chunk plus an `mlx-create` `iTXt` JSON chunk (D12).
