@@ -6,7 +6,7 @@ The user's brief shaped the bar. They chose mlx-create over Draw Things because 
 
 ## Progress
 
-**24 of 28 done, 0 in progress, 1 deferred, 0 blocked, 3 open.** Last updated 2026-11-05. Findings, evidence and line references describe `633e737`; they are not rewritten as the code moves. Progress lives in two places only:
+**25 of 28 done, 0 in progress, 0 deferred, 0 blocked, 3 open.** Last updated 2026-11-06. Findings, evidence and line references describe `633e737`; they are not rewritten as the code moves. Progress lives in two places only:
 
 - the **Status** column in [§2](#2-all-findings), which is the tracker;
 - a **Resolution** section at the end of a spec once it ships: the PR and commits, where the result differs from the spec, and what was and was not exercised.
@@ -66,7 +66,7 @@ The order is STRUCTURE, then INTERACTION, then VISUAL, as requested. Severity fo
 | [I03](specs/I03-out-of-memory-recovery.md) | done ([#27](https://github.com/fearless-holdings/mlx-create/pull/27)) | Out of memory: failure card with Try Again; right copy | INTERACTION | 4 | When memory is short | e | M | I02 | No |
 | [I04](specs/I04-lora-rejection-recovery.md) | done ([#32](https://github.com/fearless-holdings/mlx-create/pull/32)) | LoRA rejected: no internal ids; one-click fix | INTERACTION | 3 | Rare | e | S | I03 | No |
 | [I05](specs/I05-queue-strip-legible-cells.md) | done ([#32](https://github.com/fearless-holdings/mlx-create/pull/32)) | Queue cells you can tell apart; Clear | INTERACTION | 3 | Batches, failures | b, e | M | I02 | No |
-| [I06](specs/I06-engine-failure-banner.md) | deferred (acceptance needs a live engine kill) | Engine failure: one recovery action | INTERACTION | 2 | Rare | e | S | — | No |
+| [I06](specs/I06-engine-failure-banner.md) | done ([#44](https://github.com/fearless-holdings/mlx-create/pull/44)) | Engine failure: one recovery action | INTERACTION | 2 | Rare | e | S | — | No |
 | [I07](specs/I07-prompt-tab-key-trap.md) | done ([#25](https://github.com/fearless-holdings/mlx-create/pull/25)) | Prompt: Tab moves focus (keyboard trap) | INTERACTION | 3 | Every keyboard user | all | S | — | No |
 | [I08](specs/I08-gallery-keyboard-and-labels.md) | done ([#31](https://github.com/fearless-holdings/mlx-create/pull/31)) | Gallery arrow keys; distinct tile labels | INTERACTION | 2 | Batch review | b, c | S | — | No |
 | [I09](specs/I09-enhance-card-actions-and-provenance.md) | done ([#30](https://github.com/fearless-holdings/mlx-create/pull/30)) | Enhance: clear labels, Restore, no stale provenance | INTERACTION | 2 | Every Enhance | b | S | — | No (§8.8 wording) |
@@ -91,7 +91,7 @@ The two decisions the audit needed were approved on 2026-11-05 and recorded in t
    - [x] I11, the interrupted size;
    - [x] I07, the Tab key trap;
    - [x] I13, empty-state copy;
-   - [ ] I06, the engine banner (deferred, see §2).
+   - [x] I06, the engine banner (live acceptance 2026-11-06, see §2).
 2. **First-run path** (done, [#26](https://github.com/fearless-holdings/mlx-create/pull/26)):
    - [x] S01;
    - [x] I01;

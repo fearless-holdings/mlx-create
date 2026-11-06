@@ -88,6 +88,30 @@ final class PromptLog: @unchecked Sendable {
         #expect(log.prompts == ["one", "two"])
     }
 
+    @Test func engineRecoveryPreservesAUserPauseUntilResume() async throws {
+        let log = PromptLog()
+        let harness = try await Self.pausedHarnessWithTwoJobs(log)
+        let crash = EngineCrash(
+            kind: .killedBySystem, message: "The engine was stopped.", detail: "signal 9", exit: .signal(9))
+
+        harness.states.yield(.failed(crash))
+        try await eventually { harness.model.engineFailed && harness.model.queueHeader == .paused }
+        #expect(!harness.model.heldByEngineFailure)
+
+        harness.states.yield(.ready(harness.endpoint))
+        try await eventually { !harness.model.engineFailed && harness.model.banner == nil }
+        #expect(harness.model.queueHeader == .paused)
+        #expect(harness.defaults.bool(forKey: AppModel.queuePausedDefaultsKey))
+        #expect(try await harness.store.jobs(status: .queued).count == 2)
+        #expect(log.prompts.isEmpty)
+
+        await harness.model.resumeQueue()
+        try await eventually { try await harness.store.jobs(status: .done).count == 2 }
+        try await eventually { harness.model.queueHeader == .idle }
+        #expect(log.prompts == ["one", "two"])
+        #expect(harness.defaults.object(forKey: AppModel.queuePausedDefaultsKey) == nil)
+    }
+
     @Test func aFreshInstallWithNoStoredFlagDrainsAtStart() async throws {
         let log = PromptLog()
         let harness = try await AppHarness.make(script: Self.recording(log))

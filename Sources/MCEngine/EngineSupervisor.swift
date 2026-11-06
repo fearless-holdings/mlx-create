@@ -366,11 +366,11 @@ public actor EngineSupervisor {
     static func userMessage(for kind: CrashKind) -> String {
         switch kind {
         case .outOfMemory: OutOfMemoryFailure.message
-        case .killedBySystem: "macOS stopped the engine because memory ran low."
+        case .killedBySystem: "macOS stopped the image engine because memory ran low. Quit apps you aren't using, then restart the engine."
         case .missingWeights: "Model files are incomplete — repair the download in Models."
-        case .launchFailed: "The engine couldn't start."
+        case .launchFailed: "The image engine couldn't start. Restart it to try again."
         case .setupFailed: "The engine folder could not be prepared."
-        case .unknown: "The engine stopped unexpectedly."
+        case .unknown: "The image engine stopped unexpectedly. Restart it to continue."
         }
     }
 
