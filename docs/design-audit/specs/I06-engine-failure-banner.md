@@ -70,3 +70,18 @@ With the capture kit, one model. Kill the engine four times within five minutes,
 5. `ax dump`: the banner `AXStaticText` value starts with "macOS stopped the image engine because memory ran low." and contains "Quit apps"; there is an `AXButton` "Restart Engine"; there is no `AXLink` or `AXButton` "Resume" anywhere; the queue header reads "Waiting for the image engine".
 6. Press Restart Engine: within 30 s the banner disappears and the header reads "Queue empty".
 7. Captures `I06_small_light.png` and `I06_small_dark.png` (failed state) are attached to the PR.
+
+## Resolution
+
+Implemented locally on `main`; no commit or PR was created. The change follows the edit steps, with these notes:
+
+- `EngineSupervisor.userMessage(for:)` carries the three new messages. The `.outOfMemory`, `.missingWeights` and `.setupFailed` texts are unchanged.
+- `EngineStatusBanner` shows the `.failed` message alone, at `.primary`, `lineLimit(2)`; non-failed banners keep one line and middle truncation. The failed banner offers a small `.borderedProminent` **Restart Engine**.
+- `QueueHeaderView` replaces the header with `Label("Waiting for the image engine", systemImage: "pause.circle")` while `model.engineFailed`, and hides both Pause and Resume in that state. The D29 hold (`heldByEngineFailure`), `RestartBudget`, backoff and `restartEngine()` are untouched.
+- `QueuePauseTests.engineRecoveryPreservesAUserPauseUntilResume` is the new regression test: a user pause survives an engine failure and recovery, the jobs stay queued, and an explicit Resume drains them.
+
+Live acceptance used the installed `Runpod/FLUX.2-klein-4B-mflux-4bit` symlinked into a throwaway `CFFIXED_USER_HOME` at `/tmp/mlxc-i06-acceptance-20261106`; the real preferences were exported before the run and imported back after, and the real library was never opened. The home's engine child was killed four times with `SIGKILL`, each kill sent only after `/health` returned `ok` and the app's engine banner had cleared. On the fourth kill the accessibility tree showed the full value “macOS stopped the image engine because memory ran low. Quit apps you aren't using, then restart the engine.”, an `AXButton` “Restart Engine”, no `AXButton` or `AXLink` “Resume” or “Pause”, and the queue header “Waiting for the image engine”. Pressing Restart Engine cleared the banner and returned the header to “Queue empty” in 0.9 s.
+
+Evidence: `screens/I06_small_light.png` and `screens/I06_small_dark.png` (1100×692 window; banner text 16.9:1 light and 13.1:1 dark), and the passing GUI smoke run under `build/gui-smoke/20261106-111715/`.
+
+Exercised: `swift build`; `swift test` (296 tests, including the new pause regression); whole-tree `swift format lint --strict`; `git diff --check`; `xcodegen generate` plus Debug `xcodebuild` (`BUILD SUCCEEDED`); the normal GUI smoke (exit 0); the live four-kill acceptance above. Not exercised live: the `.unknown` and `.launchFailed` messages (the final kill classified `.killedBySystem`) and a user pause across a live engine failure (the domain regression test covers it). Cleanup matched the throwaway home path only; no process was matched by name.

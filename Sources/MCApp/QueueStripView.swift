@@ -33,42 +33,46 @@ struct QueueHeaderView: View {
 
     var body: some View {
         HStack(spacing: MCSpacing.regular) {
-            switch model.queueHeader {
-            case .idle:
-                switch QueuePresentation.idleSummary(model.queueJobs) {
-                case .empty:
-                    Text("Queue empty")
-                        .foregroundStyle(.secondary)
-                case .finished(let count):
-                    Text(verbatim: "\(count) finished")
-                        .foregroundStyle(.secondary)
-                case .waiting(let count):
-                    Text(verbatim: "\(count) waiting")
-                        .foregroundStyle(.secondary)
+            if model.engineFailed {
+                Label("Waiting for the image engine", systemImage: "pause.circle")
+            } else {
+                switch model.queueHeader {
+                case .idle:
+                    switch QueuePresentation.idleSummary(model.queueJobs) {
+                    case .empty:
+                        Text("Queue empty")
+                            .foregroundStyle(.secondary)
+                    case .finished(let count):
+                        Text(verbatim: "\(count) finished")
+                            .foregroundStyle(.secondary)
+                    case .waiting(let count):
+                        Text(verbatim: "\(count) waiting")
+                            .foregroundStyle(.secondary)
+                    }
+                case .running:
+                    Label("Running", systemImage: "circle.dotted")
+                    if waiting > 0 {
+                        Text(verbatim: "· \(waiting) waiting")
+                    }
+                case .pausing:
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Pausing…")
+                case .paused:
+                    Label("Paused", systemImage: "pause.circle")
+                case .calibrating:
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Measuring this Mac's speed…")
                 }
-            case .running:
-                Label("Running", systemImage: "circle.dotted")
-                if waiting > 0 {
-                    Text(verbatim: "· \(waiting) waiting")
-                }
-            case .pausing:
-                ProgressView()
-                    .controlSize(.small)
-                Text("Pausing…")
-            case .paused:
-                Label("Paused", systemImage: "pause.circle")
-            case .calibrating:
-                ProgressView()
-                    .controlSize(.small)
-                Text("Measuring this Mac's speed…")
             }
-            if model.queueHeader.offersPause {
+            if model.queueHeader.offersPause && !model.engineFailed {
                 Button("Pause") {
                     Task { await model.pauseQueue() }
                 }
                 .buttonStyle(.link)
             }
-            if model.queueHeader.offersResume {
+            if model.queueHeader.offersResume && !model.engineFailed {
                 Button("Resume") {
                     Task { await model.resumeQueue() }
                 }

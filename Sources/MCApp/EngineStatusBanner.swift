@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// One line of engine status above the canvas (U8 step 7). Shown only when ``AppModel/banner`` is non-nil.
+/// Engine status above the canvas (U8 step 7, audit I06). Shown only when ``AppModel/banner`` is non-nil.
 /// A failed engine offers a restart, because the supervisor stops retrying once its budget is spent.
 struct EngineStatusBanner: View {
     let banner: EngineBanner
@@ -14,13 +14,15 @@ struct EngineStatusBanner: View {
                     .accessibilityHidden(true)
                 Text(text)
                     .font(.mcSupporting)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                    .foregroundStyle(.primary)
+                    .lineLimit(isFailed ? 2 : 1)
+                    .truncationMode(isFailed ? .tail : .middle)
             }
             .accessibilityElement(children: .combine)
             Spacer(minLength: 0)
             if case .failed = banner {
-                Button("Restart engine", action: onRestart)
+                Button("Restart Engine", action: onRestart)
+                    .buttonStyle(.borderedProminent)
                     .controlSize(.small)
             }
         }
@@ -28,6 +30,11 @@ struct EngineStatusBanner: View {
         .padding(.vertical, MCSpacing.compact)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(tint.opacity(0.12))
+    }
+
+    private var isFailed: Bool {
+        if case .failed = banner { return true }
+        return false
     }
 
     private var text: String {
@@ -39,7 +46,7 @@ struct EngineStatusBanner: View {
         case .restarting:
             "The image engine stopped and is restarting. Queued jobs wait for it."
         case .failed(let message):
-            "Image engine unavailable: \(message)"
+            message
         }
     }
 
