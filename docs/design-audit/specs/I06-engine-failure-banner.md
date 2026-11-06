@@ -73,7 +73,7 @@ With the capture kit, one model. Kill the engine four times within five minutes,
 
 ## Resolution
 
-Implemented locally on `main`; no commit or PR was created. The change follows the edit steps, with these notes:
+Done in [#44](https://github.com/fearless-holdings/mlx-create/pull/44). The change follows the edit steps, with these notes:
 
 - `EngineSupervisor.userMessage(for:)` carries the three new messages. The `.outOfMemory`, `.missingWeights` and `.setupFailed` texts are unchanged.
 - `EngineStatusBanner` shows the `.failed` message alone, at `.primary`, `lineLimit(2)`; non-failed banners keep one line and middle truncation. The failed banner offers a small `.borderedProminent` **Restart Engine**.
