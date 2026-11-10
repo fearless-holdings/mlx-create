@@ -124,3 +124,13 @@ With the capture kit:
 7. Collection name sheet: press Create with an empty name before S04 lands, or enter a duplicate name after it. The error line's text measures ≥ 4.5:1 (`contrast.py` on its text box, light and dark).
 8. Enhance with the enhancer not runnable (or engine memory refused): the failure card text measures ≥ 4.5:1 in light and dark.
 9. Attach `V02_name_error_light.png` and `V02_name_error_dark.png`.
+
+## Resolution
+
+Done in [#45](https://github.com/fearless-holdings/mlx-create/pull/45). The change follows the edit steps. `Sources/MCApp/Design/MCStatusText.swift` is the spec's component; every named call site uses it, and no `Text` carries an `MCTone` status colour. Enhance captions, LoRA notices and LoRA add-block reasons moved to `.mcSupporting`/`.primary`; sizes, counts, dates, trigger words, the facts line and placeholders stay `.secondary`.
+
+Exercised: `swift build`; `swift test` (296 tests in 31 suites); whole-tree `swift format lint --strict`; `git diff --check`; `xcodegen generate` + Debug `xcodebuild` (`BUILD SUCCEEDED`); the spec's two `rg` checks.
+
+Manual acceptance on 2026-11-10: the Debug build was launched on the real library and the author inspected the changed status lines and approved them.
+
+Not exercised: the automated GUI smoke (the run at `build/gui-smoke/20261110-145911/` lost its connection to the app while the Mac was busy with other tasks, so it is not a pass), and the capture-kit contrast measurements and light/dark captures (acceptance 7–9), for the same reason. The changed text is `.primary`, so the audit's pre-change red and `.secondary` measurements do not carry over.
