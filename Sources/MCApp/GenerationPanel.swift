@@ -137,8 +137,7 @@ struct GenerationPanel: View {
             HStack(alignment: .firstTextBaseline, spacing: MCSpacing.regular) {
                 if let caption = model.enhanceBlockReason ?? model.enhanceRefusal {
                     Text(caption)
-                        .font(.mcMetadata)
-                        .foregroundStyle(.secondary)
+                        .font(.mcSupporting)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 0)
@@ -152,8 +151,7 @@ struct GenerationPanel: View {
             }
             if let note = model.enhanceReloadNote {
                 Text(note)
-                    .font(.mcMetadata)
-                    .foregroundStyle(.secondary)
+                    .font(.mcSupporting)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -208,10 +206,7 @@ struct GenerationPanel: View {
                 estimate = await model.composerEstimate()
             }
             if let error = model.lastError {
-                Text(error)
-                    .font(.mcMetadata)
-                    .foregroundStyle(MCTone.critical)
-                    .fixedSize(horizontal: false, vertical: true)
+                MCStatusText(.critical, error)
             }
         }
         .padding(MCSpacing.group)

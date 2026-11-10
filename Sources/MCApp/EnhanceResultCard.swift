@@ -70,10 +70,7 @@ struct EnhanceResultCard: View {
                 staleNote
             }
         case .failed(let message):
-            Text(message)
-                .font(.mcSupporting)
-                .foregroundStyle(MCTone.critical)
-                .fixedSize(horizontal: false, vertical: true)
+            MCStatusText(.critical, message)
         }
     }
 

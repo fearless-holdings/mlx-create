@@ -41,9 +41,7 @@ struct InstallRow: View {
                 }
                 stateView
                 if let warning = row.fitWarning {
-                    Label(warning, systemImage: "exclamationmark.triangle")
-                        .font(.mcMetadata)
-                        .foregroundStyle(MCTone.warning)
+                    MCStatusText(.warning, warning)
                 }
             }
             Spacer(minLength: MCSpacing.group)
@@ -121,9 +119,7 @@ struct InstallRow: View {
                 .font(.mcSupporting)
                 .foregroundStyle(.secondary)
         case .failed(let message):
-            Text(message)
-                .font(.mcSupporting)
-                .foregroundStyle(MCTone.critical)
+            MCStatusText(.critical, message)
         }
     }
 
