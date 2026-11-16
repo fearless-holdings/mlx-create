@@ -510,6 +510,6 @@ struct CivitaiLicenseSheet: View {
             }
         }
         .padding(MCSpacing.sheet)
-        .frame(width: 480)
+        .frame(width: MCSize.sheetStandard)
     }
 }

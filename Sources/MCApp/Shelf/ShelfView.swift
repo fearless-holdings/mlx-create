@@ -127,6 +127,6 @@ private struct ShelfLicenseSheet: View {
             }
         }
         .padding(MCSpacing.sheet)
-        .frame(width: 520)
+        .frame(width: MCSize.sheetStandard)
     }
 }

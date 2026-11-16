@@ -56,3 +56,11 @@ With the capture kit, empty home:
 
 5. `ax dump` with each small sheet open: the `AXSheet` width is 500 for the license and enhancer sheets and 360 for the collection sheet. The collection sheet's `AXTextField` has `desc="Collection name"`.
 6. Captures `V06_license_light.png`, `V06_enhancer_light.png` and `V06_collection_light.png` are attached. In each, exactly one accent-filled button is visible.
+
+## Resolution
+
+Done in [#47](https://github.com/fearless-holdings/mlx-create/pull/47). The change follows the edit steps. One step was already satisfied: the large Models and LoRAs headers used `.mcSheetTitle` and `MCSpacing.section` at `633e737`, so they were left alone. The license, shelf-license, Civitai-license and enhancer-install sheets now take `MCSize.sheetStandard` (500) with `.mcSheetTitle`, `MCSpacing.group` and the `MCSpacing.sheet` inset; the collection-name sheet takes `MCSize.sheetNarrow` (360). The enhancer install sheet gained the explanatory first line and a `.borderedProminent` Install/Resume; the collection field gained `.accessibilityLabel("Collection name")` and a `.borderedProminent` Create/Rename.
+
+Exercised: `swift build`; `swift test` (296 tests on this branch's pre-V05 base); whole-tree `swift format lint --strict`; `xcodegen generate` + Debug `xcodebuild` (`BUILD SUCCEEDED`); GUI smoke (D50) on 2026-11-16, passed, 13 screenshots in `build/gui-smoke/20261116-134231/`, with `Runpod/FLUX.2-klein-4B-mflux-4bit` symlinked into a throwaway home.
+
+Not exercised: the capture-kit `ax dump` widths and `desc="Collection name"` check, and the three light captures (acceptance 5–6). This shell has no Accessibility grant for per-app UI inspection. The widths and label were checked in code against `MCTokens.swift` (`sheetStandard` 500, `sheetNarrow` 360) rather than measured in the running app; the GUI smoke drives the generation and restore flows, not sheet layout.

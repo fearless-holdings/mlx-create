@@ -8,7 +8,7 @@ struct LicenseSheet: View {
     let pending: PendingLicense
 
     var body: some View {
-        VStack(alignment: .leading, spacing: MCSpacing.section) {
+        VStack(alignment: .leading, spacing: MCSpacing.group) {
             Text(pending.model.name)
                 .font(.mcSheetTitle)
             Text(Self.licenseTitle(name: pending.content.licenseName, version: pending.content.version))
@@ -55,8 +55,8 @@ struct LicenseSheet: View {
                 .buttonStyle(.borderedProminent)
             }
         }
-        .padding(MCSpacing.emptyState)
-        .frame(width: 500)
+        .padding(MCSpacing.sheet)
+        .frame(width: MCSize.sheetStandard)
     }
 
     /// The license name with its version. A version that starts with a digit reads as "version 5.0"; a release-date

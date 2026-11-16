@@ -88,9 +88,10 @@ struct CollectionNameSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: MCSpacing.group) {
             Text(title)
-                .font(.mcRowTitle)
+                .font(.mcSheetTitle)
             TextField("Name", text: $name)
                 .textFieldStyle(.roundedBorder)
+                .accessibilityLabel("Collection name")
                 .onSubmit { save() }
             if let errorMessage {
                 MCStatusText(.critical, errorMessage)
@@ -106,10 +107,11 @@ struct CollectionNameSheet: View {
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(isSaving || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .buttonStyle(.borderedProminent)
             }
         }
         .padding(MCSpacing.sheet)
-        .frame(width: 340)
+        .frame(width: MCSize.sheetNarrow)
     }
 
     private var title: String {

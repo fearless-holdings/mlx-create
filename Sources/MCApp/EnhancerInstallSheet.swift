@@ -12,7 +12,7 @@ struct EnhancerInstallSheet: View {
     private var phase: EnhancerInstallPhase { .phase(for: row) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: MCSpacing.section) {
+        VStack(alignment: .leading, spacing: MCSpacing.group) {
             Text("Prompt enhancer")
                 .font(.mcSheetTitle)
             content
@@ -21,8 +21,8 @@ struct EnhancerInstallSheet: View {
                 buttons
             }
         }
-        .padding(MCSpacing.emptyState)
-        .frame(width: 480)
+        .padding(MCSpacing.sheet)
+        .frame(width: MCSize.sheetStandard)
         .sheet(isPresented: licensePresented) {
             if let pending = model.license.pending {
                 LicenseSheet(browser: browser, license: model.license, pending: pending)
@@ -38,6 +38,9 @@ struct EnhancerInstallSheet: View {
             Text("The model catalog lists no prompt enhancer, so there is nothing to install.")
                 .foregroundStyle(.secondary)
         case .ready:
+            Text("Rewrites your prompt for the selected model, so you don't have to learn how each model wants to be prompted.")
+                .font(.mcBody)
+                .foregroundStyle(.primary)
             if let catalogModel = row?.model {
                 VStack(alignment: .leading, spacing: MCSpacing.compact) {
                     Text(catalogModel.name)
@@ -86,6 +89,7 @@ struct EnhancerInstallSheet: View {
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(!row.canAct)
+                .buttonStyle(.borderedProminent)
             }
         case .downloading:
             Button("Cancel") { browser.cancelInstall() }
