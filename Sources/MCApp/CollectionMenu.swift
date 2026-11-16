@@ -93,9 +93,7 @@ struct CollectionNameSheet: View {
                 .textFieldStyle(.roundedBorder)
                 .onSubmit { save() }
             if let errorMessage {
-                Text(errorMessage)
-                    .font(.mcSupporting)
-                    .foregroundStyle(MCTone.critical)
+                MCStatusText(.critical, errorMessage)
             }
             HStack {
                 Spacer()

@@ -60,10 +60,7 @@ struct EnhancerInstallSheet: View {
                     .foregroundStyle(.secondary)
             }
         case .failed(let message, _):
-            Text(message)
-                .font(.mcSupporting)
-                .foregroundStyle(MCTone.critical)
-                .fixedSize(horizontal: false, vertical: true)
+            MCStatusText(.critical, message)
         case .installed:
             Label("Installed. Enhance is ready for the selected model.", systemImage: "checkmark.seal")
                 .font(.mcSupporting)

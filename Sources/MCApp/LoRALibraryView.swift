@@ -357,13 +357,11 @@ private struct LoRALibraryRow: View {
                     .foregroundStyle(.secondary)
                 if item.fileMissing {
                     Text("File missing")
-                        .font(.mcMetadata)
-                        .foregroundStyle(.secondary)
+                        .font(.mcSupporting)
                 }
                 if let reason = addBlockReason {
                     Text(reason)
-                        .font(.mcMetadata)
-                        .foregroundStyle(.secondary)
+                        .font(.mcSupporting)
                 }
             }
             Spacer(minLength: MCSpacing.tight)

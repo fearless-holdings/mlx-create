@@ -16,22 +16,19 @@ struct LoRASection: View {
                     }
                     if !model.loraStack.isEmpty && model.loraStack.allSatisfy({ $0.fit != .fits }) {
                         Text("None of these will be used.")
-                            .font(.mcMetadata)
-                            .foregroundStyle(.secondary)
+                            .font(.mcSupporting)
                     }
                     if let progress = model.loraImportProgress {
                         importProgress(progress)
                     }
                     if let notice = model.loraNotice {
                         Text(notice)
-                            .font(.mcMetadata)
-                            .foregroundStyle(.secondary)
+                            .font(.mcSupporting)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     if model.loraMemoryHint {
                         Text("Many LoRAs use extra memory on this Mac.")
-                            .font(.mcMetadata)
-                            .foregroundStyle(.secondary)
+                            .font(.mcSupporting)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     if model.loraAddEnabled {
@@ -115,9 +112,7 @@ struct LoRARowView: View {
                 .accessibilityHidden(true)
             }
             if let reason = row.fit.reason {
-                Text(reason)
-                    .font(.mcMetadata)
-                    .foregroundStyle(row.fit == .fileMissing ? MCTone.critical : Color.secondary)
+                row.fit == .fileMissing ? MCStatusText(.critical, reason) : MCStatusText(.warning, reason)
             }
         }
         .accessibilityElement(children: .combine)

@@ -65,7 +65,7 @@ private struct ShelfRowView: View {
                     .foregroundStyle(.secondary)
                 if !row.entry.triggerWords.isEmpty {
                     Text("Trigger words: " + row.entry.triggerWords.joined(separator: ", "))
-                        .font(.mcMetadata)
+                        .font(.mcSupporting)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -93,7 +93,7 @@ private struct ShelfRowView: View {
             Text("No longer available").font(.mcSupporting).foregroundStyle(.secondary)
         case .failed(let message):
             VStack(alignment: .trailing, spacing: MCSpacing.tight) {
-                Text(message).font(.mcMetadata).foregroundStyle(MCTone.critical).lineLimit(2)
+                MCStatusText(.critical, message).lineLimit(2)
                 Button("Try again") { Task { await model.shelf.pick(row.entry) } }
             }
         }

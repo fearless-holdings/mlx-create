@@ -299,9 +299,7 @@ struct CivitaiKeyField: View {
                 }
             }
             if let error = browse.keyError {
-                Text(error)
-                    .font(.mcMetadata)
-                    .foregroundStyle(MCTone.critical)
+                MCStatusText(.critical, error)
             }
             Text("The key is sent only to civitai.com.")
                 .font(.mcMetadata)
@@ -402,9 +400,7 @@ private struct CivitaiResultRowView: View {
                 .frame(width: 160)
                 .accessibilityLabel("Downloading \(row.name)")
         case .added:
-            Label("Added to your LoRAs", systemImage: "checkmark.circle")
-                .font(.mcMetadata)
-                .foregroundStyle(MCTone.success)
+            MCStatusText(.success, "Added to your LoRAs")
         case .addedToStack:
             Label {
                 Text("Added to the stack")
@@ -414,19 +410,11 @@ private struct CivitaiResultRowView: View {
             }
             .font(.mcMetadata)
         case .needsKey:
-            Text("Needs a Civitai key to download")
-                .font(.mcMetadata)
-                .foregroundStyle(MCTone.warning)
+            MCStatusText(.warning, "Needs a Civitai key to download")
         case .refused(let reason):
-            Text(reason)
-                .font(.mcMetadata)
-                .foregroundStyle(MCTone.critical)
-                .lineLimit(2)
+            MCStatusText(.critical, reason).lineLimit(2)
         case .failed(let text):
-            Text(text)
-                .font(.mcMetadata)
-                .foregroundStyle(MCTone.critical)
-                .lineLimit(2)
+            MCStatusText(.critical, text).lineLimit(2)
         }
     }
 
