@@ -205,10 +205,14 @@ final class ModelBrowserModel {
         let catalogRepos = Set(models.map(\.repo))
         let recommendedID = recommendedModel?.id
         // Image models, then enhancers in their own group, then folders no catalog entry lists (U3).
-        let catalogRows = (models.filter { $0.kind == .image } + models.filter { $0.kind == .enhancer }).map { model in
+        var catalogRows = (models.filter { $0.kind == .image } + models.filter { $0.kind == .enhancer }).map { model in
             var row = row(for: model)
             row.isRecommended = model.id == recommendedID
             return row
+        }
+        // The recommendation leads the browser (V05); the rest keep their catalog order.
+        if let index = catalogRows.firstIndex(where: \.isRecommended) {
+            catalogRows.insert(catalogRows.remove(at: index), at: 0)
         }
         let folderRows = localFolders.filter { !catalogRepos.contains($0) }.map { folder in
             ModelBrowserRow(

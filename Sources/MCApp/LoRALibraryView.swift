@@ -324,7 +324,7 @@ private struct LoRALibraryRow: View {
     let justAdded: Bool
 
     private var addBlockReason: String? {
-        if item.inStack { return "Already in the stack" }
+        // The badge says the LoRA is in the stack; Add is disabled without repeating that as a reason (V05).
         if !model.loraAddEnabled { return "The selected model takes no LoRAs" }
         if !item.fitsSelectedModel { return "Doesn't fit \(model.selectedModel.map { ModelChip.title(for: $0) } ?? "the selected model")" }
         return nil
@@ -338,18 +338,10 @@ private struct LoRALibraryRow: View {
                         .lineLimit(1)
                         .truncationMode(.middle)
                     if item.inStack {
-                        Text("In stack")
-                            .font(.mcBadge)
-                            .padding(.horizontal, MCSpacing.tight)
-                            .padding(.vertical, MCSpacing.hairline)
-                            .background(MCTone.cardFill, in: Capsule())
+                        MCBadge(text: "In stack")
                     }
                     if justAdded {
-                        Text("Just added")
-                            .font(.mcBadge)
-                            .padding(.horizontal, MCSpacing.tight)
-                            .padding(.vertical, MCSpacing.hairline)
-                            .background(MCTone.cardFill, in: Capsule())
+                        MCBadge(text: "Just added", tone: .accent)
                     }
                 }
                 Text("\(item.familyName) · \(ByteCountFormatter.string(fromByteCount: item.sizeBytes, countStyle: .file))")
@@ -368,7 +360,7 @@ private struct LoRALibraryRow: View {
             Button("Add") {
                 model.addToLoRAStack(id: item.id)
             }
-            .disabled(addBlockReason != nil)
+            .disabled(addBlockReason != nil || item.inStack)
             .controlSize(.small)
             .accessibilityLabel("Add \(item.name) to stack")
         }
@@ -531,11 +523,7 @@ private struct CivitaiSourceSection: View {
                 Text("From Civitai")
                     .font(.mcRowTitle)
                 if justAdded {
-                    Text("Just added")
-                        .font(.mcBadge)
-                        .padding(.horizontal, MCSpacing.tight)
-                        .padding(.vertical, MCSpacing.hairline)
-                        .background(MCTone.cardFill, in: Capsule())
+                    MCBadge(text: "Just added", tone: .accent)
                 }
             }
             if let preview {
