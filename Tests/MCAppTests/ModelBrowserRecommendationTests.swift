@@ -42,6 +42,16 @@ import Testing
         #expect(rig.browser.rows.filter(\.isRecommended).map(\.id) == [Self.alpha.id])
     }
 
+    @Test func theRecommendedRowComesFirst() async throws {
+        // Beta is catalogued first but exceeds this Mac, so alpha is recommended from the second position (V05).
+        let rig = try await rig(
+            catalog: Catalog(
+                schemaVersion: 1, sequence: 5, issuedAt: BrowserFixture.acceptedAt,
+                models: [Self.beta, Self.alpha, Self.gamma]))
+        #expect(rig.browser.rows.first?.id == Self.alpha.id)
+        #expect(rig.browser.rows.first?.isRecommended == true)
+    }
+
     @Test func aLargerWorkingSetPromotesTheHigherRankedModel() async throws {
         let rig = try await rig(workingSetGB: 40)
         #expect(rig.browser.recommendedRow?.id == Self.beta.id)

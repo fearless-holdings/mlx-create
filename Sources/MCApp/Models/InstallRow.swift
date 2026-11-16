@@ -14,19 +14,9 @@ struct InstallRow: View {
                 HStack(spacing: MCSpacing.compact) {
                     Text(row.title)
                         .font(.mcRowTitle)
-                    if let label = fitLabel {
-                        Text(label)
-                            .font(.mcBadge)
-                            .padding(.horizontal, MCSpacing.compact)
-                            .padding(.vertical, MCSpacing.hairline)
-                            .background(MCTone.cardFill, in: Capsule())
-                    }
+                        .help(row.model?.quantization ?? "")
                     if row.isRecommended {
-                        Text("Recommended")
-                            .font(.mcBadge)
-                            .padding(.horizontal, MCSpacing.compact)
-                            .padding(.vertical, MCSpacing.hairline)
-                            .background(MCTone.selection.opacity(0.2), in: Capsule())
+                        MCBadge(text: "Recommended", tone: .accent)
                     }
                 }
                 if let model = row.model {
@@ -58,28 +48,17 @@ struct InstallRow: View {
         .padding(.vertical, MCSpacing.compact)
     }
 
-    private var fitLabel: String? {
-        switch row.fit {
-        case .comfortable: "Fits this Mac"
-        case .tight: "Tight fit"
-        case .exceeds: "Exceeds this Mac"
-        case .unknown: nil
-        }
-    }
-
     private func facts(for model: CatalogModel) -> String {
         let download = model.downloadBytes.formatted(.byteCount(style: .file))
         let ram = model.ramGB.formatted(.number.precision(.fractionLength(1)))
-        return "\(model.quantization) · \(download) download · about \(ram) GB RAM · \(model.license.name)"
+        return "\(download) download · about \(ram) GB memory · \(model.license.name)"
     }
 
     @ViewBuilder
     private var stateView: some View {
         switch row.state {
         case .available:
-            Text("Not installed")
-                .font(.mcSupporting)
-                .foregroundStyle(.secondary)
+            EmptyView()
         case .installing(let progress):
             VStack(alignment: .leading, spacing: MCSpacing.hairline) {
                 ProgressView(value: progress.fraction)

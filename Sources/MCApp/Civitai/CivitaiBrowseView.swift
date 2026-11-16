@@ -340,11 +340,12 @@ private struct CivitaiResultRowView: View {
                         .font(.body.weight(.medium))  // no token: medium-weight row title
                         .lineLimit(1)
                         .truncationMode(.middle)
-                    if row.matchesSelectedModel {
-                        badge("Fits \(modelName ?? "the selected model")")
+                    // The default filter already shows only fitting LoRAs, so the badge would repeat it (V05).
+                    if row.matchesSelectedModel && browse.showIncompatible {
+                        MCBadge(text: "Fits \(modelName ?? "the selected model")")
                     }
                     if row.isNSFW {
-                        badge("NSFW")
+                        MCBadge(text: "NSFW")
                     }
                 }
                 if !detailLine.isEmpty {
@@ -378,19 +379,11 @@ private struct CivitaiResultRowView: View {
         .accessibilityLabel(blurred ? "Hidden NSFW preview" : "Preview of \(row.name)")
     }
 
-    private func badge(_ text: String) -> some View {
-        Text(text)
-            .font(.mcBadge)
-            .padding(.horizontal, MCSpacing.tight)
-            .padding(.vertical, MCSpacing.hairline)
-            .background(MCTone.cardFill, in: Capsule())
-    }
-
     @ViewBuilder
     private var statusView: some View {
         switch row.status {
         case .available:
-            caption("Available")
+            EmptyView()
         case .installed:
             caption("Installed")
         case .queued:

@@ -6,7 +6,7 @@ The user's brief shaped the bar. They chose mlx-create over Draw Things because 
 
 ## Progress
 
-**26 of 28 done, 0 in progress, 0 deferred, 0 blocked, 2 open.** Last updated 2026-11-10. Findings, evidence and line references describe `633e737`; they are not rewritten as the code moves. Progress lives in two places only:
+**27 of 28 done, 0 in progress, 0 deferred, 0 blocked, 1 open.** Last updated 2026-11-16. Findings, evidence and line references describe `633e737`; they are not rewritten as the code moves. Progress lives in two places only:
 
 - the **Status** column in [§2](#2-all-findings), which is the tracker;
 - a **Resolution** section at the end of a spec once it ships: the PR and commits, where the result differs from the spec, and what was and was not exercised.
@@ -78,7 +78,7 @@ The order is STRUCTURE, then INTERACTION, then VISUAL, as requested. Severity fo
 | [V02](specs/V02-text-contrast-and-status-colour.md) | done ([#45](https://github.com/fearless-holdings/mlx-create/pull/45)) | Status and error text ≥ 4.5:1; colour on symbols only | VISUAL | 2 | Every error | e, d | M | V01 | No |
 | [V03](specs/V03-number-formatting.md) | done ([#23](https://github.com/fearless-holdings/mlx-create/pull/23)) | "1024 × 1024", not "1.024 × 1.024"; one decimal style | VISUAL | 2 | Every session (EU locales) | a, b | S | — | No |
 | [V04](specs/V04-gallery-column-layout-bug.md) | done ([#21](https://github.com/fearless-holdings/mlx-create/pull/21)) | Gallery shows one column after launch | VISUAL | 2 | Every launch | c | S | — | No |
-| [V05](specs/V05-badges-and-redundant-labels.md) | open | One badge style; no label that repeats its button | VISUAL | 2 | Browser, LoRA sheet | a, d | M | V01, S01, S03 | No |
+| [V05](specs/V05-badges-and-redundant-labels.md) | done ([#46](https://github.com/fearless-holdings/mlx-create/pull/46)) | One badge style; no label that repeats its button | VISUAL | 2 | Browser, LoRA sheet | a, d | M | V01, S01, S03 | No |
 | [V06](specs/V06-sheet-consistency.md) | open | Sheets: one title style, one inset, two widths | VISUAL | 1 | Every sheet | a, d, f | S | V01, I10, S04 | No |
 
 The two decisions the audit needed were approved on 2026-11-05 and recorded in the HLD decision log: **D51** (S08, a finished Civitai download goes on the stack) and **D52** (S09, Gallery as a view mode of the main window).
@@ -106,7 +106,7 @@ The two decisions the audit needed were approved on 2026-11-05 and recorded in t
    - [x] I08 and I09.
 5. **LoRAs** (done, [#39](https://github.com/fearless-holdings/mlx-create/pull/39), [#40](https://github.com/fearless-holdings/mlx-create/pull/40)): S07, then S08 under D51.
 6. **Gallery** (done, [#41](https://github.com/fearless-holdings/mlx-create/pull/41)): S09 under D52.
-7. **Visual layer:** V01 tokens (done, [#43](https://github.com/fearless-holdings/mlx-create/pull/43)) → V02 (done, [#45](https://github.com/fearless-holdings/mlx-create/pull/45)) → V05 → V06.
+7. **Visual layer:** V01 tokens (done, [#43](https://github.com/fearless-holdings/mlx-create/pull/43)) → V02 (done, [#45](https://github.com/fearless-holdings/mlx-create/pull/45)) → V05 (done, [#46](https://github.com/fearless-holdings/mlx-create/pull/46)) → V06.
 
 **VISUAL work that must wait for STRUCTURE.**
 
