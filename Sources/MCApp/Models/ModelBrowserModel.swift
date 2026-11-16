@@ -399,7 +399,7 @@ final class ModelBrowserModel {
         let (canAct, reason) = availability(for: action, modelID: model.id)
         return ModelBrowserRow(
             id: model.id, title: model.name, model: model, state: state, fit: fit,
-            fitWarning: fit == .exceeds ? Self.fitWarning(needGB: model.ramGB, usableGB: workingSetGB) : nil,
+            fitWarning: Self.fitWarning(fit: fit, needGB: model.ramGB, usableGB: workingSetGB),
             action: action, canAct: canAct, actionBlockedReason: reason)
     }
 
@@ -454,10 +454,19 @@ final class ModelBrowserModel {
         "\(model.license.id)@\(model.license.version)"
     }
 
-    private static func fitWarning(needGB: Double, usableGB: Double?) -> String? {
+    /// The fit caution shown beside tight and exceeding rows (V05). Comfortable and unknown rows show nothing.
+    private static func fitWarning(fit: FitBand, needGB: Double, usableGB: Double?) -> String? {
         guard let usableGB else { return nil }
-        return
-            "Needs about \(needGB.formatted(.number.precision(.fractionLength(1)))) GB, more than the \(usableGB.formatted(.number.precision(.fractionLength(1)))) GB this Mac can use. It may not run."
+        let need = needGB.formatted(.number.precision(.fractionLength(1)))
+        let usable = usableGB.formatted(.number.precision(.fractionLength(1)))
+        switch fit {
+        case .tight:
+            return "Needs about \(need) GB of the \(usable) GB this Mac can use. Other apps may need to be closed."
+        case .exceeds:
+            return "Needs about \(need) GB, more than the \(usable) GB this Mac can use. It may not run."
+        case .comfortable, .unknown:
+            return nil
+        }
     }
 
     /// The last path component of a repo id, which is the folder name a flat model folder uses.

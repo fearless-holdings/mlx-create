@@ -277,6 +277,26 @@ func browserRow(_ rows: [ModelBrowserRow], _ id: String) -> ModelBrowserRow? {
         #expect(beta.fitWarning != nil)
     }
 
+    /// The tight band still gets a caution after V05 removed its capsule badge.
+    @Test func tightRowStillOffersInstallWithAWarning() async throws {
+        let tight = CatalogModel(
+            id: "tight-4bit", family: BrowserFixture.alpha.family, name: "Tight", quantization: "4-bit",
+            repo: "org/tight", revision: BrowserFixture.alpha.revision,
+            downloadBytes: BrowserFixture.alpha.downloadBytes, ramGB: 10.5,
+            license: BrowserFixture.alpha.license, files: BrowserFixture.files)
+        let catalog = Catalog(
+            schemaVersion: 1, sequence: 5, issuedAt: BrowserFixture.acceptedAt, models: [tight])
+        let rig = try await BrowserRig.make(workingSetGB: 11.9, catalog: catalog)
+
+        await rig.browser.refresh()
+
+        let row = try #require(browserRow(rig.browser.rows, tight.id))
+        #expect(row.fit == .tight)
+        #expect(row.action == .install)
+        #expect(row.canAct)
+        #expect(row.fitWarning != nil)
+    }
+
     @Test func confirmStaysDisabledUntilAcceptedAndStartsTheInstallExactlyOnce() async throws {
         let rig = try await BrowserRig.make()
 
