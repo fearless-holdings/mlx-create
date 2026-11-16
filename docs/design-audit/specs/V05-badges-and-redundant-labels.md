@@ -103,3 +103,11 @@ With the capture kit and an empty home, at 1100×692:
 6. Model browser: the first `AXStaticText` row title is the recommended model, and no static text reads "Fits this Mac" or "Not installed".
 7. First-run card while a non-recommended model downloads (needs a download, so **ask the user first**; cancel within 60 s), and the browser: no badge wraps. Each `MCBadge` static text frame is one line high (≤ 18 pt).
 8. Attach `V05_browser_small_light.png` and `V05_civitai_small_light.png` (previews blurred or NSFW off).
+
+## Resolution
+
+Done in [#46](https://github.com/fearless-holdings/mlx-create/pull/46). The change follows the edit steps. `Sources/MCApp/Design/MCBadge.swift` is the spec's component: `.mcBadge`, `.lineLimit(1)`, `.fixedSize()`, `MCSpacing.compact`/`.hairline` and a `Capsule()` fill, so it never wraps. `InstallRow` drops the fit capsule and "Not installed", moves quantization to a help tag and uses the new facts line; `ModelBrowserModel.rows` leads with the recommended row; Civitai rows show "Fits …" only when "Show incompatible" is on and no longer say "Available"; LoRA rows use `MCBadge` and no longer repeat "Already in the stack", with Add still disabled for in-stack items. The `theRecommendedRowComesFirst` test covers the new order.
+
+Exercised: `swift build`; `swift test` (297 tests, including the new one); whole-tree `swift format lint --strict`; `xcodegen generate` + Debug `xcodebuild` (`BUILD SUCCEEDED`); the acceptance string grep — no "Not installed", "Fits this Mac" or "Already in the stack" remains in `Sources/MCApp` outside `Design/`. GUI smoke (D50) on 2026-11-16: passed, 13 screenshots in `build/gui-smoke/20261116-133940/`, with `Runpod/FLUX.2-klein-4B-mflux-4bit` symlinked into a throwaway home.
+
+Not exercised: the capture-kit `ax dump` rows and screenshots (acceptance 6–8). This shell has no Accessibility grant for per-app UI inspection, so the badge frame heights and the model browser's first static text were not measured in the running app; the download-dependent badge-wrap check (7) also needs a fresh download. Two notes on the literal grep in acceptance 5: the remaining `Capsule()` in `CanvasView.swift` is the step-progress material pill, not a badge, and `MCBadge.swift` is under `Design/`, which the glob intends to exclude but `/Sources/MCApp/Design/` does not match from the repo root.
