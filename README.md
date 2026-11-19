@@ -45,3 +45,11 @@ A clone needs `npm install` once, which installs the hook (Node 18.3+).
 - The app is single-instance (`Engine/app.lock`).
 - If you kill the app with SIGTERM, run `pgrep mlx-serve` and kill any leftover engine.
 - Never write to `~/.mlx-serve`. The engine runs with `HOME=<AppSupport>/Engine`.
+
+## License
+
+mlx-create is open source under the [GNU General Public License v3.0](LICENSE) (GPL-3.0-only). Copyright (C) 2026 Fearless Holdings.
+
+You can build and run it from source for free. Signed, notarized builds with updates are sold as a one-time purchase (D40). Third-party attributions are in [`NOTICE`](NOTICE). See D53 in `docs/HLD.md`.
+
+Outside contributions aren't accepted for now. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
