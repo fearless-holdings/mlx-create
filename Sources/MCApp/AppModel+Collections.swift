@@ -58,6 +58,7 @@ extension AppModel {
         }
         guard target.id != currentCollection.id else { return }
         showCollection(target)
+        await chat.reloadMessages()
         await reload()
         // A switch that ran during the reload chose another collection, and that one applies its own defaults.
         guard currentCollection.id == target.id else { return }

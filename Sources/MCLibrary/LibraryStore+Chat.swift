@@ -92,6 +92,25 @@ extension LibraryStore {
         }
     }
 
+    /// The job `jobID` names, or nil when its row is gone. Chat replays and follows result jobs by id.
+    public func job(id jobID: UUID) throws -> Job? {
+        try dbQueue.read { db in
+            try JobRow.fetchOne(db, key: jobID.uuidString)?.job
+        }
+    }
+
+    /// The images `jobID` saved, oldest first (a same-millisecond pair keeps its insert order). A referent lookup
+    /// takes the newest.
+    public func images(jobID: UUID) throws -> [LibraryImage] {
+        try dbQueue.read { db in
+            try ImageRow
+                .filter(Column("job_id") == jobID.uuidString)
+                .order(Column("created_at"), Column("rowid"))
+                .fetchAll(db)
+                .map(\.image)
+        }
+    }
+
     /// The message whose `job_id` is `jobID`, or nil. Only `.result` rows carry one.
     public func chatMessage(jobID: UUID) throws -> ChatMessageRecord? {
         try dbQueue.read { db in

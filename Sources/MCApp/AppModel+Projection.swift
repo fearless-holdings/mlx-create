@@ -28,6 +28,7 @@ extension AppModel {
         case .jobChanged:
             await reload()
         }
+        await chat.handle(event)
     }
 
     private func updateStep(jobID: UUID, step: Int, total: Int) {
