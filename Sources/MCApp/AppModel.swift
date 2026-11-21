@@ -51,7 +51,7 @@ public final class AppModel {
     let engineVersion: String?
     /// Bumped whenever the speed estimates may have changed, so views re-read them.
     var estimateRevision = 0
-    private var modelsLoaded = false
+    private(set) var modelsLoaded = false
     /// The collection the gallery, queue strip and new jobs use (D35). Set by `ensureCurrentCollection()` and `switchCollection(to:)`.
     var currentCollection = ImageCollection(name: "Untitled", isDefault: true)
     /// Whether `currentCollection` was read from the library. Until then its id is a placeholder that no read uses.
@@ -504,6 +504,8 @@ public final class AppModel {
             await executor.kickIfCalibrationDue()
             // At 24 GiB and up the agent model stays resident so a turn's planning never pays a load (KTD7).
             await executor.setKeptResidentModels(Set([agent?.engineModelID].compactMap { $0 }))
+            // A first-launch card finishes when the engine lists what it installed; a missing one is offered (R26).
+            await chat.readinessDidChange()
         } catch is CancellationError {
             return
         } catch {

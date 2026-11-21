@@ -70,7 +70,9 @@ private final class WriteGate: @unchecked Sendable {
         // The request carried a schema and a system message, and the agent model loaded before the chat call.
         let recorded = EngineStubProtocol.requests(harness.endpoint)
         let chats = agentChatRequests(harness)
-        #expect(chats.count == 1)
+        // Two calls: the turn's plan, then the single-image result's check (D59), whose reply is also a plan and
+        // records nothing.
+        #expect(chats.count == 2)
         let body = try #require(chats.first?.body)
         let object = try #require(
             try JSONSerialization.jsonObject(with: Data(body.utf8)) as? [String: Any])
@@ -87,7 +89,10 @@ private final class WriteGate: @unchecked Sendable {
 
     @Test func theStreamedSentenceShowsWhileTheReplyStreams() async throws {
         let harness = try await chatHarness(
-            script: chatImageNow, chat: { _, _ in heldPlanReply(generatePlan) })
+            script: chatImageNow,
+            chat: { number, _ in
+                number == 1 ? heldPlanReply(generatePlan) : planReply(generatePlan)
+            })
         let chat = harness.model.chat!
 
         await chat.send(text: "a lighthouse")
@@ -120,7 +125,8 @@ private final class WriteGate: @unchecked Sendable {
         await chat.turnTask?.value
         try await eventually { chat.phase == .idle }
 
-        #expect(agentChatRequests(harness).count == 3)
+        // Four calls: ask, answer, the retried ask that generated, and the result's check (D59).
+        #expect(agentChatRequests(harness).count == 4)
         let stored = try await harness.store.chatMessages(collectionID: harness.collectionID, limit: 10)
         guard case .question(let marked) = stored[1].body else {
             Issue.record("the stored question did not keep its kind")
@@ -271,7 +277,7 @@ private final class WriteGate: @unchecked Sendable {
         try await eventually { chat.phase == .idle }
     }
 
-    @Test func aShelfLoRAPlanQueuesItsGenerationWithoutIt() async throws {
+    @Test func aShelfLoRAPlanOffersItsCard() async throws {
         let catalog = Catalog(
             schemaVersion: 1, sequence: 5, issuedAt: BrowserFixture.acceptedAt,
             models: [BrowserFixture.alpha, BrowserFixture.enhancer, BrowserFixture.agent],
@@ -284,13 +290,20 @@ private final class WriteGate: @unchecked Sendable {
         await chat.turnTask?.value
         try await eventually { chat.phase == .idle }
 
-        // The shelf LoRA resolves to a download offer (D60); until the card exists the generation runs without it.
-        let job = try #require(try await harness.store.jobs(status: .done).first)
-        #expect((job.request.loras ?? []).isEmpty)
-        guard chat.messages.count == 2, case .result = chat.messages[1].body else {
-            Issue.record("the turn did not record a result")
+        // The shelf LoRA resolves to a download offer (D60): the card offers it and the request waits on it, so
+        // nothing is generated yet.
+        #expect(try await jobCount(harness) == 0)
+        guard chat.messages.count == 2, case .download(let card) = chat.messages[1].body else {
+            Issue.record("the turn did not record a download card")
             return
         }
+        #expect(card.state == .offered)
+        #expect(
+            card.items == [
+                ChatDownloadItem(
+                    kind: .lora, id: String(repeating: "b", count: 64), name: "realism", sizeBytes: 1_000)
+            ])
+        #expect(card.pendingRequest == "a realistic fox")
     }
 
     @Test func aDownloadProposalRecordsItsOfferedItemsAndThePendingRequest() {
@@ -443,9 +456,11 @@ private final class WriteGate: @unchecked Sendable {
     }
 
     @Test func withoutTheAgentInstalledChatAnswersNotReady() async throws {
+        // The catalog carries no agent model, so the first-launch card cannot offer one (D60) and the not-ready
+        // error still answers.
         let harness = try await AppHarness.make(
             models: [(kreaModel, "krea2_turbo"), (BrowserFixture.agent.repo, "gemma4")],
-            catalog: BrowserFixture.catalogWithAgent)
+            catalog: BrowserFixture.catalog)
         await harness.model.start()
         await harness.model.refreshModels()
         let chat = harness.model.chat!

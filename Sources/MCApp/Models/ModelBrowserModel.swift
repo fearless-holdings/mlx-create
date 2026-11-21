@@ -332,12 +332,36 @@ final class ModelBrowserModel {
         }
     }
 
-    /// The license screen for `model`, with the always-on LoRAs the app applies to its family (D45).
-    private func pendingLicense(for model: CatalogModel) -> PendingLicense {
+    /// The catalog model of `id`, when the catalog lists one (the Chat card's `.model` item, D60).
+    func catalogModel(id: String) -> CatalogModel? {
+        catalog?.models.first { $0.id == id }
+    }
+
+    /// The catalog model of `kind`, when the catalog lists one (the setup card's agent item, D60).
+    func catalogModel(ofKind kind: CatalogModelKind) -> CatalogModel? {
+        catalog?.models.first { $0.kind == kind }
+    }
+
+    /// The license screen for `model`, with the always-on LoRAs the app applies to its family (D45). The Chat card's
+    /// detail view reads the same data (D60), which is why this is internal.
+    func pendingLicense(for model: CatalogModel) -> PendingLicense {
         let notices = (catalog?.loraShelf ?? [])
             .filter { $0.alwaysOn && $0.family == model.family }
             .map { PendingLicense.Notice(name: $0.displayName, license: $0.license) }
         return PendingLicense(model: model, content: .init(model.license), notices: notices)
+    }
+
+    /// Starts `modelID`'s install as a license Confirm would, without presenting the sheet (KTD15): the Chat download
+    /// card accepted the license in its own UI. A running install finishes first, and the new install's task is
+    /// returned so the caller can await it — nil when the model is not in the catalog or cannot start.
+    @discardableResult
+    func installAccepted(_ modelID: String) async -> Task<Void, Never>? {
+        guard let model = catalog?.models.first(where: { $0.id == modelID }) else { return nil }
+        await installTask?.value
+        let now = Date()
+        acceptances[Self.licenseKey(model)] = now
+        start(model, acceptedAt: now)
+        return installTask
     }
 
     /// Confirm on the license sheet. Does nothing until the license is accepted; then starts the install once.

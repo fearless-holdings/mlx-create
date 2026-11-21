@@ -9,6 +9,8 @@ enum ChatPhase: Equatable, Sendable {
     case thinking
     /// A queued job the turn made is being followed.
     case generating(jobID: UUID)
+    /// The after-image check is reading the made image (D59). It never blocks a send.
+    case checking(jobID: UUID)
 }
 
 /// The pending message's status. Views format it; no user-facing string lives here except in ``ChatCopy``.
@@ -19,6 +21,8 @@ enum ChatStatus: Equatable, Sendable {
     /// The job is rendering; `image` and `of` are 1-based.
     case rendering(step: Int?, total: Int?, image: Int, of: Int)
     case queuePaused
+    /// The check is reading the image (D59).
+    case checking
 }
 
 /// What a result message shows, read from its job (never stored).
@@ -49,11 +53,17 @@ final class ChatModel {
     var largeImageID: UUID?
     /// The task of the turn in flight, kept so a test can await it (as `enhanceTask` is).
     var turnTask: Task<Void, Never>?
+    /// The task of the check in flight (D59); a send cancels it.
+    var checkTask: Task<Void, Never>?
 
     /// The collection the running turn writes to, captured at send time so a switch mid-turn never misfiles a message.
     var turnCollectionID: UUID?
     /// The user text of the running turn; a failed job's error offers it again.
     var turnUserText: String?
+    /// A referent the sender pinned (D59's Fix it), first choice ahead of `largeImageID` for that one turn.
+    var turnReferentImageID: UUID?
+    /// Whether the followed job's turn ran in this session; a relaunched job's finish never starts the check (D59).
+    var followedFromCurrentTurn = false
     /// The newest `.progress` step and total the followed job reported.
     var followedProgress: (step: Int, total: Int)?
     /// The job rows and saved-image counts behind `resultState(for:)` and `status`, refreshed on events and reload.
@@ -64,8 +74,12 @@ final class ChatModel {
         self.app = app
     }
 
-    /// Whether a turn is planning or generating: Send is a no-op meanwhile.
-    var isWorking: Bool { phase != .idle }
+    /// Whether a turn is planning or generating: Send is a no-op meanwhile. The check does not count (D59), so Send
+    /// stays live while it reads the image.
+    var isWorking: Bool {
+        if case .checking = phase { return false }
+        return phase != .idle
+    }
 
     /// Idle with a non-blank `input`.
     var canSend: Bool {
@@ -82,10 +96,17 @@ final class ChatModel {
 
     /// Sends `text` as the user's message; suggestion and retry buttons use this. Ignored while a turn runs or when
     /// the text is blank.
-    func send(text: String) async {
-        guard phase == .idle, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+    func send(text: String, referentImageID: UUID? = nil) async {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        if case .checking = phase {
+            // A send during the check cancels it silently and starts the turn instead (D59).
+            checkTask?.cancel()
+            endPhase()
+        }
+        guard phase == .idle else { return }
         await app.ensureCurrentCollection()
         let collectionID = app.currentCollection.id
+        turnReferentImageID = referentImageID
         turnTask = Task { await self.runTurn(text: text, collectionID: collectionID) }
     }
 
@@ -97,6 +118,8 @@ final class ChatModel {
             turnTask?.cancel()
         case .generating(let jobID):
             try? await app.executor.cancel(jobID)
+        case .checking:
+            checkTask?.cancel()
         case .idle:
             break
         }
@@ -154,6 +177,7 @@ final class ChatModel {
         }
         await refreshJobCache()
         await resumeFollowing()
+        await offerSetupIfNeeded()
     }
 }
 
@@ -185,6 +209,12 @@ extension ChatModel {
     func beginGenerating(_ jobID: UUID) {
         phase = .generating(jobID: jobID)
         status = .waitingInQueue
+    }
+
+    /// The after-image check started on `jobID` (D59).
+    func beginChecking(_ jobID: UUID) {
+        phase = .checking(jobID: jobID)
+        status = .checking
     }
 
     /// The turn ended: idle, nothing pending. `streamingText` is cleared by the turn's own cleanup.

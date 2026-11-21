@@ -45,6 +45,12 @@ extension ChatModel {
         let records = app.loraRecords.filter { app.store.loraFileExists($0) }
         let installedSHA = Set(records.map(\.sha256))
         let curatedSHA = Set(shelfEntries.map(\.sha256))
+        // A LoRA the user dismissed on a card is never offered again in this conversation (D60, R28).
+        let dismissedSHA = Set(
+            messages.flatMap { record -> [String] in
+                guard case .download(let card) = record.body, card.state == .dismissed else { return [] }
+                return card.items.filter { $0.kind == .lora }.map(\.id)
+            })
         var options: [AgentLoRAOption] = []
 
         /// The keys of the model options a LoRA of `family` and `variant` fits: the family's models whose size variant
@@ -78,7 +84,7 @@ extension ChatModel {
                     triggerWords: record.triggerWords, usualScale: entry.testedScale,
                     isCuratedAdult: entry.nsfw, source: installedSource(record)))
         }
-        for entry in shelfEntries where !installedSHA.contains(entry.sha256) {
+        for entry in shelfEntries where !installedSHA.contains(entry.sha256) && !dismissedSHA.contains(entry.sha256) {
             let keys = modelKeys(family: entry.family, variant: nil)
             guard !keys.isEmpty else { continue }
             options.append(
@@ -150,7 +156,11 @@ extension ChatModel {
     /// then the newest saved image of the conversation's newest `.result`. Its JPEG is attached when it encodes.
     private func referentImage() async -> AgentReferent? {
         var image: LibraryImage?
-        if let largeImageID {
+        // A pinned referent (the check's image on Fix it) outranks everything (D59).
+        if let turnReferentImageID {
+            image = try? await app.store.image(id: turnReferentImageID)
+        }
+        if image == nil, let largeImageID {
             image = try? await app.store.image(id: largeImageID)
         }
         if image == nil, app.gallerySelection.count == 1, let selected = app.gallerySelection.first {

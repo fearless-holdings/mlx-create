@@ -164,6 +164,15 @@ enum BrowserFixture {
             licenseID: alpha.license.id, licenseVersion: alpha.license.version, acceptedAt: acceptedAt,
             installedAt: acceptedAt)
     }
+
+    /// The record a finished agent install leaves, as `alphaRecord()` is for alpha.
+    static func agentRecord() -> InstalledModelRecord {
+        InstalledModelRecord(
+            modelID: agent.id, family: agent.family, repo: agent.repo, revision: agent.revision, catalogSequence: 5,
+            files: files.map { .init(path: $0.path, size: $0.size, sha256: $0.sha256) },
+            licenseID: agent.license.id, licenseVersion: agent.license.version, acceptedAt: acceptedAt,
+            installedAt: acceptedAt)
+    }
 }
 
 /// The body of `GET /v1/models`, decoded the way the engine client decodes it.

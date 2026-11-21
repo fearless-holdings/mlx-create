@@ -17,6 +17,14 @@ final class ShelfModel {
         case failed(String)
     }
 
+    /// What an agent-driven install ended in (D60): the Chat-mode download card reads this instead of watching
+    /// `statuses`. `installed` carries the record so the attach path can reuse it.
+    enum InstallOutcome {
+        case installed(LoRARecord)
+        case unavailable
+        case failed(message: String)
+    }
+
     struct Row: Identifiable, Equatable {
         let entry: LoRAShelfEntry
         let status: Status
@@ -93,7 +101,21 @@ final class ShelfModel {
         return record
     }
 
+    /// Installs `entry` into the library as ``acceptPending`` does, without attaching it to the stack (D60): a
+    /// Chat-mode download card's accept. An already-installed entry is a no-op success, so a retried card skips it.
+    func installForAgent(_ entry: LoRAShelfEntry) async -> InstallOutcome {
+        if let record = await installedRecord(for: entry) { return .installed(record) }
+        return await downloadAndCommit(entry)
+    }
+
     private func install(_ entry: LoRAShelfEntry) async {
+        guard case .installed(let record) = await downloadAndCommit(entry) else { return }
+        await attach(record.id, entry.testedScale)
+    }
+
+    /// The fetch-and-commit half of `install`, shared by the agent path, with `statuses` kept honest for the card's
+    /// progress read.
+    private func downloadAndCommit(_ entry: LoRAShelfEntry) async -> InstallOutcome {
         let key = entry.sha256
         statuses[key] = .downloading(0)
         do {
@@ -107,13 +129,17 @@ final class ShelfModel {
             }
             let record = try await commit(entry, fetched: fetched)
             statuses[key] = nil
-            await attach(record.id, entry.testedScale)
+            return .installed(record)
         } catch ShelfFetchError.notFound {
             statuses[key] = .unavailable
+            return .unavailable
         } catch is CancellationError {
             statuses[key] = nil
+            return .failed(message: "The download was stopped.")
         } catch {
-            statuses[key] = .failed(error.localizedDescription)
+            let message = error.localizedDescription
+            statuses[key] = .failed(message)
+            return .failed(message: message)
         }
     }
 

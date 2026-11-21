@@ -2,6 +2,7 @@ import Foundation
 import MCCatalog
 import MCEngine
 import MCLibrary
+import MCModels
 import Testing
 
 @testable import MCApp
@@ -21,21 +22,33 @@ func chatHarness(
         (kreaModel, "krea2_turbo"), (BrowserFixture.agent.repo, "gemma4"),
     ],
     catalog: Catalog = BrowserFixture.catalogWithAgent,
+    installAgent: Bool = true,
+    transport: ScriptedTransport? = nil,
+    civitaiTransport: (any CivitaiTransport)? = nil,
+    civitaiFileTransport: (any CivitaiFileTransport)? = nil,
+    civitaiKeychain: (any CivitaiKeyStore)? = nil,
     memoryTier: MemoryTier = .current,
     holdUnloads: Set<String> = []
 ) async throws -> AppHarness {
     let root = FileManager.default.temporaryDirectory.appending(path: "chat-\(UUID().uuidString)")
-    let transport = ScriptedTransport(
-        modelsRoot: root.appending(path: "Models", directoryHint: .isDirectory), outcomes: [.completes])
+    let installTransport =
+        transport
+        ?? ScriptedTransport(
+            modelsRoot: root.appending(path: "Models", directoryHint: .isDirectory), outcomes: [.completes])
     let harness = try await AppHarness.make(
-        models: models, loaded: loaded, script: script, catalog: catalog, transport: transport,
-        root: root, chat: chat, memoryTier: memoryTier, holdUnloads: holdUnloads)
-    // The install's rescan waits on the engine gate, which only opens once the app has started.
+        models: models, loaded: loaded, script: script, catalog: catalog, transport: installTransport,
+        civitaiTransport: civitaiTransport, civitaiFileTransport: civitaiFileTransport,
+        civitaiKeychain: civitaiKeychain, root: root, chat: chat,
+        memoryTier: memoryTier, holdUnloads: holdUnloads)
+    // The agent is already installed — the state a real install leaves — so `start()` does not open the first-launch
+    // setup card over the tests' conversations (D60); the card itself is covered by ChatOnboardingTests.
+    if installAgent {
+        installTransport.publishFolder(InstallCoordinator.plan(for: BrowserFixture.agent))
+        try await harness.store.recordInstalledModel(BrowserFixture.agentRecord())
+        await harness.model.browser.refresh()
+    }
     await harness.model.start()
-    harness.model.browser.beginInstall(BrowserFixture.agent.id)
-    harness.model.license.accepted = true
-    harness.model.browser.confirmLicense()
-    await harness.model.browser.installTask?.value
+    // Fills `engineModelIDs` and `models` so Chat reads as ready before the first turn.
     await harness.model.refreshModels()
     return harness
 }
