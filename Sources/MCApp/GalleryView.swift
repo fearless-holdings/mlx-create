@@ -7,6 +7,10 @@ import SwiftUI
 /// selection and the last delete or export result (D37).
 struct GalleryView: View {
     @Bindable var model: AppModel
+    /// Placeholder tiles before the images (KTD10); only Chat mode passes any.
+    var pending: [PendingTile] = []
+    /// Extra room under the last row, the folded chat container's height (R3); zero elsewhere.
+    var bottomInset: CGFloat = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -30,7 +34,7 @@ struct GalleryView: View {
 
     @ViewBuilder
     private var content: some View {
-        if model.galleryImages.isEmpty {
+        if model.galleryImages.isEmpty && pending.isEmpty {
             if model.galleryCriteriaCount > 0 {
                 VStack(spacing: MCSpacing.regular) {
                     Text("No matches")
@@ -48,7 +52,8 @@ struct GalleryView: View {
             }
         } else {
             GalleryCollection(
-                model: model, images: model.galleryImages, selection: highlighted, fullWindow: model.showsGalleryOnly)
+                model: model, images: model.galleryImages, selection: highlighted,
+                fullWindow: model.showsFullGallery, pending: pending, bottomInset: bottomInset)
         }
     }
 

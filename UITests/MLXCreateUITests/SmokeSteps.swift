@@ -22,7 +22,11 @@ final class SmokeSession {
         // line for path-based cleanup; a bare path argument would be opened as a document and suppress the window. The
         // persistence flag stops macOS restoring zero windows from an earlier session (docs/lld/gui-smoke.md section 4).
         app.launchEnvironment["CFFIXED_USER_HOME"] = home
-        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES", "-MLXCSmokeHome", home]
+        // `-mainWindowMode canvas` forces the Canvas layout: since D54 a fresh defaults read opens Chat mode, and
+        // these flows drive the three-panel workspace.
+        app.launchArguments = [
+            "-ApplePersistenceIgnoreState", "YES", "-MLXCSmokeHome", home, "-mainWindowMode", "canvas",
+        ]
         // A failed assertion stops the test before the step can screenshot itself, so the end state is captured here, named
         // after the step that was running. The runner shows it as the last screenshot.
         testCase.addTeardownBlock { [self] in

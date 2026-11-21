@@ -5,28 +5,42 @@ import Testing
 
 @MainActor
 @Suite struct WindowModeTests {
-    @Test func theCanvasIsTheDefaultAndGalleryModeSurvivesARelaunch() async throws {
+    @Test func nothingStoredMeansChatAndAChosenModeSurvivesARelaunch() async throws {
         let harness = try await AppHarness.make()
-        #expect(!harness.model.showsGalleryOnly)
+        // R1: Chat is the mode on first launch and whenever no mode is stored.
+        #expect(harness.model.windowMode == .chat)
 
-        harness.model.showsGalleryOnly = true
+        harness.model.windowMode = .gallery
         let relaunched = try await harness.relaunch()
-        #expect(relaunched.model.showsGalleryOnly)
+        #expect(relaunched.model.windowMode == .gallery)
 
-        relaunched.model.showsGalleryOnly = false
+        relaunched.model.windowMode = .canvas
         let again = try await relaunched.relaunch()
-        #expect(!again.model.showsGalleryOnly)
+        #expect(again.model.windowMode == .canvas)
     }
 
-    @Test func openingAnImageSelectsItAndLeavesGalleryMode() async throws {
+    @Test func aStoredLegacyBooleanMapsToGalleryOrCanvas() async throws {
+        // KTD9: builds that stored `showsGalleryOnly` left a Bool under the same key; true was Gallery.
+        let galleryDefaults = UserDefaults(suiteName: UUID().uuidString)!
+        galleryDefaults.set(true, forKey: AppModel.windowModeDefaultsKey)
+        let gallery = try await AppHarness.make(defaults: galleryDefaults)
+        #expect(gallery.model.windowMode == .gallery)
+
+        let canvasDefaults = UserDefaults(suiteName: UUID().uuidString)!
+        canvasDefaults.set(false, forKey: AppModel.windowModeDefaultsKey)
+        let canvas = try await AppHarness.make(defaults: canvasDefaults)
+        #expect(canvas.model.windowMode == .canvas)
+    }
+
+    @Test func openingAnImageSelectsItAndLeavesForCanvas() async throws {
         let harness = try await AppHarness.make()
         let model = harness.model
         let image = try await harness.saveImage(prompt: "a lighthouse at dusk")
 
-        model.showsGalleryOnly = true
+        model.windowMode = .gallery
         model.openInCanvas(image.id)
 
-        #expect(!model.showsGalleryOnly)
+        #expect(model.windowMode == .canvas)
         #expect(model.selection == image.id)
     }
 }

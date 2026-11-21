@@ -30,6 +30,8 @@ enum MCRadius {
     static let field: CGFloat = 6
     /// Cards, banners, gallery tiles and queue cells.
     static let card: CGFloat = 10
+    /// Floating panels over content, like the Chat container (D54).
+    static let panel: CGFloat = 14
 }
 
 enum MCStroke {
@@ -48,6 +50,22 @@ enum MCSize {
     /// License, enhancer and other single-purpose sheets.
     static let sheetStandard: CGFloat = 500
     static let emptyStateMaxWidth: CGFloat = 520
+    /// The Chat container's width (D54, R2: "about 700 pt").
+    static let chatContainerWidth: CGFloat = 700
+    /// The fraction of the window's height an unfurled conversation takes (D54, R3: "two thirds").
+    static let chatUnfurledFraction: CGFloat = 2.0 / 3.0
+    /// The tallest a license text inside a chat download card grows (KTD15).
+    static let chatLicenseTextHeight: CGFloat = 120
+}
+
+/// Shadows. Panels floating over content use `panel*`; nothing else casts one.
+enum MCShadow {
+    /// The Chat container's shadow radius.
+    static let panelRadius: CGFloat = 16
+    /// The Chat container's shadow offset.
+    static let panelY: CGFloat = 6
+    /// The Chat container's shadow opacity.
+    static let panelOpacity: Double = 0.18
 }
 
 /// Type styles. macOS sizes: body 13, callout 12, headline 13 bold, title2 17, caption 10.

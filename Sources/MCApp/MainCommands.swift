@@ -21,11 +21,12 @@ public struct MainCommands: Commands {
             Picker(
                 "Show",
                 selection: Binding(
-                    get: { model?.showsGalleryOnly ?? false },
-                    set: { model?.showsGalleryOnly = $0 })
+                    get: { model?.windowMode ?? .chat },
+                    set: { model?.windowMode = $0 })
             ) {
-                Text("Canvas").tag(false).keyboardShortcut("1", modifiers: .command)
-                Text("Gallery").tag(true).keyboardShortcut("2", modifiers: .command)
+                Text("Chat").tag(MainWindowMode.chat).keyboardShortcut("1", modifiers: .command)
+                Text("Canvas").tag(MainWindowMode.canvas).keyboardShortcut("2", modifiers: .command)
+                Text("Gallery").tag(MainWindowMode.gallery).keyboardShortcut("3", modifiers: .command)
             }
             .pickerStyle(.inline)
             .disabled(model == nil)
@@ -33,13 +34,17 @@ public struct MainCommands: Commands {
         CommandMenu("Image") {
             Button("Generate") { run { await $0.generate() } }
                 .keyboardShortcut(.return, modifiers: .command)
-                .disabled(!(model?.canGenerate ?? false))
+                .disabled(!(model?.canGenerate ?? false) || isChat)
             Button("Enhance Prompt") { run { await $0.pressEnhance() } }
                 .keyboardShortcut("e", modifiers: .command)
-                .disabled(!(model?.canEnhance ?? false))
-            Button("Cancel Generation") { run { await $0.cancelRunningOrSelected() } }
-                .keyboardShortcut(".", modifiers: .command)
-                .disabled(!hasCancellableJob)
+                .disabled(!(model?.canEnhance ?? false) || isChat)
+            Button("Cancel Generation") {
+                run { model in
+                    if model.chat.isWorking { await model.chat.stop() } else { await model.cancelRunningOrSelected() }
+                }
+            }
+            .keyboardShortcut(".", modifiers: .command)
+            .disabled(!(hasCancellableJob || (model?.chat.isWorking ?? false)))
             Divider()
             Button("Reuse All Settings") { run { await $0.reuseSelectedImageSettings() } }
                 .keyboardShortcut("r", modifiers: .command)
@@ -69,6 +74,9 @@ public struct MainCommands: Commands {
     private var hasCancellableJob: Bool {
         model?.queueJobs.contains { $0.status == .running || $0.status == .queued } ?? false
     }
+
+    /// Chat mode has no prompt editor, settings or LoRA stack, so generation commands do not apply there (R5).
+    private var isChat: Bool { model?.windowMode == .chat }
 
     /// An image to act on: the gallery selection, or else the image on the canvas.
     private var hasImageTarget: Bool {

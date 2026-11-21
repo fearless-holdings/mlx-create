@@ -11,6 +11,10 @@ struct GalleryCollection: NSViewRepresentable {
     let images: [LibraryImage]
     let selection: Set<UUID>
     let fullWindow: Bool
+    /// Placeholder tiles before the images; only Chat mode passes any (KTD10).
+    let pending: [PendingTile]
+    /// Scrollable room under the last row — the folded chat container's height (R3).
+    let bottomInset: CGFloat
 
     func makeCoordinator() -> Coordinator {
         Coordinator(model: model)
@@ -21,7 +25,9 @@ struct GalleryCollection: NSViewRepresentable {
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
-        context.coordinator.update(images: images, selection: selection, fullWindow: fullWindow)
+        context.coordinator.update(
+            images: images, selection: selection, fullWindow: fullWindow, pending: pending,
+            bottomInset: bottomInset)
     }
 
     @MainActor
@@ -37,6 +43,8 @@ struct GalleryCollection: NSViewRepresentable {
         private var dataSource: NSCollectionViewDiffableDataSource<Section, UUID>?
         /// Lookup for the item provider, which receives only an id. Rebuilt from the model on every update.
         private var imagesByID: [UUID: LibraryImage] = [:]
+        /// The placeholder tiles by their derived id, rebuilt on every update; Chat mode only (KTD10).
+        private var pendingByID: [UUID: PendingTile] = [:]
         /// The selection the items were last configured with, so changes reconfigure only the affected items.
         private var appliedSelection: Set<UUID> = []
         private var isFullWindow = false
@@ -62,6 +70,7 @@ struct GalleryCollection: NSViewRepresentable {
             let collectionView = GalleryCollectionView(frame: .zero)
             collectionView.collectionViewLayout = layout
             collectionView.register(GalleryCollectionItem.self, forItemWithIdentifier: GalleryCollectionItem.identifier)
+            collectionView.register(PendingCollectionItem.self, forItemWithIdentifier: PendingCollectionItem.identifier)
             collectionView.isSelectable = false
             collectionView.backgroundColors = [.clear]
             collectionView.autoresizingMask = [.width, .height]
@@ -73,6 +82,8 @@ struct GalleryCollection: NSViewRepresentable {
             scrollView.autohidesScrollers = true
             scrollView.drawsBackground = false
             scrollView.borderType = .noBorder
+            // The bottom inset comes from the chat container's height; nothing else adjusts it.
+            scrollView.automaticallyAdjustsContentInsets = false
 
             self.scrollView = scrollView
             self.collectionView = collectionView
@@ -80,7 +91,14 @@ struct GalleryCollection: NSViewRepresentable {
             collectionView.onSelectAll = { [model = self.model] in model.selectAllGalleryImages() }
             collectionView.onMove = { [weak self] offset in self?.moveSelection(by: offset) }
             collectionView.onOpen = { [model = self.model] in
-                if let id = model.galleryArrowOrigin { model.openInCanvas(id) }
+                guard let id = model.galleryArrowOrigin else { return }
+                if model.windowMode == .chat {
+                    // Return in Chat mode opens the highlighted tile large; in Gallery mode it opens in Canvas.
+                    model.selectGalleryImage(id, click: .plain)
+                    model.chat.largeImageID = id
+                } else {
+                    model.openInCanvas(id)
+                }
             }
             dataSource = NSCollectionViewDiffableDataSource(collectionView: collectionView) { [weak self] collectionView, indexPath, id in
                 self?.makeItem(collectionView, indexPath: indexPath, id: id)
@@ -90,8 +108,12 @@ struct GalleryCollection: NSViewRepresentable {
 
         /// Brings the grid in line with the model. Only the ids that changed are sent to the data source; an item whose
         /// image record or selection state changed is reconfigured, which re-runs the item provider for it.
-        func update(images: [LibraryImage], selection: Set<UUID>, fullWindow: Bool) {
+        func update(
+            images: [LibraryImage], selection: Set<UUID>, fullWindow: Bool, pending: [PendingTile],
+            bottomInset: CGFloat
+        ) {
             guard let dataSource else { return }
+            scrollView?.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: bottomInset, right: 0)
             if fullWindow != isFullWindow {
                 isFullWindow = fullWindow
                 if fullWindow { focusGridOnceInWindow() }
@@ -102,7 +124,14 @@ struct GalleryCollection: NSViewRepresentable {
                 layout.maxSide = sides.max
             }
 
+            // Pending tiles are the first items: placeholders where the batch's images will land (R6).
             var ids: [UUID] = []
+            var newPendingByID: [UUID: PendingTile] = [:]
+            newPendingByID.reserveCapacity(pending.count)
+            for tile in pending where newPendingByID[tile.id] == nil {
+                newPendingByID[tile.id] = tile
+                ids.append(tile.id)
+            }
             var newByID: [UUID: LibraryImage] = [:]
             newByID.reserveCapacity(images.count)
             for image in images where newByID[image.id] == nil {
@@ -122,6 +151,7 @@ struct GalleryCollection: NSViewRepresentable {
             let shownIDs = dataSource.snapshot().itemIdentifiers
             let reconfigure = ids.filter { changed.contains($0) }
             imagesByID = newByID
+            pendingByID = newPendingByID
             appliedSelection = selection
             guard ids != shownIDs || !reconfigure.isEmpty else { return }
 
@@ -135,6 +165,14 @@ struct GalleryCollection: NSViewRepresentable {
         }
 
         private func makeItem(_ collectionView: NSCollectionView, indexPath: IndexPath, id: UUID) -> NSCollectionViewItem? {
+            if let tile = pendingByID[id] {
+                let item =
+                    collectionView.makeItem(
+                        withIdentifier: PendingCollectionItem.identifier, for: indexPath)
+                    as? PendingCollectionItem
+                item?.configure(PendingTileCell(tile: tile))
+                return item
+            }
             guard let image = imagesByID[id],
                 let item = collectionView.makeItem(withIdentifier: GalleryCollectionItem.identifier, for: indexPath)
                     as? GalleryCollectionItem
@@ -158,6 +196,10 @@ struct GalleryCollection: NSViewRepresentable {
             let flags = NSApp.currentEvent?.modifierFlags ?? []
             let click: GalleryClick = flags.contains(.command) ? .toggle : flags.contains(.shift) ? .range : .plain
             model.selectGalleryImage(id, click: click)
+            // A plain click in Chat mode opens the tile large (R4); ⌘ and ⇧ keep their selection behaviour.
+            if click == .plain, model.windowMode == .chat {
+                model.chat.largeImageID = id
+            }
             collectionView?.window?.makeFirstResponder(collectionView)
         }
 
@@ -398,6 +440,30 @@ final class GalleryCollectionItem: NSCollectionViewItem {
         hosting.autoresizingMask = [.width, .height]
         view.addSubview(hosting)
         itemView?.hosted = hosting
+        hostingView = hosting
+    }
+}
+
+/// One placeholder tile (KTD10): it hosts `PendingTileCell`, is never selectable, and answers no click or menu.
+final class PendingCollectionItem: NSCollectionViewItem {
+    static var identifier: NSUserInterfaceItemIdentifier { NSUserInterfaceItemIdentifier("PendingTileItem") }
+
+    private var hostingView: NSHostingView<PendingTileCell>?
+
+    override func loadView() {
+        view = NSView()
+    }
+
+    func configure(_ cell: PendingTileCell) {
+        if let hostingView {
+            hostingView.rootView = cell
+            return
+        }
+        let hosting = NSHostingView(rootView: cell)
+        hosting.sizingOptions = []
+        hosting.frame = view.bounds
+        hosting.autoresizingMask = [.width, .height]
+        view.addSubview(hosting)
         hostingView = hosting
     }
 }

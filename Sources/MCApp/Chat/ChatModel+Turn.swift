@@ -204,6 +204,9 @@ extension ChatModel {
                 try? await app.executor.cancel(job.id)
                 return generation.droppedAdultLoRAs
             }
+            // The finished image becomes the gallery's highlighted first tile through `prependImage` (R7); it does
+            // not open large by itself.
+            app.canvasFollowedJobs.insert(job.id)
             beginGenerating(job.id)
             followedFromCurrentTurn = true
             await refreshJobCache()
