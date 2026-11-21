@@ -170,7 +170,7 @@ extension AppModel {
 
     func openInCanvas(_ id: UUID) {
         selectGalleryImage(id, click: .plain)
-        if showsGalleryOnly { showsGalleryOnly = false }
+        windowMode = .canvas
     }
 
     /// The tile an arrow key steps from: the one the gallery highlights, which a ⌘-click can move away from the canvas

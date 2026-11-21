@@ -44,11 +44,19 @@ extension AppModel {
 
         let gate = EngineGate()
         let client = EngineClient(endpoint: { try await gate.endpoint() })
+        var keychain: any CivitaiKeyStore = CivitaiKeychain()
+        #if DEBUG
+            // `-MLXCNoSavedCivitaiKey YES` reads a service nothing writes to: a real saved key's ACL prompt would
+            // otherwise block a throwaway-home launch on the first SecItemCopyMatching.
+            if UserDefaults.standard.bool(forKey: "MLXCNoSavedCivitaiKey") {
+                keychain = CivitaiKeychain(service: "app.mlx-create.civitai.none")
+            }
+        #endif
         let model = AppModel(
             store: store, client: client, gate: gate, registry: registry, states: states,
             weightsPath: paths.weights.path, libraryPaths: LibraryPaths(root: libraryRoot, modelsRoot: modelsRoot), supervisor: supervisor,
             engineVersion: bundledEngineVersion(), catalog: catalog, transport: downloader, catalogStore: catalogStore,
-            civitaiTransport: URLSessionCivitaiTransport(userAgent: userAgent))
+            civitaiTransport: URLSessionCivitaiTransport(userAgent: userAgent), civitaiKeychain: keychain)
         Task { await model.start() }
         return model
     }

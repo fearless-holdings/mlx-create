@@ -13,26 +13,31 @@ public struct MainWindow: View {
                 EngineStatusBanner(banner: banner, onRestart: { Task { await model.restartEngine() } })
                 Divider()
             }
-            // One split view for both modes, so the gallery keeps its search text, scroll position and focus on a mode switch.
-            HSplitView {
-                if !model.showsGalleryOnly {
-                    GenerationPanel(model: model)
-                        .frame(minWidth: 320, idealWidth: 340)
-                    VStack(spacing: 0) {
-                        CanvasView(model: model)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        if model.showsQueueStrip {
-                            Divider()
-                            QueueStripView(model: model)
-                                .fixedSize(horizontal: false, vertical: true)
+            switch model.windowMode {
+            case .chat:
+                ChatModeView(model: model)
+            default:
+                // One split view for Canvas and Gallery, so the gallery keeps its search text, scroll position and
+                // focus on a mode switch.
+                HSplitView {
+                    if model.windowMode == .canvas {
+                        GenerationPanel(model: model)
+                            .frame(minWidth: 320, idealWidth: 340)
+                        VStack(spacing: 0) {
+                            CanvasView(model: model)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            if model.showsQueueStrip {
+                                Divider()
+                                QueueStripView(model: model)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
                         }
+                        .frame(minWidth: 400, maxWidth: .infinity, maxHeight: .infinity)
+                        .layoutPriority(1)
                     }
-                    .frame(minWidth: 400, maxWidth: .infinity, maxHeight: .infinity)
-                    .layoutPriority(1)
+                    GalleryView(model: model)
+                        .frame(minWidth: 200, idealWidth: 260, maxWidth: model.showsFullGallery ? .infinity : nil)
                 }
-                GalleryView(model: model)
-                    .frame(minWidth: 200, idealWidth: 260, maxWidth: model.showsGalleryOnly ? .infinity : nil)
-                    .background(GallerySidebarSizing(galleryOnly: model.showsGalleryOnly))
             }
         }
         .frame(minWidth: 1100, minHeight: 640)
@@ -46,7 +51,10 @@ public struct MainWindow: View {
             }
             ToolbarSpacer(.flexible, placement: .primaryAction)
             ToolbarItem(placement: .primaryAction) {
-                ModelChip(model: model)
+                // Chat mode shows no model chip (R5); the other two modes keep it.
+                if model.windowMode != .chat {
+                    ModelChip(model: model)
+                }
             }
         }
         .sheet(isPresented: $model.isBrowserPresented) {

@@ -77,6 +77,8 @@ extension AppModel {
         selection = nil
         canvasFollowedJobs.removeAll()
         canvasFallbackImageID = nil
+        // The large image is part of the conversation the collection held (D54); a switch closes it.
+        chat?.largeImageID = nil
         // The search and filters belong to the collection they were set in (R14).
         resetGalleryQuery()
         galleryRevision += 1

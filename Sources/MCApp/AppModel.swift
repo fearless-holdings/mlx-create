@@ -108,9 +108,13 @@ public final class AppModel {
             defaults.set(showsMoreOptions, forKey: Self.moreOptionsDefaultsKey)
         }
     }
-    public var showsGalleryOnly = false {
-        didSet { defaults.set(showsGalleryOnly, forKey: Self.windowModeDefaultsKey) }
+    /// The main window's view mode (D54, KTD9). Stored as the case's name; a value the old Boolean wrote still reads
+    /// back (``MainWindowMode.stored(in:key:)``).
+    public var windowMode: MainWindowMode = .chat {
+        didSet { defaults.set(windowMode.rawValue, forKey: Self.windowModeDefaultsKey) }
     }
+    /// The gallery fills the window in every mode but Canvas (D54): Chat and Gallery share the full-window layout.
+    var showsFullGallery: Bool { windowMode != .canvas }
     /// Set only while ``applyStoredSettings(_:)`` opens the disclosure, so a reuse does not pin it open for the next launch.
     var opensMoreOptionsTransiently = false
     public var seedChoice: SeedChoice = .random
@@ -243,7 +247,7 @@ public final class AppModel {
         self.libraryPaths = libraryPaths
         self.selectedModelID = defaults.string(forKey: Self.lastUsedModelKey)
         self.showsMoreOptions = defaults.bool(forKey: Self.moreOptionsDefaultsKey)
-        self.showsGalleryOnly = defaults.bool(forKey: Self.windowModeDefaultsKey)
+        self.windowMode = MainWindowMode.stored(in: defaults, key: Self.windowModeDefaultsKey)
         queueHeader = QueuePresentation.header(
             isRunning: false, pauseRequested: defaults.bool(forKey: Self.queuePausedDefaultsKey))
         let civitaiClient = CivitaiClient(
@@ -344,7 +348,18 @@ public final class AppModel {
     var enhancer: LLMStatus? { browser.enhancerStatus }
 
     /// The catalog's chat agent (D58). Same install rule as ``enhancer``.
-    var agent: LLMStatus? { browser.agentStatus }
+    var agent: LLMStatus? {
+        #if DEBUG
+            // A local pack linked into `Weights/` has no install record, so a run can name it (launch argument
+            // `-MLXCAgentModelID ORG/NAME`); the smoke uses this to reach Chat mode.
+            if let override = defaults.string(forKey: "MLXCAgentModelID"),
+                browser.engineModelIDs.contains(override)
+            {
+                return LLMStatus(isInstalled: true, engineModelID: override)
+            }
+        #endif
+        return browser.agentStatus
+    }
 
     public var controls: SettingsControls? {
         ModelSelection.controls(for: selectedModel)
