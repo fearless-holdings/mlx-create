@@ -29,6 +29,8 @@ public actor JobExecutor {
     var stateWaiters: [UUID: CheckedContinuation<Void, Error>] = [:]
     /// Model switches requested during a lease. The release does not re-warm the image model while any is waiting.
     var selectionsWaiting = 0
+    /// Chat models that stay resident across model switches at 24 GiB and above (plan KTD6). Empty by default.
+    private var keptResidentModels: Set<String> = []
     /// Decides whether a lease swaps the image model out (tier 1, below 24 GiB) or keeps it resident.
     let memoryTier: MemoryTier
     private var active: Task<GenerationRendering, Error>?
@@ -150,13 +152,20 @@ public actor JobExecutor {
         try await switchModel(modelID)
     }
 
+    /// Chat models that stay resident across model switches at 24 GiB and above (plan KTD6). Empty by default.
+    public func setKeptResidentModels(_ ids: Set<String>) {
+        keptResidentModels = ids
+    }
+
     /// The switch itself, without the lease wait. The running job uses it, since an Enhance lease waits for that job to end.
+    /// At 24 GiB and above the kept-resident chat models are left loaded (KTD6); at tier 1 nothing is kept.
     func switchModel(_ modelID: String) async throws {
         let client = client
+        let kept = memoryTier.maxResidentModels > 1 ? keptResidentModels : []
         try await serialized {
             let resident = try await client.models().filter(\.loaded).map(\.id)
             if resident.contains(modelID) { return }
-            for other in resident {
+            for other in resident where !kept.contains(other) {
                 try await client.unload(model: other)
             }
             try await client.load(model: modelID)
@@ -265,32 +274,48 @@ public actor JobExecutor {
         let carriesAlwaysOn = !alwaysOn.isEmpty
         // The model switch and the stream share one task, so `cancel(_:)` also reaches a wait for the engine or a load.
         let task = Task { () throws -> GenerationRendering in
-            try await self.makeResident(modelID, for: jobID)
-            func stream(_ request: ImageRequest) async throws -> GenerationRendering {
-                var png: Data?
-                var total: Int?
-                var seconds: Double?
-                let started = ContinuousClock.now
-                for try await event in client.generateImage(request) {
-                    switch event {
-                    case .progress(let step, let stepTotal, _):
-                        total = stepTotal
-                        hub.send(.progress(jobID: jobID, step: step, total: stepTotal))
-                    case .completed(let data):
-                        png = data
-                        seconds = started.duration(to: ContinuousClock.now) / Duration.seconds(1)
+            // One attempt: make the job's model resident, then stream, including the always-on LoRA retry.
+            func attempt() async throws -> GenerationRendering {
+                try await self.makeResident(modelID, for: jobID)
+                func stream(_ request: ImageRequest) async throws -> GenerationRendering {
+                    var png: Data?
+                    var total: Int?
+                    var seconds: Double?
+                    let started = ContinuousClock.now
+                    for try await event in client.generateImage(request) {
+                        switch event {
+                        case .progress(let step, let stepTotal, _):
+                            total = stepTotal
+                            hub.send(.progress(jobID: jobID, step: step, total: stepTotal))
+                        case .completed(let data):
+                            png = data
+                            seconds = started.duration(to: ContinuousClock.now) / Duration.seconds(1)
+                        }
                     }
+                    guard let png, let seconds else { throw EngineError.streamEndedWithoutComplete }
+                    return (png, total, seconds, request.loraPaths?.count ?? 0)
                 }
-                guard let png, let seconds else { throw EngineError.streamEndedWithoutComplete }
-                return (png, total, seconds, request.loraPaths?.count ?? 0)
+                do {
+                    return try await stream(fullRequest)
+                } catch EngineError.loraRejected where carriesAlwaysOn {
+                    // R13: a LoRA the engine cannot apply must never block an image. Retry once with the stack as the user built it.
+                    // A second rejection is the user's own LoRA and fails the job with its usual copy. The log names nothing.
+                    Self.log.notice("engine rejected the LoRA set; retrying once with the stack's LoRAs only")
+                    return try await stream(userRequest)
+                }
             }
             do {
-                return try await stream(fullRequest)
-            } catch EngineError.loraRejected where carriesAlwaysOn {
-                // R13: a LoRA the engine cannot apply must never block an image. Retry once with the stack as the user built it.
-                // A second rejection is the user's own LoRA and fails the job with its usual copy. The log names nothing.
-                Self.log.notice("engine rejected the LoRA set; retrying once with the stack's LoRAs only")
-                return try await stream(userRequest)
+                return try await attempt()
+            } catch EngineError.outOfMemory(let engineMessage) {
+                // KTD6: the engine refuses a media load that does not fit beside a resident chat model (HTTP 503) instead
+                // of evicting it, and the refusal can come from load-model or from the generation request. Evicting the
+                // kept models and running the whole attempt once more fixes that refusal only; with none loaded it was
+                // the image model's own and propagates, as a second refusal does.
+                guard await self.evictKeptResidentModels() else {
+                    throw EngineError.outOfMemory(engineMessage: engineMessage)
+                }
+                Self.log.notice("media load refused beside a resident chat model; retrying once with it unloaded")
+                return try await attempt()
             }
         }
         active = task
@@ -440,6 +465,23 @@ public actor JobExecutor {
         } onCancel: {
             task.cancel()
         }
+    }
+
+    /// Unloads the kept-resident chat models that are currently loaded, so a refused attempt can run once more (KTD6).
+    /// The unloads go through `serialized`, so they cannot interleave with a model switch, and their errors are ignored.
+    /// Returns false when nothing kept was loaded: the refusal was then not theirs, so no retry follows.
+    private func evictKeptResidentModels() async -> Bool {
+        guard memoryTier.maxResidentModels > 1, !keptResidentModels.isEmpty else { return false }
+        let client = client
+        let resident = (try? await client.models().filter(\.loaded).map(\.id)) ?? []
+        let evict = resident.filter { keptResidentModels.contains($0) }
+        guard !evict.isEmpty else { return false }
+        _ = try? await serialized {
+            for id in evict {
+                try? await client.unload(model: id)
+            }
+        }
+        return true
     }
 
     /// Frees memory after an out-of-memory refusal. Failures here are ignored: the job fails with the
