@@ -11,7 +11,7 @@ private struct EnhancerResidency {
 }
 
 extension JobExecutor {
-    /// Runs `body` while the enhancer model is loaded and the executor is held (KTD5, R6, R10, R14).
+    /// Runs `body` while the enhancer or the agent LLM is loaded and the executor is held (KTD5, R6, R10, R14; D56/D59).
     ///
     /// The lease sets its flag at once, so `drain` claims no queued job and model switches wait. It then waits for the
     /// running image to finish; queued jobs keep their order. Below 24 GiB the image model is unloaded before the enhancer
@@ -21,16 +21,26 @@ extension JobExecutor {
     /// resident and the image model is left alone. Release runs when `body` throws or the caller is cancelled, and a
     /// result already produced is returned even if the caller is cancelled afterwards.
     ///
+    /// `rewarmsDisplaced: false` skips the re-warm entirely and releases the flag at once: after a plan the next job
+    /// loads whichever model the plan chose, so re-warming the displaced one would be a wasted load (KTD5).
+    /// `retriesLoadAfterMemoryRefusal: true` retries the LLM's own load once after evicting resident models, because the
+    /// engine refuses a load that does not fit rather than evicting a resident model itself (KTD6).
+    ///
     /// `body` is where the caller streams its chat call. The executor does not know what that call sends.
     public func withEnhancerLease<T: Sendable>(
         enhancerModelID: String,
+        rewarmsDisplaced: Bool = true,
+        retriesLoadAfterMemoryRefusal: Bool = false,
         body: @Sendable () async throws -> T
     ) async throws -> T {
         try await acquireEnhancerLease()
         var residency = EnhancerResidency()
         let outcome: Result<T, Error>
         do {
-            try await enterEnhancerLease(enhancerModelID: enhancerModelID, residency: &residency)
+            try await enterEnhancerLease(
+                enhancerModelID: enhancerModelID,
+                retriesLoadAfterMemoryRefusal: retriesLoadAfterMemoryRefusal,
+                residency: &residency)
             let value = try await body()
             outcome = .success(value)
         } catch {
@@ -39,7 +49,7 @@ extension JobExecutor {
         let finished = residency
         // Runs in a task that does not inherit cancellation, so a cancelled caller still unloads the enhancer.
         await Task { await self.unloadEnhancer(enhancerModelID: enhancerModelID, residency: finished) }.value
-        if await shouldRewarmDisplaced(finished) {
+        if rewarmsDisplaced, await shouldRewarmDisplaced(finished) {
             // Unstructured, so the re-warm is not tied to the caller's cancellation. It keeps the flag until it finishes.
             Task { await self.rewarmDisplaced(finished.displaced) }
         } else {
@@ -68,7 +78,11 @@ extension JobExecutor {
 
     /// Below 24 GiB, unloads the resident image model and loads the enhancer. At or above 24 GiB, loads the enhancer only
     /// when it is not already resident. `residency` records each change, so release can undo it when this throws.
-    private func enterEnhancerLease(enhancerModelID: String, residency: inout EnhancerResidency) async throws {
+    private func enterEnhancerLease(
+        enhancerModelID: String,
+        retriesLoadAfterMemoryRefusal: Bool,
+        residency: inout EnhancerResidency
+    ) async throws {
         let resident = try await client.models().filter(\.loaded).map(\.id)
         if memoryTier.maxResidentModels == 1 {
             residency.displaced = resident.filter { $0 != enhancerModelID }
@@ -80,12 +94,23 @@ extension JobExecutor {
         // Set before the call: a load whose reply is lost may still have happened, and release then unloads it.
         residency.enhancerLoaded = true
         do {
-            try await client.load(model: enhancerModelID)
+            try await loadEnhancer(enhancerModelID: enhancerModelID, retriesAfterMemoryRefusal: retriesLoadAfterMemoryRefusal)
         } catch EngineError.outOfMemory(let message) {
             // The refused load holds nothing, so there is nothing for release to unload.
             residency.enhancerLoaded = false
             if OutOfMemoryFailure.refusalUnloadsResidentModels { await unloadResidentModels() }
             throw EngineError.enhancerOutOfMemory(engineMessage: message)
+        }
+    }
+
+    /// Loads the enhancer, retrying once after evicting every resident model when the first load was refused for memory
+    /// and `retriesAfterMemoryRefusal` is set. The engine refuses rather than evicting a resident chat model itself (KTD6).
+    private func loadEnhancer(enhancerModelID: String, retriesAfterMemoryRefusal: Bool) async throws {
+        do {
+            try await client.load(model: enhancerModelID)
+        } catch EngineError.outOfMemory where retriesAfterMemoryRefusal {
+            await unloadResidentModels()
+            try await client.load(model: enhancerModelID)
         }
     }
 

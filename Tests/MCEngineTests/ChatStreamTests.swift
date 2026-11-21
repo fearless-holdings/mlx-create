@@ -333,4 +333,92 @@ struct ChatStreamTests {
         #expect(outcome.error == nil)
         #expect(outcome.text == ["A red ", "fox"])
     }
+
+    @Test("a text-only request without a schema encodes exactly the fields the enhancer sends today")
+    func textOnlyBodyUnchanged() throws {
+        let object = try JSONSerialization.jsonObject(with: enhancerChatRequest.body())
+        let json = try #require(object as? [String: Any])
+        let expected: [String: Any] = [
+            "model": "test/enhancer-4bit",
+            "messages": [
+                ["role": "system", "content": "Rewrite the prompt for an image model."],
+                ["role": "user", "content": "a fox"],
+            ],
+            "stream": true,
+            "enable_thinking": false,
+            "temperature": 0.7,
+            "top_p": 0.9,
+            "max_tokens": 400,
+        ]
+        #expect(json as NSDictionary == expected as NSDictionary)
+    }
+
+    @Test("a message with images encodes a text part then one image_url part per image, in order")
+    func messageWithImagesEncodesParts() throws {
+        let request = ChatRequest(
+            model: "test/agent-5bit",
+            messages: [
+                ChatMessage(
+                    role: .user,
+                    content: "make it night",
+                    images: [ChatImage(jpeg: Data([1, 2, 3])), ChatImage(jpeg: Data([4, 5]))]
+                )
+            ]
+        )
+        let object = try JSONSerialization.jsonObject(with: request.body())
+        let json = try #require(object as? [String: Any])
+        let message = try #require((json["messages"] as? [[String: Any]])?.first)
+        let content = try #require(message["content"] as? [[String: Any]])
+        #expect(content.count == 3)
+        #expect(content[0]["type"] as? String == "text")
+        #expect(content[0]["text"] as? String == "make it night")
+        #expect(content[1]["type"] as? String == "image_url")
+        #expect((content[1]["image_url"] as? [String: String])?["url"] == "data:image/jpeg;base64,AQID")
+        #expect(content[2]["type"] as? String == "image_url")
+        #expect((content[2]["image_url"] as? [String: String])?["url"] == "data:image/jpeg;base64,BAU=")
+    }
+
+    @Test("a message with an empty text encodes only the image parts")
+    func messageWithImagesAndNoText() throws {
+        let request = ChatRequest(
+            model: "test/agent-5bit",
+            messages: [
+                ChatMessage(role: .assistant, content: "", images: [ChatImage(jpeg: Data([1]))])
+            ]
+        )
+        let object = try JSONSerialization.jsonObject(with: request.body())
+        let json = try #require(object as? [String: Any])
+        let message = try #require((json["messages"] as? [[String: Any]])?.first)
+        #expect(message["role"] as? String == "assistant")
+        let content = try #require(message["content"] as? [[String: Any]])
+        #expect(content.count == 1)
+        #expect(content[0]["type"] as? String == "image_url")
+        #expect((content[0]["image_url"] as? [String: String])?["url"] == "data:image/jpeg;base64,AQ==")
+    }
+
+    @Test("a response schema is spliced verbatim into response_format and a non-object schema throws")
+    func responseSchemaSpliced() throws {
+        let schema =
+            #"{"type":"object","properties":{"intent":{"type":"string"},"text":{"type":"string"}},"required":["intent","text"]}"#
+        let request = ChatRequest(
+            model: "test/agent-5bit",
+            messages: [ChatMessage(role: .user, content: "a fox")],
+            responseSchemaJSON: schema)
+        let body = try request.body()
+        #expect(String(decoding: body, as: UTF8.self).contains(#""schema":\#(schema)"#))
+        let object = try JSONSerialization.jsonObject(with: body)
+        let json = try #require(object as? [String: Any])
+        let format = try #require(json["response_format"] as? [String: Any])
+        #expect(format["type"] as? String == "json_schema")
+        let jsonSchema = try #require(format["json_schema"] as? [String: Any])
+        #expect(jsonSchema["name"] as? String == "reply")
+        #expect(jsonSchema["strict"] as? Bool == true)
+        let decoded = try #require(jsonSchema["schema"] as? [String: Any])
+        #expect(decoded["required"] as? [String] == ["intent", "text"])
+
+        for text in ["not json", "[1,2]", "\"plain\"", ""] {
+            let bad = ChatRequest(model: "m", messages: [], responseSchemaJSON: text)
+            #expect(throws: ChatRequestError.invalidResponseSchema) { try bad.body() }
+        }
+    }
 }
