@@ -199,6 +199,7 @@ public actor LibraryStore {
             }
         }
         migrator.registerMigration("v11-timing", migrate: Self.createTimingTables)
+        migrator.registerMigration("v12-chat-message", migrate: Self.createChatMessageTable)
         return migrator
     }
 
