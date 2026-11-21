@@ -32,6 +32,7 @@ public struct MainWindow: View {
                 }
                 GalleryView(model: model)
                     .frame(minWidth: 200, idealWidth: 260, maxWidth: model.showsGalleryOnly ? .infinity : nil)
+                    .background(SplitPaneWidthKeeper(galleryOnly: model.showsGalleryOnly, defaultTrailingWidth: 260))
             }
         }
         .frame(minWidth: 1100, minHeight: 640)
