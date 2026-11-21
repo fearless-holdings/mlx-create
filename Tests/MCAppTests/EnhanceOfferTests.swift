@@ -40,8 +40,8 @@ private func familyWithoutPack(_ family: ModelFamily) throws -> ModelFamily {
 
     @Test func anEnhancerNotInTheCatalogOrAlreadyInstalledIsNotOffered() {
         #expect(!EnhancerOffer.isOffered(nil))
-        #expect(!EnhancerOffer.isOffered(EnhancerStatus(isInstalled: true, engineModelID: nil)))
-        #expect(EnhancerOffer.isOffered(EnhancerStatus(isInstalled: false, engineModelID: nil)))
+        #expect(!EnhancerOffer.isOffered(LLMStatus(isInstalled: true, engineModelID: nil)))
+        #expect(EnhancerOffer.isOffered(LLMStatus(isInstalled: false, engineModelID: nil)))
     }
 
     @Test func theEnhancerIsOfferedWhileNotInstalledAndNotOnceInstalled() async throws {

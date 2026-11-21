@@ -26,7 +26,7 @@ struct ModelBrowserView: View {
                     description: Text("The model catalog could not be loaded, and no model folders were found."))
             } else {
                 List {
-                    ForEach(browser.rows.filter { $0.model?.kind != .enhancer }) { row in
+                    ForEach(browser.rows.filter { $0.model?.kind != .enhancer && $0.model?.kind != .agent }) { row in
                         InstallRow(row: row, browser: browser)
                     }
                     if !browser.rows(of: .enhancer).isEmpty {
@@ -38,6 +38,15 @@ struct ModelBrowserView: View {
                             Text(
                                 EnhancerOffer.isOffered(browser.enhancerStatus)
                                     ? "Optional extra: prompt enhancer" : "Prompt enhancer")
+                        }
+                    }
+                    if !browser.rows(of: .agent).isEmpty {
+                        Section {
+                            ForEach(browser.rows(of: .agent)) { row in
+                                InstallRow(row: row, browser: browser)
+                            }
+                        } header: {
+                            Text("Chat agent")
                         }
                     }
                 }

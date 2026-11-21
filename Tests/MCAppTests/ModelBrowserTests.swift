@@ -145,6 +145,18 @@ enum BrowserFixture {
     static let catalogWithEnhancer = Catalog(
         schemaVersion: 1, sequence: 4, issuedAt: acceptedAt, models: [alpha, beta, enhancer])
 
+    /// The Chat-mode vision LLM (D58): another chat model, in its own group after the enhancers.
+    static let agent = CatalogModel(
+        id: "agent-5bit", family: "gemma4", name: "Agent", quantization: "5-bit", repo: "org/agent",
+        revision: String(repeating: "d", count: 40), downloadBytes: 3072, ramGB: 6.1,
+        license: CatalogLicense(
+            id: "license-agent", name: "Agent License", url: "https://example.com/agent", commercialUse: true,
+            version: "1", summary: "Commercial use is allowed."),
+        files: files, kind: .agent)
+
+    static let catalogWithAgent = Catalog(
+        schemaVersion: 1, sequence: 5, issuedAt: acceptedAt, models: [alpha, beta, enhancer, agent])
+
     static func alphaRecord() -> InstalledModelRecord {
         InstalledModelRecord(
             modelID: alpha.id, family: alpha.family, repo: alpha.repo, revision: alpha.revision, catalogSequence: 3,
@@ -566,7 +578,7 @@ func browserRow(_ rows: [ModelBrowserRow], _ id: String) -> ModelBrowserRow? {
     /// it installed, and its engine id appears only when the engine lists it.
     @Test func installingTheEnhancerRecordsItAndTheAppReportsItInstalled() async throws {
         let rig = try await BrowserRig.make(catalog: BrowserFixture.catalogWithEnhancer)
-        #expect(rig.browser.enhancerStatus == EnhancerStatus(isInstalled: false, engineModelID: nil))
+        #expect(rig.browser.enhancerStatus == LLMStatus(isInstalled: false, engineModelID: nil))
 
         rig.browser.beginInstall(BrowserFixture.enhancer.id)
         rig.browser.license.accepted = true
@@ -575,12 +587,12 @@ func browserRow(_ rows: [ModelBrowserRow], _ id: String) -> ModelBrowserRow? {
 
         #expect(rig.transport.requests.map(\.modelID) == [BrowserFixture.enhancer.id])
         #expect(rig.browser.statuses[BrowserFixture.enhancer.id] == .installed)
-        #expect(rig.browser.enhancerStatus == EnhancerStatus(isInstalled: true, engineModelID: nil))
+        #expect(rig.browser.enhancerStatus == LLMStatus(isInstalled: true, engineModelID: nil))
 
         rig.browser.setEngineModelIDs([BrowserFixture.enhancer.repo])
         #expect(
             rig.browser.enhancerStatus
-                == EnhancerStatus(
+                == LLMStatus(
                     isInstalled: true, engineModelID: BrowserFixture.enhancer.repo))
     }
 
@@ -591,7 +603,7 @@ func browserRow(_ rows: [ModelBrowserRow], _ id: String) -> ModelBrowserRow? {
 
         await rig.browser.refresh()
 
-        #expect(rig.browser.enhancerStatus == EnhancerStatus(isInstalled: false, engineModelID: nil))
+        #expect(rig.browser.enhancerStatus == LLMStatus(isInstalled: false, engineModelID: nil))
     }
 
     @Test func licenseTitleReadsNaturally() {

@@ -108,8 +108,8 @@ final class LicensePrompt {
     }
 }
 
-/// Whether the catalog's enhancer is installed, and the engine id its chat calls go to (U3, R11).
-struct EnhancerStatus: Equatable, Sendable {
+/// The install state and engine id of a catalog chat model: the enhancer or the agent (U3, R11, D58).
+struct LLMStatus: Equatable, Sendable {
     /// The install record and its folder both exist.
     let isInstalled: Bool
     /// Nil unless the model is installed and the engine lists it.
@@ -204,12 +204,14 @@ final class ModelBrowserModel {
         let models = catalog?.models ?? []
         let catalogRepos = Set(models.map(\.repo))
         let recommendedID = recommendedModel?.id
-        // Image models, then enhancers in their own group, then folders no catalog entry lists (U3).
-        var catalogRows = (models.filter { $0.kind == .image } + models.filter { $0.kind == .enhancer }).map { model in
-            var row = row(for: model)
-            row.isRecommended = model.id == recommendedID
-            return row
-        }
+        // Image models, then enhancers and agents in their own groups, then folders no catalog entry lists (U3, D58).
+        var catalogRows =
+            (models.filter { $0.kind == .image } + models.filter { $0.kind == .enhancer }
+            + models.filter { $0.kind == .agent }).map { model in
+                var row = row(for: model)
+                row.isRecommended = model.id == recommendedID
+                return row
+            }
         // The recommendation leads the browser (V05); the rest keep their catalog order.
         if let index = catalogRows.firstIndex(where: \.isRecommended) {
             catalogRows.insert(catalogRows.remove(at: index), at: 0)
@@ -260,10 +262,15 @@ final class ModelBrowserModel {
 
     /// The catalog's enhancer, or nil when the catalog lists none. Installed means the record and its folder exist (R11).
     /// `engineModelID` is the catalog repo, the id the engine lists the model under; it is set only when the engine lists it.
-    var enhancerStatus: EnhancerStatus? {
-        guard let model = catalog?.models.first(where: { $0.kind == .enhancer }) else { return nil }
+    var enhancerStatus: LLMStatus? { status(ofKind: .enhancer) }
+
+    /// The catalog's chat agent, or nil when the catalog lists none (D58). Same install rule as ``enhancerStatus``.
+    var agentStatus: LLMStatus? { status(ofKind: .agent) }
+
+    private func status(ofKind kind: CatalogModelKind) -> LLMStatus? {
+        guard let model = catalog?.models.first(where: { $0.kind == kind }) else { return nil }
         let installed = statuses[model.id] == .installed
-        return EnhancerStatus(
+        return LLMStatus(
             isInstalled: installed,
             engineModelID: installed && engineModelIDs.contains(model.repo) ? model.repo : nil)
     }

@@ -443,13 +443,14 @@ enum BuildFixture {
         #expect(
             catalog.models.map(\.id) == [
                 "flux2-klein-4b-mflux-4bit", "krea-2-turbo-mixed-4-8", "qwen-image-2.1-turbo-4bit",
-                "gemma-4-e4b-heretic-4bit",
+                "gemma-4-e4b-heretic-4bit", "gemma-4-e4b-heretic-vision-5bit",
             ])
         let ranks = Dictionary(uniqueKeysWithValues: catalog.models.map { ($0.id, $0.recommendRank) })
         #expect(ranks["qwen-image-2.1-turbo-4bit"] == 1)
         #expect(ranks["krea-2-turbo-mixed-4-8"] == 2)
         #expect(ranks["flux2-klein-4b-mflux-4bit"] == 3)
         #expect(ranks["gemma-4-e4b-heretic-4bit"] == .some(nil))
+        #expect(ranks["gemma-4-e4b-heretic-vision-5bit"] == .some(nil))
     }
 
     /// `lora_shelf` is omitted when empty, so re-encoding the bundled catalog produces the exact bytes it was signed

@@ -54,10 +54,12 @@ public struct Catalog: Sendable, Codable, Equatable {
 }
 
 /// What a catalog model is for (KTD4). Image models feed the picker. An enhancer is the local chat model the Enhance
-/// flow calls. Absent in a catalog means image, so every existing signed catalog reads and verifies unchanged.
+/// flow calls. An agent is the local vision chat model that plans Chat-mode turns (D58). Absent in a catalog means
+/// image, so every existing signed catalog reads and verifies unchanged.
 public enum CatalogModelKind: String, Sendable, Codable, Equatable {
     case image
     case enhancer
+    case agent
 }
 
 /// One measured reference render for a model: the size and step count the engine was timed at and the seconds it took
@@ -144,7 +146,7 @@ public struct CatalogModel: Sendable, Codable, Equatable, Identifiable {
         referenceTiming = try c.decodeIfPresent(ReferenceTiming.self, forKey: .referenceTiming)
     }
 
-    /// Writes the keys in the order the synthesised encoder used. `kind` is written only for an enhancer and
+    /// Writes the keys in the order the synthesised encoder used. `kind` is written for any kind but image and
     /// `recommend_rank` only when set, so re-encoding an unranked image model produces the same bytes, and the
     /// signature over them still matches. `reference_timing` is written only when set, by the same rule.
     public func encode(to encoder: Encoder) throws {

@@ -75,6 +75,24 @@
         "summary": "Apache License 2.0, as declared on the model card (an abliterated community conversion of Gemma 4 E4B). Commercial use is allowed. Keep the license and any notices when you redistribute the model. The model is uncensored, so what it writes is your responsibility."
       }
     }
+    ,{
+      "id": "gemma-4-e4b-heretic-vision-5bit",
+      "kind": "agent",
+      "family": "gemma4",
+      "name": "Gemma 4 E4B heretic with vision (chat agent)",
+      "quantization": "5-bit",
+      "repo": "zecanard/gemma-4-E4B-it-ultra-uncensored-heretic-MLX-5bit-int5-affine",
+      "ref": "c5cd80c83b7c74942d1e2680281fbe71767637dd",
+      "ram_gb": 6.10,
+      "license": {
+        "id": "apache-2.0",
+        "name": "Apache License 2.0",
+        "url": "https://www.apache.org/licenses/LICENSE-2.0",
+        "commercial_use": true,
+        "version": "2.0",
+        "summary": "Apache License 2.0, as declared on the model card (an abliterated community conversion of Gemma 4 E4B that keeps its vision tower). Commercial use is allowed. Keep the license and any notices when you redistribute the model. The model is uncensored, so what it writes is your responsibility."
+      }
+    }
   ],
   "lora_shelf": [
     {

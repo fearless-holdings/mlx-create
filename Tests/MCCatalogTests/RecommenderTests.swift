@@ -52,11 +52,15 @@ import Testing
         #expect(pick(catalog, 40, skipping: [qwen, krea, klein]) == nil)
     }
 
-    @Test func unrankedModelsAndEnhancersAreNeverPicked() throws {
+    @Test func unrankedModelsAndNonImageKindsAreNeverPicked() throws {
         let base = try bundled()
         let image = try #require(base.models.first { $0.id == klein })
         let unranked = catalog(
-            [model("a", ram: 1, rank: nil, from: image), model("e", ram: 1, rank: 1, kind: .enhancer, from: image)],
+            [
+                model("a", ram: 1, rank: nil, from: image),
+                model("e", ram: 1, rank: 1, kind: .enhancer, from: image),
+                model("g", ram: 1, rank: 1, kind: .agent, from: image),
+            ],
             like: base)
         #expect(pick(unranked, 40) == nil)
     }

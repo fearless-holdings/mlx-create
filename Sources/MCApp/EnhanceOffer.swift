@@ -5,7 +5,7 @@ import MCEnhancer
 /// When the prompt enhancer is offered as an optional extra (F2, R16). It is offered while the catalog lists one and it
 /// is not installed. There is no persisted dismissal: the offer stays until the enhancer is installed.
 enum EnhancerOffer {
-    static func isOffered(_ status: EnhancerStatus?) -> Bool {
+    static func isOffered(_ status: LLMStatus?) -> Bool {
         status.map { !$0.isInstalled } ?? false
     }
 }
