@@ -458,8 +458,74 @@
       "ram_gb" : 3.94,
       "repo" : "McG-221\/gemma-4-E4B-it-heretic-mlx-4Bit",
       "revision" : "b0caa71ef36eabebafb01e23904195e751c5f8c4"
+    },
+    {
+      "download_bytes" : 6579596613,
+      "family" : "gemma4",
+      "files" : [
+        {
+          "path" : "chat_template.jinja",
+          "sha256" : "5c2de10bf7461900866fc49fe301ae74a694d5a379f1ed074c0275167b15bdfb",
+          "size" : 18282
+        },
+        {
+          "path" : "config.json",
+          "sha256" : "dfb1374bad76d32c3198a71fbdc833846279e68a4a1893700d5132a4d797a523",
+          "size" : 6657
+        },
+        {
+          "path" : "generation_config.json",
+          "sha256" : "857bd7826fd84d2522f7bd1d07d9b42bba84b715718984e931bc6d46b01c226c",
+          "size" : 217
+        },
+        {
+          "path" : "model-00001-of-00002.safetensors",
+          "sha256" : "12c5a3d178a9bd6cb790cc1a9edf6961a0e5e311cf27599b2758495c1243b8b8",
+          "size" : 5225169219
+        },
+        {
+          "path" : "model-00002-of-00002.safetensors",
+          "sha256" : "a65e9f7c358e72aebc69519924f85f93e502ece3e0f21d78ecfa321595a5c393",
+          "size" : 1321946200
+        },
+        {
+          "path" : "model.safetensors.index.json",
+          "sha256" : "d98605421740703e463c96ba7726d8d35844836f7022613e90f39fb58bfa5b0b",
+          "size" : 282511
+        },
+        {
+          "path" : "processor_config.json",
+          "sha256" : "5fedffc3e75da8c2b4283cba9bb609491f3524b0e6f970952eb84a961bfd3032",
+          "size" : 929
+        },
+        {
+          "path" : "tokenizer.json",
+          "sha256" : "a2619fe11b50dbed06ac443c51d757b354d0b62d64baa514404d4e84e6713519",
+          "size" : 32169780
+        },
+        {
+          "path" : "tokenizer_config.json",
+          "sha256" : "c74b1efbacb353b8b846fabb172e8139f850e2415444487d3edf47fd5c53519b",
+          "size" : 2818
+        }
+      ],
+      "id" : "gemma-4-e4b-heretic-vision-5bit",
+      "kind" : "agent",
+      "license" : {
+        "commercial_use" : true,
+        "id" : "apache-2.0",
+        "name" : "Apache License 2.0",
+        "summary" : "Apache License 2.0, as declared on the model card (an abliterated community conversion of Gemma 4 E4B that keeps its vision tower). Commercial use is allowed. Keep the license and any notices when you redistribute the model. The model is uncensored, so what it writes is your responsibility.",
+        "url" : "https:\/\/www.apache.org\/licenses\/LICENSE-2.0",
+        "version" : "2.0"
+      },
+      "name" : "Gemma 4 E4B heretic with vision (chat agent)",
+      "quantization" : "5-bit",
+      "ram_gb" : 6.1,
+      "repo" : "zecanard\/gemma-4-E4B-it-ultra-uncensored-heretic-MLX-5bit-int5-affine",
+      "revision" : "c5cd80c83b7c74942d1e2680281fbe71767637dd"
     }
   ],
   "schema_version" : 1,
-  "sequence" : 9
+  "sequence" : 10
 }

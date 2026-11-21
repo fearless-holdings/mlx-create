@@ -403,7 +403,10 @@ public final class AppModel {
     }
 
     /// The catalog's enhancer: whether it is installed and the engine id its chat calls use (U3, R11).
-    var enhancer: EnhancerStatus? { browser.enhancerStatus }
+    var enhancer: LLMStatus? { browser.enhancerStatus }
+
+    /// The catalog's chat agent (D58). Same install rule as ``enhancer``.
+    var agent: LLMStatus? { browser.agentStatus }
 
     public var controls: SettingsControls? {
         ModelSelection.controls(for: selectedModel)
