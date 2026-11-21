@@ -20,3 +20,11 @@ struct PromptPack: Decodable, Equatable, Sendable {
         return try? JSONDecoder().decode(PromptPack.self, from: data)
     }
 }
+
+/// The prompt shape a family's bundled pack teaches the enhancer, shared with the chat agent (KTD12).
+public enum PromptStyle {
+    /// The `shape` paragraph of the family's bundled prompt pack, or nil when the family has no pack.
+    public static func shape(familyID: String) -> String? {
+        PromptPack.bundled(familyID: familyID)?.shape
+    }
+}

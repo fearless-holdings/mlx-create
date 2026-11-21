@@ -1,0 +1,12 @@
+{
+  "families": {
+    "qwen-image-2.1-turbo": "Follows long, detailed descriptions closely. Best at readable text in the picture (signs, posters, titles). Good at illustration and realistic scenes. Usually renders nudity without a LoRA. Slowest.",
+    "krea-2-turbo": "Best photographic realism: portraits, skin, natural light, candid photos. Poor at readable text. Usually needs an explicit LoRA to show nudity.",
+    "flux2-klein": "Fastest. Fine for simple everyday pictures. Weaker at fine detail, hands and text. Usually needs an explicit LoRA to show nudity."
+  },
+  "loraRoles": {
+    "realism": "Makes a picture look like a real camera photo. Not for illustrations, paintings, posters or anything stylised",
+    "explicit": "Explicit adult nudity and sex. Only when the user asks for nudity or sex; never for violence, gore or clothed people",
+    "body": "Changes breast size. Only when the user asks for a different breast size"
+  }
+}

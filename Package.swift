@@ -12,6 +12,7 @@ let package = Package(
         .library(name: "MCModels", targets: ["MCModels"]),
         .library(name: "MCGeneration", targets: ["MCGeneration"]),
         .library(name: "MCEnhancer", targets: ["MCEnhancer"]),
+        .library(name: "MCAgent", targets: ["MCAgent"]),
         .library(name: "MCApp", targets: ["MCApp"]),
     ],
     dependencies: [
@@ -24,7 +25,13 @@ let package = Package(
         .target(name: "MCLibrary", dependencies: ["MCCatalog", .product(name: "GRDB", package: "GRDB.swift")]),
         .target(name: "MCGeneration", dependencies: ["MCEngine", "MCCatalog", "MCLibrary"]),
         .target(name: "MCEnhancer", dependencies: ["MCEngine", "MCCatalog", "MCLibrary"], resources: [.copy("Resources/Packs")]),
-        .target(name: "MCApp", dependencies: ["MCGeneration", "MCEnhancer", "MCEngine", "MCCatalog", "MCLibrary", "MCModels"]),
+        .target(
+            name: "MCAgent",
+            dependencies: ["MCEngine", "MCCatalog", "MCLibrary", "MCGeneration", "MCEnhancer"],
+            resources: [.copy("Resources/Guides.json")]),
+        .target(
+            name: "MCApp",
+            dependencies: ["MCGeneration", "MCEnhancer", "MCAgent", "MCEngine", "MCCatalog", "MCLibrary", "MCModels"]),
         .testTarget(name: "MCEngineTests", dependencies: ["MCEngine"], resources: [.copy("Fixtures")]),
         .testTarget(name: "MCCatalogTests", dependencies: ["MCCatalog"], resources: [.copy("Fixtures")]),
         .testTarget(name: "MCModelsTests", dependencies: ["MCModels"], resources: [.copy("Fixtures")]),
@@ -33,6 +40,8 @@ let package = Package(
         .testTarget(name: "MCLibraryTests", dependencies: ["MCLibrary", "MCCatalog", .product(name: "GRDB", package: "GRDB.swift")]),
         .testTarget(name: "MCGenerationTests", dependencies: ["MCGeneration"]),
         .testTarget(name: "MCEnhancerTests", dependencies: ["MCEnhancer", "MCEngine", "MCCatalog"]),
+        .testTarget(
+            name: "MCAgentTests", dependencies: ["MCAgent", "MCEngine", "MCCatalog", "MCLibrary", "MCGeneration", "MCEnhancer"]),
         .testTarget(name: "MCAppTests", dependencies: ["MCApp", "MCModels", "MCCatalog", "MCLibrary"]),
         .testTarget(
             name: "MCEngineContractTests", dependencies: ["MCEngine", "MCCatalog", "MCGeneration", "MCLibrary", "MCEnhancer"]),
