@@ -76,6 +76,7 @@ extension ChatModel {
             if case .userText(let text) = $0.body { return text }
             return nil
         }
+        followedFromCurrentTurn = false
         beginGenerating(result.jobID)
         await updateFollowing()
     }
@@ -122,6 +123,4 @@ extension ChatModel {
         }
     }
 
-    /// Called when the followed job finishes; layer 7 fills this with the after-image check (KTD17).
-    func turnDidFinish(jobID: UUID) {}
 }

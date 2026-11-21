@@ -177,9 +177,15 @@ final class CivitaiBrowseModel {
     }
 
     func setIncludeNSFW(_ on: Bool) async {
+        storeIncludeNSFW(on)
+        await search()
+    }
+
+    /// Stores the flag without searching (D61): the Chat-mode adult notice turns the opt-in on where no browse results
+    /// are shown, so no Civitai request may fire. The next real search picks the flag up.
+    func storeIncludeNSFW(_ on: Bool) {
         includeNSFW = on
         defaults.set(on, forKey: nsfwDefaultsKey)
-        await search()
     }
 
     /// Clears the typed text, the family override and Show incompatible, then searches again.

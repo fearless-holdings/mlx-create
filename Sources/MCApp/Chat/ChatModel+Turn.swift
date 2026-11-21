@@ -14,6 +14,7 @@ extension ChatModel {
         turnUserText = text
         defer {
             turnCollectionID = nil
+            turnReferentImageID = nil
             if case .generating = phase {} else { endPhase() }
             publishStream(nil)
         }
@@ -26,7 +27,12 @@ extension ChatModel {
         guard let agentModelID = app.agent?.engineModelID,
             app.models.contains(where: { ModelSelection.isSelectable($0) && $0.family != nil })
         else {
-            await append(.error(notReadyMessage(for: text)), collectionID: collectionID)
+            if let card = unfinishedSetupCard {
+                // The request waits on the card (R26): stored as its pending request, nothing else is recorded.
+                await updateDownload(card) { $0.pendingRequest = text }
+            } else {
+                await append(.error(notReadyMessage(for: text)), collectionID: collectionID)
+            }
             return
         }
         beginThinking()
@@ -68,18 +74,20 @@ extension ChatModel {
                 await append(.question(ChatQuestion(text: asked, suggestions: suggestions)), collectionID: collectionID)
                 return
             case .generate(let generation):
-                await queue(generation, collectionID: collectionID)
+                if await queue(generation, collectionID: collectionID) {
+                    await postAdultNotice(request: text, collectionID: collectionID)
+                }
                 return
             case .proposeDownload(let proposal, let loras, let models, let without):
-                // Layer 7 turns this into a download card; until then a proposal with a fallback runs without those
-                // LoRAs, and one without (an offered model) still records the offer for the card to render.
-                if let without {
-                    await queue(without, collectionID: collectionID)
+                // The offer becomes a card (D60); the turn's request waits as its pending request (R28).
+                let card = Self.downloadRecord(proposal: proposal, loras: loras, models: models, request: text)
+                if card.items.isEmpty {
+                    // Defensive: an option that was not a shelf entry carries no card, so the request still runs.
+                    if let without, await queue(without, collectionID: collectionID) {
+                        await postAdultNotice(request: text, collectionID: collectionID)
+                    }
                 } else {
-                    await append(
-                        .download(
-                            Self.downloadRecord(proposal: proposal, loras: loras, models: models, request: text)),
-                        collectionID: collectionID)
+                    await append(.download(card), collectionID: collectionID)
                 }
                 return
             case .invalid(let reason):
@@ -161,7 +169,7 @@ extension ChatModel {
     }
 
     /// Queues the resolved generation, records the `.result` message and hands the job to the follower. Returns the
-    /// dropped-adult flag so the layer-7 notice has somewhere to read it from.
+    /// dropped-adult flag so the caller can post the D61 notice.
     @discardableResult
     private func queue(_ generation: ResolvedGeneration, collectionID: UUID) async -> Bool {
         do {
@@ -178,6 +186,7 @@ extension ChatModel {
                 return generation.droppedAdultLoRAs
             }
             beginGenerating(job.id)
+            followedFromCurrentTurn = true
             await refreshJobCache()
             await updateFollowing()
             await app.reload()
@@ -190,7 +199,7 @@ extension ChatModel {
         return generation.droppedAdultLoRAs
     }
 
-    /// Chat needs the agent model and one installed image model; layer 7 replaces this card with the download offer.
+    /// Chat needs the agent model and one installed image model. Only said when no setup card is offering them.
     private func notReadyMessage(for text: String) -> ChatFailure {
         ChatFailure(text: ChatCopy.notReady, retryRequest: text)
     }
