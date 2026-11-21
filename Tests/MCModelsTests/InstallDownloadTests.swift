@@ -137,7 +137,7 @@ final class Scenario {
     static func payload(size: Int, seed: UInt8) -> Data {
         var data = Data(count: size)
         var x = UInt32(seed) &+ 1
-        data.withUnsafeMutableBytes { raw in
+        data.withUnsafeMutableBytes { (raw: UnsafeMutableRawBufferPointer) in
             for i in 0..<size {
                 x = x &* 1_664_525 &+ 1_013_904_223
                 raw[i] = UInt8(truncatingIfNeeded: x >> 24)
