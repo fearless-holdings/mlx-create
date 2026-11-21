@@ -197,4 +197,11 @@ enum LoRAStackRules {
         }
         return .doesNotFit(selectedModelName: selected.displayName)
     }
+
+    /// Whether a LoRA of `loraVariant` fits a model of `modelVariant` (KTD6): a size named on both sides that differs
+    /// does not fit, and a missing variant never gates. `fit` gates on family; callers that know a variant gate on
+    /// this too (Civitai attach, the agent's model keys).
+    static func variantFits(loraVariant: String?, modelVariant: String?) -> Bool {
+        loraVariant == nil || modelVariant == nil || loraVariant == modelVariant
+    }
 }

@@ -202,4 +202,40 @@ import Testing
                 .userText("persisted")
             ])
     }
+
+    @Test func aJobIsFoundByIDOrNilWhenGone() async throws {
+        let store = try Self.makeStore()
+        let home = try await store.defaultCollection()
+        let job = try await store.enqueueJob(
+            collectionID: home.id, request: LibraryStoreTests.request(), batchCount: 2, seedPolicy: "random")
+
+        let found = try await store.job(id: job.id)
+        #expect(found?.id == job.id)
+        #expect(found?.request == job.request)
+        #expect(try await store.job(id: UUID()) == nil)
+    }
+
+    @Test func aJobsImagesComeBackOldestFirst() async throws {
+        let store = try Self.makeStore()
+        let home = try await store.defaultCollection()
+        let job = try await store.enqueueJob(
+            collectionID: home.id, request: LibraryStoreTests.request(), batchCount: 2, seedPolicy: "random")
+        let other = try await store.enqueueJob(
+            collectionID: home.id, request: LibraryStoreTests.request(), batchCount: 1, seedPolicy: "random")
+        var saved: [UUID] = []
+        for _ in 0..<2 {
+            let image = try await store.saveImage(
+                NewImage(
+                    collectionID: home.id, jobID: job.id, pngData: try TestPNG.make(width: 64, height: 48),
+                    settings: LibraryStoreTests.settings()))
+            saved.append(image.id)
+        }
+        _ = try await store.saveImage(
+            NewImage(
+                collectionID: home.id, jobID: other.id, pngData: try TestPNG.make(width: 64, height: 48),
+                settings: LibraryStoreTests.settings()))
+
+        #expect(try await store.images(jobID: job.id).map(\.id) == saved)
+        #expect(try await store.images(jobID: UUID()).isEmpty)
+    }
 }

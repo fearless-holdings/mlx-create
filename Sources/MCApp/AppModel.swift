@@ -32,6 +32,8 @@ public final class AppModel {
     public private(set) var installs: InstallCoordinator?
     /// The model browser (U6). Assigned at the end of init: the install rescan captures `self`, so it must come first.
     private(set) var browser: ModelBrowserModel!
+    /// Chat mode (D55). Assigned at the end of init, like `browser`: the model holds `self` unowned.
+    private(set) var chat: ChatModel!
     /// Whether the browser sheet is presented.
     var isBrowserPresented = false
     /// Whether the inline enhancer install sheet is presented (U8, R16).
@@ -184,7 +186,7 @@ public final class AppModel {
     private let catalogStore: CatalogStore?
     let queue: JobQueue
     let executor: JobExecutor
-    private let composer: GenerationComposer
+    let composer: GenerationComposer
     private let libraryPaths: LibraryPaths
     var galleryLoaded = false
     /// Bumped whenever what the gallery shows changes: a page, a prepended image, a move or a collection switch. It is
@@ -284,6 +286,7 @@ public final class AppModel {
         let storedDismissals = defaults.stringArray(forKey: Self.dismissedQueueJobsDefaultsKey) ?? []
         dismissedJobIDs = Set(storedDismissals.compactMap { UUID(uuidString: $0) })
         targetSource.model = self
+        chat = ChatModel(app: self)
     }
 
     /// The install coordinator for a verified catalog and a transport. Nil when either is missing, which leaves installs off.
@@ -401,6 +404,7 @@ public final class AppModel {
         guard !started else { return }
         started = true
         await ensureCurrentCollection()
+        await chat.reloadMessages()
         // The user's pause outlives the app (KTD14): a flag left by Pause pauses the queue before anything drains.
         if defaults.bool(forKey: Self.queuePausedDefaultsKey) { await queue.pause() }
         do {
@@ -498,6 +502,8 @@ public final class AppModel {
             scheduleAlwaysOnProvisioning()
             await refreshEstimates()
             await executor.kickIfCalibrationDue()
+            // At 24 GiB and up the agent model stays resident so a turn's planning never pays a load (KTD7).
+            await executor.setKeptResidentModels(Set([agent?.engineModelID].compactMap { $0 }))
         } catch is CancellationError {
             return
         } catch {
