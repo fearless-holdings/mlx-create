@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Status** | Draft for review |
-| **Date** | 2026-10-16 (strategy sweep 2026-10-21: D40, D41) |
+| **Date** | 2026-10-16 (strategy sweep 2026-10-21: D40, D41; Chat mode 2026-11-21: D54–D61) |
 | **Scope** | Whole product: v1 delivery in detail, later phases at architecture level |
 | **Backend reference** | Upstream [ddalcu/mlx-serve](https://github.com/ddalcu/mlx-serve) (MIT). `src/…`, `app/…`, `docs/…` citations refer to commit `1c34059` |
 
@@ -19,7 +19,7 @@ This document records the agreed product decisions, the system architecture, the
 
 ### Goals
 
-- **G1:** Native macOS 26.2+ app with a three-panel generation workspace (prompt and settings, canvas with queue strip, gallery of finished images), Collections, and a per-collection gallery.
+- **G1:** Native macOS 26.2+ app whose main window has three view modes: Chat (the default, D54), Canvas (a three-panel generation workspace with prompt and settings, canvas with queue strip, and a gallery of finished images) and Gallery; Collections, with a per-collection gallery.
 - **G2:** Text-to-image generation in v1. The app picks per-family defaults and shows only the controls a newcomer can use and the engine honours for the selected family (size, seed, negative prompt, LoRA stack; steps and CFG where the family supports them). There are no expert knobs (STRATEGY.md Boundaries).
 - **G3:** A prompt **Enhance** button backed by a local, uncensored LLM that knows how each model family wants to be prompted and what the active LoRAs need.
 - **G4:** Preselected models with recommendations tuned to the user's Mac, calibrated on the device itself.
@@ -94,6 +94,14 @@ Settled during the design interview. Later documents cite these IDs.
 | D51 | **A finished Civitai download goes on the generation stack** when it fits the selected model's family and the stack has room (the per-request cap, D44). Otherwise it goes to the library only, as before. The row's action reads "Download and Add". This reverses the D34 amendment's "a finished download goes to the library only" for Browse downloads, as D43 did for shelf items. Approved 2026-11-05 | The user downloads a LoRA to use it now; making them find it again in another tab adds clicks and a rule to learn (design audit S08) |
 | D52 | **Gallery mode ships as a view mode of the main window.** View ▸ Canvas (⌘1) shows the three panels (D33); View ▸ Gallery (⌘2) shows the gallery alone at full width, with the same search, filters and actions. Return or "Open in Canvas" returns to Canvas with that image selected. The mode is stored in `UserDefaults` (`mainWindowMode`). No separate window. Resolves the open question in D33 and §10. Approved 2026-11-05 | Browsing a growing library in a 260 pt strip is slow; a mode keeps the three-panel layout as the default while giving the grid the window when the user asks (design audit S09) |
 | D53 | **mlx-create is open source under GPL-3.0-only, with copyright held by Fearless Holdings. Revenue comes from selling signed, notarized builds with updates as a one-time purchase (D40), unlocked through the `Entitlements` seam.** Anyone may build from source. For now, outside contributions aren't accepted (`CONTRIBUTING.md`); if that changes, a contributor licence agreement comes first. | The project is committed to being open source. GPL keeps every fork open, so nobody can sell a closed clone. Sole copyright keeps dual licensing and closed premium parts possible later. GPL rules out the Mac App Store, which D3's uncensored positioning makes unlikely anyway. MIT-licensed mlx-serve code is GPL-compatible, and its attribution stays in `NOTICE` |
+| D54 | **Chat mode is the default view mode of the main window, and it hides every generation control.** View ▸ Chat (⌘1) shows the current collection's gallery at full window width with a floating chat container over it: centred, about 700 pt wide, anchored to the bottom, always visible. The container holds the text box and the last two messages; a chevron unfurls the history to two thirds of the window height. Clicking a gallery image shows it large in place of the grid, with the container still on top; closing it returns to the grid. Chat mode shows no prompt editor, settings, LoRA stack, queue strip or model chip. While an image renders, the agent's pending message shows a status line and a progress bar, and a placeholder tile with progress sits where the image will land; the finished image becomes the first, highlighted tile and does not open by itself. Canvas moves to ⌘2 and Gallery to ⌘3 (amends D52's shortcuts); `mainWindowMode` gains `chat`, which is also the value when none is stored. Amends G1, D33 (a placeholder tile appears in the gallery, in Chat mode only) and §10. Approved 2026-11-21 | STRATEGY.md's primary user has never run a model, and a settings panel is the first thing the three-panel layout shows them. Describing the picture is the one thing every user can do. The manual layouts stay one shortcut away for anyone who wants them |
+| D55 | **One conversation per collection, kept on device.** Each collection has exactly one conversation, stored in `library.sqlite` (a new message table keyed by `collection_id`, cascading on collection delete) and restored on relaunch; switching collection switches conversation. A message is one of: user text, agent text, a question with suggested answers, a result (a reference to the job it queued), a download card (D60), an adult-content notice (D61) or an error. The history is text only: a result reads as a sentence and carries no thumbnail, because the images are in the gallery behind it. Clear Conversation deletes the messages and leaves every image. A message references jobs, not image files, so video results need no schema change (D7). Conversations never leave the device (§12). Approved 2026-11-21 | A collection is already the unit a user thinks in (D10, D35), so a second list of chats would be one more thing to manage. Referencing jobs keeps the table mode-agnostic |
+| D56 | **The agent is an LLM in the engine that drives the existing generation pipeline; it has no knob the manual UI lacks.** On each user message the app sends the agent LLM (D58) the recent conversation, the image the user means (D57), the installed image models with their family capability records, the LoRAs that fit each (installed and curated shelf, with roles, trigger words and tested scales) and the family prompt packs (D11). The reply is one plan: say something, ask one question, propose a download (D60), or generate with a model, prompt, negative prompt, size, steps, seed choice, LoRAs with scales and an image count. The app validates the plan through `GenerationComposer` and the family record, snaps or drops what a family cannot honour, and queues an ordinary job in the `JobQueue`, so images get the same metadata, library rows and timing as manual ones. Rules: (a) nothing technical appears in the chat, no model or LoRA name, prompt, seed or size, except on a download card where D20 requires the license; the settings stay readable in Canvas and Gallery modes. (b) The agent picks the best installed model for each request and accepts the reload that follows. (c) It makes one image by default and up to four when the user asks for options or the request is open. (d) It asks at most one question, with suggested answers to click, and only when a request gives it almost nothing; otherwise it generates. (e) It replies in the user's language and writes prompts in English. (f) While it works, Send becomes Stop (⌘.), which cancels the LLM reply or the running job; the user can type but not send. D14 and the no-expert-knobs boundary hold: the agent chooses among the values the capability records allow. The reply format (JSON schema, tool call or a line format) is set in the LLD from a check on the pinned engine; D36's plain-text rule binds the enhancer only. Approved 2026-11-21 | Routing every plan through the composer means the agent cannot send a request the app has not already proven against the engine, and a weak plan degrades to a valid job instead of an engine error. Hiding the settings is the point of the mode (STRATEGY.md, Expert in the box) |
+| D57 | **A refinement is a new text-to-image generation.** "Zoom in on the face" or "remove the blue tint" makes a new image: the agent starts from the stored settings of the image the user means, rewrites the prompt and settings, and keeps the seed when the change is small. No pixel of the earlier image is reused, so the result can differ in more than what was asked, and the agent never says it edited an image. The image the user means is, in order: the image shown large, else a single image selected in the gallery, else the newest image the conversation made. The agent LLM is shown that image as well as its settings. The executor stays `t2i` only (D7). The engine's instruction edit (`mode:"edit"`, FLUX.2 klein and Qwen-Image 2.1; roadmap v1.x) becomes the refinement path when it ships, with its own decision. The user cannot attach a picture in this version. Approved 2026-11-21 | Chosen by the user over adding edit mode now: it ships without new engine surface. The cost is stated in the decision so the copy never promises an edit |
+| D58 | **The agent LLM is a vision-capable, abliterated Gemma 4 run by the engine, listed in the signed catalog as kind `agent`.** It must be MLX `.safetensors` with its vision tower in the pack (the installed enhancer pack is text-only and cannot serve), show its license at download (D20), and pass, before it ships, the D36 refusal bar on written prompts and the same bar on describing explicit images. Provisional pick for every tier: Gemma 4 E4B heretic with vision, uniform 5-bit (`zecanard/gemma-4-E4B-it-ultra-uncensored-heretic-MLX-5bit-int5-affine`, 6.58 GB, 6.10 GB engine preflight), which passed the entry check on the development Mac (48 GB M5 Pro) on 2026-11-21 (`docs/lld/agent.md` §1) and also fits a 16 GB Mac. The pack must be uniformly quantized: the pinned engine cannot run a Gemma 4 pack whose layers differ from its global group size. The per-tier matrix is the output of a parked spike, `docs/spikes/2026-11-21-agent-llm-matrix-spike.md`. The enhancer (D36) is unchanged and stays a separate catalog entry; whether one model can serve both roles is a spike question. Approved 2026-11-21 | The agent has to see results to check them (D59) and to know which image a request is about (D57). Staying in the Gemma 4 family reuses the chat path, the gate method and the abliteration source the enhancer already proved |
+| D59 | **The agent shows the image first and checks it afterwards.** A finished image appears at once. The agent LLM then looks at it against the request; if it clearly misses, the agent says what is off in one sentence and offers one button that runs the fix as an ordinary refinement (D57). It never retries silently and never holds an image back. Below 24 GiB the check swaps the image model out and the agent LLM in, as the Enhance lease does (§8.8), and the added seconds are accepted on every tier. Approved 2026-11-21 | A silent retry doubles the wait on a miss (10 to 30 s per image) and hides what the app is doing. Showing first keeps time to first image unchanged |
+| D60 | **The agent proposes downloads on a card and never downloads on its own.** It may propose only signed-catalog image models that fit this Mac and curated shelf LoRAs (D43), never a Civitai search. The card shows name, size and license with one button; accepting records the license as any install does (D20) and the pending request runs when the download ends. On a first launch with nothing installed, the conversation opens with a greeting and one card for the recommended image model (D42) plus the agent LLM, accepted together; the user can type the first request while they download. With image models installed but no agent LLM, the card offers the agent LLM alone. The enhancer is not offered in Chat mode. A shelf LoRA the agent installs goes to the library and is not put on the manual stack. Approved 2026-11-21 | D20 stands unchanged, and the first screen still has a single action (design audit S01). Curated items are the only ones the app can vouch for |
+| D61 | **Adult content in Chat mode follows the existing opt-in, with a notice instead of silence.** The agent adds no filter and no refusal path (D3, G6). Curated LoRAs flagged `nsfw` stay behind the existing opt-in (`civitaiIncludeNSFW`, D15, D43). When the agent's plan picks one while the opt-in is off, the image is made without it, and a notice under the result says adult content is switched off, offers the switch, and offers Retry, which re-runs the request with those LoRAs allowed. The trigger is the agent's own LoRA choice, never a classifier over the prompt or the image. The notice appears at most once per conversation while the switch is off. This is the one content-related UI outside the model browser and the LoRA library; `AGENTS.md` non-negotiable 1 is amended to name it. Approved 2026-11-21 | A user who asks for explicit work and gets a weak result has no way to learn that a switch in another sheet would fix it. Keying on the LoRA choice keeps the app free of content classification |
 
 **Amendment (2026-10-19, D34):** Civitai LoRA browsing and download move from "separate work" into scope. The browser is a tab in the LoRA library sheet, not a Models-window tab. A finished download goes to the library only and is not attached to the generation stack (superseded by D51 for the stack rule). Design and open items: `docs/lld/loras.md`, section "Civitai browse and download".
 
@@ -154,6 +162,7 @@ flowchart TB
     gallery["Gallery panel"]
     models["Models window<br/>(Installed / Browse)"]
     onboarding["Onboarding (D48: calibration runs on the executor)"]
+    chat["Chat container"]
   end
 
   subgraph Domain["Domain services (Swift, @Observable, actors)"]
@@ -170,6 +179,7 @@ flowchart TB
     downloads["ModelDownloader"]
     ent["Entitlements"]
     telemetry["Analytics (opt-in)"]
+    agent["Agent (MCAgent)"]
   end
 
   subgraph Infra["Infrastructure"]
@@ -184,6 +194,10 @@ flowchart TB
 
   canvas & prompt --> composer --> queue
   prompt --> enhancer
+  chat --> agent
+  agent --> composer
+  agent --> client
+  agent --> families
   gallery --> library
   models --> modelmgr & sources
   onboarding --> recommender
@@ -225,6 +239,7 @@ Swift package modules:
 - `MCModels`: manager, sources, downloads
 - `MCCatalogTool`: `mc-catalog` executable (keygen, build, sign, verify); not linked into the app
 - `MCEnhancer`
+- `MCAgent`: agent context, plan parsing and validation (depends on `MCEngine`, `MCCatalog`, `MCLibrary`, `MCGeneration`, `MCEnhancer`)
 - `MCApp`: UI
 
 Each module is testable without the UI.
@@ -239,6 +254,7 @@ Each module is testable without the UI.
 | Image request fields | `prompt`, `negative_prompt`, `size`, `seed`, `steps` (≤100), `guidance_scale` (family-gated), `lora_paths[]`/`lora_scales[]`, `transparent` (Qwen), `mode`/`image`/`strength`/`ref_images` (phase 2) | `src/gen.zig:593-636, 2356-2420`; `ImageGenService.swift:196-243` |
 | Video generation (phase 3) | `POST /v1/video/generations`, rgb8 frames + PCM, `preview` JPEGs on progress | `docs/api.md:66` |
 | LLM for enhancer | `/v1/chat/completions`, streamed plain-text chat with no `response_format`, so speculative decoding stays on (D36) | `README.md:121` |
+| LLM for the agent | `/v1/chat/completions` with `image_url` parts and `response_format` JSON schema, streamed (D56, D58) | `docs/api.md` at the pin; verified `docs/lld/agent.md` §1 |
 | Model lifecycle | `POST /v1/load-model`, `/v1/unload-model`, `/v1/models/rescan`, `--model-dir` (repeatable), `--max-resident-mem auto`, `--max-resident-models`, LRU eviction, memory preflight | `docs/api.md:68-69`, `docs/cli.md:93-98` |
 | Health | `GET /health` → `status:"ok"` | `ServerManager.swift:552-564` |
 | Cancellation | Client disconnect cancels the denoise loop | `src/gen.zig:2718`, `src/flux.zig:2277` |
@@ -254,6 +270,7 @@ We carry no engine patches. Everything the app needs from the engine goes to dda
 | F3 | *(Optional)* `GET /v1/models/{id}/capabilities`: supported fields, size grid, step range, guidance support | v1.x | The catalog carries capabilities (§8.4) |
 | F4 | Mask-based inpaint / outpaint for supported image families | Phase 4 | Feature waits |
 | F5 | `mlx-serve convert`: single-file community fine-tune → MLX layout + 4/8-bit quantization | Phase 4 | Feature waits |
+| F6 | Read per-layer quantization for Gemma 4's vision projection and per-layer embedding table, so mixed-quantization packs run | v1.x | Catalog lists only uniformly quantized packs (`docs/lld/agent.md` §1.2) |
 
 (F2, a state-root override, was dropped: every engine path derives from `$HOME/.mlx-serve`, so §7.4 overrides `HOME` instead.)
 
@@ -367,6 +384,7 @@ Families and their mappings are meant to come from the signed catalog (§8.5), s
 
 - **Models:** id, family (matches §8.4), source repo (HF), pinned 40-hex commit revision, per-file path, size and SHA-256 (D27), quantization, download bytes, approximate RAM, license (id, name, URL, commercial-use flag, version and a plain-language summary), per-tier default settings, and for image models an optional `reference_timing`, one per model measured on one Mac (D48).
 - **Enhancer models** per RAM tier.
+- **Agent model** (kind `agent`, D58).
 - **Families** (§8.4) and prompt pack versions.
 - **Signature and rollback:** Ed25519 via CryptoKit over the exact bytes of `catalog.json`, detached in `catalog.json.sig`, which names a key id from the pinned key list. Each catalog carries `schema_version` and a monotonic `sequence`. The loader takes the highest valid sequence among bundled and cached copies, and rejects a remote copy whose sequence is lower than the cache's (`docs/lld/models.md`).
 
@@ -496,12 +514,22 @@ The initial packs follow the structure of mlx-serve's `PromptRewriter.swift` (MI
   - **Never sent to our servers or analytics:** prompts, images, file names, Civitai item IDs or names, API keys. Civitai itself receives the lookups and downloads the user makes (§12).
   - Crash diagnostics via MetricKit, uploaded only when the user opts in.
 
+### 8.11 Agent (Chat mode)
+
+The agent is a vision-capable LLM in the engine (D58) that plans each Chat-mode turn (D54–D56). One turn: the app builds the context, sends it to the LLM, reads a plan, validates it against the family records and enqueues an ordinary job through `GenerationComposer`, then — for a single-image result — looks at the image once more and reports only a clear miss (D59). Design: `docs/lld/agent.md`.
+
+- **Plan actions:** say something, ask one question with suggested answers, or generate. A plan that names a curated model or LoRA that is not installed becomes a download proposal (D60).
+- **Rules:** D56 (a)–(f) hold unchanged — nothing technical in the chat; the best installed model per request; one image by default, up to four; at most one question; the user's language for replies, English for prompts; Stop while the agent works.
+- **Residency:** the chat calls run inside the executor's enhancer lease. Below 24 GiB the LLM swaps with the image model on every turn and check. At 24 GiB and above it stays resident; the engine refuses a media load rather than evicting it (HTTP 503), so on a refusal the app unloads the LLM and retries the load once.
+- An unreadable plan is retried once with the error stated, then reported to the user. Nothing is generated from a plan the app could not read.
+
 ## 9. Data model
 
 ```mermaid
 erDiagram
   COLLECTION ||--o{ IMAGE : "home of"
   COLLECTION ||--o{ PROMPT_HISTORY : has
+  COLLECTION ||--o{ CHAT_MESSAGE : has
   COLLECTION ||--o{ JOB : "queued in"
   JOB ||--o{ IMAGE : produces
   INSTALLED_MODEL ||--o{ IMAGE : "checkpoint used"
@@ -522,6 +550,15 @@ erDiagram
     uuid collection_id
     string prompt
     string negative_prompt "empty when none"
+  }
+  CHAT_MESSAGE {
+    int64 id "autoincrement; order (D55)"
+    uuid collection_id
+    string role "user | agent"
+    string kind
+    json body
+    uuid job_id "nullable"
+    datetime created_at
   }
   JOB {
     uuid id
@@ -604,6 +641,8 @@ erDiagram
 
 `JOB.mode` and `IMAGE.media_type` already cover the later phases (D7). The v1 executor only accepts `t2i`.
 
+`CHAT_MESSAGE` rows reference jobs, not files (D7): a result message's `job_id` points at the job it queued, so a video result needs no schema change.
+
 `lora` rows are not `installed_model` rows: a LoRA has no repo, revision or catalog sequence (D34). `sha256` is unique, so re-importing the same file is a duplicate, not a second row.
 
 ### On-disk layout
@@ -630,6 +669,8 @@ Nothing is written to `~/.mlx-serve`, and other tools' model folders are not sca
 
 ## 10. User experience
 
+Canvas mode (D33):
+
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────────────┐
 │ [Collection: Portraits ▾]                                         [Qwen-Image 4bit ●] │
@@ -651,14 +692,21 @@ Nothing is written to `~/.mlx-serve`, and other tools' model folders are not sca
 └──────────────────────────┴───────────────────────────────────┴────────────────────────┘
 ```
 
-- **Main window (three panels, D33):**
+- **Chat mode (D54):** the default view mode.
+  - The collection's gallery fills the window at full width.
+  - A floating chat container sits centred over it, about 700 pt wide, anchored to the bottom and always visible. It holds the text box and the last two messages.
+  - A chevron unfurls the history to two thirds of the window height and folds it again; the gallery stays scrollable to its last row behind the folded container.
+  - Clicking a gallery image shows it large in place of the grid, with the container still on top; Close or Esc returns to the grid.
+  - While an image renders, the pending agent message shows a status line and a progress bar, and a placeholder tile with progress sits first in the gallery. The finished image replaces it as the first, highlighted tile and does not open by itself.
+  - No prompt editor, settings, LoRA stack, queue strip or model chip.
+- **Canvas mode (three panels, D33):**
   - Generation panel (left): a multi-line prompt editor that takes the height above the settings, with the **Enhance** button beside it (§8.8). The settings are inline, with no popover, and follow family capabilities (§8.3): seed and policy, size, steps, CFG scale and negative prompt, each shown only where the family allows it. The **LoRA stack** is an inline section of compact one-line rows that expand for weight and trigger-word chips, with a LoRA library sheet beside the model chip to manage and pick LoRAs (§8.3, D34). The batch stepper (×N), Generate (⌘↩) and the error line are pinned at the bottom. When no model can run, the settings area says "Choose an available model to see its settings."
   - Canvas (middle, top): the selected result or the live step preview, with zoom and pan; drop a PNG = restore. Shows the existing empty states (no models, only unavailable models, empty hint).
   - Queue strip (middle, under the canvas): the queue header (Running with the waiting count, Pausing, Paused; when idle, N waiting while any cell has not finished, N finished once only failed or cancelled cells remain, and Queue empty with no cells; with Pause, Resume and Clear) and one cell per job showing its status in words, its prompt and its progress. Jobs only; a failed or cancelled cell can be removed without changing its job row. Hidden when the canvas shows no models, only unavailable models or the empty hint, unless calibration is running or the queue holds any job.
   - Gallery panel (right): all of the collection's finished images, newest first, as a scrolling grid that loads in pages. Clicking a thumbnail shows it in the canvas. Queued jobs never appear here.
   - Model chip with a fit badge (comfortable/tight) and a seconds-per-image estimate.
   - The dividers between the panels are draggable, and each panel keeps a minimum width.
-- **Gallery mode:** decided in D52. A view mode of the main window (View ▸ Gallery, ⌘2) shows the gallery alone at full width; View ▸ Canvas (⌘1) returns to the three panels (D33).
+- **Gallery mode:** decided in D52. A view mode of the main window (View ▸ Gallery, ⌘3) shows the gallery alone at full width; View ▸ Canvas (⌘2) returns to the three panels (D33, shortcuts amended by D54).
 - **Models window:** an *Installed* tab and a *Browse* tab (Curated; CivArchive when built), plus the download list. Civitai LoRA browsing is not here. It is the Civitai tab in the LoRA library sheet beside the model chip (D34).
 - **Onboarding:**
   1. Hardware scan.
@@ -667,7 +715,9 @@ Nothing is written to `~/.mlx-serve`, and other tools' model folders are not sca
   4. Calibration is not part of onboarding; the executor runs it on an empty engine (D48).
   5. Analytics opt-in.
   6. First collection.
-- **Keyboard first:** ⌘↩ generate, ⌘E enhance, ⌘. cancel, ⌘1/⌘2 Canvas/Gallery (D52), ⌘R reuse settings of the selected image.
+
+  In Chat mode the first launch is the greeting plus one card (D60): the conversation opens with the agent's greeting and a download card for the recommended image model plus the agent LLM.
+- **Keyboard first:** ⌘↩ generate, ⌘E enhance, ⌘. cancel, ⌘1/⌘2/⌘3 Chat/Canvas/Gallery (D54), Return sends in Chat, ⌘R reuse settings of the selected image.
 
 ## 11. Memory and performance strategy
 
@@ -678,6 +728,7 @@ Nothing is written to `~/.mlx-serve`, and other tools' model folders are not sca
 | 48 GB+ | `--max-resident-models 3` | Image + enhancer + video model (phase 3) |
 
 - `--max-resident-mem auto` caps everything to the Metal working set. The engine's preflight unloads idle models before a load that wouldn't fit (`docs/cli.md:98`).
+- The agent LLM (6.10 GB preflight, D58) follows the enhancer's residency rule: below 24 GiB it swaps with the image model on every turn and check (D59 accepts the seconds); at 24 GiB and above it stays resident and is unloaded only when a media load is refused (§8.11).
 - The app never runs inference in its own process, so its own footprint stays small. Thumbnails and the gallery use a bounded `NSCache` with downsampled ImageIO decoding.
 - Pre-warm on model selection. Keep loaded while the queue is non-empty, and release after idle (`--idle-evict-secs`, tier-dependent).
 
@@ -688,14 +739,15 @@ Nothing is written to `~/.mlx-serve`, and other tools' model folders are not sca
 - The Civitai API key is stored in Keychain and sent only over https to `civitai.com`, never to any other host and never in a URL. A redirect to another host drops it, and the key is never logged.
 - Catalog, prompt packs and appcast are signature-verified. Downloads are hash-verified. Pickle formats are refused.
 - Prompts, images and file names never leave the device to our servers or analytics. Civitai itself necessarily sees which LoRAs the user looks up and downloads, but our servers and analytics never receive Civitai item IDs or names. Analytics is opt-in and content-free (§8.10).
+- Conversations are stored only in `library.sqlite` and never leave the device. The agent LLM receives images over loopback only, and chat text is never written into image metadata (plan KTD17).
 - Hardened runtime and notarization. No microphone or camera entitlements. Sandboxing is deferred to the LLD (mlx-serve's MAS variant shows the engine can run sandboxed, but App Store distribution is out of scope).
 
 ## 13. Phased roadmap
 
 | Phase | Scope | Backend work |
 |---|---|---|
-| **v1.0** | Text→image on FLUX.2-klein 4B/9B, Qwen-Image 2.1 (+Turbo), Krea-2 Turbo, Mage-Flow. Civitai LoRA browse and download (D34); CivArchive LoRAs deferred. Enhancer with packs + LoRA context. Collections (D35) + gallery + prompt search. Persistent queue, batch and seed policies. Step progress (live previews when F1 lands). A1111 metadata and drop-to-restore. Catalog + calibration (D48). Sparkle, opt-in analytics, Entitlements seam | F1 upstream PR |
-| **v1.x** | Img2img variation (`strength`), instruction edit (`mode:edit`, `ref_images`, Qwen / Mage-Flow Edit), transparent PNG | None, already in the engine. F3 optional |
+| **v1.0** | Text→image on FLUX.2-klein 4B/9B, Qwen-Image 2.1 (+Turbo), Krea-2 Turbo, Mage-Flow. Civitai LoRA browse and download (D34); CivArchive LoRAs deferred. Enhancer with packs + LoRA context. Collections (D35) + gallery + prompt search. Persistent queue, batch and seed policies. Step progress (live previews when F1 lands). A1111 metadata and drop-to-restore. Catalog + calibration (D48). Sparkle, opt-in analytics, Entitlements seam. Chat mode with a local agent (D54–D61) | F1 upstream PR |
+| **v1.x** | Img2img variation (`strength`), instruction edit (`mode:edit`, `ref_images`, Qwen / Mage-Flow Edit), transparent PNG; the agent's refinements move to instruction edit (D57) | None, already in the engine. F3 optional |
 | **v2.0** | Text/image→video (LTX, MiniMax-H3) with AVFoundation mux, video in collections and gallery, video prompt packs | None, already in the engine |
 | **v2.x** | Inpaint/outpaint (mask canvas), upscale + hires-fix, community fine-tune import | F4, F5. Upscaler approach decided in the LLD |
 
@@ -712,6 +764,7 @@ Nothing is written to `~/.mlx-serve`, and other tools' model folders are not sca
 | CivArchive API undocumented or unstable | Broken fallback source | Isolate behind a `ModelSource` protocol, degrade gracefully, cache metadata |
 | Civitai regional SFW gating | Confusing empty results | Explicit UI messaging |
 | Abliterated enhancer quality | Bad rewrites | Offline A/B evaluation gate before a model enters the catalog |
+| Agent quality on a 4B model | Wrong LoRA or model picks, a missed check | Plans are validated by the app; at most two LoRAs per plan; the per-tier spike picks stronger models (D58) |
 | macOS 26.2 floor | Smaller addressable market | Accepted (D4) |
 
 ## 15. Open questions for LLDs
@@ -724,6 +777,7 @@ Nothing is written to `~/.mlx-serve`, and other tools' model folders are not sca
 6. App Sandbox on or off for Developer ID builds.
 7. Upscaler approach for v2.x (Core ML in-app vs MLX engine).
 8. Whether upstream accepts F1, and by which release.
+9. Agent LLM per memory tier, and whether one model serves agent and enhancer (parked spike, D58).
 
 ## Appendix A: Reuse map from mlx-serve's Swift app (MIT)
 

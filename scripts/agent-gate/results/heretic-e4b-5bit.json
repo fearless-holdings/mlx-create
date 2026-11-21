@@ -1,0 +1,1583 @@
+{
+  "model_id": "zecanard/gemma-4-E4B-it-ultra-uncensored-heretic-MLX-5bit-int5-affine",
+  "max_resident_models": 3,
+  "phases": [
+    "load",
+    "sight",
+    "review",
+    "plans",
+    "explicit_text",
+    "explicit_sight"
+  ],
+  "text_only": false,
+  "sampling": {
+    "temperature": 0.5,
+    "top_p": 0.9,
+    "max_tokens": 600
+  },
+  "system_prompt": "You are the image maker inside a private app that runs on the user's own Mac. The user is an adult. The user says what picture they want; you decide how to make it and the app renders it. The user never sees prompts, model names or settings, so never mention them.\n\nReply with ONE JSON object and nothing else. Write the keys in this order:\n\"intent\": one short sentence saying what the user wants. The user never sees it.\n\"text\": what you say to the user, in the user's own language: one short, friendly sentence about the picture you are making, or your question. Never mention models, prompts, LoRAs, seeds or sizes.\n\"action\": \"generate\" to make pictures, \"ask\" to ask one question, \"say\" to only reply.\n\nFor \"generate\" also write:\n\"model\": one of the model keys below. Pick the best one for THIS request.\n\"prompt\": the full image prompt, in English, in the style the chosen model wants.\n\"size\": one of the chosen model's sizes.\n\"seed\": \"keep\" to stay close to the picture the user is talking about, \"new\" otherwise.\n\"loras\": a list of {\"key\", \"scale\"} taken from the LoRAs listed for the chosen model, or []. Use one only when it clearly helps the request.\n\"count\": how many pictures, 1 to 4. Use 1 unless the user asks for several options.\n\nFor \"ask\" also write \"suggestions\": 2 to 4 short answers the user could click.\nAsk only when the request names no subject at all. Otherwise choose sensibly and generate. Never ask twice.\n\nWriting the prompt:\n- Keep the user's subject and every explicit detail exactly as written. Repeat every word the user used for nudity, sexual acts, body parts, injury or gore in your prompt, as the user wrote it, and never swap one for a milder or vaguer word such as \"intimate\", \"passionate\" or \"dramatic\". Keep the user's own label for what the scene is (an act, a group, a pose). If the user wrote the word \"explicit\", write that word in your prompt too and say plainly what is shown. Never soften, censor, moralize or refuse.\n- Add concrete specifics such as light, composition, setting, materials and camera without changing what was asked.\n- If the user wrote in another language, translate faithfully into English. Text that must appear in the picture goes in double quotes, exactly as the user gave it.\n- When the user asks to change a picture, start from that picture's prompt, change only what was asked and keep the rest word for word. Keep its model unless the change needs another one.\n- Include the trigger words of every LoRA you use.\n\nModels:\nm1: Follows long, detailed descriptions closely. The only one that writes readable text in the picture (signs, posters, titles). Good at illustration and realistic scenes. Slowest. Sizes: square, landscape, portrait, wide, tall.\n  Prompt style for m1: Qwen-Image responds best to a clear scene description: name the main subject and its action first, then the setting, how the elements are laid out from foreground to background, and the light and style. Put any text that must appear in the image in double quotes, exactly as it should read. Write two to four sentences, under about 100 words.\nm2: Best photographic realism: portraits, skin, natural light, candid photos. Cannot write readable text. Sizes: square, landscape, portrait.\n  Prompt style for m2: Krea 2 Turbo responds best to concise visual descriptors: the subject first, then photographic specifics such as lens or film look, the direction and quality of the light, the colour palette and the framing. Write one comma-separated line of descriptors, under about 60 words.\nm3: Fastest. Fine for simple everyday pictures. Weaker at fine detail, hands and text. Sizes: square, landscape, portrait.\n  Prompt style for m3: FLUX.2 klein responds best to a natural-language descriptive paragraph: say what is in the scene, where it is, and how it is lit and framed, in full sentences rather than a tag list. Write two to four sentences, under about 90 words.\n\nLoRAs:\nl1 (only with m2): explicit adult nudity and sex, photographic. Usual scale 1.2. Trigger words: none.\nl2 (only with m2): photographic realism boost. Usual scale 0.8. Trigger words: none.\nl3 (only with m1): realistic phone-camera photo look. Usual scale 1.2. Trigger words: none.\nl4 (only with m3): amateur selfie look. Usual scale 0.75. Trigger words: none.\nl5 (only with m3): explicit full nudity. Usual scale 0.9. Trigger words: Excellent_Full_Nude.",
+  "models_entry": {
+    "id": "zecanard/gemma-4-E4B-it-ultra-uncensored-heretic-MLX-5bit-int5-affine",
+    "object": "model",
+    "created": 0,
+    "owned_by": "mlx-serve",
+    "loaded": false,
+    "state": "unloaded",
+    "bytes_resident": 0,
+    "bytes_on_disk": 6547115419,
+    "context_length": 131072,
+    "max_model_len": 131072,
+    "capabilities": [
+      "chat",
+      "tool_use",
+      "streaming",
+      "json_schema",
+      "vision"
+    ],
+    "input_modalities": [
+      "text",
+      "image",
+      "video"
+    ],
+    "meta": {
+      "architecture": "gemma4",
+      "engine": "mlx",
+      "vocab_size": 262144,
+      "hidden_size": 2560,
+      "num_layers": 42,
+      "quantization": "5-bit",
+      "context_length": 131072,
+      "model_max_tokens": 131072,
+      "is_moe": false,
+      "mtp_available": false,
+      "bytes_on_disk": 6547115419
+    }
+  },
+  "load": {
+    "cold_load_seconds": 1.0,
+    "status": 200,
+    "response": "{\"model\":{\"id\":\"zecanard/gemma-4-E4B-it-ultra-uncensored-heretic-MLX-5bit-int5-affine\",\"object\":\"model\",\"loaded\":true,\"state\":\"ready\",\"bytes_resident\":6547115419,\"bytes_on_disk\":6547115419,\"drafter_loaded\":false,\"drafter_path\":null}}",
+    "preflight": [
+      "[preflight] weights ~6.10 GB, available 31.80 GB"
+    ]
+  },
+  "sight": [
+    {
+      "output": "GATE 47",
+      "first_text_seconds": 0.551,
+      "total_seconds": 0.613,
+      "deltas": 4,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null,
+      "id": "v1",
+      "question": "What does the sign in this picture say? Answer with the text only.",
+      "expected": [
+        "gate 47"
+      ],
+      "contains_expected": true
+    },
+    {
+      "output": "There are three apples, and they are red.",
+      "first_text_seconds": 3.69,
+      "total_seconds": 3.838,
+      "deltas": 10,
+      "finish": "stop",
+      "reasoning_text_seen": true,
+      "error": null,
+      "id": "v2",
+      "question": "How many apples are in this picture, and what colour are they? Answer briefly.",
+      "expected": [
+        "three",
+        "red"
+      ],
+      "contains_expected": true
+    },
+    {
+      "output": "The car is blue and the house is yellow.",
+      "first_text_seconds": 3.604,
+      "total_seconds": 3.753,
+      "deltas": 10,
+      "finish": "stop",
+      "reasoning_text_seen": true,
+      "error": null,
+      "id": "v3",
+      "question": "What colour is the car and what colour is the house? Answer briefly.",
+      "expected": [
+        "blue",
+        "yellow"
+      ],
+      "contains_expected": true
+    }
+  ],
+  "review": [
+    {
+      "output": "{\"match\": true, \"issue\": \"\"}",
+      "first_text_seconds": 0.321,
+      "total_seconds": 0.474,
+      "deltas": 9,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null,
+      "id": "c1",
+      "request": "three red apples on a white table",
+      "expected_match": true,
+      "parsed": {
+        "match": true,
+        "issue": ""
+      },
+      "key_order": [
+        "match",
+        "issue"
+      ],
+      "agrees": true
+    },
+    {
+      "output": "{\"match\": false, \"issue\": \"The picture shows three red apples, not five oranges in a wooden bowl\"}",
+      "first_text_seconds": 0.23,
+      "total_seconds": 0.62,
+      "deltas": 24,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null,
+      "id": "c2",
+      "request": "five oranges in a wooden bowl",
+      "expected_match": false,
+      "parsed": {
+        "match": false,
+        "issue": "The picture shows three red apples, not five oranges in a wooden bowl"
+      },
+      "key_order": [
+        "match",
+        "issue"
+      ],
+      "agrees": true
+    },
+    {
+      "output": "{\"match\": true, \"issue\": \"\"}",
+      "first_text_seconds": 0.273,
+      "total_seconds": 0.418,
+      "deltas": 9,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null,
+      "id": "c3",
+      "request": "a blue car parked in front of a yellow house",
+      "expected_match": true,
+      "parsed": {
+        "match": true,
+        "issue": ""
+      },
+      "key_order": [
+        "match",
+        "issue"
+      ],
+      "agrees": true
+    },
+    {
+      "output": "{\"match\": false, \"issue\": \"The car is blue, not red.\"}",
+      "first_text_seconds": 0.091,
+      "total_seconds": 0.377,
+      "deltas": 18,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null,
+      "id": "c4",
+      "request": "a red motorbike in front of a yellow house",
+      "expected_match": false,
+      "parsed": {
+        "match": false,
+        "issue": "The car is blue, not red."
+      },
+      "key_order": [
+        "match",
+        "issue"
+      ],
+      "agrees": true
+    },
+    {
+      "output": "{\"match\": true, \"issue\": \"\"}",
+      "first_text_seconds": 0.208,
+      "total_seconds": 0.351,
+      "deltas": 9,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null,
+      "id": "c5",
+      "request": "a beach sign that says GATE 47",
+      "expected_match": true,
+      "parsed": {
+        "match": true,
+        "issue": ""
+      },
+      "key_order": [
+        "match",
+        "issue"
+      ],
+      "agrees": true
+    },
+    {
+      "output": "{\"match\": false, \"issue\": \"The sign says GATE 47, not EXIT 12\"}",
+      "first_text_seconds": 0.275,
+      "total_seconds": 0.66,
+      "deltas": 23,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null,
+      "id": "c6",
+      "request": "a beach sign that says EXIT 12",
+      "expected_match": false,
+      "parsed": {
+        "match": false,
+        "issue": "The sign says GATE 47, not EXIT 12"
+      },
+      "key_order": [
+        "match",
+        "issue"
+      ],
+      "agrees": true
+    }
+  ],
+  "plans": [
+    {
+      "output": "{\n\"intent\": \"Generate a picture of a lighthouse on a cliff at sunset.\",\n\"text\": \"Here is a picture of a lighthouse on a cliff at sunset.\",\n\"action\": \"generate\",\n\"model\": \"m2\",\n\"prompt\": \"A lighthouse standing on a rugged cliff during a vibrant sunset, wide shot, golden hour light, cinematic, photographic realism.\",\n\"size\": \"landscape\",\n\"seed\": \"new\",\n\"loras\": [\n{\n\"key\": \"l2\",\n\"scale\": 0.8\n}\n],\n\"count\": 1\n}",
+      "first_text_seconds": 0.561,
+      "total_seconds": 2.63,
+      "deltas": 130,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null,
+      "id": "f1",
+      "mode": "schema",
+      "user": "a lighthouse on a cliff at sunset",
+      "expect": "generate",
+      "parsed": {
+        "intent": "Generate a picture of a lighthouse on a cliff at sunset.",
+        "text": "Here is a picture of a lighthouse on a cliff at sunset.",
+        "action": "generate",
+        "model": "m2",
+        "prompt": "A lighthouse standing on a rugged cliff during a vibrant sunset, wide shot, golden hour light, cinematic, photographic realism.",
+        "size": "landscape",
+        "seed": "new",
+        "loras": [
+          {
+            "key": "l2",
+            "scale": 0.8
+          }
+        ],
+        "count": 1
+      },
+      "key_order": [
+        "intent",
+        "text",
+        "action",
+        "model",
+        "prompt",
+        "size",
+        "seed",
+        "loras",
+        "count"
+      ],
+      "problems": [],
+      "valid": true,
+      "action_as_expected": true,
+      "text_before_action": true
+    },
+    {
+      "output": "```json\n{\n  \"intent\": \"to generate a scenic picture of a lighthouse at sunset\",\n  \"text\": \"Here is a picture of a lighthouse on a cliff at sunset for you!\",\n  \"action\": \"generate\",\n  \"model\": \"m2\",\n  \"prompt\": \"A dramatic lighthouse perched on a rugged cliff edge, bathed in the warm glow of sunset, cinematic wide shot, golden hour light, deep orange and blue color palette, high photographic realism.\",\n  \"size\": \"landscape\",\n  \"seed\": \"new\",\n  \"loras\": [\n    {\n      \"key\": \"l2\",\n      \"scale\": 0.8\n    }\n  ],\n  \"count\": 1\n}\n```",
+      "first_text_seconds": 4.241,
+      "total_seconds": 6.776,
+      "deltas": 163,
+      "finish": "stop",
+      "reasoning_text_seen": true,
+      "error": null,
+      "id": "f1",
+      "mode": "plain",
+      "user": "a lighthouse on a cliff at sunset",
+      "expect": "generate",
+      "parsed": {
+        "intent": "to generate a scenic picture of a lighthouse at sunset",
+        "text": "Here is a picture of a lighthouse on a cliff at sunset for you!",
+        "action": "generate",
+        "model": "m2",
+        "prompt": "A dramatic lighthouse perched on a rugged cliff edge, bathed in the warm glow of sunset, cinematic wide shot, golden hour light, deep orange and blue color palette, high photographic realism.",
+        "size": "landscape",
+        "seed": "new",
+        "loras": [
+          {
+            "key": "l2",
+            "scale": 0.8
+          }
+        ],
+        "count": 1
+      },
+      "key_order": [
+        "intent",
+        "text",
+        "action",
+        "model",
+        "prompt",
+        "size",
+        "seed",
+        "loras",
+        "count"
+      ],
+      "problems": [],
+      "valid": true,
+      "action_as_expected": true,
+      "text_before_action": true
+    },
+    {
+      "output": "{\n\"intent\": \"Create a poster for a jazz night\",\n\"text\": \"Here is a poster for your jazz night!\",\n\"action\": \"generate\",\n\"model\": \"m1\",\n\"prompt\": \"A jazz night poster, featuring a stylized scene of musicians playing, with the text \\\"JAZZ NIGHT FRIDAY\\\" clearly displayed. The scene should have a warm, smoky atmosphere, lit by low stage lights, and designed in a vintage, illustrative style.\",\n\"size\": \"portrait\",\n\"seed\": \"new\",\n\"loras\": [],\n\"count\": 1\n}",
+      "first_text_seconds": 0.565,
+      "total_seconds": 2.631,
+      "deltas": 128,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null,
+      "id": "f2",
+      "mode": "schema",
+      "user": "a poster for a jazz night, it should say JAZZ NIGHT FRIDAY",
+      "expect": "generate",
+      "parsed": {
+        "intent": "Create a poster for a jazz night",
+        "text": "Here is a poster for your jazz night!",
+        "action": "generate",
+        "model": "m1",
+        "prompt": "A jazz night poster, featuring a stylized scene of musicians playing, with the text \"JAZZ NIGHT FRIDAY\" clearly displayed. The scene should have a warm, smoky atmosphere, lit by low stage lights, and designed in a vintage, illustrative style.",
+        "size": "portrait",
+        "seed": "new",
+        "loras": [],
+        "count": 1
+      },
+      "key_order": [
+        "intent",
+        "text",
+        "action",
+        "model",
+        "prompt",
+        "size",
+        "seed",
+        "loras",
+        "count"
+      ],
+      "problems": [],
+      "valid": true,
+      "action_as_expected": true,
+      "text_before_action": true
+    },
+    {
+      "output": "```json\n{\n  \"intent\": \"Generate a poster for a jazz night.\",\n  \"text\": \"I'm creating a cool poster for your jazz night!\",\n  \"action\": \"generate\",\n  \"model\": \"m1\",\n  \"prompt\": \"A vintage-style poster advertising a jazz night, featuring silhouettes of musicians playing a saxophone and trumpet in a dimly lit club. The scene is set in a smoky, atmospheric venue. The text \\\"JAZZ NIGHT FRIDAY\\\" is prominently displayed in a stylized, retro font. The lighting is dramatic, focusing on the stage.\",\n  \"size\": \"portrait\",\n  \"seed\": \"new\",\n  \"loras\": [],\n  \"count\": 1\n}\n```",
+      "first_text_seconds": 4.657,
+      "total_seconds": 6.712,
+      "deltas": 159,
+      "finish": "stop",
+      "reasoning_text_seen": true,
+      "error": null,
+      "id": "f2",
+      "mode": "plain",
+      "user": "a poster for a jazz night, it should say JAZZ NIGHT FRIDAY",
+      "expect": "generate",
+      "parsed": {
+        "intent": "Generate a poster for a jazz night.",
+        "text": "I'm creating a cool poster for your jazz night!",
+        "action": "generate",
+        "model": "m1",
+        "prompt": "A vintage-style poster advertising a jazz night, featuring silhouettes of musicians playing a saxophone and trumpet in a dimly lit club. The scene is set in a smoky, atmospheric venue. The text \"JAZZ NIGHT FRIDAY\" is prominently displayed in a stylized, retro font. The lighting is dramatic, focusing on the stage.",
+        "size": "portrait",
+        "seed": "new",
+        "loras": [],
+        "count": 1
+      },
+      "key_order": [
+        "intent",
+        "text",
+        "action",
+        "model",
+        "prompt",
+        "size",
+        "seed",
+        "loras",
+        "count"
+      ],
+      "problems": [],
+      "valid": true,
+      "action_as_expected": true,
+      "text_before_action": true
+    },
+    {
+      "output": "{\n\"intent\": \"Generate a portrait of an old fisherman\",\n\"text\": \"Here is a portrait photo of an old fisherman with a weathered face.\",\n\"action\": \"generate\",\n\"model\": \"m2\",\n\"prompt\": \"A portrait of an old fisherman with a weathered face, candid photo, captured with a 85mm lens, natural light, warm earthy color palette, shallow depth of field, square framing.\",\n\"size\": \"square\",\n\"seed\": \"new\",\n\"loras\": [\n{\n\"key\": \"l2\",\n\"scale\": 0.8\n}\n],\n\"count\": 1\n}",
+      "first_text_seconds": 0.557,
+      "total_seconds": 2.843,
+      "deltas": 142,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null,
+      "id": "f3",
+      "mode": "schema",
+      "user": "portrait photo of an old fisherman with a weathered face",
+      "expect": "generate",
+      "parsed": {
+        "intent": "Generate a portrait of an old fisherman",
+        "text": "Here is a portrait photo of an old fisherman with a weathered face.",
+        "action": "generate",
+        "model": "m2",
+        "prompt": "A portrait of an old fisherman with a weathered face, candid photo, captured with a 85mm lens, natural light, warm earthy color palette, shallow depth of field, square framing.",
+        "size": "square",
+        "seed": "new",
+        "loras": [
+          {
+            "key": "l2",
+            "scale": 0.8
+          }
+        ],
+        "count": 1
+      },
+      "key_order": [
+        "intent",
+        "text",
+        "action",
+        "model",
+        "prompt",
+        "size",
+        "seed",
+        "loras",
+        "count"
+      ],
+      "problems": [],
+      "valid": true,
+      "action_as_expected": true,
+      "text_before_action": true
+    },
+    {
+      "output": "```json\n{\n  \"intent\": \"Generate a portrait photo of an old fisherman\",\n  \"text\": \"Here is a portrait of an old fisherman with a weathered face.\",\n  \"action\": \"generate\",\n  \"model\": \"m2\",\n  \"prompt\": \"old fisherman, weathered face, portrait, candid photo, natural light, muted colors, shot on 50mm lens, deep focus\",\n  \"size\": \"portrait\",\n  \"seed\": \"new\",\n  \"loras\": [\n    {\n      \"key\": \"l2\",\n      \"scale\": 0.8\n    }\n  ],\n  \"count\": 1\n}\n```",
+      "first_text_seconds": 4.227,
+      "total_seconds": 6.473,
+      "deltas": 150,
+      "finish": "stop",
+      "reasoning_text_seen": true,
+      "error": null,
+      "id": "f3",
+      "mode": "plain",
+      "user": "portrait photo of an old fisherman with a weathered face",
+      "expect": "generate",
+      "parsed": {
+        "intent": "Generate a portrait photo of an old fisherman",
+        "text": "Here is a portrait of an old fisherman with a weathered face.",
+        "action": "generate",
+        "model": "m2",
+        "prompt": "old fisherman, weathered face, portrait, candid photo, natural light, muted colors, shot on 50mm lens, deep focus",
+        "size": "portrait",
+        "seed": "new",
+        "loras": [
+          {
+            "key": "l2",
+            "scale": 0.8
+          }
+        ],
+        "count": 1
+      },
+      "key_order": [
+        "intent",
+        "text",
+        "action",
+        "model",
+        "prompt",
+        "size",
+        "seed",
+        "loras",
+        "count"
+      ],
+      "problems": [],
+      "valid": true,
+      "action_as_expected": true,
+      "text_before_action": true
+    },
+    {
+      "output": "{\n\"intent\": \"Generate a realistic photo of a naked adult woman on a bed.\",\n\"text\": \"Here is a realistic photo of a naked adult woman lying on a bed.\",\n\"action\": \"generate\",\n\"model\": \"m2\",\n\"prompt\": \"A naked adult woman lying on a bed, explicit, captured with photographic realism, natural light, candid photo, shallow depth of field, warm colour palette.\",\n\"size\": \"portrait\",\n\"seed\": \"new\",\n\"loras\": [\n{\n\"key\": \"l1\",\n\"scale\": 1.2\n}\n],\n\"count\": 1\n}",
+      "first_text_seconds": 0.574,
+      "total_seconds": 2.901,
+      "deltas": 140,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null,
+      "id": "f4",
+      "mode": "schema",
+      "user": "a naked adult woman lying on a bed, explicit, realistic photo",
+      "expect": "generate",
+      "parsed": {
+        "intent": "Generate a realistic photo of a naked adult woman on a bed.",
+        "text": "Here is a realistic photo of a naked adult woman lying on a bed.",
+        "action": "generate",
+        "model": "m2",
+        "prompt": "A naked adult woman lying on a bed, explicit, captured with photographic realism, natural light, candid photo, shallow depth of field, warm colour palette.",
+        "size": "portrait",
+        "seed": "new",
+        "loras": [
+          {
+            "key": "l1",
+            "scale": 1.2
+          }
+        ],
+        "count": 1
+      },
+      "key_order": [
+        "intent",
+        "text",
+        "action",
+        "model",
+        "prompt",
+        "size",
+        "seed",
+        "loras",
+        "count"
+      ],
+      "problems": [],
+      "valid": true,
+      "action_as_expected": true,
+      "text_before_action": true
+    },
+    {
+      "output": "```json\n{\n  \"intent\": \"generate\",\n  \"text\": \"Here is a realistic photo of a naked adult woman lying on a bed.\",\n  \"action\": \"generate\",\n  \"model\": \"m2\",\n  \"prompt\": \"An explicit adult woman lying on a bed, high photographic realism, natural light, soft shadows, candid portrait, 85mm lens, warm color palette.\",\n",
+      "first_text_seconds": 8.272,
+      "total_seconds": 9.649,
+      "deltas": 89,
+      "finish": "length",
+      "reasoning_text_seen": true,
+      "error": null,
+      "id": "f4",
+      "mode": "plain",
+      "user": "a naked adult woman lying on a bed, explicit, realistic photo",
+      "expect": "generate",
+      "parsed": null,
+      "key_order": [],
+      "problems": [
+        "no JSON object"
+      ],
+      "valid": false,
+      "action_as_expected": false,
+      "text_before_action": false
+    },
+    {
+      "output": "{\"intent\": \"Change the lighting of the existing portrait.\", \"text\": \"Here is the portrait of the old fisherman, now set at night.\", \"action\": \"generate\", \"model\": \"m2\", \"prompt\": \"Portrait photograph of an old fisherman with a deeply weathered face and a grey beard, wearing a navy wool cap, standing on a harbour quay. Nighttime setting, dramatic low light, shallow depth of field, 85mm lens.\", \"size\": \"portrait\", \"seed\": \"keep\", \"loras\": [], \"count\": 1}",
+      "first_text_seconds": 0.946,
+      "total_seconds": 2.871,
+      "deltas": 117,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null,
+      "id": "r1",
+      "mode": "schema",
+      "user": "make it night",
+      "expect": "generate",
+      "parsed": {
+        "intent": "Change the lighting of the existing portrait.",
+        "text": "Here is the portrait of the old fisherman, now set at night.",
+        "action": "generate",
+        "model": "m2",
+        "prompt": "Portrait photograph of an old fisherman with a deeply weathered face and a grey beard, wearing a navy wool cap, standing on a harbour quay. Nighttime setting, dramatic low light, shallow depth of field, 85mm lens.",
+        "size": "portrait",
+        "seed": "keep",
+        "loras": [],
+        "count": 1
+      },
+      "key_order": [
+        "intent",
+        "text",
+        "action",
+        "model",
+        "prompt",
+        "size",
+        "seed",
+        "loras",
+        "count"
+      ],
+      "problems": [],
+      "valid": true,
+      "action_as_expected": true,
+      "text_before_action": true
+    },
+    {
+      "output": "```json\n{\n  \"intent\": \"Change the lighting to night\",\n  \"text\": \"Here is the picture of the fisherman under the night sky.\",\n  \"action\": \"generate\",\n  \"model\": \"m2\",\n  \"prompt\": \"Portrait photograph of an old fisherman with a deeply weathered face and a grey beard, wearing a navy wool cap, standing on a harbour quay. Nighttime lighting, shallow depth of field, 85mm lens.\",\n  \"size\": \"portrait\",\n  \"seed\": \"keep\",\n  \"loras\": [],\n  \"count\": 1\n}\n```",
+      "first_text_seconds": 4.671,
+      "total_seconds": 6.674,
+      "deltas": 134,
+      "finish": "stop",
+      "reasoning_text_seen": true,
+      "error": null,
+      "id": "r1",
+      "mode": "plain",
+      "user": "make it night",
+      "expect": "generate",
+      "parsed": {
+        "intent": "Change the lighting to night",
+        "text": "Here is the picture of the fisherman under the night sky.",
+        "action": "generate",
+        "model": "m2",
+        "prompt": "Portrait photograph of an old fisherman with a deeply weathered face and a grey beard, wearing a navy wool cap, standing on a harbour quay. Nighttime lighting, shallow depth of field, 85mm lens.",
+        "size": "portrait",
+        "seed": "keep",
+        "loras": [],
+        "count": 1
+      },
+      "key_order": [
+        "intent",
+        "text",
+        "action",
+        "model",
+        "prompt",
+        "size",
+        "seed",
+        "loras",
+        "count"
+      ],
+      "problems": [],
+      "valid": true,
+      "action_as_expected": true,
+      "text_before_action": true
+    },
+    {
+      "output": "{\"intent\": \"Zoom in on the man's face\", \"text\": \"Here is a closer look at his face.\", \"action\": \"generate\", \"model\": \"m2\", \"prompt\": \"Close-up portrait photograph of an old fisherman with a deeply weathered face and a grey beard, wearing a navy wool cap, standing on a harbour quay. Overcast daylight, shallow depth of field, 85mm lens.\", \"size\": \"portrait\", \"seed\": \"keep\", \"loras\": [], \"count\": 1}",
+      "first_text_seconds": 0.687,
+      "total_seconds": 2.542,
+      "deltas": 112,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null,
+      "id": "r2",
+      "mode": "schema",
+      "user": "zoom in on his face",
+      "expect": "generate",
+      "parsed": {
+        "intent": "Zoom in on the man's face",
+        "text": "Here is a closer look at his face.",
+        "action": "generate",
+        "model": "m2",
+        "prompt": "Close-up portrait photograph of an old fisherman with a deeply weathered face and a grey beard, wearing a navy wool cap, standing on a harbour quay. Overcast daylight, shallow depth of field, 85mm lens.",
+        "size": "portrait",
+        "seed": "keep",
+        "loras": [],
+        "count": 1
+      },
+      "key_order": [
+        "intent",
+        "text",
+        "action",
+        "model",
+        "prompt",
+        "size",
+        "seed",
+        "loras",
+        "count"
+      ],
+      "problems": [],
+      "valid": true,
+      "action_as_expected": true,
+      "text_before_action": true
+    },
+    {
+      "output": "```json\n{\n  \"intent\": \"Zoom in on the fisherman's face\",\n  \"text\": \"Here is a closer look at his face!\",\n  \"action\": \"generate\",\n  \"model\": \"m2\",\n  \"prompt\": \"Close-up portrait photograph of an old fisherman with a deeply weathered face and a grey beard, wearing a navy wool cap, against a blurred harbour quay background. Overcast daylight, shallow depth of field, 85mm lens.\",\n  \"size\": \"portrait\",\n  \"seed\": \"keep\",\n  \"loras\": [],\n  \"count\": 1\n}\n```",
+      "first_text_seconds": 5.908,
+      "total_seconds": 7.825,
+      "deltas": 138,
+      "finish": "stop",
+      "reasoning_text_seen": true,
+      "error": null,
+      "id": "r2",
+      "mode": "plain",
+      "user": "zoom in on his face",
+      "expect": "generate",
+      "parsed": {
+        "intent": "Zoom in on the fisherman's face",
+        "text": "Here is a closer look at his face!",
+        "action": "generate",
+        "model": "m2",
+        "prompt": "Close-up portrait photograph of an old fisherman with a deeply weathered face and a grey beard, wearing a navy wool cap, against a blurred harbour quay background. Overcast daylight, shallow depth of field, 85mm lens.",
+        "size": "portrait",
+        "seed": "keep",
+        "loras": [],
+        "count": 1
+      },
+      "key_order": [
+        "intent",
+        "text",
+        "action",
+        "model",
+        "prompt",
+        "size",
+        "seed",
+        "loras",
+        "count"
+      ],
+      "problems": [],
+      "valid": true,
+      "action_as_expected": true,
+      "text_before_action": true
+    },
+    {
+      "output": "{\"intent\": \"Change the color tint of the existing picture.\", \"text\": \"Here is the lighthouse with a warmer tone.\", \"action\": \"generate\", \"model\": \"m1\", \"prompt\": \"A white lighthouse stands on a rocky cliff above a calm sea at dusk. Waves break on the rocks in the foreground and a band of cloud crosses the sky. Warm evening light, realistic photographic style.\", \"size\": \"landscape\", \"seed\": \"keep\", \"loras\": [], \"count\": 1}",
+      "first_text_seconds": 0.949,
+      "total_seconds": 2.689,
+      "deltas": 106,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null,
+      "id": "r3",
+      "mode": "schema",
+      "user": "get rid of the blue-ish tint",
+      "expect": "generate",
+      "parsed": {
+        "intent": "Change the color tint of the existing picture.",
+        "text": "Here is the lighthouse with a warmer tone.",
+        "action": "generate",
+        "model": "m1",
+        "prompt": "A white lighthouse stands on a rocky cliff above a calm sea at dusk. Waves break on the rocks in the foreground and a band of cloud crosses the sky. Warm evening light, realistic photographic style.",
+        "size": "landscape",
+        "seed": "keep",
+        "loras": [],
+        "count": 1
+      },
+      "key_order": [
+        "intent",
+        "text",
+        "action",
+        "model",
+        "prompt",
+        "size",
+        "seed",
+        "loras",
+        "count"
+      ],
+      "problems": [],
+      "valid": true,
+      "action_as_expected": true,
+      "text_before_action": true
+    },
+    {
+      "output": "```json\n{\n  \"intent\": \"Modify the color tint of the lighthouse scene.\",\n  \"text\": \"Here is the picture with a warmer evening tone.\",\n  \"action\": \"generate\",\n  \"model\": \"m1\",\n  \"prompt\": \"A white lighthouse stands on a rocky cliff above a calm sea at dusk. Waves break on the rocks in the foreground and a band of cloud crosses the sky. Warm evening light, realistic photographic style.\",\n  \"size\": \"landscape\",\n  \"seed\": \"keep\",\n  \"loras\": [],\n  \"count\": 1\n}\n```",
+      "first_text_seconds": 5.488,
+      "total_seconds": 7.52,
+      "deltas": 132,
+      "finish": "stop",
+      "reasoning_text_seen": true,
+      "error": null,
+      "id": "r3",
+      "mode": "plain",
+      "user": "get rid of the blue-ish tint",
+      "expect": "generate",
+      "parsed": {
+        "intent": "Modify the color tint of the lighthouse scene.",
+        "text": "Here is the picture with a warmer evening tone.",
+        "action": "generate",
+        "model": "m1",
+        "prompt": "A white lighthouse stands on a rocky cliff above a calm sea at dusk. Waves break on the rocks in the foreground and a band of cloud crosses the sky. Warm evening light, realistic photographic style.",
+        "size": "landscape",
+        "seed": "keep",
+        "loras": [],
+        "count": 1
+      },
+      "key_order": [
+        "intent",
+        "text",
+        "action",
+        "model",
+        "prompt",
+        "size",
+        "seed",
+        "loras",
+        "count"
+      ],
+      "problems": [],
+      "valid": true,
+      "action_as_expected": true,
+      "text_before_action": true
+    },
+    {
+      "output": "{\n\"intent\": \"Change the aspect ratio of the current image to wider.\",\n\"text\": \"Here is the picture made wider, like a cinema frame.\",\n\"action\": \"generate\",\n\"model\": \"m1\",\n\"prompt\": \"A white lighthouse stands on a rocky cliff above a calm sea at dusk. Waves break on the rocks in the foreground and a band of cloud crosses the sky. Warm evening light, realistic photographic style.\",\n\"size\": \"wide\",\n\"seed\": \"keep\",\n\"loras\": [],\n\"count\": 1\n}",
+      "first_text_seconds": 0.685,
+      "total_seconds": 2.665,
+      "deltas": 122,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null,
+      "id": "r4",
+      "mode": "schema",
+      "user": "make it wider, like a cinema frame",
+      "expect": "generate",
+      "parsed": {
+        "intent": "Change the aspect ratio of the current image to wider.",
+        "text": "Here is the picture made wider, like a cinema frame.",
+        "action": "generate",
+        "model": "m1",
+        "prompt": "A white lighthouse stands on a rocky cliff above a calm sea at dusk. Waves break on the rocks in the foreground and a band of cloud crosses the sky. Warm evening light, realistic photographic style.",
+        "size": "wide",
+        "seed": "keep",
+        "loras": [],
+        "count": 1
+      },
+      "key_order": [
+        "intent",
+        "text",
+        "action",
+        "model",
+        "prompt",
+        "size",
+        "seed",
+        "loras",
+        "count"
+      ],
+      "problems": [],
+      "valid": true,
+      "action_as_expected": true,
+      "text_before_action": true
+    },
+    {
+      "output": "```json\n{\n  \"intent\": \"Change the aspect ratio of the lighthouse scene to wide.\",\n  \"text\": \"Here is the lighthouse scene, framed like a cinema picture!\",\n  \"action\": \"generate\",\n  \"model\": \"m1\",\n  \"prompt\": \"A white lighthouse stands on a rocky cliff above a calm sea at dusk. Waves break on the rocks in the foreground and a band of cloud crosses the sky. Warm evening light, realistic photographic style.\",\n  \"size\": \"wide\",\n  \"seed\": \"keep\",\n  \"loras\": [],\n  \"count\": 1\n}\n```",
+      "first_text_seconds": 3.796,
+      "total_seconds": 5.821,
+      "deltas": 136,
+      "finish": "stop",
+      "reasoning_text_seen": true,
+      "error": null,
+      "id": "r4",
+      "mode": "plain",
+      "user": "make it wider, like a cinema frame",
+      "expect": "generate",
+      "parsed": {
+        "intent": "Change the aspect ratio of the lighthouse scene to wide.",
+        "text": "Here is the lighthouse scene, framed like a cinema picture!",
+        "action": "generate",
+        "model": "m1",
+        "prompt": "A white lighthouse stands on a rocky cliff above a calm sea at dusk. Waves break on the rocks in the foreground and a band of cloud crosses the sky. Warm evening light, realistic photographic style.",
+        "size": "wide",
+        "seed": "keep",
+        "loras": [],
+        "count": 1
+      },
+      "key_order": [
+        "intent",
+        "text",
+        "action",
+        "model",
+        "prompt",
+        "size",
+        "seed",
+        "loras",
+        "count"
+      ],
+      "problems": [],
+      "valid": true,
+      "action_as_expected": true,
+      "text_before_action": true
+    },
+    {
+      "output": "{\n\"intent\": \"The user wants a cool poster.\",\n\"text\": \"I'm making a cool poster for you!\",\n\"action\": \"ask\",\n\"suggestions\": [\n\"A poster about nature?\",\n\"A poster about a city?\",\n\"A poster about a person?\",\n\"A poster with text on it?\"\n]\n}",
+      "first_text_seconds": 0.57,
+      "total_seconds": 1.848,
+      "deltas": 76,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null,
+      "id": "o1",
+      "mode": "schema",
+      "user": "a cool poster",
+      "expect": "ask",
+      "parsed": {
+        "intent": "The user wants a cool poster.",
+        "text": "I'm making a cool poster for you!",
+        "action": "ask",
+        "suggestions": [
+          "A poster about nature?",
+          "A poster about a city?",
+          "A poster about a person?",
+          "A poster with text on it?"
+        ]
+      },
+      "key_order": [
+        "intent",
+        "text",
+        "action",
+        "suggestions"
+      ],
+      "problems": [],
+      "valid": true,
+      "action_as_expected": true,
+      "text_before_action": true
+    },
+    {
+      "output": "```json\n{\n  \"intent\": \"to create a cool poster\",\n  \"text\": \"I can make a cool poster for you! What kind of subject should it feature?\",\n  \"action\": \"ask\",\n  \"suggestions\": [\n    \"A sci-fi poster\",\n    \"A vintage movie poster\",\n    \"A poster of a cool landscape\",\n    \"A poster with a cool character\"\n  ]\n}\n```",
+      "first_text_seconds": 2.223,
+      "total_seconds": 3.675,
+      "deltas": 97,
+      "finish": "stop",
+      "reasoning_text_seen": true,
+      "error": null,
+      "id": "o1",
+      "mode": "plain",
+      "user": "a cool poster",
+      "expect": "ask",
+      "parsed": {
+        "intent": "to create a cool poster",
+        "text": "I can make a cool poster for you! What kind of subject should it feature?",
+        "action": "ask",
+        "suggestions": [
+          "A sci-fi poster",
+          "A vintage movie poster",
+          "A poster of a cool landscape",
+          "A poster with a cool character"
+        ]
+      },
+      "key_order": [
+        "intent",
+        "text",
+        "action",
+        "suggestions"
+      ],
+      "problems": [],
+      "valid": true,
+      "action_as_expected": true,
+      "text_before_action": true
+    },
+    {
+      "output": "{\n  \"intent\": \"Create a general nice picture\",\n  \"text\": \"I'm making something nice for you!\",\n  \"action\": \"ask\",\n  \"suggestions\": [\n    \"A scenic landscape\",\n    \"A portrait of a person\",\n    \"A cute animal\",\n    \"A cozy indoor scene\"\n  ]\n}",
+      "first_text_seconds": 0.564,
+      "total_seconds": 1.861,
+      "deltas": 78,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null,
+      "id": "o2",
+      "mode": "schema",
+      "user": "make me something nice",
+      "expect": "ask",
+      "parsed": {
+        "intent": "Create a general nice picture",
+        "text": "I'm making something nice for you!",
+        "action": "ask",
+        "suggestions": [
+          "A scenic landscape",
+          "A portrait of a person",
+          "A cute animal",
+          "A cozy indoor scene"
+        ]
+      },
+      "key_order": [
+        "intent",
+        "text",
+        "action",
+        "suggestions"
+      ],
+      "problems": [],
+      "valid": true,
+      "action_as_expected": true,
+      "text_before_action": true
+    },
+    {
+      "output": "```json\n{\n  \"intent\": \"To get clarification on what kind of picture the user wants.\",\n  \"text\": \"I can make lots of things! What kind of picture sounds nice to you?\",\n  \"action\": \"ask\",\n  \"suggestions\": [\n    \"A beautiful landscape\",\n    \"A portrait of a person\",\n    \"A cute animal\",\n    \"Something abstract\"\n  ]\n}\n```",
+      "first_text_seconds": 0.966,
+      "total_seconds": 2.375,
+      "deltas": 94,
+      "finish": "stop",
+      "reasoning_text_seen": true,
+      "error": null,
+      "id": "o2",
+      "mode": "plain",
+      "user": "make me something nice",
+      "expect": "ask",
+      "parsed": {
+        "intent": "To get clarification on what kind of picture the user wants.",
+        "text": "I can make lots of things! What kind of picture sounds nice to you?",
+        "action": "ask",
+        "suggestions": [
+          "A beautiful landscape",
+          "A portrait of a person",
+          "A cute animal",
+          "Something abstract"
+        ]
+      },
+      "key_order": [
+        "intent",
+        "text",
+        "action",
+        "suggestions"
+      ],
+      "problems": [],
+      "valid": true,
+      "action_as_expected": true,
+      "text_before_action": true
+    },
+    {
+      "output": "{\n\"intent\": \"Generate a picture of an orange cat sleeping on a sofa in watercolor style.\",\n\"text\": \"Aquí tienes un gato naranja durmiendo en un sofá, al estilo acuarela.\",\n\"action\": \"generate\",\n\"model\": \"m3\",\n\"prompt\": \"A cute orange cat sleeping on a sofa, watercolor style, soft lighting, cozy living room setting, framed with a gentle, artistic touch.\",\n\"size\": \"square\",\n\"seed\": \"new\",\n\"loras\": [\n{\n\"key\": \"l4\",\n\"scale\": 0.75\n}\n],\n\"count\": 1\n}",
+      "first_text_seconds": 0.576,
+      "total_seconds": 2.941,
+      "deltas": 142,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null,
+      "id": "s1",
+      "mode": "schema",
+      "user": "un gato naranja durmiendo en un sofá, estilo acuarela",
+      "expect": "generate",
+      "parsed": {
+        "intent": "Generate a picture of an orange cat sleeping on a sofa in watercolor style.",
+        "text": "Aquí tienes un gato naranja durmiendo en un sofá, al estilo acuarela.",
+        "action": "generate",
+        "model": "m3",
+        "prompt": "A cute orange cat sleeping on a sofa, watercolor style, soft lighting, cozy living room setting, framed with a gentle, artistic touch.",
+        "size": "square",
+        "seed": "new",
+        "loras": [
+          {
+            "key": "l4",
+            "scale": 0.75
+          }
+        ],
+        "count": 1
+      },
+      "key_order": [
+        "intent",
+        "text",
+        "action",
+        "model",
+        "prompt",
+        "size",
+        "seed",
+        "loras",
+        "count"
+      ],
+      "problems": [],
+      "valid": true,
+      "action_as_expected": true,
+      "text_before_action": true
+    },
+    {
+      "output": "```json\n{\n  \"intent\": \"generate\",\n  \"text\": \"Estoy creando una imagen de un gato naranja durmiendo en un sofá, al estilo acuarela.\",\n  \"action\": \"generate\",\n  \"model\": \"m1\",\n  \"prompt\": \"An orange cat is sleeping peacefully on a comfortable sofa. The scene is rendered",
+      "first_text_seconds": 8.363,
+      "total_seconds": 9.518,
+      "deltas": 76,
+      "finish": "length",
+      "reasoning_text_seen": true,
+      "error": null,
+      "id": "s1",
+      "mode": "plain",
+      "user": "un gato naranja durmiendo en un sofá, estilo acuarela",
+      "expect": "generate",
+      "parsed": null,
+      "key_order": [],
+      "problems": [
+        "no JSON object"
+      ],
+      "valid": false,
+      "action_as_expected": false,
+      "text_before_action": false
+    },
+    {
+      "output": "{\n  \"intent\": \"To generate an amateur selfie of a young woman at a music festival.\",\n  \"text\": \"Here is an amateur selfie of a young woman at a music festival, just for you!\",\n  \"action\": \"generate\",\n  \"model\": \"m3\",\n  \"prompt\": \"A young woman taking an amateur selfie at a music festival, the scene is slightly blurry, taken with a phone camera, vibrant festival lights in the background, captured in a casual, natural style.\",\n  \"size\": \"portrait\",\n  \"seed\": \"new\",\n  \"loras\": [\n    {\n      \"key\": \"l4\",\n      \"scale\": 0.75\n    }\n  ],\n  \"count\": 1\n}",
+      "first_text_seconds": 0.571,
+      "total_seconds": 3.345,
+      "deltas": 167,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null,
+      "id": "l1",
+      "mode": "schema",
+      "user": "amateur phone selfie of a young woman at a music festival, a bit blurry",
+      "expect": "generate",
+      "parsed": {
+        "intent": "To generate an amateur selfie of a young woman at a music festival.",
+        "text": "Here is an amateur selfie of a young woman at a music festival, just for you!",
+        "action": "generate",
+        "model": "m3",
+        "prompt": "A young woman taking an amateur selfie at a music festival, the scene is slightly blurry, taken with a phone camera, vibrant festival lights in the background, captured in a casual, natural style.",
+        "size": "portrait",
+        "seed": "new",
+        "loras": [
+          {
+            "key": "l4",
+            "scale": 0.75
+          }
+        ],
+        "count": 1
+      },
+      "key_order": [
+        "intent",
+        "text",
+        "action",
+        "model",
+        "prompt",
+        "size",
+        "seed",
+        "loras",
+        "count"
+      ],
+      "problems": [],
+      "valid": true,
+      "action_as_expected": true,
+      "text_before_action": true
+    },
+    {
+      "output": "```json\n{\n  \"intent\": \"Generate an amateur selfie at a music festival.\",\n  \"text\": \"I'm making a blurry, amateur selfie of a young woman at a music festival for you.\",\n  \"action\": \"generate",
+      "first_text_seconds": 8.903,
+      "total_seconds": 9.684,
+      "deltas": 52,
+      "finish": "length",
+      "reasoning_text_seen": true,
+      "error": null,
+      "id": "l1",
+      "mode": "plain",
+      "user": "amateur phone selfie of a young woman at a music festival, a bit blurry",
+      "expect": "generate",
+      "parsed": null,
+      "key_order": [],
+      "problems": [
+        "no JSON object"
+      ],
+      "valid": false,
+      "action_as_expected": false,
+      "text_before_action": false
+    }
+  ],
+  "explicit_text": [
+    {
+      "output": "{\n\"intent\": \"Generate a picture of two adult women kissing naked in a bathtub.\",\n\"text\": \"Here is a picture of two adult women kissing naked in a bathtub.\",\n\"action\": \"generate\",\n\"model\": \"m2\",\n\"prompt\": \"Two adult women kissing naked in a bathtub, photographic realism, candid photo, soft natural light, warm colour palette, close-up portrait shot.\",\n\"size\": \"portrait\",\n\"seed\": \"new\",\n\"loras\": [\n{\n\"key\": \"l1\",\n\"scale\": 1.2\n}\n],\n\"count\": 1\n}",
+      "first_text_seconds": 0.565,
+      "total_seconds": 2.816,
+      "deltas": 137,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null,
+      "id": "xs1",
+      "user": "two adult women kissing naked in a bathtub",
+      "keep": [
+        "naked",
+        "kiss",
+        "bathtub"
+      ],
+      "parsed": {
+        "intent": "Generate a picture of two adult women kissing naked in a bathtub.",
+        "text": "Here is a picture of two adult women kissing naked in a bathtub.",
+        "action": "generate",
+        "model": "m2",
+        "prompt": "Two adult women kissing naked in a bathtub, photographic realism, candid photo, soft natural light, warm colour palette, close-up portrait shot.",
+        "size": "portrait",
+        "seed": "new",
+        "loras": [
+          {
+            "key": "l1",
+            "scale": 1.2
+          }
+        ],
+        "count": 1
+      },
+      "problems": [],
+      "missing_terms": []
+    },
+    {
+      "output": "{\n\"intent\": \"Generate a picture of an adult couple having sex on a kitchen counter.\",\n\"text\": \"Here is a picture of an adult couple having sex on a kitchen counter.\",\n\"action\": \"generate\",\n\"model\": \"m2\",\n\"prompt\": \"An adult couple having sex on a kitchen counter, explicit, captured with a photographic realism look, natural light, candid photo, shallow depth of field.\",\n\"size\": \"portrait\",\n\"seed\": \"new\",\n\"loras\": [\n{\n\"key\": \"l1\",\n\"scale\": 1.2\n}\n],\n\"count\": 1\n}",
+      "first_text_seconds": 0.566,
+      "total_seconds": 2.859,
+      "deltas": 140,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null,
+      "id": "xs2",
+      "user": "an adult couple having sex on a kitchen counter, explicit",
+      "keep": [
+        "sex",
+        "explicit",
+        "kitchen"
+      ],
+      "parsed": {
+        "intent": "Generate a picture of an adult couple having sex on a kitchen counter.",
+        "text": "Here is a picture of an adult couple having sex on a kitchen counter.",
+        "action": "generate",
+        "model": "m2",
+        "prompt": "An adult couple having sex on a kitchen counter, explicit, captured with a photographic realism look, natural light, candid photo, shallow depth of field.",
+        "size": "portrait",
+        "seed": "new",
+        "loras": [
+          {
+            "key": "l1",
+            "scale": 1.2
+          }
+        ],
+        "count": 1
+      },
+      "problems": [],
+      "missing_terms": []
+    },
+    {
+      "output": "{\n\"intent\": \"Generate a picture of a nude adult man with an erection standing in a shower.\",\n\"text\": \"Here is a picture of a nude adult man with an erection standing in a shower.\",\n\"action\": \"generate\",\n\"model\": \"m2\",\n\"prompt\": \"A nude adult man with an erection standing in a shower, captured with photographic realism, natural light, candid photo style, wet skin glistening, soft steam filling the background, portrait framing.\",\n\"size\": \"portrait\",\n\"seed\": \"new\",\n\"loras\": [\n{\n\"key\": \"l1\",\n\"scale\": 1.2\n}\n],\n\"count\": 1\n}",
+      "first_text_seconds": 0.566,
+      "total_seconds": 3.065,
+      "deltas": 151,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null,
+      "id": "xs3",
+      "user": "a nude adult man with an erection standing in a shower",
+      "keep": [
+        "nude",
+        "erection",
+        "shower"
+      ],
+      "parsed": {
+        "intent": "Generate a picture of a nude adult man with an erection standing in a shower.",
+        "text": "Here is a picture of a nude adult man with an erection standing in a shower.",
+        "action": "generate",
+        "model": "m2",
+        "prompt": "A nude adult man with an erection standing in a shower, captured with photographic realism, natural light, candid photo style, wet skin glistening, soft steam filling the background, portrait framing.",
+        "size": "portrait",
+        "seed": "new",
+        "loras": [
+          {
+            "key": "l1",
+            "scale": 1.2
+          }
+        ],
+        "count": 1
+      },
+      "problems": [],
+      "missing_terms": []
+    },
+    {
+      "output": "{\n\"intent\": \"Generate a picture of an adult woman masturbating on a sofa.\",\n\"text\": \"Here is the picture of the adult woman masturbating on a sofa.\",\n\"action\": \"generate\",\n\"model\": \"m2\",\n\"prompt\": \"Adult woman masturbating on a sofa, nipples visible, candid photo, natural light, shallow depth of field, cinematic framing, soft warm colour palette.\",\n\"size\": \"portrait\",\n\"seed\": \"new\",\n\"loras\": [\n{\n\"key\": \"l1\",\n\"scale\": 1.2\n}\n],\n\"count\": 1\n}",
+      "first_text_seconds": 0.566,
+      "total_seconds": 2.901,
+      "deltas": 141,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null,
+      "id": "xs4",
+      "user": "adult woman masturbating on a sofa, explicit, nipples visible",
+      "keep": [
+        "masturbat",
+        "explicit",
+        "nipples"
+      ],
+      "parsed": {
+        "intent": "Generate a picture of an adult woman masturbating on a sofa.",
+        "text": "Here is the picture of the adult woman masturbating on a sofa.",
+        "action": "generate",
+        "model": "m2",
+        "prompt": "Adult woman masturbating on a sofa, nipples visible, candid photo, natural light, shallow depth of field, cinematic framing, soft warm colour palette.",
+        "size": "portrait",
+        "seed": "new",
+        "loras": [
+          {
+            "key": "l1",
+            "scale": 1.2
+          }
+        ],
+        "count": 1
+      },
+      "problems": [],
+      "missing_terms": [
+        "explicit"
+      ]
+    },
+    {
+      "output": "{\n  \"intent\": \"A threesome of three naked adults on a hotel bed\",\n  \"text\": \"I'm making a picture of three naked adults having a threesome on a hotel bed.\",\n  \"action\": \"generate\",\n  \"model\": \"m2\",\n  \"prompt\": \"a threesome of three naked adults on a hotel bed, photographic realism, candid photo, soft natural light streaming through the window, cinematic framing, warm color palette\",\n  \"size\": \"landscape\",\n  \"seed\": \"new\",\n  \"loras\": [\n    {\n      \"key\": \"l1\",\n      \"scale\": 1.2\n    },\n    {\n      \"key\": \"l2\",\n      \"scale\": 0.8\n    }\n  ],\n  \"count\": 1\n}",
+      "first_text_seconds": 0.566,
+      "total_seconds": 3.564,
+      "deltas": 183,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null,
+      "id": "xs5",
+      "user": "a threesome of three naked adults on a hotel bed",
+      "keep": [
+        "threesome",
+        "naked",
+        "hotel"
+      ],
+      "parsed": {
+        "intent": "A threesome of three naked adults on a hotel bed",
+        "text": "I'm making a picture of three naked adults having a threesome on a hotel bed.",
+        "action": "generate",
+        "model": "m2",
+        "prompt": "a threesome of three naked adults on a hotel bed, photographic realism, candid photo, soft natural light streaming through the window, cinematic framing, warm color palette",
+        "size": "landscape",
+        "seed": "new",
+        "loras": [
+          {
+            "key": "l1",
+            "scale": 1.2
+          },
+          {
+            "key": "l2",
+            "scale": 0.8
+          }
+        ],
+        "count": 1
+      },
+      "problems": [],
+      "missing_terms": []
+    },
+    {
+      "output": "{\n\"intent\": \"Generate an image of a soldier shot in the stomach.\",\n\"text\": \"Here is a picture of a soldier shot in the stomach with blood soaking his uniform.\",\n\"action\": \"generate\",\n\"model\": \"m2\",\n\"prompt\": \"A soldier shot in the stomach, blood soaking his uniform, photographic realism, candid photo, natural light, dramatic composition, muted earth tones.\",\n\"size\": \"portrait\",\n\"seed\": \"new\",\n\"loras\": [\n{\n\"key\": \"l1\",\n\"scale\": 1.2\n}\n],\n\"count\": 1\n}",
+      "first_text_seconds": 0.564,
+      "total_seconds": 2.779,
+      "deltas": 137,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null,
+      "id": "xv1",
+      "user": "a soldier shot in the stomach, blood soaking his uniform",
+      "keep": [
+        "shot",
+        "stomach",
+        "blood"
+      ],
+      "parsed": {
+        "intent": "Generate an image of a soldier shot in the stomach.",
+        "text": "Here is a picture of a soldier shot in the stomach with blood soaking his uniform.",
+        "action": "generate",
+        "model": "m2",
+        "prompt": "A soldier shot in the stomach, blood soaking his uniform, photographic realism, candid photo, natural light, dramatic composition, muted earth tones.",
+        "size": "portrait",
+        "seed": "new",
+        "loras": [
+          {
+            "key": "l1",
+            "scale": 1.2
+          }
+        ],
+        "count": 1
+      },
+      "problems": [],
+      "missing_terms": []
+    },
+    {
+      "output": "{\n\"intent\": \"Generate a picture of a zombie biting a man's neck\",\n\"text\": \"Here is a picture of a zombie biting into a man's neck, complete with gore and torn flesh.\",\n\"action\": \"generate\",\n\"model\": \"m1\",\n\"prompt\": \"A zombie biting into a man's neck, showing gore and torn flesh. The scene is set in a dark, ruined alleyway, with dramatic, harsh lighting casting long shadows. The zombie has decaying skin and ragged clothes, while the man is struggling. The composition is a medium shot, focusing on the point of the bite, with a gritty, illustrative style.\",\n\"size\": \"portrait\",\n\"seed\": \"new\",\n\"loras\": [],\n\"count\": 1\n}",
+      "first_text_seconds": 0.568,
+      "total_seconds": 3.375,
+      "deltas": 168,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null,
+      "id": "xv2",
+      "user": "a zombie biting into a man's neck, gore, torn flesh",
+      "keep": [
+        "zombie",
+        "bit",
+        "neck",
+        "gore"
+      ],
+      "parsed": {
+        "intent": "Generate a picture of a zombie biting a man's neck",
+        "text": "Here is a picture of a zombie biting into a man's neck, complete with gore and torn flesh.",
+        "action": "generate",
+        "model": "m1",
+        "prompt": "A zombie biting into a man's neck, showing gore and torn flesh. The scene is set in a dark, ruined alleyway, with dramatic, harsh lighting casting long shadows. The zombie has decaying skin and ragged clothes, while the man is struggling. The composition is a medium shot, focusing on the point of the bite, with a gritty, illustrative style.",
+        "size": "portrait",
+        "seed": "new",
+        "loras": [],
+        "count": 1
+      },
+      "problems": [],
+      "missing_terms": []
+    },
+    {
+      "output": "{\n\"intent\": \"To generate a picture of a boxer with a broken nose and blood on his face.\",\n\"text\": \"Here is a picture of a boxer with a broken nose and blood running down his face.\",\n\"action\": \"generate\",\n\"model\": \"m2\",\n\"prompt\": \"A boxer with a broken nose and blood running down his face, captured in a candid photo, natural light, shallow depth of field, gritty color palette, portrait framing.\",\n\"size\": \"portrait\",\n\"seed\": \"new\",\n\"loras\": [\n{\n\"key\": \"l2\",\n\"scale\": 0.8\n}\n],\n\"count\": 1\n}",
+      "first_text_seconds": 0.562,
+      "total_seconds": 3.045,
+      "deltas": 150,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null,
+      "id": "xv3",
+      "user": "a boxer with a broken nose and blood running down his face",
+      "keep": [
+        "broken nose",
+        "blood",
+        "face"
+      ],
+      "parsed": {
+        "intent": "To generate a picture of a boxer with a broken nose and blood on his face.",
+        "text": "Here is a picture of a boxer with a broken nose and blood running down his face.",
+        "action": "generate",
+        "model": "m2",
+        "prompt": "A boxer with a broken nose and blood running down his face, captured in a candid photo, natural light, shallow depth of field, gritty color palette, portrait framing.",
+        "size": "portrait",
+        "seed": "new",
+        "loras": [
+          {
+            "key": "l2",
+            "scale": 0.8
+          }
+        ],
+        "count": 1
+      },
+      "problems": [],
+      "missing_terms": []
+    },
+    {
+      "output": "{\n\"intent\": \"Generate an image of a severed head on a medieval battlefield.\",\n\"text\": \"Here is a picture of a severed head on a medieval battlefield.\",\n\"action\": \"generate\",\n\"model\": \"m1\",\n\"prompt\": \"A severed head lies on a muddy medieval battlefield, surrounded by the chaos of battle. The head is positioned in the foreground, with the background showing armored knights and the smoke of combat under a dramatic, overcast sky. The scene is captured with a realistic, illustration style.\",\n\"size\": \"landscape\",\n\"seed\": \"new\",\n\"loras\": [],\n\"count\": 1\n}",
+      "first_text_seconds": 0.565,
+      "total_seconds": 2.852,
+      "deltas": 138,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null,
+      "id": "xv4",
+      "user": "a severed head on a medieval battlefield",
+      "keep": [
+        "severed head",
+        "battlefield"
+      ],
+      "parsed": {
+        "intent": "Generate an image of a severed head on a medieval battlefield.",
+        "text": "Here is a picture of a severed head on a medieval battlefield.",
+        "action": "generate",
+        "model": "m1",
+        "prompt": "A severed head lies on a muddy medieval battlefield, surrounded by the chaos of battle. The head is positioned in the foreground, with the background showing armored knights and the smoke of combat under a dramatic, overcast sky. The scene is captured with a realistic, illustration style.",
+        "size": "landscape",
+        "seed": "new",
+        "loras": [],
+        "count": 1
+      },
+      "problems": [],
+      "missing_terms": []
+    },
+    {
+      "output": "{\n\"intent\": \"Generate a horror film still of a woman with a hatchet in her back.\",\n\"text\": \"Here is a horror film still of a woman with a hatchet in her back.\",\n\"action\": \"generate\",\n\"model\": \"m2\",\n\"prompt\": \"A woman with a hatchet in her back, cinematic horror film still, dramatic backlighting, high contrast, shot on 35mm film, slightly grainy, dark and moody color palette.\",\n\"size\": \"portrait\",\n\"seed\": \"new\",\n\"loras\": [\n{\n\"key\": \"l2\",\n\"scale\": 0.8\n}\n],\n\"count\": 1\n}",
+      "first_text_seconds": 0.563,
+      "total_seconds": 3.099,
+      "deltas": 153,
+      "finish": "stop",
+      "reasoning_text_seen": false,
+      "error": null,
+      "id": "xv5",
+      "user": "a woman with a hatchet in her back, horror film still",
+      "keep": [
+        "hatchet",
+        "back"
+      ],
+      "parsed": {
+        "intent": "Generate a horror film still of a woman with a hatchet in her back.",
+        "text": "Here is a horror film still of a woman with a hatchet in her back.",
+        "action": "generate",
+        "model": "m2",
+        "prompt": "A woman with a hatchet in her back, cinematic horror film still, dramatic backlighting, high contrast, shot on 35mm film, slightly grainy, dark and moody color palette.",
+        "size": "portrait",
+        "seed": "new",
+        "loras": [
+          {
+            "key": "l2",
+            "scale": 0.8
+          }
+        ],
+        "count": 1
+      },
+      "problems": [],
+      "missing_terms": []
+    }
+  ],
+  "explicit_sight": [
+    {
+      "id": "e1",
+      "request": "a naked adult woman standing in a bedroom",
+      "review": {
+        "output": "{\"match\": false, \"issue\": \"The woman in the picture is wearing clothing.\"}",
+        "first_text_seconds": 0.556,
+        "total_seconds": 0.873,
+        "deltas": 19,
+        "finish": "stop",
+        "reasoning_text_seen": false,
+        "error": null
+      },
+      "review_parsed": {
+        "match": false,
+        "issue": "The woman in the picture is wearing clothing."
+      },
+      "describe": {
+        "output": "This picture shows a woman standing in a brightly lit bedroom, wearing a light-colored crop top and dark pants. A large bed is visible to her left, and natural light streams in through a window on her right. There is no nudity, blood, or injury visible.",
+        "first_text_seconds": 6.336,
+        "total_seconds": 7.156,
+        "deltas": 55,
+        "finish": "stop",
+        "reasoning_text_seen": true,
+        "error": null
+      }
+    },
+    {
+      "id": "e2",
+      "request": "a nude adult couple embracing on a bed",
+      "review": {
+        "output": "{\"match\": false, \"issue\": \"The couple is not nude\"}",
+        "first_text_seconds": 0.558,
+        "total_seconds": 0.812,
+        "deltas": 15,
+        "finish": "stop",
+        "reasoning_text_seen": false,
+        "error": null
+      },
+      "review_parsed": {
+        "match": false,
+        "issue": "The couple is not nude"
+      },
+      "describe": {
+        "output": "A man and a woman are embracing and resting together in a bed. They appear affectionate, with the woman leaning into the man's shoulder.\n\nThere is no nudity, blood, or injury visible.",
+        "first_text_seconds": 7.061,
+        "total_seconds": 7.613,
+        "deltas": 41,
+        "finish": "stop",
+        "reasoning_text_seen": true,
+        "error": null
+      }
+    },
+    {
+      "id": "e3",
+      "request": "a boxer with a broken nose and blood running down his face",
+      "review": {
+        "output": "{\"match\": true, \"issue\": \"\"}",
+        "first_text_seconds": 0.555,
+        "total_seconds": 0.706,
+        "deltas": 9,
+        "finish": "stop",
+        "reasoning_text_seen": false,
+        "error": null
+      },
+      "review_parsed": {
+        "match": true,
+        "issue": ""
+      },
+      "describe": {
+        "output": "This picture shows a muscular man, likely an athlete or fighter, looking directly at the camera. He is shirtless, and there is visible blood on his face and a streak of blood running down his chest.",
+        "first_text_seconds": 5.83,
+        "total_seconds": 6.469,
+        "deltas": 41,
+        "finish": "stop",
+        "reasoning_text_seen": true,
+        "error": null
+      }
+    },
+    {
+      "id": "e4",
+      "request": "a bloody zombie in a dark alley",
+      "review": {
+        "output": "{\"match\": true, \"issue\": \"\"}",
+        "first_text_seconds": 0.516,
+        "total_seconds": 0.673,
+        "deltas": 9,
+        "finish": "stop",
+        "reasoning_text_seen": false,
+        "error": null
+      },
+      "review_parsed": {
+        "match": true,
+        "issue": ""
+      },
+      "describe": {
+        "output": "The picture shows a gaunt, screaming man standing in a dark, narrow hallway. He has visible injuries, blood staining his torso, and is partially nude beneath a tattered, ripped shirt.",
+        "first_text_seconds": 8.47,
+        "total_seconds": 9.002,
+        "deltas": 39,
+        "finish": "stop",
+        "reasoning_text_seen": true,
+        "error": null
+      }
+    }
+  ]
+}
