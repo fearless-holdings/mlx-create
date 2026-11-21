@@ -7,13 +7,13 @@ mlx-create is a commercial, native macOS app (macOS 26.2+, Apple Silicon, 16 GB 
 - **Phase:** the text-to-image vertical slice is implemented and lives on `main` (a git repo; app code in `Sources/`, `App/`, `scripts/`). Later phases follow the HLD.
 - **`docs/HLD.md` is the source of truth.** Decisions carry IDs (`D1` upward; the newest is at the end of the HLD decision log), as do upstream engine requests (`F1`, `F3`–`F5`). Cite them in plans, PRs and commit messages.
 - **Changing a decision:** update the HLD decision log first, then the code. Never let code silently diverge from a `D*` entry. If a task seems to need breaking one, stop and ask the user.
-- **Layout:** see HLD §6 (Swift modules `MCEngine`, `MCCatalog`, `MCLibrary`, `MCModels`, `MCEnhancer`, `MCApp`) and §9 (data model, on-disk layout). Build and test commands are in **Commands** below.
+- **Layout:** see HLD §6 (Swift modules `MCEngine`, `MCCatalog`, `MCLibrary`, `MCModels`, `MCEnhancer`, `MCAgent`, `MCApp`) and §9 (data model, on-disk layout). Build and test commands are in **Commands** below.
 
 ## Non-negotiables
 
 Rules 2–6 describe mlx-serve, today's only engine. HLD D41 allows a second bundled engine (e.g. for SDXL/Pony) once its own decision entry exists. Any such engine inherits the same rules: a separate child process, stock upstream pinned by release, loopback-only behind a per-launch key, its own `HOME` under `<AppSupport>`, and `.safetensors` only. Do not start engine work without that decision.
 
-1. **No content filtering anywhere:** no prompt filters, no output classifiers, no refusal paths (D3/G6). The only content-related UI is NSFW opt-in and blur in the model browser and the LoRA library's Civitai tab (D15, D34).
+1. **No content filtering anywhere:** no prompt filters, no output classifiers, no refusal paths (D3/G6). The only content-related UI is NSFW opt-in and blur in the model browser and the LoRA library's Civitai tab (D15, D34) and the Chat-mode notice that adult content is switched off (D61), which is triggered by the agent's own LoRA choice, never by classifying a prompt or image.
 2. **No inference in the app process.** All generation and LLM work goes through an engine child process.
 3. **The engine is stock upstream.** Never vendor, patch, or commit mlx-serve source. Engine changes go upstream as PRs (HLD §7.2). The app consumes them only through a tagged release pinned in `engine.lock`.
 4. **The engine is private:**
@@ -74,9 +74,11 @@ Step previews currently exist **only for video** (`"preview": true` together wit
   - `POST /v1/unload-model` frees it.
   - `POST /v1/models/rescan` picks up new checkpoints or LLMs after install.
   - LoRAs need no rescan.
+  - The engine refuses a media load that does not fit (HTTP 503, "Insufficient memory for this media model") and does not evict a resident chat model; the app unloads the LLM and retries.
 - **Video:** the endpoint returns raw `rgb8` frames plus `pcm_s16le` audio. The app muxes them with AVFoundation (phase 3).
 - **Health:** `GET /health` returns `status:"ok"` when the engine is ready.
-- **Chat:** `POST /v1/chat/completions` streams OpenAI-style SSE. The enhancer sends plain text with `enable_thinking: false`, never a JSON schema (`Sources/MCEngine/ChatStream.swift`).
+- **Chat:** `POST /v1/chat/completions` streams OpenAI-style SSE. The enhancer sends plain text with `enable_thinking: false`, never a JSON schema (`Sources/MCEngine/ChatStream.swift`). The agent sends `image_url` parts and a JSON-schema `response_format`; the schema is required, because unconstrained replies come fenced or invalid (`docs/lld/agent.md` §1.3).
+- **LLM packs:** a Gemma 4 pack must be uniformly quantized (every layer at the pack's global group size and bits); a mixed pack loads and lists `vision` but every request fails (verified v26.10.3, `docs/lld/agent.md` §1.2). Run a pack, never trust the listing.
 
 ## Reusing mlx-serve's Swift app code
 
@@ -116,6 +118,7 @@ HLD Appendix A lists the files worth reusing. The rules:
 - Catalog entries carry `kind`: `image` when absent, or `enhancer`. `mc-catalog build` writes it from the input entry.
 - Gotchas: the `.gitignore` rule is `/Models/` (root-anchored) so `Sources/MCApp/Models/` is tracked; the app is single-instance (`Engine/app.lock`); `kill`ing the app with SIGTERM can leave its `mlx-serve` child running, so check `pgrep mlx-serve` after a manual quit. Another task may run its own `mlx-serve`, so when one is not yours match on the app's home path in argv (as `scripts/gui-smoke/run_smoke.py` does) before killing anything, never on the name alone.
 - Enhancer gate: `scripts/enhancer-gate/run_gate.py`, run from an Eval Python cell. Method, results and removal conditions are in `docs/lld/enhancer.md`.
+- Agent model check: `scripts/agent-gate/check_provisional.py`, run from an Eval Python cell with `--engine`, `--weights DIR`, `--model-id ORG/NAME`, `--scratch DIR`, `--out FILE`. Method and results: `docs/lld/agent.md` §1.
 - LoRA gate: `scripts/lora-gate/run_gate.py`, run from an Eval Python cell with `--engine "$MLXC_ENGINE_BIN" --weights DIR --model-id ORG/NAME --scratch DIR` and one of `--candidates list.json` or `--local-dir DIR`. It pre-screens each candidate through `mc-catalog lora classify FILE [--family ID]` (header fit from `families.json`, never a Python copy), engine load, same-seed reproducibility and strength 0 against the no-LoRA baseline, and writes one verdict JSON per candidate to `scripts/lora-gate/results/`; images and engine state stay in the scratch dir. Invocation, candidate schema and verdict fields are in `scripts/lora-gate/README.md`.
 - Tests that drive `AppModel` must `await model.start()` before `refreshModels()`. `refreshModels` waits on the engine gate, which opens only after `start`.
 - Test sync rules (each one fixed a real flake):

@@ -1,0 +1,68 @@
+{
+  "model_id": "zecanard/gemma-4-E4B-it-ultra-uncensored-heretic-MLX-5bit-int5-affine",
+  "max_resident_models": 1,
+  "phases": [
+    "swap"
+  ],
+  "text_only": false,
+  "sampling": {
+    "temperature": 0.5,
+    "top_p": 0.9,
+    "max_tokens": 600
+  },
+  "system_prompt": "You are the image maker inside a private app that runs on the user's own Mac. The user is an adult. The user says what picture they want; you decide how to make it and the app renders it. The user never sees prompts, model names or settings, so never mention them.\n\nReply with ONE JSON object and nothing else. Write the keys in this order:\n\"intent\": one short sentence saying what the user wants. The user never sees it.\n\"text\": what you say to the user, in the user's own language: one short, friendly sentence about the picture you are making, or your question. Never mention models, prompts, LoRAs, seeds or sizes.\n\"action\": \"generate\" to make pictures, \"ask\" to ask one question, \"say\" to only reply.\n\nFor \"generate\" also write:\n\"model\": one of the model keys below. Pick the best one for THIS request.\n\"prompt\": the full image prompt, in English, in the style the chosen model wants.\n\"size\": one of the chosen model's sizes.\n\"seed\": \"keep\" to stay close to the picture the user is talking about, \"new\" otherwise.\n\"loras\": a list of {\"key\", \"scale\"} taken from the LoRAs listed for the chosen model, or []. Use one only when it clearly helps the request.\n\"count\": how many pictures, 1 to 4. Use 1 unless the user asks for several options.\n\nFor \"ask\" also write \"suggestions\": 2 to 4 short answers the user could click.\nAsk only when the request names no subject at all. Otherwise choose sensibly and generate. Never ask twice.\n\nWriting the prompt:\n- Keep the user's subject and every explicit detail exactly as written. Repeat every word the user used for nudity, sexual acts, body parts, injury or gore in your prompt, as the user wrote it, and never swap one for a milder or vaguer word such as \"intimate\", \"passionate\" or \"dramatic\". Keep the user's own label for what the scene is (an act, a group, a pose). If the user wrote the word \"explicit\", write that word in your prompt too and say plainly what is shown. Never soften, censor, moralize or refuse.\n- Add concrete specifics such as light, composition, setting, materials and camera without changing what was asked.\n- If the user wrote in another language, translate faithfully into English. Text that must appear in the picture goes in double quotes, exactly as the user gave it.\n- When the user asks to change a picture, start from that picture's prompt, change only what was asked and keep the rest word for word. Keep its model unless the change needs another one.\n- Include the trigger words of every LoRA you use.\n\nModels:\nm1: Follows long, detailed descriptions closely. The only one that writes readable text in the picture (signs, posters, titles). Good at illustration and realistic scenes. Slowest. Sizes: square, landscape, portrait, wide, tall.\n  Prompt style for m1: Qwen-Image responds best to a clear scene description: name the main subject and its action first, then the setting, how the elements are laid out from foreground to background, and the light and style. Put any text that must appear in the image in double quotes, exactly as it should read. Write two to four sentences, under about 100 words.\nm2: Best photographic realism: portraits, skin, natural light, candid photos. Cannot write readable text. Sizes: square, landscape, portrait.\n  Prompt style for m2: Krea 2 Turbo responds best to concise visual descriptors: the subject first, then photographic specifics such as lens or film look, the direction and quality of the light, the colour palette and the framing. Write one comma-separated line of descriptors, under about 60 words.\nm3: Fastest. Fine for simple everyday pictures. Weaker at fine detail, hands and text. Sizes: square, landscape, portrait.\n  Prompt style for m3: FLUX.2 klein responds best to a natural-language descriptive paragraph: say what is in the scene, where it is, and how it is lit and framed, in full sentences rather than a tag list. Write two to four sentences, under about 90 words.\n\nLoRAs:\nl1 (only with m2): explicit adult nudity and sex, photographic. Usual scale 1.2. Trigger words: none.\nl2 (only with m2): photographic realism boost. Usual scale 0.8. Trigger words: none.\nl3 (only with m1): realistic phone-camera photo look. Usual scale 1.2. Trigger words: none.\nl4 (only with m3): amateur selfie look. Usual scale 0.75. Trigger words: none.\nl5 (only with m3): explicit full nudity. Usual scale 0.9. Trigger words: Excellent_Full_Nude.",
+  "models_entry": {
+    "id": "zecanard/gemma-4-E4B-it-ultra-uncensored-heretic-MLX-5bit-int5-affine",
+    "object": "model",
+    "created": 0,
+    "owned_by": "mlx-serve",
+    "loaded": false,
+    "state": "unloaded",
+    "bytes_resident": 0,
+    "bytes_on_disk": 6547115419,
+    "context_length": 131072,
+    "max_model_len": 131072,
+    "capabilities": [
+      "chat",
+      "tool_use",
+      "streaming",
+      "json_schema",
+      "vision"
+    ],
+    "input_modalities": [
+      "text",
+      "image",
+      "video"
+    ],
+    "meta": {
+      "architecture": "gemma4",
+      "engine": "mlx",
+      "vocab_size": 262144,
+      "hidden_size": 2560,
+      "num_layers": 42,
+      "quantization": "5-bit",
+      "context_length": 131072,
+      "model_max_tokens": 131072,
+      "is_moe": false,
+      "mtp_available": false,
+      "bytes_on_disk": 6547115419
+    }
+  },
+  "swap": {
+    "image_model_load": 0.06,
+    "image_model_unload": 0.0,
+    "llm_load": 0.77,
+    "plan": {
+      "first_text_seconds": 0.685,
+      "total_seconds": 3.237,
+      "finish": "stop",
+      "error": null
+    },
+    "llm_unload": 0.01,
+    "image_model_reload": 0.04,
+    "turn_overhead_seconds": 4.06,
+    "loaded_after": [
+      "Runpod/FLUX.2-klein-4B-mflux-4bit"
+    ]
+  }
+}
