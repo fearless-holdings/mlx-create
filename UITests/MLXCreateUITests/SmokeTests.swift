@@ -9,4 +9,11 @@ final class SmokeTests: XCTestCase {
         let image = session.runGenerateFlow()
         session.runRestoreFlow(image)
     }
+
+    /// The Chat-mode flow. The runner runs it only with `--agent-model-id`; without it the session skips.
+    func testChatConversation() throws {
+        continueAfterFailure = false
+        let session = try SmokeSession(testCase: self, mode: .chat)
+        session.runChatFlow()
+    }
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 """GUI smoke runner (D50, plan U3): run the UI tests against the real app and engine in a throwaway home.
 
-    run_smoke.py --models DIR --model-id ORG/NAME [--out DIR] [--timeout SECONDS]
+    run_smoke.py --models DIR --model-id ORG/NAME [--agent-models DIR --agent-model-id ORG/NAME] [--out DIR] [--timeout SECONDS]
     run_smoke.py --self-test
 
 `--models` is a directory holding model folders as `ORG/NAME` (the app's `Models/Weights` layout). The model is
@@ -69,34 +69,50 @@ def developer_mode_enabled():
     return "enabled" in (result.stdout + result.stderr).lower()
 
 
-def preflight(models, model_id, running=running_app_pids, developer_mode=developer_mode_enabled):
-    """Returns the model folder, or raises NotRun with the reason. Each refusal has its own message."""
-    if not models or not model_id:
-        raise NotRun("no model configured: pass --models DIR and --model-id ORG/NAME")
+def model_folder_for(models, model_id, flag):
+    """The ORG/NAME folder under `models`, or NotRun with the reason."""
     if not re.fullmatch(r"[\w.\-]+/[\w.\-]+", model_id):
-        raise NotRun(f"--model-id must look like ORG/NAME, got {model_id!r}")
+        raise NotRun(f"{flag} must look like ORG/NAME, got {model_id!r}")
     folder = os.path.join(os.path.abspath(models), *model_id.split("/"))
     if not os.path.isdir(folder):
         raise NotRun(f"model folder missing: {folder}")
     if not any(os.path.isfile(os.path.join(folder, name)) for name in MODEL_MARKERS):
         raise NotRun(f"{folder} has neither config.json nor model_index.json: not a model folder")
+    return folder
+
+
+def preflight(models, model_id, agent_models=None, agent_model_id=None, running=running_app_pids, developer_mode=developer_mode_enabled):
+    """Returns (model folder, agent folder or None), or raises NotRun with the reason. Each refusal has its own message."""
+    if not models or not model_id:
+        raise NotRun("no model configured: pass --models DIR and --model-id ORG/NAME")
+    folder = model_folder_for(models, model_id, "--model-id")
+    agent_folder = None
+    if agent_model_id:
+        if not agent_models:
+            raise NotRun("--agent-model-id needs --agent-models DIR, the directory holding the agent pack")
+        agent_folder = model_folder_for(agent_models, agent_model_id, "--agent-model-id")
     pids = running()
     if pids:
         raise NotRun(f"mlx-create is running (pid {', '.join(map(str, pids))}); quit it first, a UI test launch would take over its window")
     if not developer_mode():
         raise NotRun("Developer Mode is off: run `sudo DevToolsSecurity -enable` once (it needs an admin password)")
-    return folder
+    return folder, agent_folder
 
 
 # --- throwaway home and cleanup ----------------------------------------------------------------------------------
 
 
-def make_home(model_folder, model_id):
+def make_home(model_folder, model_id, agent_folder=None, agent_model_id=None):
     """A fresh home whose library holds only the model, as a symlink. Created here: the test runner cannot."""
     home = tempfile.mkdtemp(prefix=HOME_PREFIX, dir="/tmp")
-    weights = os.path.join(home, "Library", "Application Support", "mlx-create", "Models", "Weights", *model_id.split("/")[:-1])
+    weights_root = os.path.join(home, "Library", "Application Support", "mlx-create", "Models", "Weights")
+    weights = os.path.join(weights_root, *model_id.split("/")[:-1])
     os.makedirs(weights)
     os.symlink(model_folder, os.path.join(weights, model_id.split("/")[-1]))
+    if agent_folder and agent_model_id:
+        agent_parent = os.path.join(weights_root, *agent_model_id.split("/")[:-1])
+        os.makedirs(agent_parent, exist_ok=True)
+        os.symlink(agent_folder, os.path.join(agent_parent, agent_model_id.split("/")[-1]))
     return home
 
 
@@ -373,7 +389,8 @@ def fmt_seconds(seconds):
 
 def run(args):
     started = time.time()
-    model_folder = preflight(args.models, args.model_id)
+    model_folder, agent_folder = preflight(
+        args.models, args.model_id, agent_models=args.agent_models, agent_model_id=args.agent_model_id)
     stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     out_dir = os.path.abspath(args.out or os.path.join(REPO, "build", "gui-smoke", stamp))
     os.makedirs(out_dir, exist_ok=True)
@@ -385,7 +402,7 @@ def run(args):
     bounds = builtin_display_bounds()
     if bounds is None:
         raise NotRun("no built-in display is active (lid closed?): the run is pinned to the laptop's own screen")
-    home = make_home(model_folder, args.model_id)
+    home = make_home(model_folder, args.model_id, agent_folder, args.agent_model_id)
     code = EXIT_FAIL
     try:
         try:
@@ -396,12 +413,17 @@ def run(args):
 
             mark = time.time()
             env = dict(os.environ, TEST_RUNNER_MLXC_SMOKE_HOME=home, TEST_RUNNER_MLXC_SMOKE_MODEL_ID=args.model_id)
+            if args.agent_model_id:
+                env["TEST_RUNNER_MLXC_SMOKE_AGENT_MODEL_ID"] = args.agent_model_id
+            # Without --agent-model-id only the Canvas flow runs: the Chat test would skip itself, and a skipped test
+            # counts as NOT RUN. With it the whole target runs — Canvas first, then the Chat flow.
+            only = TEST_TARGET if args.agent_model_id else f"{TEST_TARGET}/SmokeTests/testGenerateThenRestore"
             pinner = WindowPinner(home, bounds)
             pinner.start()
             try:
                 status = run_logged(
                     ["xcodebuild", "-project", "MLXCreate.xcodeproj", "-scheme", SCHEME, "-configuration", "Debug", "-derivedDataPath", "build",
-                     "-destination", "platform=macOS", "-resultBundlePath", result_bundle, f"-only-testing:{TEST_TARGET}", "test"],
+                     "-destination", "platform=macOS", "-resultBundlePath", result_bundle, f"-only-testing:{only}", "test"],
                     log_path, env=env, timeout=args.timeout)
             finally:
                 pinner.stop()
@@ -458,9 +480,10 @@ def self_test():
         if not condition:
             failures_.append(name)
 
-    def refusal(models, model_id, running=lambda: [], developer_mode=lambda: True):
+    def refusal(models, model_id, agent_models=None, agent_model_id=None, running=lambda: [], developer_mode=lambda: True):
         try:
-            preflight(models, model_id, running=running, developer_mode=developer_mode)
+            preflight(models, model_id, agent_models=agent_models, agent_model_id=agent_model_id,
+                      running=running, developer_mode=developer_mode)
         except NotRun as error:
             return str(error)
         return None
@@ -477,10 +500,19 @@ def self_test():
         check("running mlx-create is refused", "mlx-create is running" in (refusal(scratch, "Org/Name", running=lambda: [4242]) or ""))
         check("Developer Mode off is refused", "Developer Mode" in (refusal(scratch, "Org/Name", developer_mode=lambda: False) or ""))
         check("a valid setup passes preflight", refusal(scratch, "Org/Name") is None)
+        check("--agent-model-id without --agent-models is refused", "--agent-models" in (refusal(scratch, "Org/Name", agent_model_id="Org/Agent") or ""))
+        check("malformed agent id is refused", "ORG/NAME" in (refusal(scratch, "Org/Name", agent_models=scratch, agent_model_id="nope") or ""))
+        check("missing agent folder is refused", "model folder missing" in (refusal(scratch, "Org/Name", agent_models=scratch, agent_model_id="Org/Absent") or ""))
+        check("a valid agent setup passes preflight", refusal(scratch, "Org/Name", agent_models=scratch, agent_model_id="Org/Name") is None)
 
         home = make_home(folder, "Org/Name")
         link = os.path.join(home, "Library", "Application Support", "mlx-create", "Models", "Weights", "Org", "Name")
         check("home links the model, not copies it", os.path.islink(link) and os.path.realpath(link) == os.path.realpath(folder))
+
+        agent_home = make_home(folder, "Org/Name", folder, "Org/Agent")
+        agent_link = os.path.join(agent_home, "Library", "Application Support", "mlx-create", "Models", "Weights", "Org", "Agent")
+        check("home links the agent pack too", os.path.islink(agent_link) and os.path.realpath(agent_link) == os.path.realpath(folder))
+        remove_home(agent_home)
 
         sleeper = "import time; time.sleep(60)"
         ours = subprocess.Popen([sys.executable, "-c", sleeper, home])
@@ -554,6 +586,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--models", help="directory holding model folders as ORG/NAME")
     parser.add_argument("--model-id", help="ORG/NAME of the model to generate with")
+    parser.add_argument("--agent-model-id", help="ORG/NAME of the agent LLM pack; enables the Chat flow")
+    parser.add_argument("--agent-models", help="directory holding the agent pack, linked into Weights like --models")
     parser.add_argument("--out", help="evidence directory (default build/gui-smoke/<timestamp>)")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT, help="seconds allowed for build and tests")
     parser.add_argument("--self-test", action="store_true", help="check the refusals and cleanup, no engine needed")
