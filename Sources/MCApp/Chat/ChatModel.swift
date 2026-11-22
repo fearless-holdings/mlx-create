@@ -18,6 +18,8 @@ enum ChatStatus: Equatable, Sendable {
     case thinking
     /// The job is queued behind other work.
     case waitingInQueue
+    /// The turn is waiting on the on-device speed measurement (D48), which runs once per engine version.
+    case measuringSpeed
     /// The job is rendering; `image` and `of` are 1-based.
     case rendering(step: Int?, total: Int?, image: Int, of: Int)
     case queuePaused
@@ -70,6 +72,8 @@ final class ChatModel {
     var turnUserText: String?
     /// A referent the sender pinned (D59's Fix it), first choice ahead of `largeImageID` for that one turn.
     var turnReferentImageID: UUID?
+    /// Text appended to the user turn the agent sees, never stored or shown (the adult retry's instruction).
+    var turnAgentNote: String?
     /// Whether the followed job's turn ran in this session; a relaunched job's finish never starts the check (D59).
     var followedFromCurrentTurn = false
     /// The newest `.progress` step and total the followed job reported.
@@ -104,7 +108,8 @@ final class ChatModel {
 
     /// Sends `text` as the user's message; suggestion and retry buttons use this. Ignored while a turn runs or when
     /// the text is blank.
-    func send(text: String, referentImageID: UUID? = nil) async {
+    /// `agentNote` is appended to the text the agent sees only: the stored and shown `.userText` stays `text`.
+    func send(text: String, referentImageID: UUID? = nil, agentNote: String? = nil) async {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         if case .checking = phase {
             // A send during the check cancels it silently and starts the turn instead (D59).
@@ -116,6 +121,7 @@ final class ChatModel {
         let collectionID = app.currentCollection.id
         turnCollectionID = collectionID
         turnReferentImageID = referentImageID
+        turnAgentNote = agentNote
         turnTask = Task {
             await self.runTurn(text: text, collectionID: collectionID)
             await self.resumeHeldRequests()
@@ -242,10 +248,11 @@ extension ChatModel {
         if let index = messages.firstIndex(where: { $0.id == record.id }) { messages[index] = record }
     }
 
-    /// The turn entered its planning phase.
+    /// The turn entered its planning phase. While the once-per-version speed measurement runs, that is what the
+    /// status says instead of "Thinking…" (D48); the `.calibrationChanged` event switches it back.
     func beginThinking() {
         phase = .thinking
-        status = .thinking
+        status = app.isCalibrating ? .measuringSpeed : .thinking
         streamingText = ""
     }
 

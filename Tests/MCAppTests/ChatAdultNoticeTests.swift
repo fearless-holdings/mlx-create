@@ -112,4 +112,58 @@ private let adultPlan =
         let thirdJob = try #require(try await harness.store.jobs(status: .done).last)
         #expect(thirdJob.request.loras?.contains { $0.sha256 == adultSHA } == true)
     }
+
+    @Test func retryAdultPinsTheResultImageAndCarriesTheNoteOnlyForTheAgent() async throws {
+        let staged = FileManager.default.temporaryDirectory.appending(path: "adult-\(UUID().uuidString).safetensors")
+        try writeSafetensors(at: staged, tensors: LoRALayout.krea.tensorNames, tag: "body")
+        let adultSHA = sha256Hex(try Data(contentsOf: staged))
+        let api = ScriptedCivitaiAPI { _ in civitaiResponse(civitaiPage([])) }
+        let harness = try await chatHarness(
+            script: chatImageNow, chat: { _, _ in planReply(adultPlan) },
+            catalog: adultCatalog(sha256: adultSHA), civitaiTransport: api)
+        let file = harness.root.appending(path: "Models/LoRAs/adult.safetensors")
+        try FileManager.default.createDirectory(
+            at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.copyItem(at: staged, to: file)
+        try await insertAdultRecord(
+            harness, sha256: adultSHA, sizeBytes: Int64(try Data(contentsOf: file).count))
+        let chat = harness.model.chat!
+
+        await chat.send(text: "a fox in snow")
+        await chat.turnTask?.value
+        try await eventually { chat.phase == .idle }
+        let noticeID = try #require(
+            chat.messages.last { message in
+                if case .adultNotice = message.body { return true }
+                return false
+            }
+        ).id
+        await chat.turnOnAdultContent(messageID: noticeID)
+
+        let requestsBefore = agentChatRequests(harness).count
+        await chat.retryAdult(messageID: noticeID)
+        await chat.turnTask?.value
+        try await eventually { chat.phase == .idle }
+        try await eventually { agentChatRequests(harness).count > requestsBefore }
+
+        // The agent sees the retry note and the image the first try made, pinned as an explicit referent; the stored
+        // user message is the plain request.
+        let request = try #require(
+            agentChatRequests(harness).last {
+                lastUserText($0.body)?.contains("[Adult content is now switched on.") == true
+            })
+        let text = try #require(lastUserText(request.body))
+        #expect(text.hasPrefix("[The user has this picture open."))
+        #expect(text.contains("a fox in snow"))
+        #expect(text.contains("[Adult content is now switched on."))
+        let stored = chat.messages.last { message in
+            if case .userText = message.body { return true }
+            return false
+        }
+        #expect(stored?.body == .userText("a fox in snow"))
+
+        let retryJob = try #require(try await harness.store.jobs(status: .done).last)
+        #expect(retryJob.request.loras?.contains { $0.sha256 == adultSHA } == true)
+        #expect(await api.requests.isEmpty)
+    }
 }

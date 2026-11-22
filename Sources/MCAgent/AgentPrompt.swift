@@ -101,8 +101,13 @@ public enum AgentPrompt {
     ) {
         guard let referent, let index = messages.lastIndex(where: { $0.role == .user }) else { return }
         var message = messages[index]
+        // The fallback referent is introduced as "in case", not as the subject: a fresh request must not read it as
+        // the picture being changed (step-4 session finding).
         message.content =
-            "[The picture the user is talking about was made with: \(referentJSON(referent.settings, context: context))]\n\n"
+            (referent.isExplicit
+                ? "[The user has this picture open. It was made with: "
+                : "[The last picture you made, in case the user wants to change it. It was made with: ")
+            + "\(referentJSON(referent.settings, context: context))]\n\n"
             + message.content
         if let jpeg = referent.jpeg {
             message.images.append(ChatImage(jpeg: jpeg))
@@ -176,7 +181,7 @@ public enum AgentPrompt {
 
         Reply with ONE JSON object and nothing else. Write the keys in this order:
         "intent": one short sentence saying what the user wants. The user never sees it.
-        "text": what you say to the user, in the user's own language. One short, friendly sentence in the present tense about the picture you are making, for example "Making a foggy harbour at dawn." Do not say the picture is finished, and do not ask a question unless the action is "ask". Never mention models, prompts, LoRAs, seeds or sizes.
+        "text": what you say to the user. Write it in the language of the user's last message, whatever language the rest of this conversation is in. One short, friendly sentence in the present tense about the picture you are making, for example "Making a foggy harbour at dawn." for a user writing English or "Preparando un puerto con niebla al amanecer." for a user writing Spanish. Do not say the picture is finished, and do not ask a question unless the action is "ask". Never mention models, prompts, LoRAs, seeds or sizes.
         "action": "generate" to make pictures, "ask" to ask one question, "say" to only reply.
 
         Use "generate" whenever the user asks for a picture or for a change to a picture. Use "say" only when no picture is wanted, such as a greeting or thanks. Never say that you made or changed a picture unless the action is "generate".
@@ -195,7 +200,7 @@ public enum AgentPrompt {
         Writing the prompt:
         - {FIDELITY_RULE}
         - If the user wrote in another language, translate faithfully into English. Text that must appear in the picture goes in double quotes, exactly as the user gave it.
-        - When the user asks to change a picture, start from that picture's prompt, change only what was asked and keep the rest word for word. Keep its model unless the change needs another one.
+        - A message may come with a note about an earlier picture. First decide which the user wants. A change to that picture ("make it night", "zoom in on the face", "remove the blue tint", "more like this"): start from that picture's prompt, change only what was asked, keep the rest word for word, keep its model unless the change needs another one, and use seed "keep". A new picture (the message describes its own subject): ignore the earlier picture completely, write a fresh prompt and use seed "new".
         - Include the trigger words of every LoRA you use.
 
         Models:

@@ -37,6 +37,8 @@ private let firstPlan =
         let text = try #require(lastUserText(agentChatRequests(harness)[0].body))
         #expect(text.contains("an older lighthouse"))
         #expect(!text.contains("a newer lighthouse"))
+        // A referent the user chose is the picture they have open, not a fallback.
+        #expect(text.hasPrefix("[The user has this picture open."))
     }
 
     @Test func aSingleGallerySelectionIsTheReferent() async throws {
@@ -82,7 +84,10 @@ private let firstPlan =
         #expect(
             SeedPolicy(encoded: second.seedPolicy)
                 == .fixed(try #require(UInt32(exactly: firstImage.settings.seed))))
-        let text = try #require(lastUserText(agentChatRequests(harness)[1].body))
+        // Requests are numbered over every chat call: turn 1's plan, its check, then turn 2's plan.
+        let text = try #require(lastUserText(agentChatRequests(harness)[2].body))
         #expect(text.contains("a stormy lighthouse"))
+        // The newest-conversation-image fallback is offered "in case", not as the picture being changed.
+        #expect(text.hasPrefix("[The last picture you made,"))
     }
 }

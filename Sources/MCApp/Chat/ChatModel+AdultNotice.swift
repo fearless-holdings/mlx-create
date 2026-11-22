@@ -15,12 +15,16 @@ extension ChatModel {
             record, body: .adultNotice(ChatAdultNotice(request: notice.request, resolved: true)))
     }
 
-    /// Retry on the notice sends the request it held as a new turn.
+    /// Retry on the notice sends the request it held as a new turn, with the image of the `.result` that precedes the
+    /// notice pinned as the referent and the retry note on the agent's copy only: the stored `.userText` stays the
+    /// plain request (D61).
     func retryAdult(messageID: Int64) async {
         guard let record = messages.first(where: { $0.id == messageID }),
             case .adultNotice(let notice) = record.body
         else { return }
-        await send(text: notice.request)
+        let referentID = await resultImageID(beforeMessageID: messageID)
+        await send(
+            text: notice.request, referentImageID: referentID, agentNote: Self.adultRetryNote)
     }
 
     /// Appends the notice when the opt-in is off and no earlier notice is still unresolved (D61), and never for a
@@ -36,4 +40,8 @@ extension ChatModel {
             .adultNotice(ChatAdultNotice(request: request, resolved: false)),
             collectionID: collectionID)
     }
+
+    /// The instruction the adult retry appends to the text the agent sees; never stored or shown.
+    private static let adultRetryNote =
+        "[Adult content is now switched on. Plan the same picture again and add the LoRA for explicit adult content that fits the model. Write \"text\" as always: one sentence about the picture, with no mention of LoRAs or add-ons.]"
 }

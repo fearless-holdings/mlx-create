@@ -55,6 +55,8 @@ struct ChatContainer: View {
             color: .black.opacity(MCShadow.panelOpacity), radius: MCShadow.panelRadius, y: MCShadow.panelY
         )
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: unfurled)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("chatContainer")
         .onAppear {
             inputFocused = true
             announcedMessageID = chat.messages.last?.id
@@ -80,19 +82,25 @@ struct ChatContainer: View {
             Button {
                 unfurled.toggle()
             } label: {
-                Image(systemName: unfurled ? "chevron.down" : "chevron.up")
+                // A Label with a title is one accessibility element named Show/Hide; a bare Image plus
+                // .accessibilityLabel produced a labelled element with no frame and a second image element.
+                Label(
+                    unfurled ? "Hide conversation" : "Show conversation",
+                    systemImage: unfurled ? "chevron.down" : "chevron.up")
             }
-            .accessibilityLabel(unfurled ? "Hide conversation" : "Show conversation")
+            .labelStyle(.iconOnly)
             Spacer()
             Menu {
                 Button("Clear Conversation…") { confirmClear = true }
             } label: {
-                Image(systemName: "ellipsis.circle")
+                Label("Conversation options", systemImage: "ellipsis.circle")
             }
+            .labelStyle(.iconOnly)
+            // A Menu does not take its accessibility label from the Label's title; set it directly.
+            .accessibilityLabel("Conversation options")
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
-            .accessibilityLabel("Conversation options")
         }
     }
 
@@ -142,7 +150,16 @@ struct ChatContainer: View {
             .lineLimit(1...5)
             .focused($inputFocused)
             .onKeyPress(keys: [.return]) { press in
-                if press.modifiers.contains(.shift) { return .ignored }
+                if press.modifiers.contains(.shift) {
+                    // .ignored does not fall through to the field's own line break. The field editor implements the
+                    // standard newline action, which breaks the line at the caret; the append is the fallback.
+                    if !NSApp.sendAction(
+                        #selector(NSResponder.insertNewlineIgnoringFieldEditor(_:)), to: nil, from: nil)
+                    {
+                        chat.input.append("\n")
+                    }
+                    return .handled
+                }
                 send()
                 return .handled
             }
@@ -156,16 +173,16 @@ struct ChatContainer: View {
                 Button {
                     Task { await chat.stop() }
                 } label: {
-                    Image(systemName: "stop.circle.fill")
+                    Label("Stop", systemImage: "stop.circle.fill")
                 }
-                .accessibilityLabel("Stop")
+                .labelStyle(.iconOnly)
             } else {
                 Button {
                     send()
                 } label: {
-                    Image(systemName: "arrow.up.circle.fill")
+                    Label("Send", systemImage: "arrow.up.circle.fill")
                 }
-                .accessibilityLabel("Send")
+                .labelStyle(.iconOnly)
                 .disabled(!chat.canSend)
             }
         }

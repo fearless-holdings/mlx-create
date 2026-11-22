@@ -83,7 +83,8 @@ struct PlanResolverTests {
     @Test func referentSizeIsReusedWhenItsWordIsChosen() throws {
         // A requested size that is not a preset but whose nearest word is "landscape".
         let referent = AgentReferent(
-            settings: AgentFixture.settings(modelID: "model-a", width: 1024, height: 700), jpeg: nil)
+            settings: AgentFixture.settings(modelID: "model-a", width: 1024, height: 700), jpeg: nil,
+            isExplicit: false)
         let resolved = try #require(
             generation(
                 PlanResolver.resolve(plan(size: "landscape"), context: context(referent: referent))))
@@ -96,7 +97,8 @@ struct PlanResolverTests {
                 PlanResolver.resolve(plan(size: "portrait"), context: context(referent: referent))))
         #expect(portrait.draft.size == ImageSize(width: 768, height: 1024))
         let otherModel = AgentReferent(
-            settings: AgentFixture.settings(modelID: "model-b", width: 1024, height: 700), jpeg: nil)
+            settings: AgentFixture.settings(modelID: "model-b", width: 1024, height: 700), jpeg: nil,
+            isExplicit: false)
         let noReuse = try #require(
             generation(
                 PlanResolver.resolve(plan(size: "landscape"), context: context(referent: otherModel))))
@@ -220,7 +222,7 @@ struct PlanResolverTests {
     }
 
     @Test func seedKeepFixesSingleAndIncrementsBatch() throws {
-        let referent = AgentReferent(settings: AgentFixture.settings(seed: 1234), jpeg: nil)
+        let referent = AgentReferent(settings: AgentFixture.settings(seed: 1234), jpeg: nil, isExplicit: false)
         let single = try #require(
             generation(
                 PlanResolver.resolve(plan(seed: .keep), context: context(referent: referent))))
@@ -233,7 +235,7 @@ struct PlanResolverTests {
 
     @Test func outOfRangeKeepSeedFallsBackToRandom() throws {
         for seed in [Int64(-5), Int64(UInt32.max) + 1] {
-            let referent = AgentReferent(settings: AgentFixture.settings(seed: seed), jpeg: nil)
+            let referent = AgentReferent(settings: AgentFixture.settings(seed: seed), jpeg: nil, isExplicit: false)
             let resolved = try #require(
                 generation(
                     PlanResolver.resolve(plan(seed: .keep), context: context(referent: referent))))

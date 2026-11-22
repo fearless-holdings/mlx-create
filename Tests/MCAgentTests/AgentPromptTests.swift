@@ -93,35 +93,39 @@ struct AgentPromptTests {
         #expect(request.messages[3].content == "last")
     }
 
-    @Test func referentPrefixesLastUserMessageAndAttachesImage() throws {
-        let jpeg = Data([0xFF, 0xD8, 0xFF, 0xD9])
+    /// A context with one model, one installed LoRA and the referent of `isExplicit`.
+    private func referentContext(isExplicit: Bool) -> AgentContext {
         let lora = AgentFixture.loraOption(key: "l1", triggerWords: ["trig"])
         var settings = AgentFixture.settings(
             modelID: "model-a", width: 1024, height: 768, prompt: "a fox")
         settings.loras = [ImageLoRA(name: "l1", sha256: "sha-l1", weight: 0.8)]
-        let context = AgentFixture.context(
+        return AgentFixture.context(
             turns: [
                 AgentTurn(speaker: .agent, text: "Making a fox."),
                 AgentTurn(speaker: .user, text: "make it snow"),
             ],
-            referent: AgentReferent(settings: settings, jpeg: jpeg),
+            referent: AgentReferent(
+                settings: settings, jpeg: Data([0xFF, 0xD8, 0xFF, 0xD9]), isExplicit: isExplicit),
             models: [
                 AgentFixture.modelOption(
                     key: "m1", model: AgentFixture.model(id: "model-a", family: AgentFixture.kreaLike),
                     family: AgentFixture.kreaLike)
             ],
             loras: [lora])
-        let request = AgentPrompt.request(context: context, agentModelID: "agent-id")
-        let last = try #require(request.messages.last)
-        #expect(last.role == .user)
-        #expect(last.images.count == 1)
-        // Placement and the decoded settings, not the lead-in's wording: a bracketed block carries the
-        // referent's settings before the user's text.
-        #expect(last.content.hasPrefix("["))
-        let jsonStart = try #require(last.content.firstIndex(of: "{"))
-        let blockEnd = try #require(last.content.range(of: "]\n\n"))
+    }
+
+    /// The bracketed lead-in before the referent's settings JSON, nil when no such block leads the message.
+    private func referentLeadIn(of content: String) -> String? {
+        guard let openBrace = content.firstIndex(of: "{") else { return nil }
+        return String(content[..<openBrace])
+    }
+
+    /// The fixture referent's decoded settings — field checks, never the serialized bytes (no wording pinned).
+    private func expectReferentSettings(in content: String) throws {
+        let jsonStart = try #require(content.firstIndex(of: "{"))
+        let blockEnd = try #require(content.range(of: "]\n\n"))
         let object = try JSONSerialization.jsonObject(
-            with: Data(last.content[jsonStart..<blockEnd.lowerBound].utf8))
+            with: Data(content[jsonStart..<blockEnd.lowerBound].utf8))
         let decoded = try #require(object as? [String: Any])
         #expect(decoded["model"] as? String == "m1")
         #expect(decoded["size"] as? String == "landscape")
@@ -130,6 +134,31 @@ struct AgentPromptTests {
         #expect(loras.count == 1)
         #expect(loras[0]["key"] as? String == "l1")
         #expect(loras[0]["scale"] as? Double == 0.8)
+    }
+
+    @Test func anExplicitReferentIsFramedAsTheOpenPicture() throws {
+        let request = AgentPrompt.request(
+            context: referentContext(isExplicit: true), agentModelID: "agent-id")
+        let last = try #require(request.messages.last)
+        #expect(last.role == .user)
+        #expect(last.images.count == 1)
+        // The framing, the placement and the decoded settings, not the lead-in's wording: the explicit referent
+        // reads as the picture the user has open, in a bracketed block before the user's text.
+        let leadIn = try #require(referentLeadIn(of: last.content))
+        #expect(leadIn.localizedCaseInsensitiveContains("open"))
+        try expectReferentSettings(in: last.content)
+        #expect(last.content.hasSuffix("make it snow"))
+    }
+
+    @Test func anImplicitReferentIsFramedAsAFallback() throws {
+        let request = AgentPrompt.request(
+            context: referentContext(isExplicit: false), agentModelID: "agent-id")
+        let last = try #require(request.messages.last)
+        // The fallback is introduced as a possibility, never as the picture the user has open.
+        let leadIn = try #require(referentLeadIn(of: last.content))
+        #expect(leadIn.localizedCaseInsensitiveContains("in case"))
+        #expect(!leadIn.localizedCaseInsensitiveContains("open"))
+        try expectReferentSettings(in: last.content)
         #expect(last.content.hasSuffix("make it snow"))
     }
 

@@ -16,7 +16,10 @@ extension ChatModel {
         // Replayed turns look their model and LoRA keys up in these options, so the probe carries them already.
         let probe = AgentContext(
             turns: [], referent: referent, models: models, loras: loras, mayAsk: false, adultOptIn: false)
-        let turns = await agentTurns(history: history, newUserText: newUserText, context: probe)
+        var turns = await agentTurns(history: history, newUserText: newUserText, context: probe)
+        if let note = turnAgentNote, let index = turns.lastIndex(where: { $0.speaker == .user }) {
+            turns[index] = AgentTurn(speaker: .user, text: turns[index].text + "\n\n" + note)
+        }
         return AgentContext(
             turns: turns, referent: referent, models: models, loras: loras,
             mayAsk: mayAsk(history: history), adultOptIn: app.civitai.includeNSFW)
@@ -180,18 +183,25 @@ extension ChatModel {
     }
 
     /// The image the user's words can point at, in D57 order: the image shown large, then a single gallery selection,
-    /// then the newest saved image of the conversation's newest `.result`. Its JPEG is attached when it encodes.
+    /// then the newest saved image of the conversation's newest `.result`. Its JPEG is attached when it encodes. The
+    /// choices the user made are `isExplicit`; the last-image fallback is not, so the prompt can tell them apart.
     private func referentImage() async -> AgentReferent? {
         var image: LibraryImage?
-        // A pinned referent (the check's image on Fix it) outranks everything (D59).
-        if let turnReferentImageID {
-            image = try? await app.store.image(id: turnReferentImageID)
+        var explicit = false
+        // A pinned referent (the check's image on Fix it, the adult retry's image) outranks everything (D59).
+        if let turnReferentImageID, let pinned = try? await app.store.image(id: turnReferentImageID) {
+            image = pinned
+            explicit = true
         }
-        if image == nil, let largeImageID {
-            image = try? await app.store.image(id: largeImageID)
+        if image == nil, let largeImageID, let large = try? await app.store.image(id: largeImageID) {
+            image = large
+            explicit = true
         }
-        if image == nil, app.gallerySelection.count == 1, let selected = app.gallerySelection.first {
-            image = try? await app.store.image(id: selected)
+        if image == nil, app.gallerySelection.count == 1, let selected = app.gallerySelection.first,
+            let picked = try? await app.store.image(id: selected)
+        {
+            image = picked
+            explicit = true
         }
         if image == nil {
             for record in messages.reversed() {
@@ -204,7 +214,8 @@ extension ChatModel {
         }
         guard let image else { return nil }
         return AgentReferent(
-            settings: image.settings, jpeg: await ChatJPEG.make(fileURL: app.fileURL(for: image)))
+            settings: image.settings, jpeg: await ChatJPEG.make(fileURL: app.fileURL(for: image)),
+            isExplicit: explicit)
     }
 
     /// A second `.question` in a row is refused (KTD12): the agent must plan from the answer it already got.
