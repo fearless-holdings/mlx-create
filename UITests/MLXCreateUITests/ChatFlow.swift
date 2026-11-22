@@ -71,14 +71,12 @@ extension SmokeSession {
         app.descendants(matching: .any).matching(identifier: "chatContainer").firstMatch
     }
 
-    /// Prints the container's accessibility subtree (type, label, frame) to the test log — the evidence for the
-    /// header buttons carrying one labelled element with a real frame each.
-    func dumpContainerAX() {
-        for element in chatContainer.descendants(matching: .any).allElementsBoundByIndex {
-            print(
-                "AX \(element.elementType.rawValue) label=\(element.label) title=\(element.title) frame=\(element.frame)"
-            )
-        }
+    /// The open large image, named by `SelectedImageView`'s loaded state ("Selected image: …"); it takes the
+    /// grid's place while open so no tile can collide. "Loading image: …" never matches, so a hit means shown.
+    var shownImage: XCUIElement {
+        app.descendants(matching: .any).matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Selected image: ")
+        ).firstMatch
     }
 
     func runChatFlow() {
@@ -89,7 +87,6 @@ extension SmokeSession {
         step("Send the prompt") {
             // Every icon button is a labelled, laid-out element (the chevron used to resolve to an empty frame).
             // The menu is not an AXButton — a Menu surfaces as a menuButton/popUpButton — so it is found by label.
-            dumpContainerAX()
             for label in ["Show conversation", "Send"] {
                 assertHittableButton(label)
             }
@@ -133,16 +130,24 @@ extension SmokeSession {
             imageTiles.firstMatch.click()
             require(app.buttons["Close"], "the large image did not open")
         }
-        step("Close the large image") {
-            app.typeKey(.escape, modifierFlags: [])
-            XCTAssertTrue(eventually { !self.app.buttons["Close"].exists }, "Esc did not close the large image")
-        }
-        step("Send the follow-up") {
+        step("Refine with the image open") {
+            // The refinement lands while its source is still open large: the large view switches to it (D54/F2).
+            require(shownImage, "the open image carries no label")
+            let firstLabel = shownImage.label
             typeInChat("make it night")
             app.typeKey(.return, modifierFlags: [])
             XCTAssertTrue(
-                eventually(within: 300) { self.imageTiles.count >= 2 },
-                "the second tile never appeared")
+                eventually(within: 300) {
+                    self.shownImage.exists && self.shownImage.label != firstLabel
+                        && self.app.buttons["Close"].exists
+                }, "the refinement did not take the large view over")
+            _ = waitForSettledFrame(shownImage)
+        }
+        step("Close the large image") {
+            app.typeKey(.escape, modifierFlags: [])
+            XCTAssertTrue(eventually { !self.app.buttons["Close"].exists }, "Esc did not close the large image")
+            XCTAssertTrue(
+                eventually { self.imageTiles.count == 2 }, "expected two gallery tiles")
             // The landed image is highlighted, not selected: nothing may carry an "… selected" status text.
             XCTAssertTrue(
                 eventually {
@@ -152,6 +157,8 @@ extension SmokeSession {
                 }, "a stale selection survived the new image landing")
         }
         step("Unfurl the history") {
+            // Let the large-image close finish animating before clicking — a mid-transition hit point misses.
+            waitForSettledFrame(chatContainer)
             // Folded shows only the last two messages, so the first request is off screen until unfurled.
             XCTAssertFalse(
                 staticText("a lighthouse on a cliff at sunset").exists,

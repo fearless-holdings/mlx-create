@@ -208,6 +208,8 @@ extension ChatModel {
             // The finished image becomes the gallery's highlighted first tile through `prependImage` (R7); it does
             // not open large by itself.
             app.canvasFollowedJobs.insert(job.id)
+            // A refinement landing while its source is open large takes the large view over (D54/F2).
+            largeFollow = largeImageID.map { (job.id, $0) }
             beginGenerating(job.id)
             followedFromCurrentTurn = true
             await refreshJobCache()

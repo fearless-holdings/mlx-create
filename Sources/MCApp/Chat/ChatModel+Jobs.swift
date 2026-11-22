@@ -5,6 +5,15 @@ import MCLibrary
 /// Following the job a `.result` message records: executor events move `status` and `phase`, and `resultState(for:)`
 /// reads a cache the events and reloads refresh (docs/lld/agent.md §8).
 extension ChatModel {
+    /// A chat image landed: a large view that still shows the image it showed when the job was queued follows to the
+    /// new image — and keeps following through a batch — so the newest result is what is open and what the next
+    /// message is about. A close or a different large image since the queue ends the follow (D54/F2).
+    func imageLanded(jobID: UUID, imageID: UUID) {
+        guard let follow = largeFollow, follow.jobID == jobID, largeImageID == follow.imageID else { return }
+        largeImageID = imageID
+        largeFollow = (jobID, imageID)
+    }
+
     /// One executor event, forwarded by `AppModel.handle(_:)` after its own projections.
     func handle(_ event: ExecutorEvent) async {
         switch event {

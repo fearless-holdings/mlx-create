@@ -53,6 +53,10 @@ final class ChatModel {
     private(set) var streamingText: String?
     /// The image shown large in Chat mode, set by the view. First choice for the referent (D57).
     var largeImageID: UUID?
+    /// The job and the image the large view showed when that job was queued. While the large view still shows that
+    /// image, each of the job's images takes the large view as it lands; a close or another large image ends the
+    /// follow (D54/F2).
+    var largeFollow: (jobID: UUID, imageID: UUID)?
     /// The task of the turn in flight, kept so a test can await it (as `enhanceTask` is).
     var turnTask: Task<Void, Never>?
     /// The task of the check in flight (D59); a send cancels it.

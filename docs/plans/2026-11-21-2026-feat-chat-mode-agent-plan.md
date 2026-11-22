@@ -38,7 +38,7 @@ STRATEGY.md's primary user "has never run a model". Today the first screen is a 
 - R4. Clicking a gallery image shows it large in place of the grid, with the container still on top. Close or Esc returns to the grid.
 - R5. Chat mode shows no prompt editor, settings, LoRA stack, queue strip or model chip.
 - R6. While an image renders, the agent's pending message shows a status line and a progress bar, and a placeholder tile with progress sits first in the gallery.
-- R7. A finished image replaces its placeholder as the first, highlighted tile. It does not open by itself.
+- R7. A finished image replaces its placeholder as the first, highlighted tile. It does not open by itself, except that a large view still showing the image it showed when the request was queued switches to the new image (amended 2026-11-22).
 
 **Conversation (D55)**
 
@@ -92,7 +92,7 @@ STRATEGY.md's primary user "has never run a model". Today the first screen is a 
 ### Key Flows
 
 - F1. First image. The user types a request. Status reads "Thinking…", the agent's sentence streams in, then "Making your image… 3 of 8" with a placeholder tile. The image lands first in the gallery; the agent's message is one sentence. Covered by R2, R6, R7, R11 to R15.
-- F2. Refinement. The user clicks the image (it opens large), types "make it night". A new image lands; the large view keeps showing the earlier one until the user picks the new one. Covered by R4, R19 to R21.
+- F2. Refinement. The user clicks the image (it opens large), types "make it night". A new image lands and the large view switches to it; closing the large view shows both in the grid (amended 2026-11-22: it used to keep showing the earlier one). Covered by R4, R19 to R21.
 - F3. Open request. "A cool poster" gets one question with three suggested answers; clicking one generates. Covered by R16.
 - F4. First launch. Greeting, one card, one click, two downloads with progress in the card; the typed request runs when they finish. Covered by R26 to R28.
 - F5. Miss. The agent's follow-up reads "The sign's text came out garbled." with Fix it. Covered by R24, R25.
