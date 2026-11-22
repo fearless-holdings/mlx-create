@@ -16,7 +16,15 @@ extension ChatModel {
             await refreshJobCache()
             await updateFollowing()
         case .calibrationChanged:
-            break
+            // A thinking or still-queued turn waits on the measurement: the status names it while it runs.
+            switch phase {
+            case .thinking:
+                publishStatus(app.isCalibrating ? .measuringSpeed : .thinking)
+            case .generating:
+                await updateFollowing()
+            default:
+                break
+            }
         }
     }
 
@@ -110,7 +118,11 @@ extension ChatModel {
             return
         }
         switch job.status {
-        case .queued, .paused:
+        case .queued:
+            let paused = await app.queue.isPauseRequested
+            guard case .generating(jobID) = phase else { return }
+            publishStatus(app.isCalibrating ? .measuringSpeed : paused ? .queuePaused : .waitingInQueue)
+        case .paused:
             let paused = await app.queue.isPauseRequested
             guard case .generating(jobID) = phase else { return }
             publishStatus(paused ? .queuePaused : .waitingInQueue)

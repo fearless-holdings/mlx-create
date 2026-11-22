@@ -25,18 +25,24 @@ extension ChatModel {
         }
     }
 
+    /// The newest saved image of the newest `.result` before `messageID` — the picture Fix it and the adult retry
+    /// mean. Pinned into the next turn it lands as an explicit referent whatever the view shows large.
+    func resultImageID(beforeMessageID messageID: Int64) async -> UUID? {
+        guard let index = messages.firstIndex(where: { $0.id == messageID }) else { return nil }
+        for record in messages[..<index].reversed() {
+            guard case .result(let result) = record.body else { continue }
+            return (try? await app.store.images(jobID: result.jobID))?.last?.id
+        }
+        return nil
+    }
+
     /// The miss's Fix it (D59): marks it used and sends its `fixRequest` as a new turn whose referent is the checked
     /// image — the newest saved image of the newest `.result` before the miss — whatever the view shows large.
     func fix(messageID: Int64) async {
         guard let index = messages.firstIndex(where: { $0.id == messageID }),
             case .miss(let miss) = messages[index].body, !miss.used
         else { return }
-        var referentID: UUID?
-        for record in messages[..<index].reversed() {
-            guard case .result(let result) = record.body else { continue }
-            referentID = (try? await app.store.images(jobID: result.jobID))?.last?.id
-            break
-        }
+        let referentID = await resultImageID(beforeMessageID: messageID)
         await updateMessage(
             messages[index],
             body: .miss(ChatMiss(text: miss.text, fixRequest: miss.fixRequest, used: true)))

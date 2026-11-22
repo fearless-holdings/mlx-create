@@ -11,6 +11,15 @@ struct ChatDownloadCard: View {
 
     private var chat: ChatModel { model.chat }
 
+    /// A done card (installed or skipped) collapses to its item list: the license stays on screen only while it can
+    /// still be accepted (D20).
+    private var isDone: Bool {
+        switch card.state {
+        case .finished, .dismissed: true
+        case .offered, .accepted, .failed: false
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: MCSpacing.group) {
             Text(card.text)
@@ -35,7 +44,7 @@ struct ChatDownloadCard: View {
                     .font(.mcMetadata)
                     .foregroundStyle(.secondary)
             }
-            if let detail = chat.downloadDetail(for: item) {
+            if !isDone, let detail = chat.downloadDetail(for: item) {
                 LicenseSummary(
                     licenseTitle: detail.licenseName.map {
                         LicenseSheet.licenseTitle(name: $0, version: detail.licenseVersion ?? "")

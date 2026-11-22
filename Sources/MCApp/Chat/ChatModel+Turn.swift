@@ -22,6 +22,7 @@ extension ChatModel {
         defer {
             turnCollectionID = nil
             turnReferentImageID = nil
+            turnAgentNote = nil
             if case .generating = phase {} else { endPhase() }
             publishStream(nil)
         }

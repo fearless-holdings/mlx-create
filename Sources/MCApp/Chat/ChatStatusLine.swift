@@ -10,6 +10,10 @@ struct ChatStatusLine: View {
             switch status {
             case .thinking:
                 row(spinning: true) { Text("Thinking…") }
+            case .measuringSpeed:
+                row(spinning: true) {
+                    Text("Measuring this Mac's speed first. This happens once and takes about a minute.")
+                }
             case .waitingInQueue:
                 row { Text("Waiting for the queue…") }
             case .rendering(let step, let total, let image, let of):

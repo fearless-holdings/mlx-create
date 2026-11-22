@@ -69,14 +69,17 @@ public struct AgentLoRAOption: Sendable, Equatable {
 }
 
 /// The image the user is talking about, when there is one: the settings it was made with and its JPEG bytes for
-/// vision (plan KTD13).
+/// vision (plan KTD13). `isExplicit` marks a referent the user chose (the open large image, a single selection, a
+/// pin) against the implicit newest-conversation-image fallback, which the prompt labels differently.
 public struct AgentReferent: Sendable, Equatable {
     public let settings: ImageSettings
     public let jpeg: Data?
+    public let isExplicit: Bool
 
-    public init(settings: ImageSettings, jpeg: Data?) {
+    public init(settings: ImageSettings, jpeg: Data?, isExplicit: Bool) {
         self.settings = settings
         self.jpeg = jpeg
+        self.isExplicit = isExplicit
     }
 }
 

@@ -28,7 +28,9 @@ func chatHarness(
     civitaiFileTransport: (any CivitaiFileTransport)? = nil,
     civitaiKeychain: (any CivitaiKeyStore)? = nil,
     memoryTier: MemoryTier = .current,
-    holdUnloads: Set<String> = []
+    holdLoads: Set<String> = [],
+    holdUnloads: Set<String> = [],
+    engineVersion: String? = nil
 ) async throws -> AppHarness {
     let root = FileManager.default.temporaryDirectory.appending(path: "chat-\(UUID().uuidString)")
     let installTransport =
@@ -38,8 +40,8 @@ func chatHarness(
     let harness = try await AppHarness.make(
         models: models, loaded: loaded, script: script, catalog: catalog, transport: installTransport,
         civitaiTransport: civitaiTransport, civitaiFileTransport: civitaiFileTransport,
-        civitaiKeychain: civitaiKeychain, root: root, chat: chat,
-        memoryTier: memoryTier, holdUnloads: holdUnloads)
+        civitaiKeychain: civitaiKeychain, root: root, chat: chat, memoryTier: memoryTier,
+        holdLoads: holdLoads, holdUnloads: holdUnloads, engineVersion: engineVersion)
     // The agent is already installed — the state a real install leaves — so `start()` does not open the first-launch
     // setup card over the tests' conversations (D60); the card itself is covered by ChatOnboardingTests.
     if installAgent {
