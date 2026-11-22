@@ -3,6 +3,12 @@ import XCTest
 
 /// One ordered smoke run (KTD5): a single app launch, named steps, and a `.keepAlways` screenshot after every step (KTD8).
 /// The runner (`scripts/gui-smoke/run_smoke.py`) owns the throwaway home: the test runner is sandboxed, so this only reads it.
+/// Which window mode a smoke session launches. `canvas` drives the three-panel workspace; `chat` needs the agent
+/// pack (`--agent-model-id` links it and names it through `MLXC_SMOKE_AGENT_MODEL_ID`).
+enum SmokeMode {
+    case canvas, chat
+}
+
 @MainActor
 final class SmokeSession {
     let app = XCUIApplication()
@@ -10,7 +16,7 @@ final class SmokeSession {
     private var stepCount = 0
     private var currentStep = "00 before the first step"
 
-    init(testCase: XCTestCase) throws {
+    init(testCase: XCTestCase, mode: SmokeMode = .canvas) throws {
         let environment = ProcessInfo.processInfo.environment
         let home = environment["MLXC_SMOKE_HOME"] ?? ""
         let modelID = environment["MLXC_SMOKE_MODEL_ID"] ?? ""
@@ -22,11 +28,23 @@ final class SmokeSession {
         // line for path-based cleanup; a bare path argument would be opened as a document and suppress the window. The
         // persistence flag stops macOS restoring zero windows from an earlier session (docs/lld/gui-smoke.md section 4).
         app.launchEnvironment["CFFIXED_USER_HOME"] = home
-        // `-mainWindowMode canvas` forces the Canvas layout: since D54 a fresh defaults read opens Chat mode, and
-        // these flows drive the three-panel workspace.
-        app.launchArguments = [
-            "-ApplePersistenceIgnoreState", "YES", "-MLXCSmokeHome", home, "-mainWindowMode", "canvas",
+        // `-mainWindowMode` is explicit in both modes: CFFIXED_USER_HOME does not redirect UserDefaults, so whatever
+        // mode the real domain stored last would otherwise decide the layout. `-MLXCNoSavedCivitaiKey` reads a service
+        // nothing writes to: a real saved key's ACL prompt would block startup on a machine that has one.
+        var arguments = [
+            "-ApplePersistenceIgnoreState", "YES", "-MLXCSmokeHome", home, "-MLXCNoSavedCivitaiKey", "YES",
         ]
+        switch mode {
+        case .canvas:
+            arguments += ["-mainWindowMode", "canvas"]
+        case .chat:
+            let agentID = environment["MLXC_SMOKE_AGENT_MODEL_ID"] ?? ""
+            try XCTSkipIf(
+                agentID.isEmpty,
+                "Chat mode needs the agent pack: pass --agent-model-id ORG/NAME to run_smoke.py")
+            arguments += ["-mainWindowMode", "chat", "-MLXCAgentModelID", agentID]
+        }
+        app.launchArguments = arguments
         // A failed assertion stops the test before the step can screenshot itself, so the end state is captured here, named
         // after the step that was running. The runner shows it as the last screenshot.
         testCase.addTeardownBlock { [self] in
