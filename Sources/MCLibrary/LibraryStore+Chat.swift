@@ -44,22 +44,31 @@ extension LibraryStore {
     }
 
     /// The newest `limit` messages with `id < before` (all when nil), returned oldest first. A row whose `kind` this
-    /// build does not know, or whose body does not decode, is skipped.
+    /// build does not know, or whose body does not decode, is skipped: the read keeps paging until `limit` rows decode
+    /// or the conversation ends, so an empty result means no older readable messages, not an unreadable page.
     public func chatMessages(collectionID: UUID, limit: Int, before: Int64? = nil) throws -> [ChatMessageRecord] {
         try dbQueue.read { db in
-            var sql = """
-                SELECT id, collection_id, author, kind, body, job_id, created_at
-                FROM chat_message WHERE collection_id = ?
-                """
-            var arguments = StatementArguments([collectionID.uuidString])
-            if let before {
-                sql += " AND id < ?"
-                arguments += [before]
+            var records: [ChatMessageRecord] = []
+            var before = before
+            while records.count < limit {
+                var sql = """
+                    SELECT id, collection_id, author, kind, body, job_id, created_at
+                    FROM chat_message WHERE collection_id = ?
+                    """
+                var arguments = StatementArguments([collectionID.uuidString])
+                if let before {
+                    sql += " AND id < ?"
+                    arguments += [before]
+                }
+                sql += " ORDER BY id DESC LIMIT ?"
+                arguments += [limit]
+                let rows = try Row.fetchAll(db, sql: sql, arguments: arguments)
+                guard let lastRow = rows.last else { break }
+                before = lastRow["id"]
+                records += rows.lazy.compactMap(Self.chatMessage(from:))
+                if rows.count < limit { break }
             }
-            sql += " ORDER BY id DESC LIMIT ?"
-            arguments += [limit]
-            return try Row.fetchAll(db, sql: sql, arguments: arguments)
-                .compactMap(Self.chatMessage(from:)).reversed()
+            return Array(records.prefix(limit).reversed())
         }
     }
 

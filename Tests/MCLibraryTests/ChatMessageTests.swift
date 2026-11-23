@@ -152,6 +152,27 @@ import Testing
         #expect(try await store.chatMessage(jobID: UUID(uuidString: jobID)!) == nil)
     }
 
+    @Test func aPageOfUnreadableRowsDoesNotStrandOlderMessages() async throws {
+        let store = try Self.makeStore()
+        let home = try await store.defaultCollection()
+        try await store.appendChatMessage(collectionID: home.id, author: .user, body: .userText("first"))
+        try await store.dbQueue.write { db in
+            for _ in 1...3 {
+                try db.execute(
+                    sql: """
+                        INSERT INTO chat_message (collection_id, author, kind, body, job_id, created_at)
+                        VALUES (?, 'agent', 'futureKind', '{}', NULL, ?)
+                        """,
+                    arguments: [home.id.uuidString, Date()])
+            }
+        }
+        try await store.appendChatMessage(collectionID: home.id, author: .agent, body: .agentText("last"))
+
+        let messages = try await store.chatMessages(collectionID: home.id, limit: 2)
+        #expect(messages.map(\.body) == [.userText("first"), .agentText("last")])
+        #expect(try await store.chatMessages(collectionID: home.id, limit: 2, before: messages[0].id).isEmpty)
+    }
+
     @Test func aV11DatabaseMigratesAndKeepsItsRows() async throws {
         let root = try LibraryStoreTests.tempRoot()
         let models = root.appending(path: "Models")
