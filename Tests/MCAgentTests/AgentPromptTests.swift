@@ -94,9 +94,12 @@ struct AgentPromptTests {
         let last = try #require(request.messages.last)
         #expect(last.role == .user)
         #expect(last.images.count == 1)
+        // Placement and the decoded settings, not the lead-in's wording: a bracketed block carries the
+        // referent's settings before the user's text.
+        #expect(last.content.hasPrefix("["))
         #expect(
-            last.content.hasPrefix(
-                "[The picture the user is talking about was made with: {\"model\":\"m1\",\"size\":\"landscape\",\"prompt\":\"a fox\",\"loras\":[{\"key\":\"l1\",\"scale\":0.8}]}]\n\n"
+            last.content.contains(
+                "{\"model\":\"m1\",\"size\":\"landscape\",\"prompt\":\"a fox\",\"loras\":[{\"key\":\"l1\",\"scale\":0.8}]}]\n\n"
             ))
         #expect(last.content.hasSuffix("make it snow"))
     }
