@@ -66,6 +66,8 @@ import Testing
         let all = try await store.chatMessages(collectionID: home.id, limit: 10, before: 4)
         #expect(all.map(\.id) == [1, 2, 3])
         #expect(try await store.chatMessages(collectionID: home.id, limit: 10, before: 1).isEmpty)
+        #expect(try await store.chatMessages(collectionID: home.id, limit: 0).isEmpty)
+        #expect(try await store.chatMessages(collectionID: home.id, limit: -3).isEmpty)
     }
 
     @Test func anUpdateRewritesKindBodyAndJobID() async throws {
