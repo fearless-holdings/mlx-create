@@ -181,7 +181,7 @@ The check is skipped when the result held more than one image, when the user has
 
 ## 8. Messages and storage (KTD8)
 
-Messages live in table `chat_message`, migration `v12-chat-message`, written in a new file as `createPromptHistoryTable` is. Columns: `id` (autoincrement, the order), `collection_id` (cascades on collection delete), `role` (`user` or `agent`), `kind`, `body` (JSON, a Codable payload per kind), `job_id` (nullable, no foreign key), `created_at`. The store API is append, list (newest N, and older pages), update a message's body (a card or question changes state) and clear a collection's conversation.
+Messages live in table `chat_message`, migration `v12-chat-message`, written in a new file as `createPromptHistoryTable` is. Columns: `id` (autoincrement, the order), `collection_id` (cascades on collection delete), `author` (`user` or `agent`), `kind`, `body` (JSON, a Codable payload per kind), `job_id` (nullable, no foreign key), `created_at`. The store API is append, list (newest N, and older pages), update a message's body (a card or question changes state) and clear a collection's conversation. A result's progress and outcome are read from its job row, never stored on the message, so `body` carries only the sentence and the job id.
 
 `kind` and its `body` payload (plan U5):
 
@@ -190,7 +190,7 @@ Messages live in table `chat_message`, migration `v12-chat-message`, written in 
 | `userText` | the user's text |
 | `agentText` | the agent's sentence |
 | `question` | text, suggestions, chosen |
-| `result` | sentence, job id, state |
+| `result` | sentence, job id |
 | `download` | items, state |
 | `adultNotice` | the D61 notice (switch, Retry) |
 | `error` | text, retry |
