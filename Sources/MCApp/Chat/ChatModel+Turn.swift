@@ -70,10 +70,16 @@ extension ChatModel {
             case .generate(let generation):
                 await queue(generation, collectionID: collectionID)
                 return
-            case .proposeDownload(_, _, _, let without):
-                // Layer 7 turns this into a download card; until then the generation runs without those LoRAs.
+            case .proposeDownload(let proposal, let loras, let models, let without):
+                // Layer 7 turns this into a download card; until then a proposal with a fallback runs without those
+                // LoRAs, and one without (an offered model) still records the offer for the card to render.
                 if let without {
                     await queue(without, collectionID: collectionID)
+                } else {
+                    await append(
+                        .download(
+                            Self.downloadRecord(proposal: proposal, loras: loras, models: models, request: text)),
+                        collectionID: collectionID)
                 }
                 return
             case .invalid(let reason):
@@ -86,6 +92,22 @@ extension ChatModel {
                 working = retrying(context, reason: reason)
             }
         }
+    }
+
+    /// The `.download` record a `proposeDownload` resolution writes (D56): the offered models and shelf LoRAs it
+    /// names, still awaiting the user's answer, with their request kept to run when the downloads end (R28).
+    static func downloadRecord(
+        proposal: String, loras: [AgentLoRAOption], models: [AgentModelOption], request: String
+    ) -> ChatDownload {
+        let modelItems = models.compactMap { option -> ChatDownloadItem? in
+            guard case .offered(let id, let name, let sizeBytes) = option.source else { return nil }
+            return ChatDownloadItem(kind: .model, id: id, name: name, sizeBytes: sizeBytes)
+        }
+        let loraItems = loras.compactMap { option -> ChatDownloadItem? in
+            guard case .shelf(let sha256, let name, let sizeBytes) = option.source else { return nil }
+            return ChatDownloadItem(kind: .lora, id: sha256, name: name, sizeBytes: sizeBytes)
+        }
+        return ChatDownload(text: proposal, items: modelItems + loraItems, state: .offered, pendingRequest: request)
     }
 
     /// Writes a message to the turn's collection and shows it while that collection is still current. The record is
@@ -145,14 +167,16 @@ extension ChatModel {
         do {
             let job = try await app.composer.enqueue(generation.draft, collectionID: collectionID)
             do {
+                // A Stop that lands between the write and the drain cancels the job before it can start; a drain
+                // already running can claim it meanwhile, so this does not wait for `startDraining`. A `.result`
+                // already written when Stop lands shows the job as stopped.
                 try Task.checkCancellation()
-            } catch {
-                // Stop landed between enqueue and drain: the job is cancelled before it can start, and the turn
-                // records nothing after it.
+                await append(.result(ChatResult(text: generation.text, jobID: job.id)), collectionID: collectionID)
+                try Task.checkCancellation()
+            } catch is CancellationError {
                 try? await app.executor.cancel(job.id)
                 return generation.droppedAdultLoRAs
             }
-            await append(.result(ChatResult(text: generation.text, jobID: job.id)), collectionID: collectionID)
             beginGenerating(job.id)
             await refreshJobCache()
             await updateFollowing()

@@ -104,6 +104,18 @@ func lastUserText(_ body: String) -> String? {
         .joined(separator: "\n")
 }
 
+/// One curated shelf entry on the `krea-2-turbo` family, for catalog fixtures that offer a downloadable LoRA.
+func shelfEntry(sha256: String, role: String, scale: Double, nsfw: Bool = false) -> LoRAShelfEntry {
+    LoRAShelfEntry(
+        family: "krea-2-turbo", role: role, nsfw: nsfw,
+        source: LoRAShelfSource(
+            kind: .huggingface, repo: "org/\(role)", revision: String(repeating: "c", count: 40),
+            file: "\(role).safetensors"),
+        filename: "\(role).safetensors", sha256: sha256, sizeBytes: 1_000,
+        license: "Test license.", triggerWords: ["\(role)look"], testedScale: scale,
+        testedEngine: "v26.10.3", alwaysOn: false)
+}
+
 /// The jobs of every status in the library, for "nothing was queued" checks.
 func jobCount(_ harness: AppHarness) async throws -> Int {
     var count = 0

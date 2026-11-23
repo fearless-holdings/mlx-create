@@ -9,6 +9,7 @@ public actor LibraryStore {
     let dbQueue: DatabaseQueue
     private var beforeRowInsertHook: (@Sendable () throws -> Void)?
     private var beforePartialWriteHook: (@Sendable (URL) throws -> Void)?
+    private var beforeJobInsertHook: (@Sendable () throws -> Void)?
     private var statusHook: (@Sendable (JobStatus) throws -> Void)?
 
     /// Opens (creating if needed) the library at `libraryRoot`, runs migrations, sweeps `*.partial` files and
@@ -375,7 +376,8 @@ public actor LibraryStore {
     public func enqueueJob(collectionID: UUID, request: JobRequest, batchCount: Int, seedPolicy: String, mode: String = Job.textToImageMode)
         throws -> Job
     {
-        try dbQueue.write { db in
+        let hook = beforeJobInsertHook
+        return try dbQueue.write { db in
             for entry in request.loras ?? [] {
                 guard let row = try LoRARecord.fetchOne(db, key: entry.id), row.sha256 == entry.sha256,
                     row.relativePath == entry.relativePath,
@@ -391,6 +393,7 @@ public actor LibraryStore {
                 id: UUID(), collectionID: collectionID, mode: mode, request: request,
                 batchCount: batchCount, seedPolicy: seedPolicy, status: .queued, position: next
             )
+            try hook?()
             try JobRow(job).insert(db)
             try Self.recordPrompt(db, collectionID: collectionID, prompt: request.prompt, negativePrompt: request.negativePrompt)
             return job
@@ -488,6 +491,11 @@ public actor LibraryStore {
     /// Test seam: runs just before a PNG is written to its `.partial` file, so a failure there exercises cleanup.
     func setBeforePartialWriteHook(_ hook: (@Sendable (URL) throws -> Void)?) {
         beforePartialWriteHook = hook
+    }
+
+    /// Test seam: runs inside `enqueueJob` just before the job row insert, so a test can hold or fail the write.
+    func setBeforeJobInsertHook(_ hook: (@Sendable () throws -> Void)?) {
+        beforeJobInsertHook = hook
     }
 
     /// Saves a generated image (KTD7): writes the PNG with metadata to a temp file in the library volume,

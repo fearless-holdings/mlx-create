@@ -45,6 +45,12 @@ extension ChatModel {
             if let job = try? await app.store.job(id: result.jobID) { jobs[result.jobID] = job }
             counts[result.jobID] = (try? await app.store.savedImageCount(jobID: result.jobID)) ?? 0
         }
+        // The followed job can sit in another collection after a switch mid-render; the conversation's `.result`
+        // rows alone would then miss it and the pending status would reset to the batch's first image.
+        if case .generating(let jobID) = phase, jobs[jobID] == nil {
+            if let job = try? await app.store.job(id: jobID) { jobs[jobID] = job }
+            counts[jobID] = (try? await app.store.savedImageCount(jobID: jobID)) ?? 0
+        }
         resultJobs = jobs
         resultCounts = counts
     }
@@ -83,6 +89,10 @@ extension ChatModel {
         if followed == nil {
             followed = try? await app.store.job(id: jobID)
             guard case .generating(jobID) = phase else { return }
+            // A job outside the shown conversation has no cached image count either; it is read alongside.
+            if followed != nil {
+                resultCounts[jobID] = (try? await app.store.savedImageCount(jobID: jobID)) ?? 0
+            }
         }
         guard let job = followed else {
             endPhase()

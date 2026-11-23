@@ -13,17 +13,6 @@ import Testing
     private static let curatedSHA = String(repeating: "a", count: 64)
     private static let shelfSHA = String(repeating: "b", count: 64)
 
-    private func shelfEntry(sha256: String, role: String, scale: Double, nsfw: Bool = false) -> LoRAShelfEntry {
-        LoRAShelfEntry(
-            family: "krea-2-turbo", role: role, nsfw: nsfw,
-            source: LoRAShelfSource(
-                kind: .huggingface, repo: "org/\(role)", revision: String(repeating: "c", count: 40),
-                file: "\(role).safetensors"),
-            filename: "\(role).safetensors", sha256: sha256, sizeBytes: 1_000,
-            license: "Test license.", triggerWords: ["\(role)look"], testedScale: scale,
-            testedEngine: "v26.10.3", alwaysOn: false)
-    }
-
     private func loraRecord(
         id: String, name: String, sha256: String, family: String = "krea-2-turbo", variant: String? = nil
     ) -> LoRARecord {
@@ -146,5 +135,21 @@ import Testing
             return
         }
         #expect(sha256 == Self.curatedSHA)
+    }
+
+    @Test func aFileGoneOrBackSinceTheRefreshIsCheckedAtTurnTime() async throws {
+        let harness = try await chatHarness()
+        let record = loraRecord(id: "live", name: "Live LoRA", sha256: String(repeating: "d", count: 64))
+        try await insert(harness, [record])
+
+        // The file goes away after the refresh, as when the user deletes it in Finder.
+        try FileManager.default.removeItem(at: harness.store.loraAbsoluteURL(of: record))
+        let deleted = await harness.model.chat.buildContext(history: [], newUserText: "a fox")
+        #expect(deleted.loras.allSatisfy { $0.about != "Live LoRA" })
+
+        // Restored in Finder, it is offered again on the next turn without a refresh.
+        try Data().write(to: harness.store.loraAbsoluteURL(of: record))
+        let restored = await harness.model.chat.buildContext(history: [], newUserText: "a fox")
+        #expect(restored.loras.contains { $0.about == "Live LoRA" })
     }
 }
