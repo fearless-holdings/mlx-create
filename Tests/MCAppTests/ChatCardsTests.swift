@@ -14,6 +14,19 @@ private let downloadPlan =
     #"{"intent":"","text":"This would look better with a LoRA I can fetch.","action":"generate","model":"m1","prompt":"a fox in snow","size":"square","seed":"new","loras":[{"key":"l1","scale":0.8}],"count":1}"#
 private let cardJobPlan =
     #"{"intent":"","text":"One fox coming up.","action":"generate","model":"m1","prompt":"a fox in snow","size":"square","seed":"new","loras":[],"count":1}"#
+private let modelPlan =
+    #"{"intent":"","text":"That takes a model I can fetch.","action":"generate","model":"m2","prompt":"a fox in snow","size":"square","seed":"new","loras":[],"count":1}"#
+
+/// Fits every Mac this app supports, so it is always offered: after the installed Krea (m1) it is always m2.
+private let tiny = CatalogModel(
+    id: "tiny-4bit", family: "krea-2-turbo", name: "Tiny", quantization: "4-bit", repo: "org/tiny",
+    revision: String(repeating: "e", count: 40), downloadBytes: 1024, ramGB: 1,
+    license: BrowserFixture.alpha.license, files: BrowserFixture.files)
+
+/// A catalog whose image models the agent sees as m1 (installed) and m2 (offered, D60).
+private let modelCardCatalog = Catalog(
+    schemaVersion: 1, sequence: 5, issuedAt: BrowserFixture.acceptedAt,
+    models: [tiny, BrowserFixture.enhancer, BrowserFixture.agent])
 
 /// The catalog fixture's curated entry, fetched from a scripted Civitai so the download path is real.
 private func civitaiEntry(sha256: String, sizeBytes: Int64, role: String = "snowstyle") -> LoRAShelfEntry {
@@ -184,6 +197,42 @@ private func cardBody(_ chat: ChatModel, id: Int64? = nil) -> ChatDownload? {
             Issue.record("the retried card is not failed")
             return
         }
+    }
+
+    @Test func anOfferedModelCardInstallsItAndRunsTheRequest() async throws {
+        let harness = try await chatHarness(
+            script: chatImageNow,
+            chat: { number, _ in planReply(number == 1 ? modelPlan : cardJobPlan) },
+            catalog: modelCardCatalog)
+        let chat = harness.model.chat!
+
+        await chat.send(text: "a fox in snow")
+        await chat.turnTask?.value
+        try await eventually { chat.phase == .idle }
+
+        // A plan that names a fitting model that is not installed becomes a card offering its download (D60);
+        // the request waits on it and nothing is generated yet.
+        let card = try #require(cardBody(chat))
+        #expect(card.state == .offered)
+        #expect(
+            card.items == [
+                ChatDownloadItem(kind: .model, id: tiny.id, name: tiny.name, sizeBytes: tiny.downloadBytes)
+            ])
+        #expect(card.pendingRequest == "a fox in snow")
+        #expect(try await jobCount(harness) == 0)
+
+        let record = try #require(
+            chat.messages.last(where: {
+                if case .download = $0.body { return true }
+                return false
+            }))
+        await chat.acceptDownload(messageID: record.id)
+
+        // The install runs through the same coordinator the browser uses; once the engine lists the model the
+        // card finishes and the waiting request runs as a new turn that queues a job.
+        try await eventually { cardBody(chat, id: record.id)?.state == .finished }
+        #expect(try await harness.store.installedModel(id: tiny.id) != nil)
+        try await eventually { try await jobCount(harness) >= 1 }
     }
 
     @Test func downloadDetailReadsTheCatalogLicenseAndTheShelfLicense() async throws {

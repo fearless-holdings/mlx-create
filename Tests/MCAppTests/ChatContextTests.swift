@@ -13,6 +13,13 @@ import Testing
     private static let curatedSHA = String(repeating: "a", count: 64)
     private static let shelfSHA = String(repeating: "b", count: 64)
 
+    /// Bigger than any Mac this app supports, so `buildContext` never offers it (D60): the fixture beta fits this
+    /// Mac but would exceed the 16 GB minimum, which would make the expectation machine-dependent.
+    private static let oversized = CatalogModel(
+        id: "huge-8bit", family: "krea-2-turbo", name: "Huge", quantization: "8-bit", repo: "org/huge",
+        revision: String(repeating: "f", count: 40), downloadBytes: 3072, ramGB: 10_000,
+        license: BrowserFixture.beta.license, files: BrowserFixture.files)
+
     private func loraRecord(
         id: String, name: String, sha256: String, family: String = "krea-2-turbo", variant: String? = nil
     ) -> LoRARecord {
@@ -40,7 +47,7 @@ import Testing
         let catalog = Catalog(
             schemaVersion: 1, sequence: 5, issuedAt: BrowserFixture.acceptedAt,
             models: [
-                BrowserFixture.alpha, BrowserFixture.beta, BrowserFixture.enhancer, BrowserFixture.agent,
+                BrowserFixture.alpha, Self.oversized, BrowserFixture.enhancer, BrowserFixture.agent,
             ],
             loraShelf: [
                 shelfEntry(sha256: Self.curatedSHA, role: "realism", scale: 0.8, nsfw: true),
@@ -64,14 +71,21 @@ import Testing
 
         let context = await harness.model.chat.buildContext(history: [], newUserText: "a fox")
 
-        // The engine's agent entry has no image family, so only the two image models are options.
-        #expect(context.models.map(\.key) == ["m1", "m2"])
+        // The engine's agent entry has no image family. The fitting catalog model that is not installed joins
+        // the options after the installed ones: naming it proposes its download (D60); the oversized one is out.
+        #expect(context.models.map(\.key) == ["m1", "m2", "m3"])
+        guard case .offered(let offeredID, _, _) = context.models[2].source else {
+            Issue.record("the fitting catalog model did not become an offered option")
+            return
+        }
+        #expect(offeredID == BrowserFixture.alpha.id)
 
         let curated = try #require(context.loras.first { $0.key == "l1" })
         #expect(curated.about == AgentGuides.bundled().loraRole("realism"))
         #expect(curated.usualScale == 0.8)
         #expect(curated.isCuratedAdult)
-        #expect(curated.modelKeys == ["m1"])
+        // An offered model fits the same as an installed one of its family — its variant is simply unknown.
+        #expect(curated.modelKeys == ["m1", "m3"])
         guard case .installed = curated.source else {
             Issue.record("the installed curated LoRA did not keep its installed source")
             return
@@ -88,7 +102,7 @@ import Testing
         #expect(sha256 == Self.shelfSHA && sizeBytes == 1_000)
 
         let user = try #require(context.loras.first { $0.about == "My LoRA" })
-        #expect(user.usualScale == 1.0 && !user.isCuratedAdult && user.modelKeys == ["m1"])
+        #expect(user.usualScale == 1.0 && !user.isCuratedAdult && user.modelKeys == ["m1", "m3"])
 
         // The flux LoRA whose variant is not the installed model's is left out (KTD6).
         #expect(context.loras.allSatisfy { $0.about != "Other variant" })
