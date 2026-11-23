@@ -102,11 +102,11 @@ extension ChatModel {
             endPhase()
             turnDidFinish(jobID: jobID)
         case .failed:
+            // The phase ends first, so a pause or event that re-enters during the append does not record it twice.
             let message = job.failure?.message ?? "The image could not be made."
-            await append(
-                .error(ChatFailure(text: message, retryRequest: turnUserText)),
-                collectionID: job.collectionID)
+            let retryRequest = turnUserText
             endPhase()
+            await append(.error(ChatFailure(text: message, retryRequest: retryRequest)), collectionID: job.collectionID)
         case .cancelled:
             endPhase()
         }
