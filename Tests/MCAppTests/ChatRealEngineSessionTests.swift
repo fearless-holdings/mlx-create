@@ -325,9 +325,9 @@ struct ChatRealEngineSessionTests {
             // First launch (D60): a second throwaway session whose Weights hold only the agent model —
             // the setup card offers the recommended image model, Accept runs the real download, the
             // engine lists it, and the request parked on the card runs.
+            let setupRoot = session.root.appending(path: "setup", directoryHint: .isDirectory)
             let setup = try await ChatSession.makeSetup(
-                env: env, setupDirectory: setupDirectory,
-                root: session.root.appending(path: "setup", directoryHint: .isDirectory),
+                env: env, setupDirectory: setupDirectory, root: setupRoot,
                 defaults: session.defaults)
             do {
                 try await runSetupStep(setup, env: env, imagesOut: imagesOut, record: &record)
@@ -337,9 +337,11 @@ struct ChatRealEngineSessionTests {
             }
             await setup.model.shutdown()
             // The engine can take a beat past `shutdown` to exit; the suite's escaped-engine check
-            // scans this shared root, so absorb the tail here instead of racing the end of the test.
+            // scans this whole root, so absorb the setup engine's tail here instead of racing the
+            // end of the test. The wait must be on the setup root alone — the main engine is still
+            // running and also matches the shared root's argv pattern.
             try? await eventually(timeout: .seconds(60)) {
-                escapedEnginePIDs(root: session.root).isEmpty
+                escapedEnginePIDs(root: setupRoot).isEmpty
             }
         }
         return session
