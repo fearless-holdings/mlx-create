@@ -1,19 +1,45 @@
 import Foundation
+import MCAgent
 import MCCatalog
 import MCEngine
 import MCGeneration
-import MCLibrary
 import Testing
 
 @testable import MCApp
+@testable import MCLibrary
 
 /// One turn's outcomes (F1, R32, AE2, AE5, KTD12, KTD18): the reply becomes a job, a message or an error, and Stop
 /// works in both phases.
 private let generatePlan =
     #"{"intent":"","text":"One lighthouse coming up.","action":"generate","model":"m1","prompt":"a stormy lighthouse","size":"square","seed":"new","loras":[],"count":1}"#
+private let batchPlan =
+    #"{"intent":"","text":"Two lighthouses coming up.","action":"generate","model":"m1","prompt":"a stormy lighthouse","size":"square","seed":"new","loras":[],"count":2}"#
 private let sayPlan = #"{"intent":"","text":"Of course.","action":"say"}"#
 private let askPlan =
     #"{"intent":"","text":"Stormy or calm?","action":"ask","suggestions":["Stormy","Calm"]}"#
+private let shelfPlan =
+    #"{"intent":"","text":"With the realism look.","action":"generate","model":"m1","prompt":"a fox realismlook","size":"square","seed":"new","loras":[{"key":"l1","scale":0.8}],"count":1}"#
+
+/// Parks `enqueueJob` inside its write until `release` is called, so a Stop can land while the turn holds the
+/// write (AE5).
+private final class WriteGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var inside = false
+    private let open = DispatchSemaphore(value: 0)
+
+    /// Whether the write has reached the hook.
+    var didEnter: Bool { lock.withLock { inside } }
+
+    /// The hook's body: the write is marked as inside, then parked until `release` is called.
+    func hold() {
+        lock.withLock { inside = true }
+        open.wait()
+    }
+
+    func release() {
+        open.signal()
+    }
+}
 
 @MainActor @Suite struct ChatTurnTests {
     @Test func aGenerateReplyQueuesAJobAndTheTurnFollowsItToDone() async throws {
@@ -188,6 +214,121 @@ private let askPlan =
         #expect(try await jobCount(harness) == 0)
     }
 
+    @Test func aStopDuringTheJobWriteCancelsIt() async throws {
+        let gate = WriteGate()
+        let harness = try await chatHarness(
+            script: chatImageNow, chat: { _, _ in planReply(generatePlan) })
+        let chat = harness.model.chat!
+        // The seam parks the turn inside the job write, so Stop lands after the plan but before the drain;
+        // a drain already running could claim the written job, so it is cancelled without waiting for one (AE5).
+        await harness.store.setBeforeJobInsertHook { gate.hold() }
+
+        await chat.send(text: "a lighthouse")
+        try await eventually { gate.didEnter }
+        await chat.stop()
+        gate.release()
+        await chat.turnTask?.value
+
+        #expect(chat.phase == .idle)
+        // The written job is cancelled before it is followed or rendered; only the user's message stays.
+        #expect(chat.messages.count == 1)
+        #expect(EngineStubProtocol.requests(harness.endpoint).allSatisfy { $0.path != "v1/images/generations" })
+        let job = try #require(try await harness.store.jobs(status: .cancelled).first)
+        #expect(try await harness.store.savedImageCount(jobID: job.id) == 0)
+    }
+
+    @Test func aCollectionSwitchKeepsTheRunningBatchsImagePosition() async throws {
+        let harness = try await chatHarness(
+            script: { number, _ in
+                number == 1
+                    ? .init(status: 200, body: PNGFixture.sseReply(width: 512, height: 512), tail: nil)
+                    : .init(
+                        status: 200, body: PNGFixture.sseHead(steps: 2),
+                        tail: PNGFixture.sseTail(width: 512, height: 512))
+            },
+            chat: { _, _ in planReply(batchPlan) })
+        let chat = harness.model.chat!
+
+        await chat.send(text: "two lighthouses")
+        await chat.turnTask?.value
+        try await harness.engineHasReceived("v1/images/generations", count: 2)
+        guard case .result(let result) = chat.messages.last?.body else {
+            Issue.record("the turn did not record a result")
+            return
+        }
+        try await eventually { try await harness.store.savedImageCount(jobID: result.jobID) == 1 }
+        try await eventually { chat.status == .rendering(step: 2, total: 2, image: 2, of: 2) }
+
+        // Mid-batch the conversation switches: the followed job's `.result` leaves the shown messages, but
+        // the pending status keeps the batch's position instead of resetting to the first image (KTD18).
+        _ = try await harness.model.createCollection(name: "Other")
+        try await eventually { chat.messages.isEmpty }
+
+        await chat.updateFollowing()
+        #expect(chat.status == .rendering(step: 2, total: 2, image: 2, of: 2))
+
+        EngineStubProtocol.finishHeld(harness.endpoint)
+        try await eventually { chat.phase == .idle }
+    }
+
+    @Test func aShelfLoRAPlanQueuesItsGenerationWithoutIt() async throws {
+        let catalog = Catalog(
+            schemaVersion: 1, sequence: 5, issuedAt: BrowserFixture.acceptedAt,
+            models: [BrowserFixture.alpha, BrowserFixture.enhancer, BrowserFixture.agent],
+            loraShelf: [shelfEntry(sha256: String(repeating: "b", count: 64), role: "realism", scale: 0.8)])
+        let harness = try await chatHarness(
+            script: chatImageNow, chat: { _, _ in planReply(shelfPlan) }, catalog: catalog)
+        let chat = harness.model.chat!
+
+        await chat.send(text: "a realistic fox")
+        await chat.turnTask?.value
+        try await eventually { chat.phase == .idle }
+
+        // The shelf LoRA resolves to a download offer (D60); until the card exists the generation runs without it.
+        let job = try #require(try await harness.store.jobs(status: .done).first)
+        #expect((job.request.loras ?? []).isEmpty)
+        guard chat.messages.count == 2, case .result = chat.messages[1].body else {
+            Issue.record("the turn did not record a result")
+            return
+        }
+    }
+
+    @Test func aDownloadProposalRecordsItsOfferedItemsAndThePendingRequest() {
+        // An offered model leaves the proposal no fallback generation, so the offer itself is the turn's record
+        // (D56); the `.download` row keeps every item for the card layer to render and the request to run after.
+        let family = ModelFamily(
+            id: "fam", displayName: "Fam", architectures: ["fam_arch"],
+            sizeGrid: SizeGrid(multiple: 16, min: 256, max: 2048),
+            sizePresets: [ImageSize(width: 1024, height: 1024)], defaultSize: ImageSize(width: 1024, height: 1024),
+            steps: StepsCapability(defaultSteps: 8, min: 1, max: 40),
+            guidance: nil, supportsNegativePrompt: false)
+        let record = ChatModel.downloadRecord(
+            proposal: "Krea can paint that. Download it?",
+            loras: [
+                AgentLoRAOption(
+                    key: "l1", modelKeys: ["m2"], about: "realism", triggerWords: [], usualScale: 0.8,
+                    isCuratedAdult: false,
+                    source: .shelf(sha256: String(repeating: "b", count: 64), name: "Realism", sizeBytes: 99))
+            ],
+            models: [
+                AgentModelOption(
+                    key: "m2", source: .offered(id: "krea-4bit", name: "Krea", sizeBytes: 8_000),
+                    family: family, guide: "Fast.")
+            ],
+            request: "a realistic fox")
+
+        #expect(
+            record
+                == ChatDownload(
+                    text: "Krea can paint that. Download it?",
+                    items: [
+                        ChatDownloadItem(kind: .model, id: "krea-4bit", name: "Krea", sizeBytes: 8_000),
+                        ChatDownloadItem(
+                            kind: .lora, id: String(repeating: "b", count: 64), name: "Realism", sizeBytes: 99),
+                    ],
+                    state: .offered, pendingRequest: "a realistic fox"))
+    }
+
     @Test func stopWhileGeneratingCancelsTheJob() async throws {
         let harness = try await chatHarness(
             script: chatImageHeld, chat: { _, _ in planReply(generatePlan) })
@@ -239,6 +380,7 @@ private let askPlan =
         await chat.turnTask?.value
         try await eventually { chat.messages.count == 3 }
 
+        guard chat.messages.count == 3 else { return }
         guard case .error(let failure) = chat.messages[2].body else {
             Issue.record("the failed job did not record an error")
             return
@@ -272,6 +414,7 @@ private let askPlan =
 
         await harness.model.switchCollection(to: harness.collectionID)
         try await eventually { chat.messages.count == 3 }
+        guard chat.messages.count == 3 else { return }
         guard case .error(let recorded) = chat.messages[2].body else {
             Issue.record("the failed job did not record an error in its own conversation")
             return

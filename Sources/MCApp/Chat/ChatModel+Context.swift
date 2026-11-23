@@ -39,9 +39,10 @@ extension ChatModel {
     /// option is left out; hidden always-on rows never appear (`loraRecords` already excludes them). A record
     /// whose file is missing is not installed for this purpose: it is never offered as installed, and a curated one
     /// reappears as a shelf entry, so the agent can propose its download again instead of planning with a dead path.
+    /// The file is checked at turn time, since it can be gone or restored since the last library refresh.
     private func loraOptions(models: [AgentModelOption], guides: AgentGuides) -> [AgentLoRAOption] {
         let shelfEntries = app.shelf.entries.filter { !$0.alwaysOn }
-        let records = app.loraRecords.filter { !app.loraMissingFileIDs.contains($0.id) }
+        let records = app.loraRecords.filter { app.store.loraFileExists($0) }
         let installedSHA = Set(records.map(\.sha256))
         let curatedSHA = Set(shelfEntries.map(\.sha256))
         var options: [AgentLoRAOption] = []
