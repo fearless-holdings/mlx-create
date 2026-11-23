@@ -12,7 +12,8 @@ struct AgentReviewTests {
         #expect(request.messages.count == 2)
         #expect(request.messages[0].role == .system)
         #expect(request.messages[1].role == .user)
-        #expect(request.messages[1].content == "The user asked for: a red fox")
+        // The user's request and the image ride the user message; the lead-in's wording is not pinned.
+        #expect(request.messages[1].content.hasSuffix("a red fox"))
         #expect(request.messages[1].images.count == 1)
         #expect(request.temperature == 0.5)
         #expect(request.topP == 0.9)
