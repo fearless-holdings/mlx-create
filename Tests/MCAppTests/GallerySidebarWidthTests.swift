@@ -29,4 +29,15 @@ struct GallerySidebarWidthTests {
         width.record(200, galleryOnly: false)
         #expect(width.composerWidth == 200)
     }
+
+    @Test func generationPanelWidthIsKeptOnlyFromCanvasMode() {
+        var width = GallerySidebarWidth()
+        #expect(width.generationPanelWidth == nil)
+        width.recordGenerationPanel(420, galleryOnly: false)
+        for invalid in [0.0, 319, .nan, .infinity] {
+            width.recordGenerationPanel(invalid, galleryOnly: false)
+        }
+        width.recordGenerationPanel(1100, galleryOnly: true)
+        #expect(width.generationPanelWidth == 420)
+    }
 }
