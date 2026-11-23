@@ -37,6 +37,13 @@ import Testing
         try await harness.store.dbQueue.write { db in
             for record in records { try record.insert(db) }
         }
+        // An installed record's file exists on disk; `refreshLoRALibrary` marks the rest missing.
+        for record in records {
+            let url = harness.store.loraAbsoluteURL(of: record)
+            try FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data().write(to: url)
+        }
         await harness.model.refreshLoRALibrary()
     }
 
@@ -109,5 +116,35 @@ import Testing
 
         #expect(context.loras.count == 12)
         #expect(context.loras.map(\.key) == (1...12).map { "l\($0)" })
+    }
+
+    @Test func aMissingFileTakesALoRAOffTheListAndPutsACuratedOneBackOnTheShelf() async throws {
+        let catalog = Catalog(
+            schemaVersion: 1, sequence: 5, issuedAt: BrowserFixture.acceptedAt,
+            models: [BrowserFixture.alpha, BrowserFixture.enhancer, BrowserFixture.agent],
+            loraShelf: [shelfEntry(sha256: Self.curatedSHA, role: "realism", scale: 0.8)])
+        let harness = try await chatHarness(
+            models: [(kreaModel, "krea2_turbo"), (BrowserFixture.agent.repo, "gemma4")], catalog: catalog)
+        let gone = loraRecord(id: "gone", name: "Gone LoRA", sha256: String(repeating: "d", count: 64))
+        let curated = loraRecord(id: "curated", name: "Realism", sha256: Self.curatedSHA)
+        let kept = loraRecord(id: "kept", name: "Kept LoRA", sha256: String(repeating: "e", count: 64))
+        try await insert(harness, [gone, curated, kept])
+        // The files go away after the install, as when the user deletes them in Finder.
+        for record in [gone, curated] {
+            try FileManager.default.removeItem(at: harness.store.loraAbsoluteURL(of: record))
+        }
+        await harness.model.refreshLoRALibrary()
+
+        let context = await harness.model.chat.buildContext(history: [], newUserText: "a fox")
+
+        #expect(context.loras.allSatisfy { $0.about != "Gone LoRA" })
+        #expect(context.loras.contains { $0.about == "Kept LoRA" })
+        let reoffered = try #require(
+            context.loras.first { $0.about == AgentGuides.bundled().loraRole("realism") })
+        guard case .shelf(let sha256, _, _) = reoffered.source else {
+            Issue.record("a curated LoRA whose file is missing was not re-offered from the shelf")
+            return
+        }
+        #expect(sha256 == Self.curatedSHA)
     }
 }
