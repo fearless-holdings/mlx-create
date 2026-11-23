@@ -22,16 +22,43 @@ extension ChatModel {
             mayAsk: mayAsk(history: history), adultOptIn: app.civitai.includeNSFW)
     }
 
-    /// The installed image models the agent may choose, keyed `m1`, `m2`, … in picker order.
+    /// The image models the agent may choose, keyed `m1`, `m2`, …: installed models in picker order, then
+    /// signed-catalog models that fit this Mac but are not installed — naming one in a plan proposes its
+    /// download (D60). A model the user dismissed on a card is not offered again in this conversation.
     private func modelOptions(guides: AgentGuides) -> [AgentModelOption] {
         var keys = 0
-        return app.models.compactMap { model in
+        var options = app.models.compactMap { model -> AgentModelOption? in
             guard ModelSelection.isSelectable(model), let family = model.family else { return nil }
             keys += 1
             return AgentModelOption(
                 key: "m\(keys)", source: .installed(model), family: family,
                 guide: guides.familyGuide(family.id) ?? family.displayName)
         }
+        let dismissedIDs = Set(
+            messages.flatMap { record -> [String] in
+                guard case .download(let card) = record.body, card.state == .dismissed else { return [] }
+                return card.items.filter { $0.kind == .model }.map(\.id)
+            })
+        for row in app.browser.rows(of: .image) {
+            // Offerable means a card's Accept can start it: not installed, not installing, and not a stray
+            // folder the installer cannot touch. Failed, interrupted and missing-file installs can resume.
+            let offerable =
+                switch row.state {
+                case .available, .interrupted, .failed, .missingFiles: true
+                case .installed, .installing, .unverified: false
+                }
+            guard offerable, let catalog = row.model, row.fit != .exceeds,
+                !dismissedIDs.contains(catalog.id),
+                let family = app.registry.families.first(where: { $0.id == catalog.family })
+            else { continue }
+            keys += 1
+            options.append(
+                AgentModelOption(
+                    key: "m\(keys)",
+                    source: .offered(id: catalog.id, name: catalog.name, sizeBytes: catalog.downloadBytes),
+                    family: family, guide: guides.familyGuide(family.id) ?? family.displayName))
+        }
+        return options
     }
 
     /// The LoRAs the agent may name, keyed `l1`, `l2`, …, at most 12: installed curated entries first, then curated
