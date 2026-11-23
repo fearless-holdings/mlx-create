@@ -336,6 +336,11 @@ struct ChatRealEngineSessionTests {
                 throw error
             }
             await setup.model.shutdown()
+            // The engine can take a beat past `shutdown` to exit; the suite's escaped-engine check
+            // scans this shared root, so absorb the tail here instead of racing the end of the test.
+            try? await eventually(timeout: .seconds(60)) {
+                escapedEnginePIDs(root: session.root).isEmpty
+            }
         }
         return session
     }

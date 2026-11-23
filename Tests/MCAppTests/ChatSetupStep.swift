@@ -69,13 +69,19 @@ extension ChatRealEngineSessionTests {
             return nil
         }
         #expect(terminal?.state == .finished, "the setup card did not finish: \(String(describing: terminal?.state))")
-        #expect(terminal?.pendingRequest == nil, "the parked request was not consumed")
         notes.append("cardFinishedAfter=\(Date().timeIntervalSince(started))")
 
         // The parked request resumes as the next turn — its `.userText` was already recorded, so the
-        // conversation must still hold exactly one.
+        // conversation must still hold exactly one, and the card's slot is consumed as the replay
+        // begins (asynchronously to `acceptDownload` returning).
         try? await eventually(timeout: .seconds(60)) { setup.chat.phase != .idle }
         try await eventually(timeout: .seconds(600)) { setup.chat.phase == .idle }
+        try await eventually(timeout: .seconds(60)) {
+            setup.chat.messages.first { $0.id == id }.flatMap {
+                if case .download(let body) = $0.body { return body.pendingRequest == nil }
+                return nil
+            } == true
+        }
         let userTexts = setup.chat.messages.filter { $0.body.kind == "userText" }
         #expect(userTexts.count == 1, "the parked request was recorded \(userTexts.count) times")
 
