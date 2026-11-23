@@ -228,11 +228,101 @@ private func cardBody(_ chat: ChatModel, id: Int64? = nil) -> ChatDownload? {
             }))
         await chat.acceptDownload(messageID: record.id)
 
-        // The install runs through the same coordinator the browser uses; once the engine lists the model the
-        // card finishes and the waiting request runs as a new turn that queues a job.
+        // The model is installed but the engine does not list it yet, so the card stays accepted (AE7).
+        #expect(cardBody(chat, id: record.id)?.state == .accepted)
+
+        // Once the engine lists the offered model the card finishes and the waiting request runs as a new turn
+        // that queues a job.
+        harness.engine.setModels([
+            (id: kreaModel, architecture: "krea2_turbo"),
+            (id: BrowserFixture.agent.repo, architecture: "gemma4"),
+            (id: tiny.repo, architecture: "krea2_turbo"),
+        ])
+        await harness.model.refreshModels()
         try await eventually { cardBody(chat, id: record.id)?.state == .finished }
         #expect(try await harness.store.installedModel(id: tiny.id) != nil)
         try await eventually { try await jobCount(harness) >= 1 }
+    }
+
+    @Test func anUnansweredModelOfferStaysOfferedThroughARefresh() async throws {
+        let harness = try await chatHarness(
+            script: chatImageNow,
+            chat: { number, _ in planReply(number == 1 ? modelPlan : cardJobPlan) },
+            catalog: modelCardCatalog)
+        let chat = harness.model.chat!
+
+        await chat.send(text: "a fox in snow")
+        await chat.turnTask?.value
+        try await eventually { chat.phase == .idle }
+        let record = try #require(
+            chat.messages.last(where: {
+                if case .download = $0.body { return true }
+                return false
+            }))
+
+        // Chat is ready and a models refresh runs — an offer card is not setup: it waits for its answer and its
+        // request stays held.
+        await harness.model.refreshModels()
+
+        #expect(cardBody(chat, id: record.id)?.state == .offered)
+        #expect(cardBody(chat, id: record.id)?.pendingRequest == "a fox in snow")
+        #expect(agentChatRequests(harness).count == 1)
+        #expect(try await jobCount(harness) == 0)
+    }
+
+    @Test func aModelCardRunsItsHeldRequestInItsOwnCollection() async throws {
+        let harness = try await chatHarness(
+            script: chatImageNow,
+            chat: { number, _ in planReply(number == 1 ? modelPlan : cardJobPlan) },
+            catalog: modelCardCatalog)
+        let chat = harness.model.chat!
+        let home = harness.collectionID
+        let other = try await harness.model.createCollection(name: "Other")
+        await harness.model.switchCollection(to: home)
+
+        await chat.send(text: "a fox in snow")
+        await chat.turnTask?.value
+        try await eventually { chat.phase == .idle }
+        let record = try #require(
+            chat.messages.last(where: {
+                if case .download = $0.body { return true }
+                return false
+            }))
+
+        // The model installs, but until the engine lists it the card waits.
+        await chat.acceptDownload(messageID: record.id)
+        #expect(cardBody(chat, id: record.id)?.state == .accepted)
+
+        // The engine catches up while another collection is on screen: the request must not run there.
+        await harness.model.switchCollection(to: other.id)
+        harness.engine.setModels([
+            (id: kreaModel, architecture: "krea2_turbo"),
+            (id: BrowserFixture.agent.repo, architecture: "gemma4"),
+            (id: tiny.repo, architecture: "krea2_turbo"),
+        ])
+        await harness.model.refreshModels()
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(agentChatRequests(harness).count == 1)
+        #expect(
+            !chat.messages.contains {
+                if case .userText = $0.body { return true }
+                return false
+            })
+
+        // Back on its own collection the card finishes and the request runs once, its job landing there too.
+        await harness.model.switchCollection(to: home)
+        await chat.turnTask?.value
+        try await eventually { chat.phase == .idle }
+        try await eventually { agentChatRequests(harness).count >= 2 }
+
+        #expect(cardBody(chat, id: record.id)?.state == .finished)
+        let job = try #require(try await harness.store.jobs(status: .done).last)
+        #expect(job.collectionID == home)
+        #expect(
+            chat.messages.filter {
+                if case .userText = $0.body { return true }
+                return false
+            }.count == 1)
     }
 
     @Test func downloadDetailReadsTheCatalogLicenseAndTheShelfLicense() async throws {

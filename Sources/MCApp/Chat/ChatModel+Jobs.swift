@@ -97,6 +97,7 @@ extension ChatModel {
         }
         guard let job = followed else {
             endPhase()
+            await resumeHeldRequests()
             return
         }
         switch job.status {
@@ -112,14 +113,17 @@ extension ChatModel {
         case .done:
             endPhase()
             turnDidFinish(jobID: jobID)
+            await resumeHeldRequests()
         case .failed:
             // The phase ends first, so a pause or event that re-enters during the append does not record it twice.
             let message = job.failure?.message ?? "The image could not be made."
             let retryRequest = turnUserText
             endPhase()
             await append(.error(ChatFailure(text: message, retryRequest: retryRequest)), collectionID: job.collectionID)
+            await resumeHeldRequests()
         case .cancelled:
             endPhase()
+            await resumeHeldRequests()
         }
     }
 

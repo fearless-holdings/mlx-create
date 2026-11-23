@@ -62,6 +62,8 @@ extension ChatModel {
             checkTask = nil
             publishStream(nil)
             if case .checking = phase { endPhase() }
+            // A request held on a finished card waits out the check, then runs.
+            Task { await self.resumeHeldRequests() }
         }
         guard let image = (try? await app.store.images(jobID: jobID))?.last,
             let jpeg = await ChatJPEG.make(fileURL: app.fileURL(for: image))

@@ -12,8 +12,8 @@ extension ChatModel {
             && app.models.contains(where: { ModelSelection.isSelectable($0) && $0.family != nil })
     }
 
-    /// The conversation's newest `.download` when it is an unfinished setup card (R26): offered, accepted or failed,
-    /// with at least one catalog `.model` item. A finished, dismissed or LoRA-only card is not one.
+    /// The conversation's newest `.download` when it is an unfinished setup card (R26): offered, accepted or failed.
+    /// A finished, dismissed or agent-proposed card is not one.
     var unfinishedSetupCard: ChatMessageRecord? {
         guard
             let record = messages.last(where: {
@@ -24,7 +24,7 @@ extension ChatModel {
         else { return nil }
         switch card.state {
         case .offered, .accepted, .failed:
-            return card.items.contains(where: { $0.kind == .model }) ? record : nil
+            return card.isSetup ? record : nil
         case .finished, .dismissed:
             return nil
         }
@@ -40,10 +40,28 @@ extension ChatModel {
         }
     }
 
-    /// Offers the setup card when something is missing and none is pending (R26). A card that is still `.offered` is
-    /// updated to what is still missing instead of duplicated — a launch offers it before the models list is read —
-    /// and the greeting precedes it only on an empty conversation.
+    /// Offers the setup card when something is missing and none is pending (R26). Runs overlap when model refreshes
+    /// do: a run already in flight makes a second one set the flag, and the first runs once more with its writes
+    /// already in place, so nothing is offered twice.
     func offerSetupIfNeeded() async {
+        if offerSetupRunning {
+            offerSetupAgain = true
+            return
+        }
+        offerSetupRunning = true
+        repeat {
+            offerSetupAgain = false
+            await offerSetupPass()
+        } while offerSetupAgain
+        offerSetupRunning = false
+    }
+
+    /// One offer pass. A card that is still `.offered` is updated to what is still missing instead of duplicated —
+    /// and the greeting precedes it only on an empty conversation. Until the first models refresh the install
+    /// status is unknown, so nothing is offered then: an unchecked agent install would read as missing and leave a
+    /// bogus card behind.
+    private func offerSetupPass() async {
+        guard app.modelsLoaded else { return }
         let missing = missingSetupModels()
         let items = [missing.image, missing.agent].compactMap { $0 }.map {
             ChatDownloadItem(kind: .model, id: $0.id, name: $0.name, sizeBytes: $0.downloadBytes)
@@ -65,23 +83,25 @@ extension ChatModel {
             await append(.agentText(ChatCopy.greeting), collectionID: collectionID)
         }
         await append(
-            .download(ChatDownload(text: text, items: items, state: .offered, pendingRequest: nil)),
+            .download(ChatDownload(text: text, items: items, state: .offered, pendingRequest: nil, isSetup: true)),
             collectionID: collectionID)
     }
 
-    /// Runs after every successful `refreshModels()` (AE7): when the engine now lists everything the setup card
-    /// installed — or what a user installed through the Models window instead — the card finishes and a request it
-    /// was holding runs as a new turn. Anything still missing keeps the offer up to date.
+    /// Runs after every successful `refreshModels()` (AE7): each card is reconciled against what the engine now
+    /// lists, the setup offer stays up to date, and a request a finished card was holding runs as a new turn.
     func readinessDidChange() async {
-        if chatReady, let record = unfinishedSetupCard, case .download(let card) = record.body {
-            await updateDownload(record) { $0.state = .finished }
-            if let request = card.pendingRequest,
-                !request.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            {
-                await send(text: request)
-            }
-        }
+        await reconcileCards()
         await offerSetupIfNeeded()
+        await resumeHeldRequests()
+    }
+
+    /// Reconciles each shown `.download` card against the current truth (R28, AE7). Runs on a refresh and on every
+    /// conversation load, so a card a relaunch left `.accepted` turns retryable instead of stuck.
+    func reconcileCards() async {
+        for record in messages {
+            guard case .download(let card) = record.body else { continue }
+            await reconcile(record, card: card)
+        }
     }
 
     /// The catalog models the setup card still needs; `image` nil once the models list shows an installed image

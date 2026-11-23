@@ -8,8 +8,10 @@ import MCLibrary
 /// (docs/lld/agent.md §7, R8).
 extension ChatModel {
     /// Runs the turn `send` captured. Every store write uses `collectionID`, so a collection switch mid-turn never
-    /// misfiles a message; the shown `messages` change only while that collection is current.
-    func runTurn(text: String, collectionID: UUID) async {
+    /// misfiles a message; the shown `messages` change only while that collection is current. A turn replaying a
+    /// card's held request skips the user-text record — it was written when the request parked — and keeps the
+    /// recorded copy out of the context's history, so the agent sees it once.
+    func runTurn(text: String, collectionID: UUID, replayingUserText: Bool = false) async {
         turnCollectionID = collectionID
         turnUserText = text
         defer {
@@ -18,8 +20,17 @@ extension ChatModel {
             if case .generating = phase {} else { endPhase() }
             publishStream(nil)
         }
-        let history = messages
-        await append(.userText(text), author: .user, collectionID: collectionID)
+        var history = messages
+        if replayingUserText {
+            if let index = history.lastIndex(where: {
+                if case .userText(let recorded) = $0.body { return recorded == text }
+                return false
+            }) {
+                history.remove(at: index)
+            }
+        } else {
+            await append(.userText(text), author: .user, collectionID: collectionID)
+        }
         if app.engineFailed {
             await append(.error(ChatFailure(text: ChatCopy.engineDown, retryRequest: text)), collectionID: collectionID)
             return
