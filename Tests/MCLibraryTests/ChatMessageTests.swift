@@ -26,7 +26,7 @@ import Testing
                         ChatDownloadItem(
                             kind: .model, id: "krea-2-turbo-mixed-4-8", name: "Krea 2 Turbo", sizeBytes: 100)
                     ],
-                    state: .failed(message: "disk full"), pendingRequest: "paint a fox")),
+                    state: .failed(message: "disk full"), pendingRequest: "paint a fox", isSetup: true)),
             .adultNotice(ChatAdultNotice(request: "a fox, adult", resolved: true)),
             .miss(ChatMiss(text: "No ears.", fixRequest: "add ears", used: true)),
             .error(ChatFailure(text: "The engine failed.", retryRequest: "paint a fox")),
@@ -50,6 +50,28 @@ import Testing
         #expect(messages.map(\.body) == bodies)
         #expect(messages.map(\.jobID) == bodies.map(\.jobID))
         #expect(messages.first { $0.id == 4 }?.jobID == job.id)
+    }
+
+    @Test func aDownloadBodyWrittenBeforeTheSetupFlagReadsAsAnOffer() throws {
+        // Rows persisted before `isSetup` existed carry no key for it; they decode as offers, the safer read.
+        let card = ChatDownload(
+            text: "This needs a model.",
+            items: [ChatDownloadItem(kind: .model, id: "m1", name: "Krea", sizeBytes: 100)],
+            state: .accepted, pendingRequest: "a fox", isSetup: true)
+        var object = try #require(
+            try JSONSerialization.jsonObject(with: JSONEncoder().encode(card)) as? [String: Any])
+        object.removeValue(forKey: "isSetup")
+        let body = String(decoding: try JSONSerialization.data(withJSONObject: object), as: UTF8.self)
+
+        guard case .download(let decoded) = ChatMessageBody.decode(kind: "download", bodyJSON: body) else {
+            Issue.record("a pre-isSetup download body did not decode")
+            return
+        }
+        #expect(
+            decoded
+                == ChatDownload(
+                    text: "This needs a model.", items: card.items, state: .accepted,
+                    pendingRequest: "a fox"))
     }
 
     @Test func readsPageBackwardsFromTheNewest() async throws {

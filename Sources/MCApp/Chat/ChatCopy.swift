@@ -27,6 +27,8 @@ enum ChatCopy {
         return "I need one download before we start: an image model. It stays on this Mac."
     }
 
+    /// A card's install did not finish — the user cancelled it or the app quit mid-download. Accept retries it.
+    static let downloadInterrupted = "The download was interrupted."
     /// The D61 notice, shown by the card view verbatim.
     static let adultOff =
         "Adult content is switched off, so this was made without the adult add-ons. Turn it on to use them, then retry."

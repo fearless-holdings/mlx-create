@@ -67,14 +67,29 @@ public struct ChatDownload: Codable, Equatable, Sendable {
     public var state: ChatDownloadState
     /// The user's request to run when the download ends (R28).
     public var pendingRequest: String?
+    /// The first-launch setup card is the one `chatReady` may finish however its models arrived (D60); an agent's
+    /// own offer finishes only after acceptance with every item in place.
+    public var isSetup: Bool
 
     public init(
-        text: String, items: [ChatDownloadItem], state: ChatDownloadState, pendingRequest: String? = nil
+        text: String, items: [ChatDownloadItem], state: ChatDownloadState, pendingRequest: String? = nil,
+        isSetup: Bool = false
     ) {
         self.text = text
         self.items = items
         self.state = state
         self.pendingRequest = pendingRequest
+        self.isSetup = isSetup
+    }
+
+    /// Rows written before `isSetup` decode as offers, the safer read: they are never finished without acceptance.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        text = try container.decode(String.self, forKey: .text)
+        items = try container.decode([ChatDownloadItem].self, forKey: .items)
+        state = try container.decode(ChatDownloadState.self, forKey: .state)
+        pendingRequest = try container.decodeIfPresent(String.self, forKey: .pendingRequest)
+        isSetup = try container.decodeIfPresent(Bool.self, forKey: .isSetup) ?? false
     }
 }
 

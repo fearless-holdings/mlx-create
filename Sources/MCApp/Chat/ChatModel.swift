@@ -55,6 +55,13 @@ final class ChatModel {
     var turnTask: Task<Void, Never>?
     /// The task of the check in flight (D59); a send cancels it.
     var checkTask: Task<Void, Never>?
+    /// The cards whose Accept flow is running now, so a reload or refresh can tell a live install from one a
+    /// relaunch left behind.
+    var activeDownloadMessageIDs: Set<Int64> = []
+    /// Mutual exclusion for `offerSetupIfNeeded`: a concurrent run raises the flag and the in-flight run repeats,
+    /// so two overlapping model refreshes cannot append the card (and greeting) twice.
+    var offerSetupRunning = false
+    var offerSetupAgain = false
 
     /// The collection the running turn writes to, captured at send time so a switch mid-turn never misfiles a message.
     var turnCollectionID: UUID?
@@ -103,11 +110,22 @@ final class ChatModel {
             checkTask?.cancel()
             endPhase()
         }
-        guard phase == .idle else { return }
         await app.ensureCurrentCollection()
+        guard beginTurn() else { return }
         let collectionID = app.currentCollection.id
         turnReferentImageID = referentImageID
-        turnTask = Task { await self.runTurn(text: text, collectionID: collectionID) }
+        turnTask = Task {
+            await self.runTurn(text: text, collectionID: collectionID)
+            await self.resumeHeldRequests()
+        }
+    }
+
+    /// Claims the turn synchronously: true while it was idle, marking it thinking so a send racing this one returns
+    /// instead of starting a second turn. `runTurn` marks the same state again.
+    func beginTurn() -> Bool {
+        guard phase == .idle else { return false }
+        beginThinking()
+        return true
     }
 
     /// Stops the turn (AE5): a planning reply is cancelled mid-stream and records nothing beyond the user's message;
@@ -177,7 +195,9 @@ final class ChatModel {
         }
         await refreshJobCache()
         await resumeFollowing()
+        await reconcileCards()
         await offerSetupIfNeeded()
+        await resumeHeldRequests()
     }
 }
 

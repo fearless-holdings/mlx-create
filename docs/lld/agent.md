@@ -189,7 +189,7 @@ Messages live in table `chat_message`, migration `v12-chat-message`, written in 
 | `agentText` | the agent's sentence |
 | `question` | text, suggestions, chosen |
 | `result` | sentence, job id |
-| `download` | items, state |
+| `download` | text, items, state, pending request, setup flag |
 | `adultNotice` | the D61 notice (switch, Retry) |
 | `error` | text, retry |
 
