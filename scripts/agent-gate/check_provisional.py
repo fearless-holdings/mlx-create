@@ -20,7 +20,7 @@ Phases:
 
 Images stay in --scratch; only text goes to --out. Run it from an Eval cell.
 """
-import argparse, base64, json, os, re, secrets, shutil, socket, subprocess, sys, time, urllib.error, urllib.request
+import argparse, base64, json, os, re, secrets, socket, subprocess, sys, tempfile, time, urllib.error, urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
@@ -127,7 +127,6 @@ def free_port():
 
 class Engine:
     def __init__(self, binary, weights, workdir, max_resident):
-        shutil.rmtree(workdir, ignore_errors=True)
         home, tmp = os.path.join(workdir, "home"), os.path.join(workdir, "tmp")
         os.makedirs(os.path.join(home, ".mlx-serve"))
         os.makedirs(tmp)
@@ -348,7 +347,10 @@ def main():
     schema = plan_schema(options)
     result = {"model_id": a.model_id, "max_resident_models": a.max_resident_models, "phases": phases, "text_only": a.text_only,
               "sampling": {"temperature": TEMPERATURE, "top_p": TOP_P, "max_tokens": MAX_TOKENS}, "system_prompt": system}
-    engine = Engine(a.engine, a.weights, os.path.join(a.scratch, "run"), a.max_resident_models)
+    # A fresh directory per run, so nothing already in the scratch directory is deleted.
+    workdir = tempfile.mkdtemp(prefix="run-", dir=a.scratch)
+    print(f"engine state in {workdir}", flush=True)
+    engine = Engine(a.engine, a.weights, workdir, a.max_resident_models)
 
     def save():
         json.dump(result, open(a.out, "w"), indent=2, ensure_ascii=False)

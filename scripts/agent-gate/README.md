@@ -43,4 +43,4 @@ The turns, the prompts and the pass rule are written before any candidate runs. 
 
 ## Output
 
-`--out` writes one results JSON: the sampling parameters, the system prompt, raw replies, timings and the mechanical validity verdicts per phase. Completed runs live in `scripts/agent-gate/results/`. Images stay in the scratch directory under `<scratch>/images/` and are reused by name between runs, so every run judges the same picture; engine state goes to `<scratch>/run/`. Only text goes to `--out`.
+`--out` writes one results JSON: the sampling parameters, the system prompt, raw replies, timings and the mechanical validity verdicts per phase. Completed runs live in `scripts/agent-gate/results/`. Images stay in the scratch directory under `<scratch>/images/` and are reused by name between runs, so every run judges the same picture; engine state and `engine.log` go to a new `<scratch>/run-XXXXXXXX/` per run, which the harness never deletes. Only text goes to `--out`.
