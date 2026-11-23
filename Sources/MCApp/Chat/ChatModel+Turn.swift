@@ -70,9 +70,11 @@ extension ChatModel {
             case .generate(let generation):
                 await queue(generation, collectionID: collectionID)
                 return
-            case .proposeDownload(_, _, let without):
+            case .proposeDownload(_, _, _, let without):
                 // Layer 7 turns this into a download card; until then the generation runs without those LoRAs.
-                await queue(without, collectionID: collectionID)
+                if let without {
+                    await queue(without, collectionID: collectionID)
+                }
                 return
             case .invalid(let reason):
                 guard !retried else {

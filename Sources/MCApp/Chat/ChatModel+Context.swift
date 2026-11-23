@@ -29,7 +29,7 @@ extension ChatModel {
             guard ModelSelection.isSelectable(model), let family = model.family else { return nil }
             keys += 1
             return AgentModelOption(
-                key: "m\(keys)", model: model, family: family,
+                key: "m\(keys)", source: .installed(model), family: family,
                 guide: guides.familyGuide(family.id) ?? family.displayName)
         }
     }
@@ -51,7 +51,9 @@ extension ChatModel {
         func modelKeys(family: String, variant: String?) -> [String] {
             models.compactMap { option in
                 guard option.family.id == family else { return nil }
-                let modelVariant = CivitaiBrowseRules.variant(forArchitecture: option.model.architecture)
+                let modelVariant = option.installedModel.flatMap {
+                    CivitaiBrowseRules.variant(forArchitecture: $0.architecture)
+                }
                 return LoRAStackRules.variantFits(loraVariant: variant, modelVariant: modelVariant)
                     ? option.key : nil
             }
