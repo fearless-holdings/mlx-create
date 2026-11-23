@@ -36,10 +36,12 @@ extension ChatModel {
 
     /// The LoRAs the agent may name, keyed `l1`, `l2`, …, at most 12: installed curated entries first, then curated
     /// shelf entries that are not installed, then the user's own LoRAs newest first. An entry that fits no model
-    /// option is left out; hidden always-on rows never appear (`loraRecords` already excludes them).
+    /// option is left out; hidden always-on rows never appear (`loraRecords` already excludes them). A record
+    /// whose file is missing is not installed for this purpose: it is never offered as installed, and a curated one
+    /// reappears as a shelf entry, so the agent can propose its download again instead of planning with a dead path.
     private func loraOptions(models: [AgentModelOption], guides: AgentGuides) -> [AgentLoRAOption] {
         let shelfEntries = app.shelf.entries.filter { !$0.alwaysOn }
-        let records = app.loraRecords
+        let records = app.loraRecords.filter { !app.loraMissingFileIDs.contains($0.id) }
         let installedSHA = Set(records.map(\.sha256))
         let curatedSHA = Set(shelfEntries.map(\.sha256))
         var options: [AgentLoRAOption] = []
