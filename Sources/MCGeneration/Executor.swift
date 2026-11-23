@@ -140,8 +140,8 @@ public actor JobExecutor {
         }
     }
 
-    /// Makes `modelID` the resident model: unloads any other resident model, then loads it. Does nothing
-    /// when it is already resident.
+    /// Makes `modelID` the resident model: unloads any other resident model except the kept chat models, then loads it.
+    /// Does nothing when it is already resident. A load refused beside a kept chat model evicts it and retries once (KTD6).
     public func selectModel(_ modelID: String) async throws {
         if enhancerLeaseHeld {
             // Applied after the lease releases, so it never interleaves with the enhancer's load or unload (KTD5).
@@ -149,7 +149,16 @@ public actor JobExecutor {
             defer { selectionsWaiting -= 1 }
             try await waitWhileLeaseHeld()
         }
-        try await switchModel(modelID)
+        do {
+            try await switchModel(modelID)
+        } catch EngineError.outOfMemory(let engineMessage) {
+            // As in `generateNext`: with no kept model loaded the refusal was the model's own and propagates, as a second one does.
+            guard await evictKeptResidentModels() else {
+                throw EngineError.outOfMemory(engineMessage: engineMessage)
+            }
+            Self.log.notice("model load refused beside a resident chat model; retrying once with it unloaded")
+            try await switchModel(modelID)
+        }
     }
 
     /// Chat models that stay resident across model switches at 24 GiB and above (plan KTD6). Empty by default.

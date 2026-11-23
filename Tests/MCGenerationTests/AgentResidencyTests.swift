@@ -127,6 +127,37 @@ private let refusedFirstImage: @Sendable (Int, EngineStubProtocol.Recorded) -> E
             harness.engineCalls() == ["unload \(kreaModel)", "unload \(enhancerModel)", "load \(otherModel)"])
     }
 
+    @Test func aRefusedModelSwitchEvictsTheKeptModelAndRetries() async throws {
+        let harness = try await Harness.make(
+            loaded: [kreaModel, enhancerModel], known: [kreaModel, otherModel, enhancerModel],
+            refusedLoadCounts: [otherModel: 1], memoryTier: twentyFourGiBOrMore, script: noGeneration)
+        await harness.executor.setKeptResidentModels([enhancerModel])
+        try await harness.executor.selectModel(otherModel)
+        #expect(
+            harness.engineCalls() == [
+                "unload \(kreaModel)", "load \(otherModel)", "unload \(enhancerModel)", "load \(otherModel)",
+            ])
+    }
+
+    @Test func aRefusedModelSwitchWithNoKeptModelLoadedFailsAsBefore() async throws {
+        let harness = try await Harness.make(
+            loaded: [kreaModel], known: [kreaModel, otherModel, enhancerModel],
+            refusedLoadCounts: [otherModel: 1], memoryTier: twentyFourGiBOrMore, script: noGeneration)
+        await harness.executor.setKeptResidentModels([enhancerModel])
+        var thrown: Error?
+        do {
+            try await harness.executor.selectModel(otherModel)
+        } catch {
+            thrown = error
+        }
+        let error = try #require(thrown as? EngineError)
+        switch error {
+        case .outOfMemory: break
+        default: Issue.record("expected outOfMemory, got \(error)")
+        }
+        #expect(harness.engineCalls() == ["unload \(kreaModel)", "load \(otherModel)"])
+    }
+
     @Test func aRefusedGenerationEvictsTheKeptModelAndRetriesTheAttempt() async throws {
         let harness = try await Harness.make(
             loaded: [enhancerModel], known: [kreaModel, enhancerModel],
