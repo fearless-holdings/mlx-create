@@ -2,14 +2,21 @@ import SwiftUI
 
 struct GallerySidebarWidth {
     private(set) var composerWidth: CGFloat = 260
+    private(set) var generationPanelWidth: CGFloat?
 
     mutating func record(_ width: CGFloat, galleryOnly: Bool) {
         guard !galleryOnly, width.isFinite, width >= 200 else { return }
         composerWidth = width
     }
+
+    mutating func recordGenerationPanel(_ width: CGFloat, galleryOnly: Bool) {
+        guard !galleryOnly, width.isFinite, width >= 320 else { return }
+        generationPanelWidth = width
+    }
 }
 
-/// Keeps the full-window gallery's size out of the composer's split position (D33, D52).
+/// Keeps the full-window gallery's size out of the composer's split positions (D33, D52): on return to Canvas mode the
+/// generation panel and the gallery get back the widths they had there.
 struct GallerySidebarSizing: NSViewRepresentable {
     var galleryOnly: Bool
 
@@ -45,14 +52,18 @@ struct GallerySidebarSizing: NSViewRepresentable {
             }
             guard pendingRestore, !galleryOnly, split.arrangedSubviews.count == 3 else { return }
             split.layoutSubtreeIfNeeded()
+            if let panelWidth = memory.generationPanelWidth {
+                split.setPosition(panelWidth, ofDividerAt: 0)
+            }
             split.setPosition(split.bounds.width - memory.composerWidth - split.dividerThickness, ofDividerAt: 1)
             pendingRestore = false
         }
 
         @objc private func resized() {
             guard !pendingRestore, let split, split.arrangedSubviews.count == 3,
-                let gallery = split.arrangedSubviews.last
+                let panel = split.arrangedSubviews.first, let gallery = split.arrangedSubviews.last
             else { return }
+            memory.recordGenerationPanel(panel.frame.width, galleryOnly: galleryOnly)
             memory.record(gallery.frame.width, galleryOnly: galleryOnly)
         }
 
