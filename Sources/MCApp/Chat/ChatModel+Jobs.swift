@@ -75,16 +75,24 @@ extension ChatModel {
     }
 
     /// Re-derives the pending status from the followed job, and ends the phase when the job ends. A finished job calls
-    /// `turnDidFinish`; a failed one appends a retryable error; a cancelled or missing one just goes idle.
+    /// `turnDidFinish`; a failed one appends a retryable error; a cancelled or missing one just goes idle. After a
+    /// collection switch the followed job is outside the shown conversation's cache, so it is read from the store.
     func updateFollowing() async {
         guard case .generating(let jobID) = phase else { return }
-        guard let job = resultJobs[jobID] else {
+        var followed = resultJobs[jobID]
+        if followed == nil {
+            followed = try? await app.store.job(id: jobID)
+            guard case .generating(jobID) = phase else { return }
+        }
+        guard let job = followed else {
             endPhase()
             return
         }
         switch job.status {
         case .queued, .paused:
-            publishStatus(await app.queue.isPauseRequested ? .queuePaused : .waitingInQueue)
+            let paused = await app.queue.isPauseRequested
+            guard case .generating(jobID) = phase else { return }
+            publishStatus(paused ? .queuePaused : .waitingInQueue)
         case .running:
             publishStatus(
                 .rendering(

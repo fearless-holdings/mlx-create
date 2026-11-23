@@ -250,6 +250,35 @@ private let askPlan =
         #expect(chat.resultState(for: chat.messages[1]) == .failed(message: job.failure?.message ?? ""))
     }
 
+    @Test func aRenderThatFailsAfterACollectionSwitchStillRecordsItsRetry() async throws {
+        let failure = #"data: {"type":"error","error":{"type":"engine_failure","message":"the engine stopped"}}"#
+        let harness = try await chatHarness(
+            script: { _, _ in
+                .init(status: 200, body: PNGFixture.sseHead(steps: 2), tail: Data((failure + "\n\n").utf8))
+            },
+            chat: { _, _ in planReply(generatePlan) })
+        let chat = harness.model.chat!
+
+        await chat.send(text: "a lighthouse")
+        await chat.turnTask?.value
+        try await harness.engineHasReceived("v1/images/generations")
+        _ = try await harness.model.createCollection(name: "Other")
+        try await eventually { chat.messages.isEmpty }
+
+        EngineStubProtocol.finishHeld(harness.endpoint)
+        try await eventually { try await harness.store.jobs(status: .failed).count == 1 }
+        try await eventually { chat.phase == .idle }
+        #expect(chat.messages.isEmpty)
+
+        await harness.model.switchCollection(to: harness.collectionID)
+        try await eventually { chat.messages.count == 3 }
+        guard case .error(let recorded) = chat.messages[2].body else {
+            Issue.record("the failed job did not record an error in its own conversation")
+            return
+        }
+        #expect(recorded.retryRequest == "a lighthouse")
+    }
+
     @Test func aDeadEngineAnswersEngineDownWithoutAChatCall() async throws {
         let crash = EngineCrash(
             kind: .killedBySystem, message: "The engine was stopped.", detail: "signal 9", exit: .signal(9))
