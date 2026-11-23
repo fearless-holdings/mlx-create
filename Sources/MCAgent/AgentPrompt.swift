@@ -182,7 +182,7 @@ public enum AgentPrompt {
         Use "generate" whenever the user asks for a picture or for a change to a picture. Use "say" only when no picture is wanted, such as a greeting or thanks. Never say that you made or changed a picture unless the action is "generate".
 
         For "generate" also write:
-        "model": one of the model keys below. Pick the best one for THIS request.
+        "model": one of the model keys below. Pick the best installed one for THIS request; name a key marked not installed only when no installed model can make what the user asked.
         "prompt": the full image prompt, in English, in the style the chosen model wants.
         "size": one of the chosen model's sizes.
         "seed": "keep" to stay close to the picture the user is talking about, "new" otherwise.
