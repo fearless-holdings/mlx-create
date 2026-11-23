@@ -296,7 +296,8 @@ def validate_plan(obj, options):
         models = {m["key"]: m for m in options["models"]}
         loras = {l["key"]: l for l in options["loras"]}
         model = obj.get("model")
-        if model not in models:
+        # An unconstrained reply can hold any JSON shape; every check must mark it invalid, never raise.
+        if not isinstance(model, str) or model not in models:
             problems.append(f"model {model!r}")
         elif obj.get("size") not in models[model]["sizes"]:
             problems.append(f"size {obj.get('size')!r} not offered for {model}")
@@ -304,9 +305,13 @@ def validate_plan(obj, options):
             problems.append("prompt missing")
         if obj.get("seed") not in ("keep", "new"):
             problems.append(f"seed {obj.get('seed')!r}")
-        for entry in obj.get("loras") or []:
+        entries = obj.get("loras")
+        if entries is not None and not isinstance(entries, list):
+            problems.append("loras not a list")
+            entries = None
+        for entry in entries or []:
             key = entry.get("key") if isinstance(entry, dict) else None
-            if key not in loras:
+            if not isinstance(key, str) or key not in loras:
                 problems.append(f"lora {key!r}")
             elif loras[key]["model"] != model:
                 problems.append(f"lora {key} does not fit {model}")
@@ -338,7 +343,11 @@ def main():
     ap.add_argument("--text-only", action="store_true", help="plans phase without the referent images (a pack whose tower fails)")
     a = ap.parse_args()
     phases = a.phases.split(",")
-    turns = json.load(open(a.turns))
+    # A bare --turns name is one of the bundled sets beside this script, from any working directory.
+    turns_file = a.turns
+    if os.path.dirname(turns_file) == "" and os.path.exists(os.path.join(HERE, turns_file)):
+        turns_file = os.path.join(HERE, turns_file)
+    turns = json.load(open(turns_file))
     options = turns["options"]
     engine_id = {m["key"]: m["engine_id"] for m in options["models"]}
     images = os.path.join(a.scratch, "images")
@@ -423,7 +432,8 @@ def main():
 
         if "plans" in phases:
             referent_images = {}
-            rows = []
+            # Assigned before the loop and saved per reply, so a crash mid-phase keeps what already ran.
+            rows = result["plans"] = []
             for t in turns["plans"]:
                 content = referent_text(t)
                 ref = t.get("referent")
@@ -441,9 +451,9 @@ def main():
                              problems=problems, valid=not problems, action_as_expected=bool(obj) and obj.get("action") == t["expect"],
                              text_before_action=("text" in keys and "action" in keys and keys.index("text") < keys.index("action")))
                     rows.append(r)
+                    save()
                     print(t["id"], mode, "valid" if not problems else problems, "first", r["first_text_seconds"], "total",
                           r["total_seconds"], "deltas", r["deltas"], repr(r["output"][:110]), flush=True)
-            result["plans"] = rows
             save()
 
         if "explicit_text" in phases:
@@ -451,7 +461,9 @@ def main():
             for t in turns["explicit_text"]:
                 r = llm([{"role": "system", "content": system}, {"role": "user", "content": t["user"]}], schema)
                 obj, keys = parse_object(r["output"])
-                prompt = (obj or {}).get("prompt") or ""
+                prompt = (obj or {}).get("prompt")
+                if not isinstance(prompt, str):
+                    prompt = ""
                 r.update(id=t["id"], user=t["user"], keep=t["keep"], parsed=obj, problems=validate_plan(obj, options),
                          missing_terms=[k for k in t["keep"] if k.lower() not in prompt.lower()])
                 rows.append(r)
