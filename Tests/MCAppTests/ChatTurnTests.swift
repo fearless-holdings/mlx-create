@@ -166,6 +166,28 @@ private let askPlan =
         #expect(try await jobCount(harness) == 0)
     }
 
+    @Test func aStopDuringTheAgentUnloadQueuesNothing() async throws {
+        let harness = try await chatHarness(
+            chat: { _, _ in planReply(generatePlan) },
+            memoryTier: MemoryTier(physicalMemoryBytes: 16 << 30),
+            holdUnloads: [BrowserFixture.agent.repo])
+        let chat = harness.model.chat!
+
+        await chat.send(text: "a lighthouse")
+        try await harness.engineHasReceived(agentChatPath)
+        // The plan is complete; the lease's cleanup now waits on the agent's held unload (AE5).
+        try await harness.engineHasReceived("v1/unload-model")
+
+        await chat.stop()
+        EngineStubProtocol.finishHeld(harness.endpoint)
+        await chat.turnTask?.value
+
+        #expect(chat.phase == .idle)
+        // The completed reply must not queue a job after Stop, and nothing past the user's message is recorded.
+        #expect(chat.messages.count == 1)
+        #expect(try await jobCount(harness) == 0)
+    }
+
     @Test func stopWhileGeneratingCancelsTheJob() async throws {
         let harness = try await chatHarness(
             script: chatImageHeld, chat: { _, _ in planReply(generatePlan) })

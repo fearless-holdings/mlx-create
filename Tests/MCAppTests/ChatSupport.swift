@@ -20,14 +20,16 @@ func chatHarness(
     models: [(id: String, architecture: String)] = [
         (kreaModel, "krea2_turbo"), (BrowserFixture.agent.repo, "gemma4"),
     ],
-    catalog: Catalog = BrowserFixture.catalogWithAgent
+    catalog: Catalog = BrowserFixture.catalogWithAgent,
+    memoryTier: MemoryTier = .current,
+    holdUnloads: Set<String> = []
 ) async throws -> AppHarness {
     let root = FileManager.default.temporaryDirectory.appending(path: "chat-\(UUID().uuidString)")
     let transport = ScriptedTransport(
         modelsRoot: root.appending(path: "Models", directoryHint: .isDirectory), outcomes: [.completes])
     let harness = try await AppHarness.make(
         models: models, loaded: loaded, script: script, catalog: catalog, transport: transport,
-        root: root, chat: chat)
+        root: root, chat: chat, memoryTier: memoryTier, holdUnloads: holdUnloads)
     // The install's rescan waits on the engine gate, which only opens once the app has started.
     await harness.model.start()
     harness.model.browser.beginInstall(BrowserFixture.agent.id)
