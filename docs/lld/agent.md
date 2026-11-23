@@ -131,9 +131,7 @@ The reply is one flat JSON object, constrained by `response_format` with a JSON 
 | `action` | enum | `say`, `ask`, `generate` |
 | `model` | option key | `generate`; the chosen image model, installed or offered for download |
 | `prompt` | string | `generate`; in English, in the chosen family's style |
-| `negative_prompt` | string | `generate`; dropped where the family does not support it |
 | `size` | size word | `generate`; one of the chosen model's size words |
-| `steps` | integer | `generate`; clamped or dropped by the family record |
 | `seed` | enum | `generate`; `keep` or `new` |
 | `loras` | `[{key, scale}]` | `generate`; keys from the LoRAs listed for the chosen model |
 | `count` | integer | `generate`; 1 to 4 |
@@ -141,7 +139,7 @@ The reply is one flat JSON object, constrained by `response_format` with a JSON 
 
 The pinned engine enforces `properties` + `required` + `additionalProperties: false`, `enum`/`const` and `minItems`/`maxItems`; `anyOf`/`oneOf` is relaxed to any JSON value and `pattern`, `minimum` and `maximum` are prompt-only (`src/json_grammar.zig` header at the pin). So the schema is one flat object and the conditional requirements — `suggestions` only on `ask`, the generation fields only on `generate` — are checked by the resolver (§5), not the schema. The schema is required, not a preference: without it, replies came fenced or invalid (§1.3).
 
-The LLM has no download action. The context lists curated models and LoRAs that are not installed, marked as such; when a `generate` plan names one, the resolver turns the plan into a download proposal (§5, D60), and the request runs after the download.
+The schema carries no `steps` and no `negative_prompt`: the plan carries neither (D56, amended 2026-11-22), the family's default steps apply, and no shipped family takes a negative prompt. The LLM has no download action. The context lists curated models and LoRAs that are not installed, marked as such; when a `generate` plan names one, the resolver turns the plan into a download proposal (§5, D60), and the request runs after the download.
 
 **`PlanTextStreamer`** is a pure incremental reader in `MCAgent`: it takes the reply's deltas and yields the unescaped characters of the top-level `text` string as they arrive, handling escapes and a delta that ends mid-escape; it yields nothing for any other field. A reply that is then retried (KTD12) clears the streamed text. Because `text` is written before the plan is resolved, the instruction asks for a sentence about what the agent is making, never about a model, a download or a result. `AgentPlanParser` is written tolerant either way and accepts fenced, truncated and extra-text replies.
 
@@ -153,8 +151,6 @@ The LLM has no download action. The context lists curated models and LoRAs that 
 |---|---|
 | unknown model key | invalid |
 | size word | mapped to the chosen family's size preset by aspect |
-| `steps` | clamped to the family range, or dropped when the family's steps are fixed |
-| `negative_prompt` | dropped where the family does not support it |
 | unknown LoRA keys | dropped |
 | LoRAs that do not fit the chosen model | dropped |
 | LoRA scales | clamped to −2…2 |
@@ -181,7 +177,7 @@ The check is skipped when the result held more than one image, when the user has
 
 ## 8. Messages and storage (KTD8)
 
-Messages live in table `chat_message`, migration `v12-chat-message`, written in a new file as `createPromptHistoryTable` is. Columns: `id` (autoincrement, the order), `collection_id` (cascades on collection delete), `author` (`user` or `agent`), `kind`, `body` (JSON, a Codable payload per kind), `job_id` (nullable, no foreign key), `created_at`. The store API is append, list (newest N, and older pages), update a message's body (a card or question changes state) and clear a collection's conversation. A result's progress and outcome are read from its job row, never stored on the message, so `body` carries only the sentence and the job id.
+Messages live in table `chat_message`, migration `v12-chat-message`, written in a new file as `createPromptHistoryTable` is. Columns: `id` (autoincrement, the order), `collection_id` (cascades on collection delete), `author` (`user` or `agent`), `kind`, `body` (JSON, a Codable payload per kind), `job_id` (nullable, no foreign key), `created_at`. The store API is append, list (newest N, and older pages), update a message's body (a card or question changes state) and clear a collection's conversation. A result's outcome is read from its job row and its live step progress from the executor's events — the same stream the queue strip reads; the row stores status and failure, never the running step count. Neither is stored on the message, so `body` carries only the sentence and the job id.
 
 `kind` and its `body` payload (plan U5):
 
