@@ -63,6 +63,7 @@ These shape the agent's instructions and the resolver; none blocks the build.
 
 - 12 plans, 10 explicit requests and 7 explicit images, one run each at temperature 0.5. This separates a pack that works from one that does not, not 5% from 10%.
 - The instructions in the harness are a first draft. The turns have now been seen; any tuning of the agent's instructions is judged on fresh turns.
+- The check ran on a 48 GB Mac only. `--max-resident-models 1` reproduces 16 GB residency, not its memory pressure, so the 16 GB fit rests on the 6.10 GB preflight being under the ≈11.9 GB working set until it is repeated on a 16 GB Mac (spike).
 - Swap timing with `--max-resident-models 1` (LLM load 0.8 s, plan 3.2 s, about 4 s in all) had every file in the page cache, and `load-model` returned for the image model in 0.06 s, so the image model's real reload is paid at the next generation and is not in that figure.
 
 ### 1.6 Reproducing
