@@ -51,9 +51,13 @@ struct AgentPromptTests {
         let request = AgentPrompt.request(context: context, agentModelID: "a")
         let schema = try #require(request.responseSchemaJSON)
         #expect(schema.contains("\"m2\""))
-        // An offered option is marked, not hidden: the model line carries a not-installed note (D60). The check is
-        // case-insensitive so the exact phrasing can move.
-        #expect(request.messages[0].content.localizedCaseInsensitiveContains("not installed"))
+        // An offered option is marked on its own model line, not hidden (D60): the installed option's line carries
+        // no such note. The check is scoped to each key's line and case-insensitive, so the phrasing can move.
+        let lines = request.messages[0].content.split(separator: "\n")
+        let offeredLine = try #require(lines.first { $0.hasPrefix("m2:") })
+        #expect(offeredLine.localizedCaseInsensitiveContains("not installed"))
+        let installedLine = try #require(lines.first { $0.hasPrefix("m1:") })
+        #expect(!installedLine.localizedCaseInsensitiveContains("not installed"))
     }
 
     @Test func systemMessageCarriesFidelityRuleAndModelKeys() {
