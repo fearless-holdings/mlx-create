@@ -33,7 +33,7 @@ public enum AgentPrompt {
     public static func replayedTurn(text: String, action: String, job: JobRequest?, context: AgentContext) -> String {
         var reply = "{\"intent\":\"\",\"text\":\(JSONQuoting.quote(text)),\"action\":\(JSONQuoting.quote(action))"
         if action == "generate", let job {
-            let option = context.models.first(where: { $0.model.id == job.modelID })
+            let option = context.models.first(where: { $0.installedModel?.id == job.modelID })
             if let option {
                 reply += ",\"model\":\(JSONQuoting.quote(option.key))"
             }
@@ -56,6 +56,9 @@ public enum AgentPrompt {
         let modelLines = context.models.map { option -> String in
             let words = SizeWords.sizes(for: option.family).map(\.word).joined(separator: ", ")
             var line = "\(option.key): \(option.guide) Sizes: \(words)."
+            if case .offered = option.source {
+                line += " Not installed: naming it proposes its download."
+            }
             if let shape = PromptStyle.shape(familyID: option.family.id) {
                 line += "\n  Prompt style for \(option.key): \(shape)"
             }
@@ -111,7 +114,7 @@ public enum AgentPrompt {
     /// still installed options.
     private static func referentJSON(_ settings: ImageSettings, context: AgentContext) -> String {
         var fields: [String] = []
-        if let option = context.models.first(where: { $0.model.id == settings.modelID }) {
+        if let option = context.models.first(where: { $0.installedModel?.id == settings.modelID }) {
             fields.append("\"model\":\(JSONQuoting.quote(option.key))")
             if let word = SizeWords.word(
                 for: ImageSize(width: settings.requestedWidth, height: settings.requestedHeight),

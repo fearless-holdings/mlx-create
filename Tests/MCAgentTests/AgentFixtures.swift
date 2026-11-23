@@ -40,7 +40,15 @@ enum AgentFixture {
     static func modelOption(
         key: String = "m1", model: InstalledModel, family: ModelFamily, guide: String = "A model."
     ) -> AgentModelOption {
-        AgentModelOption(key: key, model: model, family: family, guide: guide)
+        AgentModelOption(key: key, source: .installed(model), family: family, guide: guide)
+    }
+
+    /// A signed-catalog model that fits but is not installed: naming it proposes its download (D60).
+    static func offeredOption(
+        key: String = "m9", id: String = "catalog-x", family: ModelFamily, guide: String = "An offered model."
+    ) -> AgentModelOption {
+        AgentModelOption(
+            key: key, source: .offered(id: id, name: id, sizeBytes: 1_000), family: family, guide: guide)
     }
 
     static func loraOption(

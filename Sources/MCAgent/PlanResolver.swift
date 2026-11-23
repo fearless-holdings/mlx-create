@@ -24,9 +24,11 @@ public enum ResolvedPlan: Sendable, Equatable {
     case say(text: String)
     case ask(text: String, suggestions: [String])
     case generate(ResolvedGeneration)
-    /// The plan named curated LoRAs that are not installed. `without` is the same generation without them, for a
-    /// dismissed download card.
-    case proposeDownload(text: String, loras: [AgentLoRAOption], without: ResolvedGeneration)
+    /// The plan named curated options that are not installed: shelf LoRAs and offered image models (D60). `without`
+    /// is the same generation without the shelf LoRAs, for a dismissed download card; it is nil when the plan named an
+    /// offered model, because no generation can run without the model it was planned on.
+    case proposeDownload(
+        text: String, loras: [AgentLoRAOption], models: [AgentModelOption], without: ResolvedGeneration?)
     /// The plan cannot run; `reason` says why in a word or two for diagnostics.
     case invalid(reason: String)
 }
@@ -96,11 +98,17 @@ public enum PlanResolver {
             return false
         }.map(\.option)
 
+        if case .offered = option.source {
+            return .proposeDownload(text: plan.text, loras: shelf, models: [option], without: nil)
+        }
+        guard case .installed(let installedModel) = option.source else {
+            return .invalid(reason: "unavailable model")
+        }
         let generation = makeGeneration(
-            text: plan.text, plan: plan, option: option, installed: installed,
+            text: plan.text, plan: plan, model: installedModel, option: option, installed: installed,
             size: size, batchCount: batchCount, seedPolicy: seedPolicy, droppedAdultLoRAs: droppedAdultLoRAs)
         if !shelf.isEmpty {
-            return .proposeDownload(text: plan.text, loras: shelf, without: generation)
+            return .proposeDownload(text: plan.text, loras: shelf, models: [], without: generation)
         }
         return .generate(generation)
     }
@@ -111,7 +119,7 @@ public enum PlanResolver {
     private static func resolvedSize(
         for plan: GeneratePlan, option: AgentModelOption, referent: AgentReferent?
     ) -> ImageSize {
-        if let referent, referent.settings.modelID == option.model.id {
+        if let referent, referent.settings.modelID == option.installedModel?.id {
             let referentSize = ImageSize(
                 width: referent.settings.requestedWidth, height: referent.settings.requestedHeight)
             if plan.size != nil, plan.size == SizeWords.word(for: referentSize, family: option.family) {
@@ -134,7 +142,7 @@ public enum PlanResolver {
     }
 
     private static func makeGeneration(
-        text: String, plan: GeneratePlan, option: AgentModelOption,
+        text: String, plan: GeneratePlan, model: InstalledModel, option: AgentModelOption,
         installed: [(option: AgentLoRAOption, entry: LoRAStackEntry, scale: Double)],
         size: ImageSize, batchCount: Int, seedPolicy: SeedPolicy, droppedAdultLoRAs: Bool
     ) -> ResolvedGeneration {
@@ -148,7 +156,7 @@ public enum PlanResolver {
         return ResolvedGeneration(
             text: text,
             draft: GenerationDraft(
-                model: option.model, prompt: prompt, negativePrompt: nil, size: size,
+                model: model, prompt: prompt, negativePrompt: nil, size: size,
                 steps: nil, guidance: nil, batchCount: batchCount, seedPolicy: seedPolicy,
                 loras: loras.isEmpty ? nil : loras, originalPrompt: nil),
             droppedAdultLoRAs: droppedAdultLoRAs)

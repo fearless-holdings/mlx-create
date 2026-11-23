@@ -6,16 +6,30 @@ import MCLibrary
 /// One image model the chat agent may choose (plan KTD3). `key` is the opaque token the reply schema offers; `guide` is
 /// the family's `AgentGuides` text so the LLM can pick by speed and look.
 public struct AgentModelOption: Sendable, Equatable {
+    /// Where the model stands: installed, or signed-catalog and offered for download (D60).
+    public enum Source: Sendable, Equatable {
+        /// Installed and selectable.
+        case installed(InstalledModel)
+        /// Signed-catalog, fits this Mac, not installed: naming it in a plan proposes its download (D60).
+        case offered(id: String, name: String, sizeBytes: Int64)
+    }
+
     public let key: String
-    public let model: InstalledModel
+    public let source: Source
     public let family: ModelFamily
     public let guide: String
 
-    public init(key: String, model: InstalledModel, family: ModelFamily, guide: String) {
+    public init(key: String, source: Source, family: ModelFamily, guide: String) {
         self.key = key
-        self.model = model
+        self.source = source
         self.family = family
         self.guide = guide
+    }
+
+    /// The installed model the option wraps, or nil when it is a download offer.
+    public var installedModel: InstalledModel? {
+        guard case .installed(let model) = source else { return nil }
+        return model
     }
 }
 

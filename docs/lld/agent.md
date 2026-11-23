@@ -116,7 +116,7 @@ Phases (KTD7): idle, thinking, waiting for a download, generating (with the job 
 
 - **Opaque keys, not names.** Models are `m1…`, LoRAs `l1…`. A curated LoRA is described by its shelf role and trigger words; a LoRA the user installed is described by its name and trigger words, because nothing else describes it. Keys keep names out of replies by construction (R13).
 - **Size words:** `square`, `landscape`, `portrait`, `wide`, `tall`, mapped to the chosen family's `sizePresets` by aspect.
-- **Family guidance** is bundled in `Sources/MCAgent/Resources/Guides.json`: one line per family, and one line per curated LoRA role that says what the role is and what it is not for (plan KTD22). Only installed image models are offered as options; curated LoRAs are offered whether installed or not. The prompt style comes from the enhancer's packs through a new public accessor on `MCEnhancer`; the pack files are not edited, because their text is what the enhancer gate measured. The fidelity rule ("keep every explicit detail…") is the enhancer's sentence, exposed as one shared constant.
+- **Family guidance** is bundled in `Sources/MCAgent/Resources/Guides.json`: one line per family, and one line per curated LoRA role that says what the role is and what it is not for (plan KTD22). Installed image models are offered as options, and so are signed-catalog models that fit this Mac but are not installed, marked as such (D60); curated LoRAs are offered whether installed or not. The prompt style comes from the enhancer's packs through a new public accessor on `MCEnhancer`; the pack files are not edited, because their text is what the enhancer gate measured. The fidelity rule ("keep every explicit detail…") is the enhancer's sentence, exposed as one shared constant.
 - **The referent** (D57): the image the user means is, in order, the one shown large, else a single gallery selection, else the newest image the conversation made. Its stored settings go in the context, and the image goes as a JPEG, longest side 768 px, in a `data:` URL inside an `image_url` part (KTD13, verified §1.3). The app makes the JPEG with ImageIO; that is image I/O, not inference.
 - A result message is rendered for the LLM with the prompt and the keys it used; the user never sees that rendering.
 
@@ -129,7 +129,7 @@ The reply is one flat JSON object, constrained by `response_format` with a JSON 
 | `intent` | string | every action; one sentence saying what the user wants, never shown |
 | `text` | string | every action; what the agent says to the user, in the user's language |
 | `action` | enum | `say`, `ask`, `generate` |
-| `model` | option key | `generate`; the chosen installed image model |
+| `model` | option key | `generate`; the chosen image model, installed or offered for download |
 | `prompt` | string | `generate`; in English, in the chosen family's style |
 | `size` | size word | `generate`; one of the chosen model's size words |
 | `seed` | enum | `generate`; `keep` or `new` |
@@ -139,7 +139,7 @@ The reply is one flat JSON object, constrained by `response_format` with a JSON 
 
 The pinned engine enforces `properties` + `required` + `additionalProperties: false`, `enum`/`const` and `minItems`/`maxItems`; `anyOf`/`oneOf` is relaxed to any JSON value and `pattern`, `minimum` and `maximum` are prompt-only (`src/json_grammar.zig` header at the pin). So the schema is one flat object and the conditional requirements — `suggestions` only on `ask`, the generation fields only on `generate` — are checked by the resolver (§5), not the schema. The schema is required, not a preference: without it, replies came fenced or invalid (§1.3).
 
-The schema carries no `steps` and no `negative_prompt`: the plan carries neither (D56, amended 2026-11-22), the family's default steps apply, and no shipped family takes a negative prompt. The LLM has no download action. The context lists curated LoRAs that are not installed; when a `generate` plan keeps one, the resolver turns the plan into a download proposal (§5, D60), and the request runs after the download. Image models are proposed only by the first-launch card (D60), never by a plan.
+The schema carries no `steps` and no `negative_prompt`: the plan carries neither (D56, amended 2026-11-22), the family's default steps apply, and no shipped family takes a negative prompt. The LLM has no download action. The context lists curated models and LoRAs that are not installed, marked as such; when a `generate` plan names one, the resolver turns the plan into a download proposal (§5, D60), and the request runs after the download.
 
 **`PlanTextStreamer`** is a pure incremental reader in `MCAgent`: it takes the reply's deltas and yields the unescaped characters of the top-level `text` string as they arrive, handling escapes and a delta that ends mid-escape; it yields nothing for any other field. A reply that is then retried (KTD12) clears the streamed text. Because `text` is written before the plan is resolved, the instruction asks for a sentence about what the agent is making, never about a model, a download or a result. `AgentPlanParser` is written tolerant either way and accepts fenced, truncated and extra-text replies.
 
@@ -161,6 +161,7 @@ The schema carries no `steps` and no `negative_prompt`: the plan carries neither
 | kept LoRAs' trigger words | re-inserted with the enhancer's `TriggerWordMatcher` |
 | curated `nsfw` LoRAs with the opt-in off | dropped and flagged for the notice (KTD16, D61) |
 | a kept curated LoRA that is not installed | the plan becomes a download proposal that also carries the same generation without it (D60) |
+| a curated image model that is not installed | the plan becomes a download proposal carrying the model and the kept shelf LoRAs; no generation runs without it (D60) |
 | `ask` when `mayAsk` is false | invalid (AE2) |
 
 ## 6. The check (KTD11, D59)
