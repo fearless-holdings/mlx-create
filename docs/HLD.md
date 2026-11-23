@@ -554,7 +554,7 @@ erDiagram
   CHAT_MESSAGE {
     int64 id "autoincrement; order (D55)"
     uuid collection_id
-    string role "user | agent"
+    string author "user | agent"
     string kind
     json body
     uuid job_id "nullable"
