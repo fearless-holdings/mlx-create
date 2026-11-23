@@ -105,7 +105,7 @@ extension ChatModel {
     private func askAgent(context: AgentContext, agentModelID: String) async throws -> String {
         let request = AgentPrompt.request(context: context, agentModelID: agentModelID)
         let client = app.client
-        return try await app.executor.withEnhancerLease(
+        let reply = try await app.executor.withEnhancerLease(
             enhancerModelID: agentModelID, rewarmsDisplaced: false, retriesLoadAfterMemoryRefusal: true
         ) {
             var streamer = PlanTextStreamer()
@@ -119,6 +119,10 @@ extension ChatModel {
             try Task.checkCancellation()
             return reply
         }
+        // The lease keeps a completed reply through its cleanup, and the agent's unload can outlive the user's
+        // Stop, so the reply is checked once more before it is parsed or queued.
+        try Task.checkCancellation()
+        return reply
     }
 
     /// The same context with the retry note on the last user turn, as the prompt's failure rule asks (KTD12).
@@ -138,6 +142,14 @@ extension ChatModel {
     private func queue(_ generation: ResolvedGeneration, collectionID: UUID) async -> Bool {
         do {
             let job = try await app.composer.enqueue(generation.draft, collectionID: collectionID)
+            do {
+                try Task.checkCancellation()
+            } catch {
+                // Stop landed between enqueue and drain: the job is cancelled before it can start, and the turn
+                // records nothing after it.
+                try? await app.executor.cancel(job.id)
+                return generation.droppedAdultLoRAs
+            }
             await append(.result(ChatResult(text: generation.text, jobID: job.id)), collectionID: collectionID)
             beginGenerating(job.id)
             await refreshJobCache()
