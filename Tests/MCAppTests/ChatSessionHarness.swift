@@ -11,6 +11,9 @@ import Testing
 /// directory of real model folders, the agent id and an output path are all present — a bare `swift test` runs none
 /// of this. `MLXC_CHAT_TIER_GIB` forces the engine's resident-model tier; `MLXC_CHAT_STEPS` limits the run;
 /// `MLXC_CHAT_IMAGES_DIR` overrides where step images are copied (default: `images/` beside the record).
+/// `MLXC_CHAT_SETUP_DIR` enables the first-launch step: a `Weights`-layout directory holding only the agent model,
+/// so the setup card offers the image model and Accept runs the real download. `MLXC_CHAT_SETUP_MODEL_ID` is the
+/// catalog id the card is expected to offer; when unset the offered id is only recorded.
 struct ChatSessionEnvironment {
     let engineBinary: URL
     let modelDirectory: URL
@@ -19,6 +22,8 @@ struct ChatSessionEnvironment {
     let tier: MemoryTier
     let steps: Set<Int>
     let imagesOverride: URL?
+    let setupDirectory: URL?
+    let setupModelID: String?
 
     static var current: Self? {
         let env = ProcessInfo.processInfo.environment
@@ -36,7 +41,9 @@ struct ChatSessionEnvironment {
             engineBinary: URL(fileURLWithPath: binary),
             modelDirectory: URL(fileURLWithPath: directory, isDirectory: true),
             agentID: agent, outURL: URL(fileURLWithPath: out), tier: tier, steps: steps,
-            imagesOverride: env["MLXC_CHAT_IMAGES_DIR"].map { URL(fileURLWithPath: $0, isDirectory: true) })
+            imagesOverride: env["MLXC_CHAT_IMAGES_DIR"].map { URL(fileURLWithPath: $0, isDirectory: true) },
+            setupDirectory: env["MLXC_CHAT_SETUP_DIR"].map { URL(fileURLWithPath: $0, isDirectory: true) },
+            setupModelID: env["MLXC_CHAT_SETUP_MODEL_ID"])
     }
 
     /// Where each step's first saved image is copied before the throwaway root goes.
@@ -131,10 +138,12 @@ final class ChatSession {
         self.env = env
     }
 
-    /// Builds a model over `root`. `Weights` inside it is expected to already be the session's symlink.
+    /// Builds a model over `root`. `Weights` inside it is expected to already be the session's symlink. `transport`
+    /// nil keeps installs off; the setup session passes the app's real downloader so a card's Accept truly installs.
     private static func assemble(
         env: ChatSessionEnvironment, root: URL, defaults: UserDefaults,
-        civitaiAPI: ScriptedCivitaiAPI, civitaiFiles: ScriptedCivitaiFileHost
+        civitaiAPI: ScriptedCivitaiAPI, civitaiFiles: ScriptedCivitaiFileHost,
+        transport: (any ModelTransport)? = nil
     ) async throws -> ChatSession {
         let models = root.appending(path: "Models", directoryHint: .isDirectory)
         let library = root.appending(path: "Library", directoryHint: .isDirectory)
@@ -151,8 +160,8 @@ final class ChatSession {
         let gate = EngineGate()
         let client = EngineClient(endpoint: { try await gate.endpoint() })
         let store = try LibraryStore(libraryRoot: library, modelsRoot: models)
-        // The bundled signed catalog gives the session the curated LoRA shelf; installs stay off (no transport), so
-        // nothing is ever downloaded and no setup card can offer one.
+        // The bundled signed catalog gives the session the curated LoRA shelf; a nil transport leaves installs off,
+        // so nothing is ever downloaded and no setup card can offer one — the setup session's downloader is real.
         let catalog = try Catalog.decodeValidated(BundledCatalog.fromBundle().bytes)
         let model = AppModel(
             store: store,
@@ -166,7 +175,7 @@ final class ChatSession {
             engineVersion: "26.10.3",
             defaults: defaults,
             catalog: catalog,
-            transport: nil,
+            transport: transport,
             catalogStore: nil,
             civitaiTransport: civitaiAPI,
             civitaiFileTransport: civitaiFiles,
@@ -197,6 +206,33 @@ final class ChatSession {
     func relaunched() async throws -> ChatSession {
         try await Self.assemble(
             env: env, root: root, defaults: defaults, civitaiAPI: civitaiAPI, civitaiFiles: civitaiFiles)
+    }
+
+    /// The first-launch session (step 9): `Weights` is a real directory whose org folders are symlinks into
+    /// `setupDirectory` — the agent model only — and the transport is the app's real downloader, so the setup
+    /// card's Accept runs a genuine install and the engine ends up listing the model.
+    static func makeSetup(
+        env: ChatSessionEnvironment, setupDirectory: URL, root: URL, defaults: UserDefaults
+    ) async throws -> ChatSession {
+        let models = root.appending(path: "Models", directoryHint: .isDirectory)
+        let weights = models.appending(path: "Weights", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: weights, withIntermediateDirectories: true)
+        for entry in try FileManager.default.contentsOfDirectory(atPath: setupDirectory.path)
+        where !entry.hasPrefix(".") {
+            try FileManager.default.createSymbolicLink(
+                at: weights.appending(path: entry, directoryHint: .isDirectory),
+                withDestinationURL: setupDirectory.appending(path: entry, directoryHint: .isDirectory))
+        }
+        let downloader = ModelDownloader(
+            configuration: .init(modelsRoot: models, userAgent: "mlx-create-chat-session"))
+        let api = ScriptedCivitaiAPI { request in
+            Issue.record("a Civitai request was made in the setup session: \(request.url?.absoluteString ?? "?")")
+            return CivitaiResponse(status: 500, body: Data())
+        }
+        let files = ScriptedCivitaiFileHost(payload: Data())
+        return try await assemble(
+            env: env, root: root, defaults: defaults, civitaiAPI: api, civitaiFiles: files,
+            transport: downloader)
     }
 
     /// Waits until Chat is ready to plan: the agent id resolved and at least one selectable image model installed.
