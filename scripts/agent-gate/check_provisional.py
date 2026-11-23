@@ -306,7 +306,7 @@ def validate_plan(obj, options):
         if obj.get("seed") not in ("keep", "new"):
             problems.append(f"seed {obj.get('seed')!r}")
         entries = obj.get("loras")
-        if entries is not None and not isinstance(entries, list):
+        if "loras" in obj and not isinstance(entries, list):
             problems.append("loras not a list")
             entries = None
         for entry in entries or []:
@@ -343,10 +343,12 @@ def main():
     ap.add_argument("--text-only", action="store_true", help="plans phase without the referent images (a pack whose tower fails)")
     a = ap.parse_args()
     phases = a.phases.split(",")
-    # A bare --turns name is one of the bundled sets beside this script, from any working directory.
+    # A bare --turns name falls back to a bundled set beside this script when the working directory has none.
     turns_file = a.turns
-    if os.path.dirname(turns_file) == "" and os.path.exists(os.path.join(HERE, turns_file)):
-        turns_file = os.path.join(HERE, turns_file)
+    if os.path.dirname(turns_file) == "" and not os.path.exists(turns_file):
+        bundled = os.path.join(HERE, turns_file)
+        if os.path.isfile(bundled):
+            turns_file = bundled
     turns = json.load(open(turns_file))
     options = turns["options"]
     engine_id = {m["key"]: m["engine_id"] for m in options["models"]}
