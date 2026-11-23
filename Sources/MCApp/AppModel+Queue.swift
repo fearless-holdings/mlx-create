@@ -21,6 +21,7 @@ extension AppModel {
         heldByEngineFailure = false
         await queue.pause()
         await reload()
+        await chat.updateFollowing()
     }
 
     public func resumeQueue() async {
@@ -37,6 +38,7 @@ extension AppModel {
         }
         await startDraining()
         await reload()
+        await chat.updateFollowing()
     }
 
     public func move(_ jobID: UUID, by offset: Int) async {
@@ -73,6 +75,7 @@ extension AppModel {
         }
         await startDraining()
         await reload()
+        await chat.updateFollowing()
     }
 
     /// Hides failed or cancelled jobs from the strip (I05). The job rows keep their state, so a retried job comes back.
