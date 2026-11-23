@@ -43,11 +43,13 @@ extension LibraryStore {
         }
     }
 
-    /// The newest `limit` messages with `id < before` (all when nil), returned oldest first. A row whose `kind` this
-    /// build does not know, or whose body does not decode, is skipped: the read keeps paging until `limit` rows decode
-    /// or the conversation ends, so an empty result means no older readable messages, not an unreadable page.
+    /// The newest `limit` messages with `id < before` (all when nil), returned oldest first; a `limit` below 1
+    /// returns none. A row whose `kind` this build does not know, or whose body does not decode, is skipped: the read
+    /// keeps paging until `limit` rows decode or the conversation ends, so an empty result means no older readable
+    /// messages, not an unreadable page.
     public func chatMessages(collectionID: UUID, limit: Int, before: Int64? = nil) throws -> [ChatMessageRecord] {
-        try dbQueue.read { db in
+        guard limit > 0 else { return [] }
+        return try dbQueue.read { db in
             var records: [ChatMessageRecord] = []
             var before = before
             while records.count < limit {
