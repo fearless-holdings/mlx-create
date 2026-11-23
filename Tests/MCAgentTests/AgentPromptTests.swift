@@ -97,10 +97,18 @@ struct AgentPromptTests {
         // Placement and the decoded settings, not the lead-in's wording: a bracketed block carries the
         // referent's settings before the user's text.
         #expect(last.content.hasPrefix("["))
-        #expect(
-            last.content.contains(
-                "{\"model\":\"m1\",\"size\":\"landscape\",\"prompt\":\"a fox\",\"loras\":[{\"key\":\"l1\",\"scale\":0.8}]}]\n\n"
-            ))
+        let jsonStart = try #require(last.content.firstIndex(of: "{"))
+        let blockEnd = try #require(last.content.range(of: "]\n\n"))
+        let object = try JSONSerialization.jsonObject(
+            with: Data(last.content[jsonStart..<blockEnd.lowerBound].utf8))
+        let decoded = try #require(object as? [String: Any])
+        #expect(decoded["model"] as? String == "m1")
+        #expect(decoded["size"] as? String == "landscape")
+        #expect(decoded["prompt"] as? String == "a fox")
+        let loras = try #require(decoded["loras"] as? [[String: Any]])
+        #expect(loras.count == 1)
+        #expect(loras[0]["key"] as? String == "l1")
+        #expect(loras[0]["scale"] as? Double == 0.8)
         #expect(last.content.hasSuffix("make it snow"))
     }
 
