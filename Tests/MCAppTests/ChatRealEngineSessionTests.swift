@@ -316,6 +316,27 @@ struct ChatRealEngineSessionTests {
                     secondsQueuedBeforeFirstRenderStep: nil,
                     notes: ["snapshotMessages=\(snapshot.count)"]))
         }
+
+        if env.runs(9) {
+            guard let setupDirectory = env.setupDirectory else {
+                Issue.record("step 9 was requested without MLXC_CHAT_SETUP_DIR")
+                return session
+            }
+            // First launch (D60): a second throwaway session whose Weights hold only the agent model —
+            // the setup card offers the recommended image model, Accept runs the real download, the
+            // engine lists it, and the request parked on the card runs.
+            let setup = try await ChatSession.makeSetup(
+                env: env, setupDirectory: setupDirectory,
+                root: session.root.appending(path: "setup", directoryHint: .isDirectory),
+                defaults: session.defaults)
+            do {
+                try await runSetupStep(setup, env: env, imagesOut: imagesOut, record: &record)
+            } catch {
+                await setup.model.shutdown()
+                throw error
+            }
+            await setup.model.shutdown()
+        }
         return session
     }
 
