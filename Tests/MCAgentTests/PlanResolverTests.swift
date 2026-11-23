@@ -181,14 +181,36 @@ struct PlanResolverTests {
         let resolved = PlanResolver.resolve(
             plan(loras: [PlanLoRA(key: "l1", scale: 1), PlanLoRA(key: "ls", scale: 1.5)]),
             context: context(loras: [installed, shelf]))
-        guard case .proposeDownload(let text, let proposal, let without) = resolved else {
+        guard case .proposeDownload(let text, let proposal, let models, let without) = resolved else {
             Issue.record("expected .proposeDownload")
             return
         }
         #expect(text == "Making a fox.")
         #expect(proposal.map(\.key) == ["ls"])
-        #expect(without.draft.loras?.map(\.id) == ["id-l1"])
-        #expect(without.draft.loras?.map(\.weight) == [1])
+        #expect(models.isEmpty)
+        #expect(without?.draft.loras?.map(\.id) == ["id-l1"])
+        #expect(without?.draft.loras?.map(\.weight) == [1])
+    }
+
+    @Test func offeredModelTurnsThePlanIntoADownloadProposal() throws {
+        let offered = AgentFixture.offeredOption(key: "m2", family: AgentFixture.kreaLike)
+        let context = AgentFixture.context(
+            models: [model, offered],
+            loras: [
+                AgentFixture.loraOption(key: "ls", modelKeys: ["m2"], shelf: true)
+            ])
+        let resolved = PlanResolver.resolve(
+            plan(model: "m2", loras: [PlanLoRA(key: "ls", scale: 1)]), context: context)
+        guard case .proposeDownload(let text, let loras, let models, let without) = resolved else {
+            Issue.record("expected .proposeDownload")
+            return
+        }
+        // The request runs after the download (D60): the proposal carries the model and the shelf LoRA that
+        // fits it, and there is no generation to fall back to.
+        #expect(text == "Making a fox.")
+        #expect(models.map(\.key) == ["m2"])
+        #expect(loras.map(\.key) == ["ls"])
+        #expect(without == nil)
     }
 
     @Test func seedKeepNeedsAReferent() throws {

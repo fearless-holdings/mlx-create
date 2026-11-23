@@ -39,6 +39,23 @@ struct AgentPromptTests {
         #expect(!schema.contains("\"loras\""))
     }
 
+    @Test func offeredModelIsASchemaKeyMarkedNotInstalled() throws {
+        let context = AgentFixture.context(
+            turns: [AgentTurn(speaker: .user, text: "hi")],
+            models: [
+                AgentFixture.modelOption(
+                    key: "m1", model: AgentFixture.model(family: AgentFixture.kreaLike),
+                    family: AgentFixture.kreaLike),
+                AgentFixture.offeredOption(key: "m2", family: AgentFixture.kreaLike),
+            ])
+        let request = AgentPrompt.request(context: context, agentModelID: "a")
+        let schema = try #require(request.responseSchemaJSON)
+        #expect(schema.contains("\"m2\""))
+        // An offered option is marked, not hidden: the model line carries a not-installed note (D60). The check is
+        // case-insensitive so the exact phrasing can move.
+        #expect(request.messages[0].content.localizedCaseInsensitiveContains("not installed"))
+    }
+
     @Test func systemMessageCarriesFidelityRuleAndModelKeys() {
         let context = AgentFixture.twoModelContext()
         let request = AgentPrompt.request(context: context, agentModelID: "agent-id")
