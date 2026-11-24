@@ -16,6 +16,7 @@ private let cardJobPlan =
     #"{"intent":"","text":"One fox coming up.","action":"generate","model":"m1","prompt":"a fox in snow","size":"square","seed":"new","loras":[],"count":1}"#
 private let modelPlan =
     #"{"intent":"","text":"That takes a model I can fetch.","action":"generate","model":"m2","prompt":"a fox in snow","size":"square","seed":"new","loras":[],"count":1}"#
+private let cardSayPlan = #"{"intent":"","text":"Of course.","action":"say"}"#
 
 /// Fits every Mac this app supports, so it is always offered: after the installed Krea (m1) it is always m2.
 private let tiny = CatalogModel(
@@ -323,6 +324,99 @@ private func cardBody(_ chat: ChatModel, id: Int64? = nil) -> ChatDownload? {
                 if case .userText = $0.body { return true }
                 return false
             }.count == 1)
+    }
+
+    @Test func aCardFinishedByTheInstallersOwnRefreshRunsTheRequestOnce() async throws {
+        let harness = try await chatHarness(
+            script: chatImageNow,
+            chat: { number, _ in planReply(number == 1 ? modelPlan : cardJobPlan) },
+            catalog: modelCardCatalog)
+        let chat = harness.model.chat!
+
+        await chat.send(text: "a fox in snow")
+        await chat.turnTask?.value
+        try await eventually { chat.phase == .idle }
+        let record = try #require(
+            chat.messages.last(where: {
+                if case .download = $0.body { return true }
+                return false
+            }))
+
+        // The engine already lists the offered model, so the installer's own rescan finishes the card and takes
+        // its request while Accept is still suspended inside the install.
+        harness.engine.setModels([
+            (id: kreaModel, architecture: "krea2_turbo"),
+            (id: BrowserFixture.agent.repo, architecture: "gemma4"),
+            (id: tiny.repo, architecture: "krea2_turbo"),
+        ])
+        await chat.acceptDownload(messageID: record.id)
+        await chat.turnTask?.value
+        try await eventually { chat.phase == .idle }
+        try await eventually { try await jobCount(harness) >= 1 }
+        try await Task.sleep(for: .milliseconds(100))
+
+        // The request ran once: Accept's later writes applied to the card the rescan left, so nothing put the
+        // taken request back for a second turn. The check request after the job words its user message
+        // differently, so only real plan turns end on the request text.
+        #expect(cardBody(chat, id: record.id)?.state == .finished)
+        #expect(cardBody(chat, id: record.id)?.pendingRequest == nil)
+        let planTurns = agentChatRequests(harness).filter { request in
+            guard
+                let object = try? JSONSerialization.jsonObject(with: Data(request.body.utf8))
+                    as? [String: Any],
+                let turns = object["messages"] as? [[String: Any]],
+                let last = turns.last(where: { ($0["role"] as? String) == "user" })
+            else { return false }
+            return (last["content"] as? String) == "a fox in snow"
+        }
+        #expect(planTurns.count == 2)
+        #expect(try await jobCount(harness) == 1)
+        #expect(
+            chat.messages.filter {
+                if case .userText = $0.body { return true }
+                return false
+            }.count == 1)
+    }
+
+    @Test func aCardReplayKeepsALaterIdenticalPromptOutOfItsSlot() async throws {
+        let harness = try await chatHarness(
+            script: chatImageNow,
+            chat: { number, _ in
+                planReply(number == 1 || number == 7 ? modelPlan : number == 8 ? cardJobPlan : cardSayPlan)
+            },
+            catalog: modelCardCatalog)
+        let chat = harness.model.chat!
+
+        // Turn 1 offers the first card holding "a fox in snow"; five filler turns push that prompt out of the
+        // context window; turn 7 sends the same prompt and offers a second card. Replaying the first card must
+        // drop its own prompt record — dropping turn 7's identical one would lose a live message from context.
+        for index in 1...7 {
+            await chat.send(text: index == 1 || index == 7 ? "a fox in snow" : "filler \(index)")
+            await chat.turnTask?.value
+            try await eventually { chat.phase == .idle }
+        }
+        let first = try #require(
+            chat.messages.first(where: {
+                if case .download = $0.body { return true }
+                return false
+            }))
+
+        await chat.dismissDownload(messageID: first.id)
+        await chat.turnTask?.value
+        try await eventually { chat.phase == .idle }
+        try await eventually { agentChatRequests(harness).count >= 8 }
+
+        // The replay's context still shows turn 7's identical prompt in history plus the replayed request —
+        // consecutive user turns merge, so the prompt appears twice inside one user message. Dropping turn 7's
+        // record instead of the card's own would leave it once.
+        let replay = agentChatRequests(harness)[7]
+        let object = try #require(
+            try JSONSerialization.jsonObject(with: Data(replay.body.utf8)) as? [String: Any])
+        let turns = try #require(object["messages"] as? [[String: Any]])
+        let foxes = turns.filter { ($0["role"] as? String) == "user" }
+            .map { (($0["content"] as? String) ?? "").components(separatedBy: "a fox in snow").count - 1 }
+            .reduce(0, +)
+        #expect(foxes == 2)
     }
 
     @Test func downloadDetailReadsTheCatalogLicenseAndTheShelfLicense() async throws {

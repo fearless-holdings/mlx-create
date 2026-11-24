@@ -111,7 +111,9 @@ extension ChatModel {
         guard beginTurn() else { return }
         await updateDownload(record) { $0.pendingRequest = nil }
         turnTask = Task {
-            await self.runTurn(text: request, collectionID: record.collectionID, replayingUserText: true)
+            await self.runTurn(
+                text: request, collectionID: record.collectionID,
+                replayingUserText: true, replayingBelowMessageID: card.isSetup ? nil : record.id)
             await self.resumeHeldRequests()
         }
     }
@@ -148,11 +150,24 @@ extension ChatModel {
         }
     }
 
-    /// Writes the card's changed body back to the store and the shown conversation.
+    /// Writes the card's changed body back to the store and the shown conversation. The change applies to the
+    /// freshest copy: an install's own refresh can finish the card and take its request while the accept that
+    /// started it is still awaiting, and a write from that earlier record would put the request back — or drop
+    /// one that parked during the download.
     func updateDownload(_ record: ChatMessageRecord, _ mutate: (inout ChatDownload) -> Void) async {
-        guard case .download(var card) = record.body else { return }
+        let latest = await latestRecord(record)
+        guard case .download(var card) = latest.body else { return }
         mutate(&card)
-        await updateMessage(record, body: .download(card))
+        await updateMessage(latest, body: .download(card))
+    }
+
+    /// The record's current body: the shown conversation first, then the store, so a card in a collection that is
+    /// not on screen still mutates its persisted state rather than the snapshot its caller captured.
+    private func latestRecord(_ record: ChatMessageRecord) async -> ChatMessageRecord {
+        if let shown = messages.first(where: { $0.id == record.id }) { return shown }
+        let stored = (try? await app.store.chatMessages(collectionID: record.collectionID, limit: 200))?
+            .first(where: { $0.id == record.id })
+        return stored ?? record
     }
 
     /// Writes `body` back over `record`, as `chooseSuggestion` does for a question.
