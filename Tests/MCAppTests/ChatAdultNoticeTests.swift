@@ -118,8 +118,11 @@ private let adultPlan =
         try writeSafetensors(at: staged, tensors: LoRALayout.krea.tensorNames, tag: "body")
         let adultSHA = sha256Hex(try Data(contentsOf: staged))
         let api = ScriptedCivitaiAPI { _ in civitaiResponse(civitaiPage([])) }
+        // The third chat call — turn 1's plan, its check, then the retry's plan — is held, so the pinned referent
+        // and the agent-only note still mark the turn while its reply waits.
         let harness = try await chatHarness(
-            script: chatImageNow, chat: { _, _ in planReply(adultPlan) },
+            script: chatImageNow,
+            chat: { number, _ in number == 3 ? heldPlanReply(adultPlan) : planReply(adultPlan) },
             catalog: adultCatalog(sha256: adultSHA), civitaiTransport: api)
         let file = harness.root.appending(path: "Models/LoRAs/adult.safetensors")
         try FileManager.default.createDirectory(
@@ -140,22 +143,23 @@ private let adultPlan =
         ).id
         await chat.turnOnAdultContent(messageID: noticeID)
 
+        let firstJob = try #require(try await harness.store.jobs(status: .done).last)
+        let firstImage = try #require(try await harness.store.images(jobID: firstJob.id).last)
         let requestsBefore = agentChatRequests(harness).count
         await chat.retryAdult(messageID: noticeID)
+        try await harness.engineHasReceived(agentChatPath, count: requestsBefore + 1)
+        #expect(chat.turnReferentImageID == firstImage.id)
+        #expect(chat.turnAgentNote == ChatModel.adultRetryNote)
+        EngineStubProtocol.finishHeld(harness.endpoint)
         await chat.turnTask?.value
         try await eventually { chat.phase == .idle }
-        try await eventually { agentChatRequests(harness).count > requestsBefore }
 
-        // The agent sees the retry note and the image the first try made, pinned as an explicit referent; the stored
-        // user message is the plain request.
-        let request = try #require(
-            agentChatRequests(harness).last {
-                lastUserText($0.body)?.contains("[Adult content is now switched on.") == true
-            })
+        // The agent sees the retry note and the pinned image's settings; the stored user message is the plain request.
+        let request = try #require(agentChatRequests(harness)[requestsBefore])
         let text = try #require(lastUserText(request.body))
-        #expect(text.hasPrefix("[The user has this picture open."))
+        #expect(text.contains("\"prompt\":\"a fox in snow\""))
         #expect(text.contains("a fox in snow"))
-        #expect(text.contains("[Adult content is now switched on."))
+        #expect(text.contains(ChatModel.adultRetryNote))
         let stored = chat.messages.last { message in
             if case .userText = message.body { return true }
             return false

@@ -41,7 +41,8 @@ extension ChatModel {
             collectionID: collectionID)
     }
 
-    /// The instruction the adult retry appends to the text the agent sees; never stored or shown.
-    private static let adultRetryNote =
+    /// The instruction the adult retry appends to the text the agent sees; never shown, and stored only as a held
+    /// request's context while it waits on a download card.
+    static let adultRetryNote =
         "[Adult content is now switched on. Plan the same picture again and add the LoRA for explicit adult content that fits the model. Write \"text\" as always: one sentence about the picture, with no mention of LoRAs or add-ons.]"
 }

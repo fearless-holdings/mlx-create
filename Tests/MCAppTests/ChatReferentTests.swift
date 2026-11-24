@@ -28,6 +28,11 @@ private let firstPlan =
         let chat = harness.model.chat!
         chat.largeImageID = older.id
 
+        // A referent the user chose — here the image shown large — is marked explicit, not a fallback.
+        let context = await chat.buildContext(history: [], newUserText: "the same again")
+        #expect(context.referent?.isExplicit == true)
+        #expect(context.referent?.settings == older.settings)
+
         await chat.send(text: "the same again")
         await chat.turnTask?.value
         try await eventually { chat.phase == .idle }
@@ -37,8 +42,6 @@ private let firstPlan =
         let text = try #require(lastUserText(agentChatRequests(harness)[0].body))
         #expect(text.contains("an older lighthouse"))
         #expect(!text.contains("a newer lighthouse"))
-        // A referent the user chose is the picture they have open, not a fallback.
-        #expect(text.hasPrefix("[The user has this picture open."))
     }
 
     @Test func aSingleGallerySelectionIsTheReferent() async throws {
@@ -75,6 +78,12 @@ private let firstPlan =
         }
         let firstImage = try #require(try await harness.store.images(jobID: first.jobID).first)
 
+        // Before turn 2: the referent a message gets is turn 1's image as the implicit fallback — nothing the
+        // user chose, so the prompt can tell it apart from a referent they pinned.
+        let context = await chat.buildContext(history: [], newUserText: "the same again")
+        #expect(context.referent?.isExplicit == false)
+        #expect(context.referent?.settings == firstImage.settings)
+
         await chat.send(text: "the same again")
         await chat.turnTask?.value
         try await eventually { chat.phase == .idle }
@@ -87,7 +96,5 @@ private let firstPlan =
         // Requests are numbered over every chat call: turn 1's plan, its check, then turn 2's plan.
         let text = try #require(lastUserText(agentChatRequests(harness)[2].body))
         #expect(text.contains("a stormy lighthouse"))
-        // The newest-conversation-image fallback is offered "in case", not as the picture being changed.
-        #expect(text.hasPrefix("[The last picture you made,"))
     }
 }
