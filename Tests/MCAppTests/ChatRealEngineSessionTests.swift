@@ -304,7 +304,7 @@ struct ChatRealEngineSessionTests {
             try? await eventually(timeout: .seconds(30)) { session.chat.phase == .idle }
             let after = session.chat.messages.map { "\($0.id):\($0.body.kind)" }
             #expect(after == snapshot, "the conversation did not survive the relaunch")
-            await session.chat.clearConversation()
+            await session.chat.clearConversation(collectionID: session.model.currentCollection.id)
             #expect(session.chat.messages.isEmpty)
             #expect(try await imageCount(session) == countBefore, "the collection's images changed")
             record.steps.append(
