@@ -109,4 +109,25 @@ private let lfPairPlan =
         _ = try await turn(harness, "a sitting fox")
         #expect(harness.model.chat!.largeImageID == nil)
     }
+
+    @Test func aFilteredOutLandingStillTakesTheLargeView() async throws {
+        let harness = try await chatHarness(
+            script: chatImageNow,
+            chat: { number, _ in number == 1 ? planReply(lfFirstPlan) : planReply(lfNextPlan) })
+        let chat = harness.model.chat!
+
+        // Turn 1 lands A, opened large; a search that hides the next result keeps it out of the grid.
+        let imageA = try #require(try await turn(harness, "a sitting fox").first)
+        chat.largeImageID = imageA.id
+        await harness.model.setGallerySearch("a lighthouse")
+
+        // Turn 2's image never reaches the grid, but the large-view follow is the turn's, not the grid's
+        // (D54/F2): it still takes the large view and becomes the next message's referent.
+        let imageB = try #require(try await turn(harness, "make it stand").first)
+        #expect(!harness.model.galleryImages.contains { $0.id == imageB.id })
+        #expect(chat.largeImageID == imageB.id)
+        let context = await chat.buildContext(history: [], newUserText: "make it jump")
+        #expect(context.referent?.isExplicit == true)
+        #expect(context.referent?.settings == imageB.settings)
+    }
 }

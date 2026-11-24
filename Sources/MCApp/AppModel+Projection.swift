@@ -166,8 +166,18 @@ extension AppModel {
             // The query is compared after the await, so the check and the change below run in one main-actor step.
             guard query == galleryQuery else { return }
             guard let image else {
-                // A save that the filters hide still changes what the filter lists and the match count show.
+                // A save that the filters hide still changes what the filter lists and the match count show —
+                // and a conversation result still takes the large view over: that follow is the turn's, not the
+                // grid's (D54/F2). The lone-selection clear it implies applies just the same (D57).
+                let followed = selection == jobID || canvasFollowedJobs.contains(jobID)
                 if selection == jobID { selection = nil }
+                if followed, windowMode == .chat, chat?.isConversationResult(jobID) == true {
+                    chat?.imageLanded(jobID: jobID, imageID: imageID)
+                    if gallerySelection.count <= 1 {
+                        gallerySelection = []
+                        galleryAnchor = nil
+                    }
+                }
                 if query.collectionID == currentCollection.id { await refreshGalleryMeta() }
                 return
             }
