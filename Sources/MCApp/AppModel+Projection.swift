@@ -175,8 +175,9 @@ extension AppModel {
                 selection = imageID
                 canvasFallbackImageID = imageID
                 // In Chat a lone gallery selection is an explicit referent; a stale one would hijack the next turn.
-                // Clearing it makes the new tile the highlight and the next referent the implicit fallback (D57).
-                if windowMode == .chat, gallerySelection.count <= 1 {
+                // Clearing it — only when the save is a conversation result, never a manual render's — makes the
+                // new tile the highlight and the next referent the implicit fallback (D57).
+                if windowMode == .chat, chat?.isConversationResult(jobID) == true, gallerySelection.count <= 1 {
                     gallerySelection = []
                     galleryAnchor = nil
                 }
