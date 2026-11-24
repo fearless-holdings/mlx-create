@@ -58,15 +58,11 @@ private let lfPairPlan =
         let imageB = try #require(try await turn(harness, "make it stand").first)
         #expect(chat.largeImageID == imageB.id)
 
-        // Turn 3's referent is the image now open — B — labelled as the one the user has open.
+        // Turn 3's referent is the image now open — B, the one the large view followed to — marked explicit.
+        let context = await chat.buildContext(history: [], newUserText: "make it jump")
+        #expect(context.referent?.isExplicit == true)
+        #expect(context.referent?.settings == imageB.settings)
         _ = try await turn(harness, "make it jump")
-        let request = try #require(
-            agentChatRequests(harness).last {
-                lastUserText($0.body)?.hasPrefix("[The user has this picture open.") == true
-            })
-        let text = try #require(lastUserText(request.body))
-        #expect(text.contains("a standing fox"))
-        #expect(!text.contains("a sitting fox"))
     }
 
     @Test func aClosedLargeViewStaysClosedWhenTheImageLands() async throws {

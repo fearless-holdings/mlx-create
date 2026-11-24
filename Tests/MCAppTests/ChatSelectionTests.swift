@@ -47,14 +47,10 @@ private let selNextPlan =
         #expect(harness.model.selection == imageB.id)
 
         // Turn 3's referent is the implicit newest-image fallback — B — not the cleared click.
+        let context = await harness.model.chat!.buildContext(history: [], newUserText: "make it jump")
+        #expect(context.referent?.isExplicit == false)
+        #expect(context.referent?.settings == imageB.settings)
         _ = try await turn(harness, "make it jump")
-        let request = try #require(
-            agentChatRequests(harness).last {
-                lastUserText($0.body)?.hasPrefix("[The last picture you made,") == true
-            })
-        let text = try #require(lastUserText(request.body))
-        #expect(text.contains("a standing fox"))
-        #expect(!text.contains("a sitting fox"))
     }
 
     @Test func aLandedImageLeavesAMultiSelectionAlone() async throws {
