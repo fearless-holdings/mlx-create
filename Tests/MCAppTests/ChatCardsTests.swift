@@ -418,6 +418,64 @@ private func cardBody(_ chat: ChatModel, id: Int64? = nil) -> ChatDownload? {
         #expect(foxes == 2)
     }
 
+    @Test func aCardReplayCarriesThePinnedReferentAndAgentNote() async throws {
+        let payload = try cardPayload()
+        let entry = civitaiEntry(sha256: payload.sha256, sizeBytes: Int64(payload.data.count))
+        let api = ScriptedCivitaiAPI { _ in cardVersionReply(payload: payload) }
+        let files = ScriptedCivitaiFileHost(payload: payload.data)
+        let harness = try await chatHarness(
+            script: chatImageNow,
+            chat: { number, _ in planReply(number == 1 ? downloadPlan : cardJobPlan) },
+            catalog: cardCatalog(with: entry),
+            civitaiTransport: api, civitaiFileTransport: files)
+        let pinned = try await harness.saveImage(prompt: "a sitting fox")
+        let chat = harness.model.chat!
+
+        // A pinned send — the shape retryAdult and Fix it use — whose plan parks the turn on a card.
+        await chat.send(
+            text: "a fox in snow, in the snowstyle", referentImageID: pinned.id,
+            agentNote: "[a pinned send's note]")
+        await chat.turnTask?.value
+        try await eventually { chat.phase == .idle }
+
+        // The request waits on the card with the context it was sent with: the pinned image and the agent-only note.
+        let card = try #require(cardBody(chat))
+        #expect(card.state == .offered)
+        #expect(card.pendingRequest == "a fox in snow, in the snowstyle")
+        #expect(card.pendingReferentImageID == pinned.id)
+        #expect(card.pendingAgentNote == "[a pinned send's note]")
+
+        // A different picture open while the card waits does not change what the replay is about.
+        let other = try await harness.saveImage(prompt: "a running fox")
+        chat.largeImageID = other.id
+
+        let record = try #require(
+            chat.messages.last(where: {
+                if case .download = $0.body { return true }
+                return false
+            }))
+        await chat.acceptDownload(messageID: record.id)
+        await chat.turnTask?.value
+        try await eventually { chat.phase == .idle }
+
+        // The replay is the turn the card interrupted, not a bare resend: the agent sees the pinned image's
+        // settings — not the image now open — and the note. The card no longer holds the request, and the one
+        // recorded user message stays the plain request.
+        let request = agentChatRequests(harness)[1]
+        let text = try #require(lastUserText(request.body))
+        #expect(text.contains("\"prompt\":\"a sitting fox\""))
+        #expect(!text.contains("a running fox"))
+        #expect(text.contains("[a pinned send's note]"))
+        #expect(cardBody(chat, id: record.id)?.pendingRequest == nil)
+        #expect(cardBody(chat, id: record.id)?.pendingReferentImageID == nil)
+        #expect(cardBody(chat, id: record.id)?.pendingAgentNote == nil)
+        #expect(
+            chat.messages.filter {
+                if case .userText = $0.body { return true }
+                return false
+            }.count == 1)
+    }
+
     @Test func downloadDetailReadsTheCatalogLicenseAndTheShelfLicense() async throws {
         let harness = try await chatHarness()
         let chat = harness.model.chat!

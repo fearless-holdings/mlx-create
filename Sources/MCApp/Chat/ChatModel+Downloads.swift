@@ -92,7 +92,8 @@ extension ChatModel {
     /// Runs the oldest held request whose card ended while its collection is on screen (R28). The request is
     /// consumed only as its turn starts, so a card in another collection — or one ending while a turn is in
     /// flight — keeps it until the next resume. The user text was recorded when the request parked, so the turn
-    /// does not record it again.
+    /// does not record it again; the pinned referent and agent note it waited with go back on the turn, so the
+    /// replay is the turn the card interrupted — accepted or dismissed alike.
     func resumeHeldRequests() async {
         guard app.modelsLoaded, phase == .idle else { return }
         guard
@@ -110,7 +111,13 @@ extension ChatModel {
         else { return }
         guard beginTurn() else { return }
         turnCollectionID = record.collectionID
-        await updateDownload(record) { $0.pendingRequest = nil }
+        turnReferentImageID = card.pendingReferentImageID
+        turnAgentNote = card.pendingAgentNote
+        await updateDownload(record) {
+            $0.pendingRequest = nil
+            $0.pendingReferentImageID = nil
+            $0.pendingAgentNote = nil
+        }
         turnTask = Task {
             await self.runTurn(
                 text: request, collectionID: record.collectionID,

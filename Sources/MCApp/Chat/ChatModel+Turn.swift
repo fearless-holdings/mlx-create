@@ -48,8 +48,13 @@ extension ChatModel {
             app.models.contains(where: { ModelSelection.isSelectable($0) && $0.family != nil })
         else {
             if let card = unfinishedSetupCard {
-                // The request waits on the card (R26): stored as its pending request, nothing else is recorded.
-                await updateDownload(card) { $0.pendingRequest = text }
+                // The request waits on the card (R26): stored as its pending request, context and all,
+                // and nothing else is recorded.
+                await updateDownload(card) {
+                    $0.pendingRequest = text
+                    $0.pendingReferentImageID = turnReferentImageID
+                    $0.pendingAgentNote = turnAgentNote
+                }
             } else {
                 await append(.error(notReadyMessage(for: text)), collectionID: collectionID)
             }
@@ -99,8 +104,11 @@ extension ChatModel {
                 }
                 return
             case .proposeDownload(let proposal, let loras, let models, let without):
-                // The offer becomes a card (D60); the turn's request waits as its pending request (R28).
-                let card = Self.downloadRecord(proposal: proposal, loras: loras, models: models, request: text)
+                // The offer becomes a card (D60); the turn's request waits as its pending request (R28),
+                // with the pinned referent and agent-only note a pinned send carried.
+                let card = Self.downloadRecord(
+                    proposal: proposal, loras: loras, models: models, request: text,
+                    referentImageID: turnReferentImageID, agentNote: turnAgentNote)
                 if card.items.isEmpty {
                     // Defensive: an option that was not a shelf entry carries no card, so the request still runs.
                     if let without, await queue(without, collectionID: collectionID) {
@@ -124,8 +132,11 @@ extension ChatModel {
 
     /// The `.download` record a `proposeDownload` resolution writes (D56): the offered models and shelf LoRAs it
     /// names, still awaiting the user's answer, with their request kept to run when the downloads end (R28).
+    /// The referent and agent note of a pinned send wait beside it, so the resumed turn is the one the card
+    /// interrupted and not a bare resend (D59, D61).
     static func downloadRecord(
-        proposal: String, loras: [AgentLoRAOption], models: [AgentModelOption], request: String
+        proposal: String, loras: [AgentLoRAOption], models: [AgentModelOption], request: String,
+        referentImageID: UUID? = nil, agentNote: String? = nil
     ) -> ChatDownload {
         let modelItems = models.compactMap { option -> ChatDownloadItem? in
             guard case .offered(let id, let name, let sizeBytes) = option.source else { return nil }
@@ -135,7 +146,9 @@ extension ChatModel {
             guard case .shelf(let sha256, let name, let sizeBytes) = option.source else { return nil }
             return ChatDownloadItem(kind: .lora, id: sha256, name: name, sizeBytes: sizeBytes)
         }
-        return ChatDownload(text: proposal, items: modelItems + loraItems, state: .offered, pendingRequest: request)
+        return ChatDownload(
+            text: proposal, items: modelItems + loraItems, state: .offered, pendingRequest: request,
+            pendingReferentImageID: referentImageID, pendingAgentNote: agentNote)
     }
 
     /// Writes a message to the turn's collection and shows it while that collection is still current. The record is
