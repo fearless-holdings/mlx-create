@@ -68,8 +68,16 @@ struct GalleryView: View {
 /// The search box, the filters control and Clear (R9, R15).
 private struct GalleryHeader: View {
     @Bindable var model: AppModel
-    @State private var searchText = ""
+    /// The editable copy of the query, seeded from the model's: a remount — a large preview closing or a Chat mode
+    /// switch rebuilding the gallery — starts from the stored query, so the debounce cannot wipe it with an empty
+    /// field (R9).
+    @State private var searchText: String
     @State private var isFilterPresented = false
+
+    init(model: AppModel) {
+        self.model = model
+        _searchText = State(initialValue: model.gallerySearch)
+    }
 
     private var isBusy: Bool { model.galleryBulk != nil }
     private var criteria: Int { model.galleryCriteriaCount }

@@ -37,6 +37,9 @@ public struct MainWindow: View {
                     }
                     GalleryView(model: model)
                         .frame(minWidth: 200, idealWidth: 260, maxWidth: model.showsFullGallery ? .infinity : nil)
+                        // Keeps the full-window gallery's size out of the composer's split positions, so Canvas's
+                        // two dividers are restored after Gallery (D33, D52).
+                        .background(GallerySidebarSizing(galleryOnly: model.windowMode == .gallery))
                 }
             }
         }

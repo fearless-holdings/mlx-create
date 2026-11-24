@@ -38,13 +38,9 @@ public struct MainCommands: Commands {
             Button("Enhance Prompt") { run { await $0.pressEnhance() } }
                 .keyboardShortcut("e", modifiers: .command)
                 .disabled(!(model?.canEnhance ?? false) || isChat)
-            Button("Cancel Generation") {
-                run { model in
-                    if model.chat.isWorking { await model.chat.stop() } else { await model.cancelRunningOrSelected() }
-                }
-            }
-            .keyboardShortcut(".", modifiers: .command)
-            .disabled(!(hasCancellableJob || (model?.chat.isWorking ?? false)))
+            Button("Cancel Generation") { run { await $0.cancelVisibleWork() } }
+                .keyboardShortcut(".", modifiers: .command)
+                .disabled(isChat ? !(model?.chat.isWorking ?? false) : !hasCancellableJob)
             Divider()
             Button("Reuse All Settings") { run { await $0.reuseSelectedImageSettings() } }
                 .keyboardShortcut("r", modifiers: .command)

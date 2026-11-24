@@ -5,7 +5,18 @@ import MCLibrary
 
 // Queue actions: cancel, retry, reorder, pause and the model browser entry.
 extension AppModel {
-    /// ⌘.: cancels the running job, or the selected queued placeholder when nothing runs.
+    /// ⌘.: stops the work the visible mode owns — the chat turn in Chat, the running or selected job in Canvas and
+    /// Gallery — so one mode's cancel never drops work the other is still doing (D54).
+    public func cancelVisibleWork() async {
+        if windowMode == .chat {
+            await chat.stop()
+        } else {
+            await cancelRunningOrSelected()
+        }
+    }
+
+    /// Cancel Generation outside Chat mode: cancels the running job, or the selected queued placeholder when
+    /// nothing runs.
     public func cancelRunningOrSelected() async {
         if let running = queueJobs.first(where: { $0.status == .running }) {
             await cancel(running.id)
