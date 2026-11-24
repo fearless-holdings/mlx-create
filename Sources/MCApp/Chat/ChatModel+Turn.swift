@@ -10,8 +10,13 @@ extension ChatModel {
     /// Runs the turn `send` captured. Every store write uses `collectionID`, so a collection switch mid-turn never
     /// misfiles a message; the shown `messages` change only while that collection is current. A turn replaying a
     /// card's held request skips the user-text record — it was written when the request parked — and keeps the
-    /// recorded copy out of the context's history, so the agent sees it once.
-    func runTurn(text: String, collectionID: UUID, replayingUserText: Bool = false) async {
+    /// recorded copy out of the context's history, so the agent sees it once. The held copy is the request's own
+    /// record: an offered card's turn wrote it right before the card, so the replay removes the matching text
+    /// below `replayingBelowMessageID` rather than a later send's identical prompt; a setup card's parked sends
+    /// all land above it, where the latest match is the held one.
+    func runTurn(
+        text: String, collectionID: UUID, replayingUserText: Bool = false, replayingBelowMessageID: Int64? = nil
+    ) async {
         turnCollectionID = collectionID
         turnUserText = text
         defer {
@@ -22,7 +27,10 @@ extension ChatModel {
         }
         var history = messages
         if replayingUserText {
-            if let index = history.lastIndex(where: {
+            let end =
+                replayingBelowMessageID
+                .flatMap { id in history.firstIndex { $0.id == id } } ?? history.endIndex
+            if let index = history[..<end].lastIndex(where: {
                 if case .userText(let recorded) = $0.body { return recorded == text }
                 return false
             }) {

@@ -219,6 +219,39 @@ private let setupCatalog = Catalog(
         #expect(agentChatRequests(harness).count == 1)
     }
 
+    @Test func aRequestParkedDuringACancelledSetupDownloadStaysOnTheCard() async throws {
+        // Accept first, then type while the download is held: the send parks on the card mid-install, and the
+        // failing write the cancel produces must apply to that card, not to the record Accept captured.
+        let (harness, _) = try await freshHarness(outcomes: [.holds])
+        let chat = harness.model.chat!
+        await harness.model.refreshModels()
+        try await eventually {
+            guard case .download = chat.messages.last?.body else { return false }
+            return true
+        }
+        let record = try #require(
+            chat.messages.last(where: {
+                if case .download = $0.body { return true }
+                return false
+            }))
+
+        let acceptTask = Task { await chat.acceptDownload(messageID: record.id) }
+        try await eventually { card(chat)?.state == .accepted }
+
+        await chat.send(text: "a fox in snow")
+        await chat.turnTask?.value
+        #expect(card(chat)?.pendingRequest == "a fox in snow")
+
+        harness.model.browser.cancelInstall()
+        await acceptTask.value
+
+        guard case .failed = card(chat)?.state else {
+            Issue.record("the cancelled card did not fail")
+            return
+        }
+        #expect(card(chat)?.pendingRequest == "a fox in snow")
+    }
+
     @Test func aSecondMessageBeforeSetupReplacesTheHeldRequest() async throws {
         let (harness, _) = try await freshHarness()
         let chat = harness.model.chat!
