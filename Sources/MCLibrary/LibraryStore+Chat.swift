@@ -125,6 +125,21 @@ extension LibraryStore {
         }
     }
 
+    /// The message with id `id`, or nil. Chat's card writes read it back so a card in a collection that is not on
+    /// screen — however old — mutates its persisted body rather than a caller's snapshot.
+    public func chatMessage(id: Int64) throws -> ChatMessageRecord? {
+        try dbQueue.read { db in
+            try Row.fetchAll(
+                db,
+                sql: """
+                    SELECT id, collection_id, author, kind, body, job_id, created_at
+                    FROM chat_message WHERE id = ?
+                    """,
+                arguments: [id]
+            ).lazy.compactMap(Self.chatMessage(from:)).first
+        }
+    }
+
     /// A row decodes to its record, or nil when its `kind` is unknown, its body does not decode, or its ids are not
     /// well-formed: a message a newer build wrote is skipped on read, never thrown.
     static func chatMessage(from row: Row) -> ChatMessageRecord? {

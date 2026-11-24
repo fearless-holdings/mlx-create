@@ -161,13 +161,12 @@ extension ChatModel {
         await updateMessage(latest, body: .download(card))
     }
 
-    /// The record's current body: the shown conversation first, then the store, so a card in a collection that is
-    /// not on screen still mutates its persisted state rather than the snapshot its caller captured.
+    /// The record's current body: the shown conversation first, then the store by id, so a card in a collection
+    /// that is not on screen — however old — still mutates its persisted state rather than the snapshot its
+    /// caller captured.
     private func latestRecord(_ record: ChatMessageRecord) async -> ChatMessageRecord {
         if let shown = messages.first(where: { $0.id == record.id }) { return shown }
-        let stored = (try? await app.store.chatMessages(collectionID: record.collectionID, limit: 200))?
-            .first(where: { $0.id == record.id })
-        return stored ?? record
+        return (try? await app.store.chatMessage(id: record.id)) ?? record
     }
 
     /// Writes `body` back over `record`, as `chooseSuggestion` does for a question.

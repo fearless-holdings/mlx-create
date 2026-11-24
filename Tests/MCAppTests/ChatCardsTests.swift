@@ -327,9 +327,16 @@ private func cardBody(_ chat: ChatModel, id: Int64? = nil) -> ChatDownload? {
     }
 
     @Test func aCardFinishedByTheInstallersOwnRefreshRunsTheRequestOnce() async throws {
+        // The replay's plan stream is held open: its turn keeps the phase the whole time, so a request a stale
+        // write put back would sit on the card through the assertions — nothing can schedule a second run
+        // while the first is held, and nothing is sampled at a moment.
         let harness = try await chatHarness(
             script: chatImageNow,
-            chat: { number, _ in planReply(number == 1 ? modelPlan : cardJobPlan) },
+            chat: { number, _ in
+                number == 1
+                    ? planReply(modelPlan)
+                    : number == 2 ? heldPlanReply(cardJobPlan) : plainReply(#"{"match":true,"issue":""}"#)
+            },
             catalog: modelCardCatalog)
         let chat = harness.model.chat!
 
@@ -350,26 +357,18 @@ private func cardBody(_ chat: ChatModel, id: Int64? = nil) -> ChatDownload? {
             (id: tiny.repo, architecture: "krea2_turbo"),
         ])
         await chat.acceptDownload(messageID: record.id)
+        try await harness.engineHasReceived(agentChatPath, count: 2)
+
+        // Accept's later writes landed on the card the rescan left — its finish and consume stand.
+        #expect(cardBody(chat, id: record.id)?.state == .finished)
+        #expect(cardBody(chat, id: record.id)?.pendingRequest == nil)
+
+        // The held replay finishes: the request ran once — one more plan turn, one job.
+        EngineStubProtocol.finishHeld(harness.endpoint)
         await chat.turnTask?.value
         try await eventually { chat.phase == .idle }
         try await eventually { try await jobCount(harness) >= 1 }
-        try await Task.sleep(for: .milliseconds(100))
-
-        // The request ran once: Accept's later writes applied to the card the rescan left, so nothing put the
-        // taken request back for a second turn. The check request after the job words its user message
-        // differently, so only real plan turns end on the request text.
-        #expect(cardBody(chat, id: record.id)?.state == .finished)
-        #expect(cardBody(chat, id: record.id)?.pendingRequest == nil)
-        let planTurns = agentChatRequests(harness).filter { request in
-            guard
-                let object = try? JSONSerialization.jsonObject(with: Data(request.body.utf8))
-                    as? [String: Any],
-                let turns = object["messages"] as? [[String: Any]],
-                let last = turns.last(where: { ($0["role"] as? String) == "user" })
-            else { return false }
-            return (last["content"] as? String) == "a fox in snow"
-        }
-        #expect(planTurns.count == 2)
+        #expect(agentChatRequests(harness).filter { lastUserText($0.body) == "a fox in snow" }.count == 2)
         #expect(try await jobCount(harness) == 1)
         #expect(
             chat.messages.filter {
