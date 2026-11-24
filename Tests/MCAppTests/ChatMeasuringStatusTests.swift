@@ -60,10 +60,11 @@ private let measurePlan =
         try await eventually { !harness.model.isCalibrating }
         try await eventually { chat.status == .thinking }
 
-        // The plan, then the held job render, then the check's held reply.
+        // The plan, then the held job render, then the check's held reply. The render's baseline is taken before the
+        // plan is released: read after, a fast render could already be counted and the wait would miss it.
         try await harness.engineHasReceived(agentChatPath)
-        EngineStubProtocol.finishHeld(harness.endpoint)
         let seen = imageCalls(harness)
+        EngineStubProtocol.finishHeld(harness.endpoint)
         try await eventually(timeout: .seconds(30)) { self.imageCalls(harness) > seen }
         EngineStubProtocol.finishHeld(harness.endpoint)
         try await harness.engineHasReceived(agentChatPath, count: 2)
