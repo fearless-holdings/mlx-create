@@ -640,14 +640,16 @@ private final class WriteGate: @unchecked Sendable {
             chat: { number, _ in number == 1 ? planReply(sittingFoxPlan) : planReply(standingFoxPlan) })
         let chat = harness.model.chat!
 
-        // The fox is selected and shown large; the refinement lands behind the open preview.
+        // The fox is selected and shown large; the refinement lands and the preview follows it (F2).
         let first = try #require(try await landedImages(harness, "a sitting fox").first)
         harness.model.selectGalleryImage(first.id, click: .plain)
         chat.largeImageID = first.id
         let second = try #require(try await landedImages(harness, "make it stand").first)
         #expect(harness.model.selection == second.id)
+        #expect(chat.largeImageID == second.id)
 
-        // While the source stays on screen the Image menu's target is it — not the refinement that just landed.
+        // Reopening the source makes it the Image menu's target — not the refinement on the canvas behind it.
+        chat.largeImageID = first.id
         #expect(MainCommands.imageTargetID(for: harness.model) == first.id)
         // After the preview closes the canvas fallback takes over.
         chat.largeImageID = nil
