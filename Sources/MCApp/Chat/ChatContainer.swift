@@ -64,7 +64,9 @@ struct ChatContainer: View {
             "Clear this conversation?", isPresented: $confirmClear, titleVisibility: .visible
         ) {
             Button("Clear", role: .destructive) {
-                Task { await chat.clearConversation() }
+                // Capture the collection the confirmation names, so a switch before the task runs cannot retarget it.
+                let collectionID = model.currentCollection.id
+                Task { await chat.clearConversation(collectionID: collectionID) }
             }
             Button("Cancel", role: .cancel) {}
         } message: {

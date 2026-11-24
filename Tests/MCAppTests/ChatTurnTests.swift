@@ -19,6 +19,10 @@ private let askPlan =
     #"{"intent":"","text":"Stormy or calm?","action":"ask","suggestions":["Stormy","Calm"]}"#
 private let shelfPlan =
     #"{"intent":"","text":"With the realism look.","action":"generate","model":"m1","prompt":"a fox realismlook","size":"square","seed":"new","loras":[{"key":"l1","scale":0.8}],"count":1}"#
+private let sittingFoxPlan =
+    #"{"intent":"","text":"A sitting fox.","action":"generate","model":"m1","prompt":"a sitting fox","size":"square","seed":"new","loras":[],"count":1}"#
+private let standingFoxPlan =
+    #"{"intent":"","text":"A standing fox.","action":"generate","model":"m1","prompt":"a standing fox","size":"square","seed":"keep","loras":[],"count":1}"#
 
 /// Parks `enqueueJob` inside its write until `release` is called, so a Stop can land while the turn holds the
 /// write (AE5).
@@ -474,5 +478,159 @@ private final class WriteGate: @unchecked Sendable {
         }
         #expect(failure.text == ChatCopy.notReady)
         #expect(agentChatRequests(harness).isEmpty)
+    }
+
+    /// Drives one turn to idle and returns the images its result job saved.
+    @discardableResult
+    private func landedImages(_ harness: AppHarness, _ text: String) async throws -> [LibraryImage] {
+        let chat = harness.model.chat!
+        await chat.send(text: text)
+        await chat.turnTask?.value
+        try await eventually { chat.phase == .idle }
+        guard
+            case .result(let result) = chat.messages.last(where: {
+                if case .result = $0.body { true } else { false }
+            })?.body
+        else { return [] }
+        return try await harness.store.images(jobID: result.jobID)
+    }
+
+    @Test func aLandedRefinementClearsTheStaleSelectionItRefined() async throws {
+        let harness = try await chatHarness(
+            script: chatImageNow,
+            chat: { number, _ in number == 1 ? planReply(sittingFoxPlan) : planReply(standingFoxPlan) })
+        let chat = harness.model.chat!
+
+        // Turn 1 lands a fox; clicking it in Chat selects it and opens it large (R4).
+        let first = try #require(try await landedImages(harness, "a sitting fox").first)
+        harness.model.selectGalleryImage(first.id, click: .plain)
+        chat.largeImageID = first.id
+        #expect(harness.model.gallerySelection == [first.id])
+
+        // The refinement lands behind the open preview; closing it must not leave the old tile as the referent.
+        let second = try #require(try await landedImages(harness, "make it stand").first)
+        chat.largeImageID = nil
+        #expect(harness.model.gallerySelection.isEmpty)
+        #expect(harness.model.selection == second.id)
+
+        // The follow-up's referent is the result, not the stale source.
+        _ = try await landedImages(harness, "make it jump")
+        let request = try #require(
+            agentChatRequests(harness).last {
+                lastUserText($0.body)?.contains("make it jump") == true
+                    && lastUserText($0.body)?.contains("a standing fox") == true
+            })
+        let text = try #require(lastUserText(request.body))
+        #expect(!text.contains("a sitting fox"))
+    }
+
+    @Test func cancelInCanvasStopsTheRenderNotTheChatTurnBehindIt() async throws {
+        let harness = try await chatHarness(
+            script: chatImageHeld, chat: { _, _ in planReply(generatePlan) })
+        let model = harness.model
+        let chat = model.chat!
+        model.windowMode = .canvas
+        model.selectedModelID = kreaModel
+        model.prompt = "a lighthouse at dusk"
+
+        // The manual render holds the engine; the chat turn waits for it behind the enhancer lease.
+        await model.generate()
+        try await harness.engineHasReceived("v1/images/generations")
+        await chat.send(text: "a lighthouse")
+        try await eventually { chat.phase == .thinking }
+
+        await model.cancelVisibleWork()
+
+        // The render was cancelled, which frees the lease; the turn still runs and makes its image.
+        try await eventually { try await harness.store.jobs(status: .cancelled).count == 1 }
+        #expect(chat.phase != .idle)
+        try await harness.engineHasReceived("v1/images/generations", count: 2)
+        EngineStubProtocol.finishHeld(harness.endpoint)
+        try await eventually { chat.phase == .idle }
+        guard case .result = chat.messages.last?.body else {
+            Issue.record("the turn did not record a result")
+            return
+        }
+    }
+
+    @Test func cancelInChatStopsTheWaitingTurnNotTheRender() async throws {
+        let harness = try await chatHarness(
+            script: chatImageHeld, chat: { _, _ in planReply(generatePlan) })
+        let model = harness.model
+        let chat = model.chat!
+        model.selectedModelID = kreaModel
+        model.prompt = "a lighthouse at dusk"
+
+        // The manual render holds the engine; the chat turn waits for it behind the enhancer lease.
+        await model.generate()
+        try await harness.engineHasReceived("v1/images/generations")
+        await chat.send(text: "a lighthouse")
+        try await eventually { chat.phase == .thinking }
+
+        await model.cancelVisibleWork()
+
+        // The turn abandoned; the render it was waiting on keeps running to its finish.
+        try await eventually { chat.phase == .idle }
+        #expect(chat.messages.count == 1)
+        #expect(agentChatRequests(harness).isEmpty)
+        #expect(try await harness.store.jobs(status: .running).count == 1)
+
+        EngineStubProtocol.finishHeld(harness.endpoint)
+        try await eventually { try await harness.store.jobs(status: .done).count == 1 }
+    }
+
+    @Test func clearingTheConversationStopsItsOwnRender() async throws {
+        let harness = try await chatHarness(
+            script: chatImageHeld, chat: { _, _ in planReply(generatePlan) })
+        let chat = harness.model.chat!
+
+        await chat.send(text: "a lighthouse")
+        await chat.turnTask?.value
+        try await harness.engineHasReceived("v1/images/generations")
+        guard case .generating = chat.phase else {
+            Issue.record("the turn is not following its render")
+            return
+        }
+
+        await chat.clearConversation(collectionID: harness.collectionID)
+
+        #expect(chat.messages.isEmpty)
+        try await eventually { chat.phase == .idle }
+        try await eventually { try await harness.store.jobs(status: .cancelled).count == 1 }
+        EngineStubProtocol.finishHeld(harness.endpoint)
+    }
+
+    @Test func clearingAnotherCollectionsConversationKeepsTheSwitchedRenderRunning() async throws {
+        let harness = try await chatHarness(
+            script: chatImageHeld, chat: { _, _ in planReply(generatePlan) })
+        let chat = harness.model.chat!
+
+        await chat.send(text: "a lighthouse")
+        await chat.turnTask?.value
+        try await harness.engineHasReceived("v1/images/generations")
+        let jobID: UUID
+        if case .generating(let id) = chat.phase {
+            jobID = id
+        } else {
+            Issue.record("the turn is not following its render")
+            return
+        }
+
+        // A mid-render switch keeps the job followed in the new, empty conversation (KTD18).
+        _ = try await harness.model.createCollection(name: "Other")
+        try await eventually { chat.messages.isEmpty }
+
+        await chat.clearConversation(collectionID: harness.model.currentCollection.id)
+
+        // The previous collection's render was not the cleared conversation's to stop.
+        #expect(try await harness.store.jobs(status: .cancelled).isEmpty)
+        if case .generating(let followed) = chat.phase {
+            #expect(followed == jobID)
+        } else {
+            Issue.record("the render is no longer followed")
+        }
+
+        EngineStubProtocol.finishHeld(harness.endpoint)
+        try await eventually { chat.phase == .idle }
     }
 }

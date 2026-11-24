@@ -63,7 +63,8 @@ final class ChatModel {
     var offerSetupRunning = false
     var offerSetupAgain = false
 
-    /// The collection the running turn writes to, captured at send time so a switch mid-turn never misfiles a message.
+    /// The collection the running turn writes to, captured when the turn is claimed — `send` or a card's held
+    /// request — so a switch mid-turn never misfiles a message and a clear can tell whose work the phase is.
     var turnCollectionID: UUID?
     /// The user text of the running turn; a failed job's error offers it again.
     var turnUserText: String?
@@ -113,6 +114,7 @@ final class ChatModel {
         await app.ensureCurrentCollection()
         guard beginTurn() else { return }
         let collectionID = app.currentCollection.id
+        turnCollectionID = collectionID
         turnReferentImageID = referentImageID
         turnTask = Task {
             await self.runTurn(text: text, collectionID: collectionID)
@@ -169,19 +171,41 @@ final class ChatModel {
         await send(text: request)
     }
 
-    /// Stops a running turn first, then removes every message of the current collection. Images and jobs are untouched.
-    func clearConversation() async {
-        await stop()
+    /// Removes every message of `collectionID` — the collection the confirmation named. A turn or followed job
+    /// that belongs to it is stopped first; work still followed from another collection keeps running, because a
+    /// mid-render switch leaves it following there and its conversation is not the one cleared. Images and jobs
+    /// are untouched.
+    func clearConversation(collectionID: UUID) async {
+        if await phaseBelongs(to: collectionID) {
+            await stop()
+            if phase != .thinking { endPhase() }
+            followedProgress = nil
+        }
         do {
-            try await app.store.clearChatMessages(collectionID: app.currentCollection.id)
+            try await app.store.clearChatMessages(collectionID: collectionID)
         } catch {
             app.lastError = app.message(for: error)
         }
+        // The shown messages are this collection's only while it is still current; a switch that landed during
+        // the confirmation would have made them another's.
+        guard collectionID == app.currentCollection.id else { return }
         loadMessages([])
         resultJobs = [:]
         resultCounts = [:]
-        followedProgress = nil
-        if phase != .thinking { endPhase() }
+    }
+
+    /// Whether the phase's work belongs to `collectionID`: a thinking turn's collection was captured when the turn
+    /// was claimed, and a followed or checked job's comes from its row.
+    private func phaseBelongs(to collectionID: UUID) async -> Bool {
+        switch phase {
+        case .idle:
+            return false
+        case .thinking:
+            return turnCollectionID == collectionID
+        case .generating(let jobID), .checking(let jobID):
+            if let job = resultJobs[jobID] { return job.collectionID == collectionID }
+            return (try? await app.store.job(id: jobID))?.collectionID == collectionID
+        }
     }
 
     /// Loads the current collection's conversation (newest 200) and refreshes the result cache, so launch and a

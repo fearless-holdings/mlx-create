@@ -106,6 +106,28 @@ struct GalleryCollection: NSViewRepresentable {
             return scrollView
         }
 
+        /// The items to reconfigure in place: kept ids whose image record or pending tile changed — a running
+        /// tile's step keeps its id, so a progress-only update shows only here — plus the items whose selection
+        /// state flipped, so a click touches just the tiles it changed. New and removed ids are handled by the
+        /// item list itself.
+        static func changedItemIDs(
+            images newImages: [UUID: LibraryImage], was oldImages: [UUID: LibraryImage],
+            pending newPending: [UUID: PendingTile], was oldPending: [UUID: PendingTile],
+            selection: Set<UUID>, appliedSelection: Set<UUID>
+        ) -> Set<UUID> {
+            var changed = Set<UUID>()
+            for (id, image) in newImages {
+                if let old = oldImages[id], old != image { changed.insert(id) }
+            }
+            for (id, tile) in newPending {
+                if let old = oldPending[id], old != tile { changed.insert(id) }
+            }
+            if selection != appliedSelection {
+                changed.formUnion(selection.symmetricDifference(appliedSelection))
+            }
+            return changed
+        }
+
         /// Brings the grid in line with the model. Only the ids that changed are sent to the data source; an item whose
         /// image record or selection state changed is reconfigured, which re-runs the item provider for it.
         func update(
@@ -139,14 +161,9 @@ struct GalleryCollection: NSViewRepresentable {
                 ids.append(image.id)
             }
 
-            var changed = Set<UUID>()
-            for (id, image) in newByID {
-                if let old = imagesByID[id], old != image { changed.insert(id) }
-            }
-            // Only tiles whose selected state flipped are reconfigured, so a click touches the tiles it changed.
-            if selection != appliedSelection {
-                changed.formUnion(selection.symmetricDifference(appliedSelection))
-            }
+            let changed = Self.changedItemIDs(
+                images: newByID, was: imagesByID, pending: newPendingByID, was: pendingByID,
+                selection: selection, appliedSelection: appliedSelection)
 
             let shownIDs = dataSource.snapshot().itemIdentifiers
             let reconfigure = ids.filter { changed.contains($0) }

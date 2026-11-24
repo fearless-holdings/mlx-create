@@ -109,6 +109,7 @@ extension ChatModel {
             let request = card.pendingRequest
         else { return }
         guard beginTurn() else { return }
+        turnCollectionID = record.collectionID
         await updateDownload(record) { $0.pendingRequest = nil }
         turnTask = Task {
             await self.runTurn(
