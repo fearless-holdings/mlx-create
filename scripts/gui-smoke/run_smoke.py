@@ -277,26 +277,31 @@ def move_window_script(pid, x, y):
 
 
 class WindowPinner(threading.Thread):
-    """Moves the app's window onto the built-in display as soon as it exists.
+    """Moves each throwaway home's app window onto the built-in display as soon as it exists.
 
     macOS opens the window on whichever display it likes, and a window on an external display made XCUITest's
     `window.screenshot()` fail. XCUITest cannot move a window (a title-bar drag leaves the frame unchanged), and the test runner
     is sandboxed, so this runs here, in the runner, through System Events. The app is found by the throwaway home in its command
-    line and by its bundle path, never by name alone (the engine child carries the home too)."""
+    line and by its bundle path, never by name alone (the engine child carries the home too). Each home has its own launch —
+    the Chat flow relaunches the app with a different home — so every home's window gets its own move."""
 
-    def __init__(self, home, bounds):
+    def __init__(self, homes, bounds):
         super().__init__(daemon=True)
-        self.home, self.bounds = home, bounds
+        self.homes, self.bounds = list(homes), bounds
         self.stop_event = threading.Event()
-        self.moved = False
+        self.moved = set()
 
     def run(self):
         x, y, _, _ = self.bounds
-        while not self.stop_event.wait(0.4) and not self.moved:
-            apps = [pid for pid, args in processes_mentioning(self.home) if ".app/Contents/MacOS/" in args]
-            for pid in apps[:1]:
-                done = subprocess.run(["osascript", "-e", move_window_script(pid, x + 60, y + 60)], capture_output=True, text=True)
-                self.moved = done.stdout.strip() == "moved"
+        while not self.stop_event.wait(0.4) and self.moved != set(self.homes):
+            for home in self.homes:
+                if home in self.moved:
+                    continue
+                apps = [pid for pid, args in processes_mentioning(home) if ".app/Contents/MacOS/" in args]
+                for pid in apps[:1]:
+                    done = subprocess.run(["osascript", "-e", move_window_script(pid, x + 60, y + 60)], capture_output=True, text=True)
+                    if done.stdout.strip() == "moved":
+                        self.moved.add(home)
 
     def stop(self):
         self.stop_event.set()
@@ -403,6 +408,9 @@ def run(args):
     if bounds is None:
         raise NotRun("no built-in display is active (lid closed?): the run is pinned to the laptop's own screen")
     home = make_home(model_folder, args.model_id, agent_folder, args.agent_model_id)
+    # The Chat flow launches on its own home: a Canvas image in a shared home would outrank the test's seeded
+    # history as the conversation's implicit referent (the newest-image fallback), so the flows never share one.
+    chat_home = make_home(model_folder, args.model_id, agent_folder, args.agent_model_id) if args.agent_model_id else None
     code = EXIT_FAIL
     try:
         try:
@@ -415,10 +423,11 @@ def run(args):
             env = dict(os.environ, TEST_RUNNER_MLXC_SMOKE_HOME=home, TEST_RUNNER_MLXC_SMOKE_MODEL_ID=args.model_id)
             if args.agent_model_id:
                 env["TEST_RUNNER_MLXC_SMOKE_AGENT_MODEL_ID"] = args.agent_model_id
+                env["TEST_RUNNER_MLXC_SMOKE_CHAT_HOME"] = chat_home
             # Without --agent-model-id only the Canvas flow runs: the Chat test would skip itself, and a skipped test
             # counts as NOT RUN. With it the whole target runs — Canvas first, then the Chat flow.
             only = TEST_TARGET if args.agent_model_id else f"{TEST_TARGET}/SmokeTests/testGenerateThenRestore"
-            pinner = WindowPinner(home, bounds)
+            pinner = WindowPinner([home] + ([chat_home] if chat_home else []), bounds)
             pinner.start()
             try:
                 status = run_logged(
@@ -450,6 +459,9 @@ def run(args):
     finally:
         mark = time.time()
         killed = kill_processes_mentioning(home)
+        if chat_home:
+            killed += kill_processes_mentioning(chat_home)
+            remove_home(chat_home)
         remove_home(home)
         phases["cleanup"] = time.time() - mark
         if killed:
