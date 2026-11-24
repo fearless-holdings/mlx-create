@@ -36,6 +36,15 @@ extension ChatModel {
         }
     }
 
+    /// Whether `jobID` recorded a `.result` in the shown conversation — the saves whose newest image the referent
+    /// fallback can pick. A followed job from another collection and a manual render never qualify.
+    func isConversationResult(_ jobID: UUID) -> Bool {
+        messages.contains {
+            if case .result(let result) = $0.body { return result.jobID == jobID }
+            return false
+        }
+    }
+
     /// Re-reads the job rows and saved-image counts of every `.result` in the shown conversation.
     func refreshJobCache() async {
         var jobs: [UUID: Job] = [:]

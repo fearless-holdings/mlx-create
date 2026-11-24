@@ -633,4 +633,59 @@ private final class WriteGate: @unchecked Sendable {
         EngineStubProtocol.finishHeld(harness.endpoint)
         try await eventually { chat.phase == .idle }
     }
+
+    @Test func theOpenChatPreviewIsTheImageCommandsTarget() async throws {
+        let harness = try await chatHarness(
+            script: chatImageNow,
+            chat: { number, _ in number == 1 ? planReply(sittingFoxPlan) : planReply(standingFoxPlan) })
+        let chat = harness.model.chat!
+
+        // The fox is selected and shown large; the refinement lands behind the open preview.
+        let first = try #require(try await landedImages(harness, "a sitting fox").first)
+        harness.model.selectGalleryImage(first.id, click: .plain)
+        chat.largeImageID = first.id
+        let second = try #require(try await landedImages(harness, "make it stand").first)
+        #expect(harness.model.selection == second.id)
+
+        // While the source stays on screen the Image menu's target is it — not the refinement that just landed.
+        #expect(MainCommands.imageTargetID(for: harness.model) == first.id)
+        // After the preview closes the canvas fallback takes over.
+        chat.largeImageID = nil
+        #expect(MainCommands.imageTargetID(for: harness.model) == second.id)
+    }
+
+    @Test func aManualRendersSaveKeepsTheGallerySelectionAsReferent() async throws {
+        let harness = try await chatHarness(
+            script: chatImageHeld, chat: { _, _ in planReply(generatePlan) })
+        let model = harness.model
+        let chat = model.chat!
+
+        // In Canvas the user picks the fox, then starts an unrelated manual render.
+        let fox = try await harness.saveImage(prompt: "a sitting fox")
+        model.windowMode = .canvas
+        model.selectGalleryImage(fox.id, click: .plain)
+        model.selectedModelID = kreaModel
+        model.prompt = "a lighthouse at dusk"
+        await model.generate()
+        try await harness.engineHasReceived("v1/images/generations")
+
+        // The save lands in Chat, but the manual job never wrote a conversation result.
+        model.windowMode = .chat
+        EngineStubProtocol.finishHeld(harness.endpoint)
+        try await eventually { model.canvasImage != nil }
+        #expect(model.gallerySelection == [fox.id])
+
+        // The referent is still the fox the user picked, not a stale conversation image or nothing.
+        await chat.send(text: "make the fox stand")
+        await chat.turnTask?.value
+        let request = try #require(
+            agentChatRequests(harness).last {
+                lastUserText($0.body)?.contains("make the fox stand") == true
+            })
+        #expect(lastUserText(request.body)?.contains("a sitting fox") == true)
+
+        try await harness.engineHasReceived("v1/images/generations", count: 2)
+        EngineStubProtocol.finishHeld(harness.endpoint)
+        try await eventually { chat.phase == .idle }
+    }
 }

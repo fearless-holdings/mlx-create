@@ -74,10 +74,18 @@ public struct MainCommands: Commands {
     /// Chat mode has no prompt editor, settings or LoRA stack, so generation commands do not apply there (R5).
     private var isChat: Bool { model?.windowMode == .chat }
 
-    /// An image to act on: the gallery selection, or else the image on the canvas.
+    /// The id the Image-menu commands act on, or nil for the gallery selection. An open Chat preview outranks both —
+    /// the preview is what is on screen while the gallery sits behind it — and the canvas image is the fallback when
+    /// nothing is selected.
+    static func imageTargetID(for model: AppModel) -> UUID? {
+        if model.windowMode == .chat, let preview = model.chat.largeImageID { return preview }
+        return model.gallerySelection.isEmpty ? model.canvasImage?.id : nil
+    }
+
+    /// An image to act on: the gallery selection, a Chat preview, or else the image on the canvas.
     private var hasImageTarget: Bool {
         guard let model else { return false }
-        return !model.gallerySelection.isEmpty || model.canvasImage != nil
+        return !model.gallerySelection.isEmpty || Self.imageTargetID(for: model) != nil
     }
 
     private func run(_ action: @escaping @MainActor (AppModel) async -> Void) {
@@ -85,11 +93,11 @@ public struct MainCommands: Commands {
         Task { await action(model) }
     }
 
-    /// With nothing selected in the gallery the action targets the canvas image by id, as the canvas action bar does, so
-    /// it neither disturbs the gallery selection nor stops the canvas following queued jobs.
+    /// The action targets `imageTargetID` — the Chat preview while it is open, else the canvas image when nothing is
+    /// selected in the gallery — as the canvas action bar does, so it neither disturbs the gallery selection nor
+    /// stops the canvas following queued jobs.
     private func runOnImages(_ action: @escaping @MainActor (AppModel, UUID?) async -> Void) {
         guard let model else { return }
-        let target = model.gallerySelection.isEmpty ? model.canvasImage?.id : nil
-        Task { await action(model, target) }
+        Task { await action(model, Self.imageTargetID(for: model)) }
     }
 }
