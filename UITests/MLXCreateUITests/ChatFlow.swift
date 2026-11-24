@@ -86,20 +86,7 @@ extension SmokeSession {
         }
         step("Send the prompt") {
             // Every icon button is a labelled, laid-out element (the chevron used to resolve to an empty frame).
-            // The menu is not an AXButton — a Menu surfaces as a menuButton/popUpButton — so it is found by label.
-            for label in ["Show conversation", "Send"] {
-                assertHittableButton(label)
-            }
-            // A Menu's accessibility label lands in `title`, not `label` (its label stays "More").
-            let options = app.descendants(matching: .any).matching(
-                NSPredicate(
-                    format: "label == %@ OR title == %@", "Conversation options", "Conversation options")
-            ).firstMatch
-            XCTAssertTrue(
-                options.exists, "Conversation options is not in the accessibility tree")
-            XCTAssertTrue(
-                options.frame.width > 0 && options.frame.height > 0,
-                "Conversation options has no usable frame")
+            assertHittableButton("Send")
             // ⇧Return is a line break at the caret, not a send — proven before the real prompt goes in: three
             // arrow-lefts put the caret before "one", so the break must land immediately ahead of it. (Checking
             // only for a contained newline would also pass for the append-at-end fallback.)
@@ -116,6 +103,19 @@ extension SmokeSession {
             typeInChat("a lighthouse on a cliff at sunset")
             app.typeKey(.return, modifierFlags: [])
             require(chatStatus, within: 60, "no status line appeared after Return")
+            // The history header appears with the first message, so these are checked only now. The menu is not
+            // an AXButton — a Menu surfaces as a menuButton/popUpButton — so it is found by label.
+            assertHittableButton("Show conversation")
+            // A Menu's accessibility label lands in `title`, not `label` (its label stays "More").
+            let options = app.descendants(matching: .any).matching(
+                NSPredicate(
+                    format: "label == %@ OR title == %@", "Conversation options", "Conversation options")
+            ).firstMatch
+            XCTAssertTrue(
+                options.exists, "Conversation options is not in the accessibility tree")
+            XCTAssertTrue(
+                options.frame.width > 0 && options.frame.height > 0,
+                "Conversation options has no usable frame")
             // While the turn runs Send becomes Stop; it must be hittable too.
             XCTAssertTrue(
                 eventually {
