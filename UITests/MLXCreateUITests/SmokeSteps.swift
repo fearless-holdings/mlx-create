@@ -24,15 +24,18 @@ final class SmokeSession {
             home.isEmpty || modelID.isEmpty,
             "Run through scripts/gui-smoke/run_smoke.py: it builds the throwaway home and passes the model id")
         self.testCase = testCase
+        // The Chat flow gets its own throwaway home (`MLXC_SMOKE_CHAT_HOME`): a Canvas image in a shared home would
+        // outrank the test's seeded history as the conversation's implicit referent (the newest-image fallback).
+        let sessionHome = mode == .chat ? (environment["MLXC_SMOKE_CHAT_HOME"] ?? "") : home
         // CFFIXED_USER_HOME redirects the library, models and engine. The marker pair keeps the home in the app's command
         // line for path-based cleanup; a bare path argument would be opened as a document and suppress the window. The
         // persistence flag stops macOS restoring zero windows from an earlier session (docs/lld/gui-smoke.md section 4).
-        app.launchEnvironment["CFFIXED_USER_HOME"] = home
+        app.launchEnvironment["CFFIXED_USER_HOME"] = sessionHome
         // `-mainWindowMode` is explicit in both modes: CFFIXED_USER_HOME does not redirect UserDefaults, so whatever
         // mode the real domain stored last would otherwise decide the layout. `-MLXCNoSavedCivitaiKey` reads a service
         // nothing writes to: a real saved key's ACL prompt would block startup on a machine that has one.
         var arguments = [
-            "-ApplePersistenceIgnoreState", "YES", "-MLXCSmokeHome", home, "-MLXCNoSavedCivitaiKey", "YES",
+            "-ApplePersistenceIgnoreState", "YES", "-MLXCSmokeHome", sessionHome, "-MLXCNoSavedCivitaiKey", "YES",
         ]
         switch mode {
         case .canvas:
@@ -40,8 +43,8 @@ final class SmokeSession {
         case .chat:
             let agentID = environment["MLXC_SMOKE_AGENT_MODEL_ID"] ?? ""
             try XCTSkipIf(
-                agentID.isEmpty,
-                "Chat mode needs the agent pack: pass --agent-model-id ORG/NAME to run_smoke.py")
+                agentID.isEmpty || sessionHome.isEmpty,
+                "Chat mode needs the agent pack and its own home: pass --agent-model-id ORG/NAME to run_smoke.py")
             arguments += ["-mainWindowMode", "chat", "-MLXCAgentModelID", agentID]
         }
         app.launchArguments = arguments
