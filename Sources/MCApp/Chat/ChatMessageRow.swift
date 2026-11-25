@@ -26,14 +26,27 @@ struct ChatMessageRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
         case .result(let result):
-            HStack(spacing: MCSpacing.regular) {
-                Text(result.text)
-                if case .stopped = chat.resultState(for: message) {
-                    Text("Stopped.")
-                        .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: MCSpacing.compact) {
+                HStack(spacing: MCSpacing.regular) {
+                    Text(result.text)
+                    if case .stopped = chat.resultState(for: message) {
+                        Text("Stopped.")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                // The completion line is derived from the job's state, never stored, so it survives a relaunch (P06).
+                if case .done(let count) = chat.resultState(for: message) {
+                    MCStatusText(.success, count <= 1 ? "Done" : "\(count) images ready")
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            // The row announces a finish once: onAppear carries no change, and a reload of an old result comes in
+            // already done, so neither fires again.
+            .onChange(of: chat.resultState(for: message)) { _, new in
+                if case .done(let count) = new {
+                    AccessibilityNotification.Announcement(count <= 1 ? "Done" : "\(count) images ready").post()
+                }
+            }
 
         case .question(let question):
             VStack(alignment: .leading, spacing: MCSpacing.regular) {
