@@ -73,6 +73,12 @@ private struct ContentCanvas: View {
         }
         .padding(MCSpacing.section)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // ← and → step the selection as the gallery grid does (I08, P09); this fires while focus sits inside the
+        // canvas, e.g. on an image-bar button. The focused grid keeps its own handling.
+        .onKeyPress(keys: [.leftArrow, .rightArrow], phases: .down) { press in
+            model.stepImageSelection(from: model.selection, by: press.key == .leftArrow ? -1 : 1)
+            return .handled
+        }
         .overlay(alignment: .center) {
             if model.canvasImage == nil {
                 CanvasStatusStack(model: model)

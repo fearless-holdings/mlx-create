@@ -12,6 +12,8 @@ struct ChatLargeImage: View {
 
     /// The gallery record, or the store's answer when the image is not in the loaded page.
     @State private var image: LibraryImage?
+    /// The view takes focus so ← and → step through the gallery (P09); Esc still reaches Close.
+    @FocusState private var focused: Bool
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -35,7 +37,16 @@ struct ChatLargeImage: View {
         .padding(MCSpacing.section)
         .padding(.bottom, bottomPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .task(id: imageID) { await resolve() }
+        .focusable()
+        .focused($focused)
+        .onKeyPress(keys: [.leftArrow, .rightArrow], phases: .down) { press in
+            model.stepImageSelection(from: imageID, by: press.key == .leftArrow ? -1 : 1)
+            return .handled
+        }
+        .task(id: imageID) {
+            await resolve()
+            focused = true
+        }
         // A delete or a filter change can take the image out of the loaded page; re-resolve closes the view then.
         .onChange(of: model.galleryImages) { Task { await resolve() } }
     }

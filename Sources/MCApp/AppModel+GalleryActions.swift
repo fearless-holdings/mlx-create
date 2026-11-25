@@ -181,6 +181,17 @@ extension AppModel {
         return selection
     }
 
+    /// ← and → away from the grid (P09): move the highlight one image in gallery order, clamped to the ends.
+    /// `current` is the image on screen — the large view's or the canvas's — and an open large view follows the move.
+    func stepImageSelection(from current: UUID?, by offset: Int) {
+        guard
+            let target = GalleryNavigation.move(
+                from: current ?? galleryArrowOrigin, in: galleryImages.map(\.id), by: offset)
+        else { return }
+        selectGalleryImage(target, click: .plain)
+        if chat.largeImageID != nil { chat.largeImageID = target }
+    }
+
     /// A right-click: an unselected image replaces the selection and becomes the anchor; a selected one leaves the
     /// selection as it is, so the menu acts on all of it (R2).
     func prepareGalleryMenu(for id: UUID) {
