@@ -44,24 +44,18 @@ extension ChatModel {
             await append(.error(ChatFailure(text: ChatCopy.engineDown, retryRequest: text)), collectionID: collectionID)
             return
         }
-        guard let agentModelID = app.agent?.engineModelID,
-            app.models.contains(where: { ModelSelection.isSelectable($0) && $0.family != nil })
-        else {
-            if let card = unfinishedSetupCard {
-                // The request waits on the card (R26): stored as its pending request, context and all,
-                // and nothing else is recorded.
-                await updateDownload(card) {
-                    $0.pendingRequest = text
-                    $0.pendingReferentImageID = turnReferentImageID
-                    $0.pendingAgentNote = turnAgentNote
-                }
-            } else {
-                await append(.error(notReadyMessage(for: text)), collectionID: collectionID)
-            }
+        guard let agentModelID = app.agent?.engineModelID else {
+            await append(.error(notReadyMessage(for: text)), collectionID: collectionID)
             return
         }
         beginThinking()
         let context = await buildContext(history: Array(history.suffix(12)), newUserText: text)
+        guard !context.models.isEmpty else {
+            // No installed image model and nothing the catalog offers that installs can fetch: the agent
+            // has nothing to plan with, so the request fails the same way a missing agent does (D60).
+            await append(.error(notReadyMessage(for: text)), collectionID: collectionID)
+            return
+        }
         var working = context
         var retried = false
         while true {
@@ -237,7 +231,9 @@ extension ChatModel {
         return generation.droppedAdultLoRAs
     }
 
-    /// Chat needs the agent model and one installed image model. Only said when no setup card is offering them.
+    /// Chat needs the agent model and at least one image model it can use — installed, or offered for
+    /// download. Said when the agent is missing or no model option exists at all (installs off and nothing
+    /// installed).
     private func notReadyMessage(for text: String) -> ChatFailure {
         ChatFailure(text: ChatCopy.notReady, retryRequest: text)
     }

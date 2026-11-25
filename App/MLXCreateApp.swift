@@ -45,6 +45,15 @@ struct MLXCreateApp: App {
             }
         }
         .commands { MainCommands() }
+        Settings {
+            if case .ready(let model) = launch.phase {
+                SettingsView(model: model)
+            } else {
+                ProgressView()
+                    .padding(32)
+                    .frame(width: 360, height: 160)
+            }
+        }
     }
 }
 

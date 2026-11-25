@@ -1,120 +1,67 @@
 import Foundation
-import MCCatalog
 import MCLibrary
 
-/// The first-launch setup card (D60, R26, AE7): while Chat lacks its agent model or an image model, the conversation
-/// offers both as one card whose Accept records each license and installs them in order. A message typed before the
-/// card finishes waits as its `pendingRequest`.
+/// Chat readiness and the greeting (D60, amended 2026-11-24): Chat plans once the engine lists the agent
+/// model — image models are no longer required, since the agent sees the catalog's fitting models as
+/// download offers and proposes one when a request needs it. A conversation still empty when Chat first
+/// becomes ready gets the greeting, once. First-launch setup cards the old build posted stay in the store
+/// and keep reconciling, but nothing new is offered here.
 extension ChatModel {
-    /// Chat can plan: the engine lists the agent model and one installed selectable image model with a family.
+    /// The defaults key recording that the greeting was posted: it is a first-launch touch, shown once.
+    static let greetingDefaultsKey = "chatGreetingShown"
+
+    /// Chat can plan: the engine lists the agent model. An image model is not required — with none
+    /// installed the agent's options are the catalog's download offers, and a plan that names one becomes
+    /// a `.download` card whose Accept installs it.
     var chatReady: Bool {
         app.agent?.engineModelID != nil
-            && app.models.contains(where: { ModelSelection.isSelectable($0) && $0.family != nil })
     }
 
-    /// The conversation's newest `.download` when it is an unfinished setup card (R26): offered, accepted or failed.
-    /// A finished, dismissed or agent-proposed card is not one.
-    var unfinishedSetupCard: ChatMessageRecord? {
-        guard
-            let record = messages.last(where: {
-                if case .download = $0.body { return true }
-                return false
-            }),
-            case .download(let card) = record.body
-        else { return nil }
-        switch card.state {
-        case .offered, .accepted, .failed:
-            return card.isSetup ? record : nil
-        case .finished, .dismissed:
-            return nil
-        }
-    }
-
-    /// The items the setup card offers, image model first, agent second (R26): the recommended image model while the
-    /// models list is read and none is installed, and the catalog's agent model while it is not installed. Empty when
-    /// installs are off or nothing is missing.
-    func setupItems() -> [ChatDownloadItem] {
-        let missing = missingSetupModels()
-        return [missing.image, missing.agent].compactMap { $0 }.map {
-            ChatDownloadItem(kind: .model, id: $0.id, name: $0.name, sizeBytes: $0.downloadBytes)
-        }
-    }
-
-    /// Offers the setup card when something is missing and none is pending (R26). Runs overlap when model refreshes
-    /// do: a run already in flight makes a second one set the flag, and the first runs once more with its writes
-    /// already in place, so nothing is offered twice.
-    func offerSetupIfNeeded() async {
-        if offerSetupRunning {
-            offerSetupAgain = true
+    /// Posts the greeting when Chat is ready and the conversation is empty (D60). Runs overlap when model
+    /// refreshes and conversation loads do: a run already in flight makes a second one set the flag, and
+    /// the first runs once more with its writes already in place, so the greeting lands exactly once.
+    func offerGreetingIfNeeded() async {
+        if greetingRunning {
+            greetingAgain = true
             return
         }
-        offerSetupRunning = true
+        greetingRunning = true
         repeat {
-            offerSetupAgain = false
-            await offerSetupPass()
-        } while offerSetupAgain
-        offerSetupRunning = false
+            greetingAgain = false
+            await greetingPass()
+        } while greetingAgain
+        greetingRunning = false
     }
 
-    /// One offer pass. A card that is still `.offered` is updated to what is still missing instead of duplicated —
-    /// and the greeting precedes it only on an empty conversation. Until the first models refresh the install
-    /// status is unknown, so nothing is offered then: an unchecked agent install would read as missing and leave a
-    /// bogus card behind.
-    private func offerSetupPass() async {
-        guard app.modelsLoaded else { return }
-        let missing = missingSetupModels()
-        let items = [missing.image, missing.agent].compactMap { $0 }.map {
-            ChatDownloadItem(kind: .model, id: $0.id, name: $0.name, sizeBytes: $0.downloadBytes)
+    /// One greeting pass. Until the first models refresh the install status is unknown, so nothing is
+    /// posted then; a conversation that already holds messages — the greeting included — is left alone. The
+    /// greeting is a first-launch touch: once posted it is remembered in defaults and never repeats, so a
+    /// cleared or switched-to empty conversation stays empty.
+    private func greetingPass() async {
+        guard app.modelsLoaded, chatReady, messages.isEmpty,
+            !app.defaults.bool(forKey: Self.greetingDefaultsKey)
+        else { return }
+        if await append(.agentText(ChatCopy.greeting), collectionID: app.currentCollection.id) != nil {
+            app.defaults.set(true, forKey: Self.greetingDefaultsKey)
         }
-        guard !items.isEmpty else { return }
-        let text = ChatCopy.setupOffer(
-            needsImageModel: missing.image != nil, needsAgentModel: missing.agent != nil)
-        if let existing = unfinishedSetupCard, case .download(let card) = existing.body {
-            if card.state == .offered, card.items != items || card.text != text {
-                await updateDownload(existing) {
-                    $0.items = items
-                    $0.text = text
-                }
-            }
-            return
-        }
-        let collectionID = app.currentCollection.id
-        if messages.isEmpty {
-            await append(.agentText(ChatCopy.greeting), collectionID: collectionID)
-        }
-        await append(
-            .download(ChatDownload(text: text, items: items, state: .offered, pendingRequest: nil, isSetup: true)),
-            collectionID: collectionID)
     }
 
     /// Runs after every successful `refreshModels()` (AE7): each card is reconciled against what the engine now
-    /// lists, the setup offer stays up to date, and a request a finished card was holding runs as a new turn.
+    /// lists, the greeting is posted if Chat just became ready on an empty conversation, and a request a
+    /// finished card was holding runs as a new turn.
     func readinessDidChange() async {
         await reconcileCards()
-        await offerSetupIfNeeded()
+        await offerGreetingIfNeeded()
         await resumeHeldRequests()
     }
 
     /// Reconciles each shown `.download` card against the current truth (R28, AE7). Runs on a refresh and on every
-    /// conversation load, so a card a relaunch left `.accepted` turns retryable instead of stuck.
+    /// conversation load, so a card a relaunch left `.accepted` turns retryable instead of stuck. Cards a
+    /// pre-amendment build marked `isSetup` reconcile the same way; the view filters them out.
     func reconcileCards() async {
         for record in messages {
             guard case .download(let card) = record.body else { continue }
             await reconcile(record, card: card)
         }
-    }
-
-    /// The catalog models the setup card still needs; `image` nil once the models list shows an installed image
-    /// model, `agent` nil once the agent model is installed. Both nil when installs are off.
-    private func missingSetupModels() -> (image: CatalogModel?, agent: CatalogModel?) {
-        guard app.installs != nil else { return (nil, nil) }
-        let image: CatalogModel? =
-            app.modelsLoaded
-                && !app.models.contains(where: { ModelSelection.isSelectable($0) && $0.family != nil })
-            ? app.browser.recommendedRow?.model : nil
-        let agent: CatalogModel? =
-            app.agent?.isInstalled == false
-            ? app.browser.catalogModel(ofKind: .agent) : nil
-        return (image, agent)
     }
 }

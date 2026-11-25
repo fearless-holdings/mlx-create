@@ -1,316 +1,157 @@
 import Foundation
 import MCCatalog
-import MCEngine
 import MCLibrary
 import Testing
 
 @testable import MCApp
 
-/// The first-launch setup card (D60, R26, AE7): a fresh install greets once and offers the missing image and agent
-/// models as one card whose Accept records each license and installs them in order; a message typed meanwhile waits
-/// on the card.
+/// First-launch readiness (D60, amended 2026-11-24): no setup card is ever posted — Chat shows its setup
+/// screen until the agent model is installed and the engine lists it, then greets an empty conversation
+/// once. Image models are no longer part of readiness: the agent sees the catalog's fitting models as
+/// download offers and proposes one when a request needs it.
 private let setupSayPlan = #"{"intent":"","text":"Of course.","action":"say"}"#
 
-/// The fixture image model, ranked and small enough to fit comfortably on any test Mac (D42): `Recommender.pick`
-/// only considers ranked models, and `BrowserFixture`'s models carry no rank.
-private let setupImage = CatalogModel(
-    id: "setup-2bit", family: "krea-2-turbo", name: "Setup", quantization: "2-bit", repo: "org/setup",
-    revision: String(repeating: "e", count: 40), downloadBytes: 3072, ramGB: 2,
-    license: CatalogLicense(
-        id: "license-setup", name: "Setup License", url: "https://example.com/setup", commercialUse: true,
-        version: "3", summary: "Commercial use is allowed."),
-    files: BrowserFixture.files, recommendRank: 1)
-
-/// The fixture catalog plus a ranked image model `Recommender` can pick.
-private let setupCatalog = Catalog(
-    schemaVersion: 1, sequence: 5, issuedAt: BrowserFixture.acceptedAt,
-    models: [setupImage, BrowserFixture.alpha, BrowserFixture.beta, BrowserFixture.enhancer, BrowserFixture.agent])
+/// The fixture catalog: two image models, the enhancer and the agent.
+private let setupCatalog = BrowserFixture.catalogWithAgent
 
 @MainActor @Suite struct ChatOnboardingTests {
-    /// A fresh install: the fixture catalog, a scripted installer, nothing installed, nothing on the engine.
+    /// A fresh install: the fixture catalog, a scripted installer, nothing installed, `models` on the engine.
     private func freshHarness(
-        outcomes: [ScriptedTransport.Outcome] = [.completes],
+        models: [(id: String, architecture: String)] = [],
+        catalog: Catalog = setupCatalog,
         chat: @escaping FakeEngine.ChatScript = { _, _ in planReply(setupSayPlan) }
     ) async throws -> (harness: AppHarness, transport: ScriptedTransport) {
         let root = FileManager.default.temporaryDirectory.appending(path: "setup-\(UUID().uuidString)")
         let transport = ScriptedTransport(
-            modelsRoot: root.appending(path: "Models", directoryHint: .isDirectory), outcomes: outcomes)
+            modelsRoot: root.appending(path: "Models", directoryHint: .isDirectory), outcomes: [.completes])
         let harness = try await chatHarness(
-            chat: chat, models: [], catalog: setupCatalog,
-            installAgent: false, transport: transport)
+            chat: chat, models: models, catalog: catalog,
+            installAgent: false, hasSeenGreeting: false, transport: transport)
         return (harness, transport)
     }
 
-    /// The conversation's `.download` card, when one is there.
-    private func card(_ chat: ChatModel) -> ChatDownload? {
-        chat.messages.last(where: {
-            if case .download = $0.body { return true }
+    /// Installs the fixture agent the way the setup screen's Download does: the folder, the record, and the
+    /// engine listing it.
+    private func installAgent(_ harness: AppHarness, _ transport: ScriptedTransport) async throws {
+        transport.publishFolder(InstallCoordinator.plan(for: BrowserFixture.agent))
+        try await harness.store.recordInstalledModel(BrowserFixture.agentRecord())
+        harness.engine.setModels([(id: BrowserFixture.agent.repo, architecture: "gemma4")])
+        await harness.model.browser.refresh()
+    }
+
+    private func greetingCount(_ chat: ChatModel) -> Int {
+        chat.messages.filter {
+            if case .agentText(let text) = $0.body { return text == ChatCopy.greeting }
             return false
-        }).flatMap {
+        }.count
+    }
+
+    private func downloadCards(_ chat: ChatModel) -> [ChatDownload] {
+        chat.messages.compactMap {
             if case .download(let card) = $0.body { return card }
             return nil
         }
     }
 
-    @Test func aFirstLaunchOffersBothMissingModelsAndRunsTheWaitingRequest() async throws {
-        let (harness, transport) = try await freshHarness()
+    @Test func aFirstLaunchPostsNoSetupCardAndNoGreeting() async throws {
+        let (harness, _) = try await freshHarness()
         let chat = harness.model.chat!
         await harness.model.refreshModels()
 
-        // Greeting, then one card with the image model first and the agent second (AE7).
-        try await eventually {
-            guard case .download(let card) = chat.messages.last?.body else { return false }
-            return card.items.count == 2
-        }
-        #expect(chat.messages.count == 2)
-        guard case .agentText(let greeting) = chat.messages[0].body else {
-            Issue.record("the first message is not the greeting")
+        #expect(!chat.chatReady)
+        #expect(chat.messages.isEmpty)
+        #expect(downloadCards(chat).isEmpty)
+    }
+
+    @Test func theGreetingPostsOnceWhenTheAgentIsListedOnAnEmptyConversation() async throws {
+        let (harness, transport) = try await freshHarness()
+        let chat = harness.model.chat!
+        await harness.model.refreshModels()
+        #expect(chat.messages.isEmpty)
+
+        try await installAgent(harness, transport)
+
+        // Two overlapping refreshes must not post the greeting twice.
+        async let firstRefresh = harness.model.refreshModels()
+        async let secondRefresh = harness.model.refreshModels()
+        await firstRefresh
+        await secondRefresh
+
+        try await eventually { greetingCount(chat) == 1 }
+        #expect(chat.chatReady)
+        #expect(chat.messages.count == 1)
+        #expect(downloadCards(chat).isEmpty)
+    }
+
+    @Test func chatIsReadyWithTheAgentListedAndNoImageModel() async throws {
+        // The engine lists only the agent; `app.models` holds it as an unavailable non-image entry, so no
+        // selectable image model exists — readiness must not ask for one.
+        let harness = try await chatHarness(
+            models: [(BrowserFixture.agent.repo, "gemma4")],
+            catalog: setupCatalog, installAgent: true, hasSeenGreeting: false)
+        let chat = harness.model.chat!
+
+        #expect(chat.chatReady)
+        #expect(!harness.model.models.contains(where: ModelSelection.isSelectable))
+        try await eventually { greetingCount(chat) == 1 }
+    }
+
+    @Test func aSendWithNoInstalledImageModelRunsATurn() async throws {
+        // The agent sees the catalog's fitting image models as download offers, so the turn plans
+        // normally: a say plan records its sentence and nothing parks.
+        let (harness, transport) = try await freshHarness(
+            models: [(BrowserFixture.agent.repo, "gemma4")])
+        try await installAgent(harness, transport)
+        await harness.model.refreshModels()
+        let chat = harness.model.chat!
+
+        await chat.send(text: "hello")
+        await chat.turnTask?.value
+        try await eventually { chat.phase == .idle }
+
+        #expect(agentChatRequests(harness).count == 1)
+        guard case .agentText(let reply) = chat.messages.last?.body else {
+            Issue.record("the turn did not record the agent's reply")
             return
         }
-        #expect(greeting == ChatCopy.greeting)
-        let offered = try #require(card(chat))
-        #expect(offered.state == .offered)
-        #expect(offered.items.map(\.id) == [setupImage.id, BrowserFixture.agent.id])
-
-        // A message typed before the card finishes waits on it; no error is recorded.
-        await chat.send(text: "a fox in snow")
-        await chat.turnTask?.value
-        let waiting = try #require(card(chat))
-        #expect(waiting.pendingRequest == "a fox in snow")
+        #expect(reply == "Of course.")
         #expect(
             !chat.messages.contains {
                 if case .error = $0.body { return true }
                 return false
             })
+        #expect(downloadCards(chat).isEmpty)
+    }
 
-        // Accept installs the image model first, then the agent, recording each license version.
-        let record = try #require(
-            chat.messages.last(where: {
-                if case .download = $0.body { return true }
-                return false
-            }))
-        await chat.acceptDownload(messageID: record.id)
-        #expect(transport.requests.map(\.modelID) == [setupImage.id, BrowserFixture.agent.id])
-        let installed = try await harness.store.installedModels()
-        #expect(
-            installed.map(\.licenseVersion) == [
-                setupImage.license.version, BrowserFixture.agent.license.version,
-            ])
-
-        // Once the engine lists both, refresh finishes the card and the waiting request runs as a new turn.
-        harness.engine.setModels([
-            (id: setupImage.repo, architecture: "krea2_turbo"),
-            (id: BrowserFixture.agent.repo, architecture: "gemma4"),
-        ])
+    @Test func aSendWithNoModelOptionsAtAllFailsNotReady() async throws {
+        // Installs are on but the catalog lists no image model and none is installed: the agent has
+        // nothing to plan with, so the request fails instead of asking it.
+        let agentOnly = Catalog(
+            schemaVersion: 1, sequence: 5, issuedAt: BrowserFixture.acceptedAt,
+            models: [BrowserFixture.agent])
+        let (harness, transport) = try await freshHarness(
+            models: [(BrowserFixture.agent.repo, "gemma4")], catalog: agentOnly)
+        try await installAgent(harness, transport)
         await harness.model.refreshModels()
-        await chat.turnTask?.value
-        try await eventually { chat.phase == .idle }
+        let chat = harness.model.chat!
+        #expect(chat.chatReady)
 
-        #expect(card(chat)?.state == .finished)
-        guard case .agentText(let reply) = chat.messages.last?.body else {
-            Issue.record("the waiting request did not run as a turn")
+        await chat.send(text: "a fox")
+        await chat.turnTask?.value
+
+        #expect(agentChatRequests(harness).isEmpty)
+        guard case .error(let failure) = chat.messages.last?.body else {
+            Issue.record("the turn did not record the not-ready error")
             return
         }
-        #expect(reply == "Of course.")
-        #expect(agentChatRequests(harness).count == 1)
-        // The parked request was recorded once, when it was typed; its replay adds no second copy.
-        #expect(
-            chat.messages.filter {
-                if case .userText = $0.body { return true }
-                return false
-            }.count == 1)
+        #expect(failure.retryRequest == "a fox")
     }
 
-    @Test func aLaunchDoesNotOfferACardBeforeInstallStatusIsKnown() async throws {
-        // Both models are in place — a record and its folder for the agent, an engine entry for Krea — but nothing
-        // has refreshed yet, so the install status is unread. No card and no greeting may be persisted on that read.
-        let root = FileManager.default.temporaryDirectory.appending(path: "setup-\(UUID().uuidString)")
-        let transport = ScriptedTransport(
-            modelsRoot: root.appending(path: "Models", directoryHint: .isDirectory), outcomes: [.completes])
-        let harness = try await AppHarness.make(
-            models: [(kreaModel, "krea2_turbo"), (BrowserFixture.agent.repo, "gemma4")],
-            catalog: setupCatalog, transport: transport, root: root)
-        transport.publishFolder(InstallCoordinator.plan(for: BrowserFixture.agent))
-        try await harness.store.recordInstalledModel(BrowserFixture.agentRecord())
-        let chat = harness.model.chat!
-
-        await harness.model.start()
-        #expect(chat.messages.isEmpty)
-
-        await harness.model.refreshModels()
-        #expect(chat.messages.isEmpty)
-    }
-
-    @Test func anInterruptedSetupDownloadTurnsRetryableOnRelaunch() async throws {
-        // The first download never finishes, as a quit mid-download leaves it: the card stays `.accepted` with its
-        // flow gone, and the relaunch's reload must turn it retryable with its request kept.
-        let (harness, _) = try await freshHarness(outcomes: [.holds])
-        let chat = harness.model.chat!
-        await harness.model.refreshModels()
-        try await eventually {
-            guard case .download = chat.messages.last?.body else { return false }
-            return true
-        }
-        await chat.send(text: "a fox in snow")
-        await chat.turnTask?.value
-        let record = try #require(
-            chat.messages.last(where: {
-                if case .download = $0.body { return true }
-                return false
-            }))
-        let acceptTask = Task { await chat.acceptDownload(messageID: record.id) }
-        try await eventually { card(chat)?.state == .accepted }
-
-        let second = try await harness.relaunch(models: [], catalog: setupCatalog)
-        let relaunched = second.model.chat!
-        await second.model.start()
-
-        try await eventually {
-            guard case .failed = card(relaunched)?.state else { return false }
-            return true
-        }
-        #expect(card(relaunched)?.pendingRequest == "a fox in snow")
-        harness.model.browser.cancelInstall()
-        _ = await acceptTask.value
-    }
-
-    @Test func aCancelledSetupDownloadFailsRetryablyAndItsRetryInstallsTheRest() async throws {
-        // The first install request holds until cancelled; a retry's request completes, as a resume over the
-        // partial does. A cancel must read as an interruption, never as success.
-        let (harness, transport) = try await freshHarness(outcomes: [.holds, .completes])
-        let chat = harness.model.chat!
-        await harness.model.refreshModels()
-        try await eventually {
-            guard case .download = chat.messages.last?.body else { return false }
-            return true
-        }
-        await chat.send(text: "a fox in snow")
-        await chat.turnTask?.value
-        let record = try #require(
-            chat.messages.last(where: {
-                if case .download = $0.body { return true }
-                return false
-            }))
-
-        let acceptTask = Task { await chat.acceptDownload(messageID: record.id) }
-        try await eventually { card(chat)?.state == .accepted }
-        try await eventually { !transport.requests.isEmpty }
-        harness.model.browser.cancelInstall()
-        await acceptTask.value
-
-        guard case .failed = card(chat)?.state else {
-            Issue.record("the cancelled card did not fail")
-            return
-        }
-        #expect(card(chat)?.pendingRequest == "a fox in snow")
-
-        // Accept on the failed card retries just what is still missing: the image model again, then the agent.
-        await chat.acceptDownload(messageID: record.id)
-        #expect(transport.requests.map(\.modelID) == [setupImage.id, setupImage.id, BrowserFixture.agent.id])
-        harness.engine.setModels([
-            (id: setupImage.repo, architecture: "krea2_turbo"),
-            (id: BrowserFixture.agent.repo, architecture: "gemma4"),
-        ])
-        await harness.model.refreshModels()
-        await chat.turnTask?.value
-        try await eventually { chat.phase == .idle }
-
-        #expect(card(chat)?.state == .finished)
-        #expect(agentChatRequests(harness).count == 1)
-    }
-
-    @Test func aRequestParkedDuringACancelledSetupDownloadStaysOnTheCard() async throws {
-        // Accept first, then type while the download is held: the send parks on the card mid-install, and the
-        // failing write the cancel produces must apply to that card, not to the record Accept captured.
-        let (harness, _) = try await freshHarness(outcomes: [.holds])
-        let chat = harness.model.chat!
-        await harness.model.refreshModels()
-        try await eventually {
-            guard case .download = chat.messages.last?.body else { return false }
-            return true
-        }
-        let record = try #require(
-            chat.messages.last(where: {
-                if case .download = $0.body { return true }
-                return false
-            }))
-
-        let acceptTask = Task { await chat.acceptDownload(messageID: record.id) }
-        try await eventually { card(chat)?.state == .accepted }
-
-        await chat.send(text: "a fox in snow")
-        await chat.turnTask?.value
-        #expect(card(chat)?.pendingRequest == "a fox in snow")
-
-        harness.model.browser.cancelInstall()
-        await acceptTask.value
-
-        guard case .failed = card(chat)?.state else {
-            Issue.record("the cancelled card did not fail")
-            return
-        }
-        #expect(card(chat)?.pendingRequest == "a fox in snow")
-    }
-
-    @Test func aSecondMessageBeforeSetupReplacesTheHeldRequest() async throws {
-        let (harness, _) = try await freshHarness()
-        let chat = harness.model.chat!
-        await harness.model.refreshModels()
-        try await eventually {
-            guard case .download = chat.messages.last?.body else { return false }
-            return true
-        }
-
-        await chat.send(text: "first")
-        await chat.turnTask?.value
-        await chat.send(text: "second")
-        await chat.turnTask?.value
-
-        // Both stay on the record; the newest is the one the card runs when its downloads end (R28).
-        #expect(card(chat)?.pendingRequest == "second")
-        #expect(
-            chat.messages.filter {
-                if case .userText = $0.body { return true }
-                return false
-            }.count == 2)
-    }
-
-    @Test func onlyTheAgentMissingOffersTheAgentAlone() async throws {
-        let harness = try await chatHarness(
-            models: [(kreaModel, "krea2_turbo")], catalog: setupCatalog,
-            installAgent: false)
-        let chat = harness.model.chat!
-        await harness.model.refreshModels()
-
-        try await eventually {
-            guard case .download = chat.messages.last?.body else { return false }
-            return true
-        }
-        let offered = try #require(card(chat))
-        #expect(offered.items.map(\.id) == [BrowserFixture.agent.id])
-    }
-
-    @Test func reloadingDoesNotAppendASecondCard() async throws {
-        let (harness, _) = try await freshHarness()
-        let chat = harness.model.chat!
-        await harness.model.refreshModels()
-        try await eventually {
-            guard case .download = chat.messages.last?.body else { return false }
-            return true
-        }
-
-        await chat.reloadMessages()
-        await harness.model.refreshModels()
-
-        #expect(
-            chat.messages.filter {
-                if case .agentText(let text) = $0.body { return text == ChatCopy.greeting }
-                return false
-            }.count == 1)
-        #expect(
-            chat.messages.filter {
-                if case .download = $0.body { return true }
-                return false
-            }.count == 1)
+    @Test func referenceMinutesEstimatesAtReferenceSpeeds() {
+        // 6.58 GB at 100 Mbit/s is about 8.8 minutes → 9; at 1 Gbit/s under a minute → 1; tiny → 1.
+        #expect(ChatSetupView.referenceMinutes(bytes: 6_580_000_000, megabitsPerSecond: 100) == 9)
+        #expect(ChatSetupView.referenceMinutes(bytes: 6_580_000_000, megabitsPerSecond: 1000) == 1)
+        #expect(ChatSetupView.referenceMinutes(bytes: 1_000, megabitsPerSecond: 100) == 1)
+        #expect(ChatSetupView.referenceMinutes(bytes: 0, megabitsPerSecond: 100) == 1)
     }
 }

@@ -56,6 +56,12 @@ enum MCSize {
     static let chatUnfurledFraction: CGFloat = 2.0 / 3.0
     /// The tallest a license text inside a chat download card grows (KTD15).
     static let chatLicenseTextHeight: CGFloat = 120
+    /// The Chat setup screen's content column (D60).
+    static let chatSetupMaxWidth: CGFloat = 520
+    /// The Chat setup screen's hero symbol.
+    static let chatSetupSymbol: CGFloat = 56
+    /// The tallest a license summary grows inside a Settings list row.
+    static let licenseSummaryHeight: CGFloat = 120
 }
 
 /// Shadows. Panels floating over content use `panel*`; nothing else casts one.

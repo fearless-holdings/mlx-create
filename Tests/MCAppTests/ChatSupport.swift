@@ -23,6 +23,9 @@ func chatHarness(
     ],
     catalog: Catalog = BrowserFixture.catalogWithAgent,
     installAgent: Bool = true,
+    /// Whether the first-launch greeting was already posted (D60). Harness conversations simulate an install
+    /// the user has been using, so it defaults to shown; first-launch tests pass false.
+    hasSeenGreeting: Bool = true,
     transport: ScriptedTransport? = nil,
     civitaiTransport: (any CivitaiTransport)? = nil,
     civitaiFileTransport: (any CivitaiFileTransport)? = nil,
@@ -37,13 +40,19 @@ func chatHarness(
         transport
         ?? ScriptedTransport(
             modelsRoot: root.appending(path: "Models", directoryHint: .isDirectory), outcomes: [.completes])
+    let defaults = UserDefaults(suiteName: UUID().uuidString)!
+    if hasSeenGreeting {
+        defaults.set(true, forKey: ChatModel.greetingDefaultsKey)
+    }
     let harness = try await AppHarness.make(
-        models: models, loaded: loaded, script: script, catalog: catalog, transport: installTransport,
+        models: models, loaded: loaded, defaults: defaults, script: script, catalog: catalog,
+        transport: installTransport,
         civitaiTransport: civitaiTransport, civitaiFileTransport: civitaiFileTransport,
         civitaiKeychain: civitaiKeychain, root: root, chat: chat, memoryTier: memoryTier,
         holdLoads: holdLoads, holdUnloads: holdUnloads, engineVersion: engineVersion)
-    // The agent is already installed — the state a real install leaves — so `start()` does not open the first-launch
-    // setup card over the tests' conversations (D60); the card itself is covered by ChatOnboardingTests.
+    // The agent is already installed — the state a real install leaves — so `start()` does not open the
+    // first-launch setup screen over the tests' conversations (D60); the screen itself is covered by
+    // ChatOnboardingTests.
     if installAgent {
         installTransport.publishFolder(InstallCoordinator.plan(for: BrowserFixture.agent))
         try await harness.store.recordInstalledModel(BrowserFixture.agentRecord())

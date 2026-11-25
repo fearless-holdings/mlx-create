@@ -21,8 +21,16 @@ struct ChatContainer: View {
 
     private var chat: ChatModel { model.chat }
     private var heightCap: CGFloat { windowHeight * MCSize.chatUnfurledFraction }
+    /// The messages the panel renders. First-launch setup cards a pre-amendment build wrote stay in the
+    /// store but are never shown (D60, amended 2026-11-24); they still reconcile and resume held requests.
+    private var visibleMessages: [ChatMessageRecord] {
+        chat.messages.filter {
+            if case .download(let card) = $0.body { return !card.isSetup }
+            return true
+        }
+    }
     private var shownMessages: [ChatMessageRecord] {
-        unfurled ? chat.messages : Array(chat.messages.suffix(2))
+        unfurled ? visibleMessages : Array(visibleMessages.suffix(2))
     }
     private var streamingSentence: String? {
         guard let text = chat.streamingText, !text.isEmpty else { return nil }
@@ -31,7 +39,7 @@ struct ChatContainer: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: MCSpacing.group) {
-            if !chat.messages.isEmpty {
+            if !visibleMessages.isEmpty {
                 header
                 messagesArea
             }
@@ -59,9 +67,9 @@ struct ChatContainer: View {
         .accessibilityIdentifier("chatContainer")
         .onAppear {
             inputFocused = true
-            announcedMessageID = chat.messages.last?.id
+            announcedMessageID = visibleMessages.last?.id
         }
-        .onChange(of: chat.messages.last?.id) { _, _ in announceNewest() }
+        .onChange(of: visibleMessages.last?.id) { _, _ in announceNewest() }
         .confirmationDialog(
             "Clear this conversation?", isPresented: $confirmClear, titleVisibility: .visible
         ) {
@@ -195,7 +203,7 @@ struct ChatContainer: View {
 
     /// A new agent message is read out as it lands; messages only append, so the newest row is the new one.
     private func announceNewest() {
-        guard let message = chat.messages.last, message.id != announcedMessageID else { return }
+        guard let message = visibleMessages.last, message.id != announcedMessageID else { return }
         announcedMessageID = message.id
         guard message.author == .agent,
             let text = ChatMessageRow.announcementText(for: message.body)
