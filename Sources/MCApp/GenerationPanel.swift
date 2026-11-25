@@ -2,32 +2,38 @@ import AppKit
 import MCGeneration
 import SwiftUI
 
-/// The left panel of the three-panel layout (HLD §10): the multi-line prompt, the settings inline, and a pinned bottom
-/// row with the ×N batch stepper, Generate (⌘↩) and the error line. Settings show only the controls
-/// ``AppModel/controls`` allows for the selected family (R7).
+/// The left panel of the three-panel layout (HLD §10): the prompt card (the multi-line editor with its own bottom bar
+/// holding recent prompts and Enhance), the settings right under it, and a pinned bottom row with the Images control,
+/// Generate (⌘↩) and the error line. Settings show only the controls ``AppModel/controls`` allows for the selected
+/// family (R7).
 struct GenerationPanel: View {
     @Bindable var model: AppModel
     @State private var isLoRADropTargeted = false
     @State private var estimate: SpeedEstimate?
+    /// The panel's height, so the prompt card's growth cap follows it.
+    @State private var panelHeight: CGFloat = 0
 
     /// Changes whenever the composer's estimate may change, so `.task` recomputes it.
     private var estimateTaskID: String {
         "\(model.estimateRevision) \(model.size.width)x\(model.size.height) \(model.steps ?? 0) \(model.selectedModelID ?? "") \(model.loraStack.map(\.isUsed))"
     }
 
-    /// The prompt editor never gets shorter than this. When the window is too short for the settings beside it, the
-    /// whole top area scrolls instead of squeezing the prompt.
-    private static let promptMinHeight: CGFloat = 120
+    /// The prompt editor's limits: about five lines of `.mcBody` at its smallest, and about sixty percent of the
+    /// panel at its tallest, where it starts to scroll instead of growing (P02).
+    private static let promptMinHeight: CGFloat = 100
+    private static let promptMaxFraction: CGFloat = 0.6
+    private var promptMaxHeight: CGFloat {
+        max(Self.promptMinHeight, panelHeight * Self.promptMaxFraction)
+    }
+
+    /// The batch counts the Images control offers, and the range its numeric field accepts.
+    private static let batchChoices = [1, 2, 4]
+    private static let batchRange = 1...16
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ViewThatFits(in: .vertical) {
-                // Roomy: the prompt takes the height the settings leave over.
-                layout(promptFillsHeight: true)
-                // Short: the same content scrolls, with the prompt held at its minimum.
-                ScrollView {
-                    layout(promptFillsHeight: false)
-                }
+            ScrollView {
+                layout
             }
             .frame(maxHeight: .infinity)
 
@@ -35,6 +41,9 @@ struct GenerationPanel: View {
             bottomRow
         }
         .frame(minWidth: 320, idealWidth: 340, maxHeight: .infinity)
+        .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { height in
+            panelHeight = height
+        }
         .overlay {
             if isLoRADropTargeted {
                 RoundedRectangle(cornerRadius: MCRadius.card)
@@ -48,15 +57,10 @@ struct GenerationPanel: View {
         }
     }
 
-    private func layout(promptFillsHeight: Bool) -> some View {
+    private var layout: some View {
         VStack(alignment: .leading, spacing: MCSpacing.group) {
-            promptEditor
-                .frame(
-                    minHeight: Self.promptMinHeight,
-                    idealHeight: Self.promptMinHeight,
-                    maxHeight: promptFillsHeight ? .infinity : Self.promptMinHeight)
+            promptCard
             originalPromptField
-            enhanceRow
             EnhanceResultCard(model: model)
             settings
             LoRASection(model: model)
@@ -66,16 +70,28 @@ struct GenerationPanel: View {
 
     // MARK: Prompt
 
+    /// The prompt editor as a card (P02): it grows with what is written, and recent prompts and Enhance sit in its
+    /// own bottom bar rather than floating under it.
+    private var promptCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            promptEditor
+                .frame(minHeight: Self.promptMinHeight, maxHeight: promptMaxHeight)
+            Divider()
+            promptToolbar
+        }
+        .background(MCTone.textBackground, in: RoundedRectangle(cornerRadius: MCRadius.card))
+        .overlay(RoundedRectangle(cornerRadius: MCRadius.card).stroke(MCTone.separator, lineWidth: MCStroke.hairline))
+    }
+
     private var promptEditor: some View {
         TextEditor(text: $model.prompt)
             .font(.mcBody)
             .scrollContentBackground(.hidden)
+            .scrollIndicators(.automatic)
             .padding(MCSpacing.compact)
-            .background(MCTone.textBackground, in: RoundedRectangle(cornerRadius: MCRadius.field))
-            .overlay(RoundedRectangle(cornerRadius: MCRadius.field).stroke(MCTone.separator, lineWidth: MCStroke.hairline))
             .overlay(alignment: .topLeading) {
                 if model.prompt.isEmpty {
-                    Text("Describe an image")
+                    Text("Describe a picture: a lighthouse at golden hour, waves crashing")
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, MCSpacing.group)
                         .padding(.vertical, MCSpacing.compact)
@@ -95,6 +111,36 @@ struct GenerationPanel: View {
                 }
                 return .handled
             }
+    }
+
+    /// The card's bottom bar: the reason Enhance cannot run or why its last press was refused, then Recent prompts
+    /// and Enhance. The caption is the button's accessibility hint too; the reload note sits under the row (U8).
+    private var promptToolbar: some View {
+        VStack(alignment: .leading, spacing: MCSpacing.compact) {
+            HStack(alignment: .firstTextBaseline, spacing: MCSpacing.regular) {
+                if let caption = model.enhanceBlockReason ?? model.enhanceRefusal {
+                    Text(caption)
+                        .font(.mcSupporting)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+                PromptHistoryButton(model: model)
+                Button {
+                    Task { await model.pressEnhance() }
+                } label: {
+                    Label("Enhance", systemImage: "sparkles")
+                }
+                .disabled(!model.canEnhance)
+                .accessibilityHint(
+                    model.enhanceBlockReason ?? "Rewrites the prompt for the selected model and LoRAs. Accept keeps the result.")
+            }
+            if let note = model.enhanceReloadNote {
+                Text(note)
+                    .font(.mcSupporting)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(MCSpacing.regular)
     }
 
     /// The prompt an accepted enhancement replaced, read-only (KTD7). It is the text saved as provenance with the next image.
@@ -130,33 +176,6 @@ struct GenerationPanel: View {
         }
     }
 
-    /// The Enhance button with its caption: the reason it can't run, else the reason the last press was refused, and the
-    /// note about the image model reload (U8). The caption is the button's accessibility hint too.
-    private var enhanceRow: some View {
-        VStack(alignment: .leading, spacing: MCSpacing.compact) {
-            HStack(alignment: .firstTextBaseline, spacing: MCSpacing.regular) {
-                if let caption = model.enhanceBlockReason ?? model.enhanceRefusal {
-                    Text(caption)
-                        .font(.mcSupporting)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 0)
-                PromptHistoryButton(model: model)
-                Button("Enhance") {
-                    Task { await model.pressEnhance() }
-                }
-                .disabled(!model.canEnhance)
-                .accessibilityHint(
-                    model.enhanceBlockReason ?? "Rewrites the prompt for the selected model and LoRAs. Accept keeps the result.")
-            }
-            if let note = model.enhanceReloadNote {
-                Text(note)
-                    .font(.mcSupporting)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
-
     // MARK: Settings
 
     @ViewBuilder
@@ -171,44 +190,77 @@ struct GenerationPanel: View {
 
     // MARK: Bottom row
 
+    /// The batch count, the block reason on its own full-width line, and the full-width Generate with the estimate
+    /// and ⌘↩ hint under it (P03). The estimate task reruns whenever the composer's inputs change.
     private var bottomRow: some View {
         VStack(alignment: .leading, spacing: MCSpacing.compact) {
-            HStack(spacing: MCSpacing.regular) {
-                Stepper(value: $model.batchCount, in: 1...16) {
-                    Text("×\(model.batchCount)")
-                        .monospacedDigit()
-                }
-                .fixedSize()
-                .accessibilityLabel("Batch count")
-                .accessibilityValue("\(model.batchCount)")
+            imagesControl
 
-                if let reason = model.generateBlockReason {
-                    Text(reason)
-                        .font(.mcSupporting)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                } else if let estimate {
-                    Text(SpeedEstimate.scaled(estimate, by: model.batchCount).label)
-                        .font(.mcMetadata)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 0)
+            if let reason = model.generateBlockReason {
+                Text(reason)
+                    .font(.mcSupporting)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
-                Button("Generate") {
-                    Task { await model.generate() }
-                }
-                .disabled(!model.canGenerate)
-                .buttonStyle(.borderedProminent)
-                .help(model.generateBlockReason ?? "Generate (⌘↩)")
-                .accessibilityHint(model.generateBlockReason ?? "")
+            Button("Generate") {
+                Task { await model.generate() }
             }
-            .task(id: estimateTaskID) {
-                estimate = await model.composerEstimate()
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .frame(maxWidth: .infinity)
+            .disabled(!model.canGenerate)
+            .help(model.generateBlockReason ?? "Generate (⌘↩)")
+            .accessibilityHint(model.generateBlockReason ?? "")
+
+            if model.generateBlockReason == nil {
+                Text(verbatim: estimateLine)
+                    .font(.mcMetadata)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
             }
+
             if let error = model.lastError {
                 MCStatusText(.critical, error)
             }
         }
         .padding(MCSpacing.group)
+        .task(id: estimateTaskID) {
+            estimate = await model.composerEstimate()
+        }
+    }
+
+    /// The secondary line under Generate: the per-batch estimate when one exists, and the ⌘↩ hint always.
+    private var estimateLine: String {
+        let hint = "⌘↩"
+        guard let estimate else { return hint }
+        return "\(SpeedEstimate.scaled(estimate, by: model.batchCount).label) · \(hint)"
+    }
+
+    /// Batch count as the common counts in a compact segmented control plus a numeric field for the rest of the
+    /// range (P03). The field keeps the accessibility label "Batch count".
+    private var imagesControl: some View {
+        HStack(spacing: MCSpacing.regular) {
+            Text("Images")
+            Picker("Images", selection: $model.batchCount) {
+                ForEach(Self.batchChoices, id: \.self) { count in
+                    Text(verbatim: "\(count)").tag(count)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
+            TextField(
+                "Batch count",
+                value: Binding(
+                    get: { model.batchCount },
+                    set: { model.batchCount = min(max($0, Self.batchRange.lowerBound), Self.batchRange.upperBound) }
+                ),
+                format: .number
+            )
+            .textFieldStyle(.roundedBorder)
+            .frame(width: 34)
+            .accessibilityLabel("Batch count")
+            .accessibilityValue("\(model.batchCount)")
+        }
     }
 }
