@@ -404,7 +404,7 @@ public actor LibraryStore {
         try dbQueue.read { db in
             try JobRow
                 .filter(Column("status") == status.rawValue)
-                .order(Column("position"))
+                .order(Column("position"), Column("id"))
                 .fetchAll(db)
                 .map(\.job)
         }
@@ -432,12 +432,13 @@ public actor LibraryStore {
         }
     }
 
-    /// The oldest queued job, or nil when the queue is empty.
+    /// The oldest queued job, or nil when the queue is empty. A requeued job keeps its old position and can tie a newer
+    /// one, so ties go to the lower id; the Chat placeholders (`pendingTiles`) order jobs the same way.
     public func nextQueuedJob() throws -> Job? {
         try dbQueue.read { db in
             try JobRow
                 .filter(Column("status") == JobStatus.queued.rawValue)
-                .order(Column("position"))
+                .order(Column("position"), Column("id"))
                 .fetchOne(db)?
                 .job
         }
@@ -451,7 +452,7 @@ public actor LibraryStore {
             let queued =
                 try JobRow
                 .filter(Column("status") == JobStatus.queued.rawValue)
-                .order(Column("position"))
+                .order(Column("position"), Column("id"))
                 .fetchAll(db)
             guard let moving = queued.first(where: { $0.id == jobID.uuidString }) else {
                 throw LibraryError.notQueued

@@ -69,6 +69,18 @@ import Testing
         #expect(tiles.allSatisfy { !$0.isRunning })
     }
 
+    /// A requeued job keeps its old position, so it can tie another; the tiles break the tie as the store does, by id.
+    @Test func tiedJobsOrderByIDAsTheStoreRunsThem() async throws {
+        let harness = try await AppHarness.make()
+        harness.model.windowMode = .chat
+        let paused = job(status: .paused, saved: 0, batch: 1, position: 1)
+        let queued = job(status: .queued, saved: 0, batch: 1, position: 1)
+        harness.model.queueJobs = [queued, paused]
+
+        let runOrder = [paused, queued].sorted { $0.id.uuidString < $1.id.uuidString }.map(\.id)
+        #expect(harness.model.pendingTiles.map(\.jobID) == runOrder.reversed())
+    }
+
     @Test func tileIDsAreStableAcrossAProgressUpdate() async throws {
         let harness = try await AppHarness.make()
         harness.model.windowMode = .chat

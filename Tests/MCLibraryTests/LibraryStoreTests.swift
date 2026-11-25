@@ -180,6 +180,23 @@ import Testing
         }
     }
 
+    /// A job requeued after a pause keeps its position, which a job enqueued meanwhile can share; the lower id runs first.
+    @Test func tiedQueuePositionsRunInIDOrder() async throws {
+        let root = try Self.tempRoot()
+        let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
+        let collection = try await store.defaultCollection()
+        let a = try await store.enqueueJob(collectionID: collection.id, request: Self.request(), batchCount: 2, seedPolicy: "a")
+        try await store.setJobStatus(a.id, .running)
+        let b = try await store.enqueueJob(collectionID: collection.id, request: Self.request(), batchCount: 1, seedPolicy: "b")
+        try await store.setJobStatus(a.id, .paused)
+        try await store.setJobStatus(a.id, .queued)
+        #expect(a.position == b.position)
+
+        let idOrder = [a.id, b.id].sorted { $0.uuidString < $1.uuidString }
+        #expect(try await store.jobs(status: .queued).map(\.id) == idOrder)
+        #expect(try await store.nextQueuedJob()?.id == idOrder[0])
+    }
+
     @Test func failedPNGWriteLeavesNoPartialFile() async throws {
         let root = try Self.tempRoot()
         let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))

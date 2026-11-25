@@ -37,10 +37,10 @@ extension AppModel {
         if !queueJobs.isEmpty {
             for image in galleryImages { if let jobID = image.jobID { shownByJob[jobID, default: 0] += 1 } }
         }
-        // Resume returns paused jobs to the queue at their old positions, so queued and paused jobs interleave by
-        // position, as the executor will run them. A paused job stopped mid-run, so it wins a tie.
+        // Resume returns paused jobs to the queue at their old positions, so queued and paused jobs interleave in the
+        // order the executor will run them: by position, then by id (`LibraryStore.nextQueuedJob`).
         let waiting = queueJobs.filter { $0.status == .queued || $0.status == .paused }
-            .sorted { ($0.position, $0.status == .paused ? 0 : 1) < ($1.position, $1.status == .paused ? 0 : 1) }
+            .sorted { ($0.position, $0.id.uuidString) < ($1.position, $1.id.uuidString) }
         for job in queueJobs.filter({ $0.status == .running }) + waiting {
             let saved = max(job.savedCount, shownByJob[job.id] ?? 0)
             let remaining = max(0, job.batchCount - saved)
