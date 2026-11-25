@@ -23,20 +23,24 @@ struct ChatLargeImage: View {
             Button {
                 model.chat.largeImageID = nil
             } label: {
-                Image(systemName: "xmark")
+                Label("Close", systemImage: "xmark")
+                    .labelStyle(.iconOnly)
                     .font(.system(size: 13, weight: .semibold))
                     // no token: the close glyph is sized for the fixed round button.
                     .frame(width: MCSize.minHitTarget, height: MCSize.minHitTarget)
                     .background(.regularMaterial, in: Circle())
+                    .contentShape(Circle())
             }
-            .buttonStyle(.plain)
+            // A plain button here reports its element with the container's frame; borderless keeps it 28 pt.
+            .buttonStyle(.borderless)
             .keyboardShortcut(.cancelAction)
-            .accessibilityLabel("Close")
             .padding(MCSpacing.section)
         }
         .padding(MCSpacing.section)
         .padding(.bottom, bottomPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // .focusable() would merge the children's accessibility into one element that reports the container's frame.
+        .accessibilityElement(children: .contain)
         .focusable()
         .focused($focused)
         .onKeyPress(keys: [.leftArrow, .rightArrow], phases: .down) { press in
