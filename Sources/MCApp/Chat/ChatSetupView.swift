@@ -4,11 +4,13 @@ import MCModels
 import SwiftUI
 
 /// What the Chat setup screen shows for the catalog's agent model (D60, amended 2026-11-24). The screen's one
-/// action — Download, Resume or Retry — is `ModelBrowserModel.installAccepted`, which records the license
+/// action — Download, Resume or Retry — is `ModelBrowserModel.installAcceptedNow`, which records the license
 /// acceptance itself (D20); the license sheet belongs to the model browser, not here.
 enum ChatSetupPhase: Equatable {
-    /// Installs are off, the catalog lists no agent model, or a stray folder blocks it: plain text, no action.
+    /// Installs are off or the catalog lists no agent model: plain text, no action.
     case unavailable
+    /// A folder without a verified install record blocks the destination. The user must move or delete it first.
+    case unverified(path: String)
     /// Download — also what a missing-files row offers again.
     case ready
     /// The install runs; `step` is the progress card's current step (0 Download, 1 Check the files).
@@ -26,7 +28,7 @@ enum ChatSetupPhase: Equatable {
         switch self {
         case .downloading(let step, _): step
         case .gettingReady: 2
-        case .unavailable, .ready, .paused, .failed: nil
+        case .unavailable, .unverified, .ready, .paused, .failed: nil
         }
     }
 
@@ -39,7 +41,11 @@ enum ChatSetupPhase: Equatable {
         case .available, .missingFiles:
             self = .ready
         case .installing(let progress):
-            self = .downloading(step: Self.step(for: progress.phase), progress: progress)
+            if progress.phase == .installed {
+                self = .gettingReady
+            } else {
+                self = .downloading(step: Self.step(for: progress.phase), progress: progress)
+            }
         case .installed:
             // `inEngine` true means Chat is already ready and this screen is gone; false is the gap between
             // the install record landing and the engine listing the model.
@@ -48,8 +54,8 @@ enum ChatSetupPhase: Equatable {
             self = .paused(bytesOnDisk: bytesOnDisk, bytesTotal: bytesTotal)
         case .failed(let message):
             self = .failed(message, retryable: row.action == .retry)
-        case .unverified:
-            self = .unavailable
+        case .unverified(let path):
+            self = .unverified(path: path)
         }
     }
 
@@ -96,10 +102,16 @@ struct ChatSetupView: View {
                     Spacer(minLength: 0)
                     VStack(spacing: MCSpacing.section) {
                         header
-                        if agent != nil, model.installs != nil {
+                        if showsFacts {
                             facts
                         }
                         stateContent
+                        if let actionBlockedReason {
+                            Text(actionBlockedReason)
+                                .font(.mcSupporting)
+                                .multilineTextAlignment(.center)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                         licenseContent
                     }
                     .padding(MCSpacing.emptyState)
@@ -113,9 +125,33 @@ struct ChatSetupView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("chatSetup")
-        .task { await model.refreshModels() }
-        .task { await model.browser.observe() }
         .onChange(of: phase.step) { _, step in announce(step: step) }
+    }
+
+    /// Facts belong beside a download decision; they are noise where no download can start.
+    private var showsFacts: Bool {
+        guard agent != nil, model.installs != nil else { return false }
+        switch phase {
+        case .unavailable, .unverified: return false
+        case .ready, .downloading, .paused, .failed, .gettingReady: return true
+        }
+    }
+
+    /// Whether Download, Resume or Retry can start right now. `installTask` covers the preflight beat before the
+    /// installer publishes its active row, so a fast second click cannot queue behind the first one.
+    private var installActionEnabled: Bool {
+        browser.installTask == nil && row?.canAct == true
+    }
+
+    /// Why an offered install action is disabled, when the row knows one (usually another model installing).
+    private var actionBlockedReason: String? {
+        let offered: Bool
+        switch phase {
+        case .ready, .paused: offered = true
+        case .failed(_, let retryable): offered = retryable
+        case .unavailable, .unverified, .downloading, .gettingReady: offered = false
+        }
+        return offered ? row?.actionBlockedReason : nil
     }
 
     /// The hero symbol, title and the why paragraph — the same on every state the screen can be in.
@@ -204,6 +240,8 @@ struct ChatSetupView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
+        case .unverified(let path):
+            unverifiedContent(path: path)
         case .ready:
             Button("Download Chat Model") {
                 Task { await installAgent() }
@@ -211,6 +249,7 @@ struct ChatSetupView: View {
             .buttonStyle(.borderedProminent)
             .controlSize(.extraLarge)
             .keyboardShortcut(.defaultAction)
+            .disabled(!installActionEnabled)
             .accessibilityIdentifier("chatSetupDownload")
         case .downloading, .paused, .failed, .gettingReady:
             VStack(spacing: MCSpacing.group) {
@@ -237,10 +276,35 @@ struct ChatSetupView: View {
         return "Chat can't be set up right now."
     }
 
+    /// The stray-folder state is actionable: it names the folder, says what to do with it, and offers the
+    /// refresh that picks up the remedy. Nothing here deletes or moves the user's files.
+    private func unverifiedContent(path: String) -> some View {
+        VStack(spacing: MCSpacing.group) {
+            Text("Unverified local files use the Chat model's folder name. mlx-create does not overwrite them.")
+                .font(.mcBody)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(path)
+                .font(.mcMetadataMonospaced)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+                .multilineTextAlignment(.center)
+            Text("Move or delete that folder, then check again.")
+                .font(.mcSupporting)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button("Check Again") {
+                Task { await browser.refresh() }
+            }
+        }
+    }
+
     /// Download, Resume and Retry share one action: the install records the license acceptance itself (D20).
+    /// Unlike a card's sequential items, this user action never queues behind another install — when one is
+    /// active the button is disabled instead of restarting later after a cancel.
     private func installAgent() async {
-        guard let agent else { return }
-        _ = await browser.installAccepted(agent.id)
+        guard let agent, installActionEnabled else { return }
+        _ = browser.installAcceptedNow(agent.id)
     }
 
     /// The one progress card every in-flight state shares: heading by state, the three steps always
@@ -269,7 +333,7 @@ struct ChatSetupView: View {
         case .downloading(let step, _): step
         case .paused, .failed: 0
         case .gettingReady: 2
-        case .unavailable, .ready: 0
+        case .unavailable, .unverified, .ready: 0
         }
     }
 
@@ -284,7 +348,7 @@ struct ChatSetupView: View {
         case .paused: "Download paused"
         case .failed: "Download failed"
         case .gettingReady: "Getting Chat ready"
-        case .unavailable, .ready: nil
+        case .unavailable, .unverified, .ready: nil
         }
     }
 
@@ -321,10 +385,10 @@ struct ChatSetupView: View {
             barRowView(fraction: progress.fraction)
         case .paused(let bytesOnDisk, let bytesTotal):
             let fraction = bytesTotal > 0 ? Double(bytesOnDisk) / Double(bytesTotal) : 0
-            barRowView(fraction: fraction)
+            barRowView(fraction: min(1, max(0, fraction)))
         case .gettingReady:
             ProgressView()
-        case .failed, .unavailable, .ready:
+        case .failed, .unavailable, .unverified, .ready:
             EmptyView()
         }
     }
@@ -356,17 +420,29 @@ struct ChatSetupView: View {
             .foregroundStyle(.secondary)
         case .failed(let message, _):
             MCStatusText(.critical, message)
-        case .gettingReady, .unavailable, .ready:
+        case .gettingReady, .unavailable, .unverified, .ready:
             EmptyView()
         }
     }
 
-    /// "341.3 MB of 6.58 GB · About 11 min left", or "Estimating time left…" while the rate is unknown.
+    /// The install record is in place but the engine has not listed the model. During the installer's own
+    /// rescan the active row keeps this hidden; afterwards it is the one recovery action the user has.
+    private var canCheckReadyAgain: Bool {
+        guard browser.installTask == nil, case .installed(inEngine: false) = row?.state else { return false }
+        return true
+    }
+
+    /// "341.3 MB of 6.58 GB · About 11 min left", or "Estimating time left…" while the download rate is
+    /// unknown. Verifying and moving are not downloads, so they never carry a meaningless estimate.
     private func progressDetail(_ progress: ModelBrowserRow.Progress) -> String {
         let done = progress.bytesDone.formatted(.byteCount(style: .file))
         let total = progress.bytesTotal.formatted(.byteCount(style: .file))
-        let remaining = agent.flatMap { browser.remainingText(for: $0.id) } ?? "Estimating time left…"
-        return "\(done) of \(total) · \(remaining)"
+        var line = "\(done) of \(total)"
+        if progress.phase == .preflight || progress.phase == .downloading {
+            let remaining = agent.flatMap { browser.remainingText(for: $0.id) } ?? "Estimating time left…"
+            line += " · \(remaining)"
+        }
+        return line
     }
 
     /// The card's bottom-trailing action: Cancel while downloading, Resume on a pause, Retry on a
@@ -388,6 +464,7 @@ struct ChatSetupView: View {
                     Task { await installAgent() }
                 }
                 .buttonStyle(.borderedProminent)
+                .disabled(!installActionEnabled)
             }
         case .failed(_, let retryable):
             if retryable {
@@ -397,24 +474,34 @@ struct ChatSetupView: View {
                         Task { await installAgent() }
                     }
                     .buttonStyle(.borderedProminent)
+                    .disabled(!installActionEnabled)
                 }
             }
-        case .gettingReady, .unavailable, .ready:
+        case .gettingReady:
+            if canCheckReadyAgain {
+                HStack {
+                    Spacer()
+                    Button("Check Again") {
+                        Task { await model.refreshModels() }
+                    }
+                }
+            }
+        case .unavailable, .unverified, .ready:
             EmptyView()
         }
     }
 
-    /// The resume note belongs to the download itself — once the files are in and Chat is getting ready
-    /// there is nothing left to pick up where it stopped.
     /// The note under the card: while bytes move it says the app stays usable and a stop is not a loss; once
-    /// stopped it says the action continues from the partials.
+    /// stopped it says a retryable action continues from the partials.
     private var resumeNote: String? {
         switch phase {
         case .downloading:
             "You can use Canvas and Gallery while this downloads. If you cancel or quit, the download picks up where it stopped."
-        case .paused, .failed:
+        case .paused:
             "The download continues from where it stopped. You can use Canvas and Gallery meanwhile."
-        case .unavailable, .ready, .gettingReady: nil
+        case .failed(_, let retryable):
+            retryable ? "The download continues from where it stopped. You can use Canvas and Gallery meanwhile." : nil
+        case .unavailable, .unverified, .ready, .gettingReady: nil
         }
     }
 
@@ -438,14 +525,14 @@ struct ChatSetupView: View {
         if showsLicenseLine, let license {
             VStack(spacing: MCSpacing.tight) {
                 Text(licenseLine(license))
-                    .font(.mcMetadata)
+                    .font(.mcSupporting)
                     .foregroundStyle(.secondary)
                 Text("By downloading you accept this license.")
-                    .font(.mcMetadata)
+                    .font(.mcSupporting)
                     .foregroundStyle(.secondary)
                 if let url = license.content.url {
                     Link("Read the license", destination: url)
-                        .font(.mcMetadata)
+                        .font(.mcSupporting)
                 }
             }
             .multilineTextAlignment(.center)
@@ -454,8 +541,9 @@ struct ChatSetupView: View {
 
     private var showsLicenseLine: Bool {
         switch phase {
-        case .ready, .paused, .failed: true
-        case .unavailable, .downloading, .gettingReady: false
+        case .ready, .paused: true
+        case .failed(_, let retryable): retryable
+        case .unavailable, .unverified, .downloading, .gettingReady: false
         }
     }
 
@@ -467,9 +555,14 @@ struct ChatSetupView: View {
         return "\(title) · \(use)"
     }
 
-    /// A progress step change is announced; reaching Chat is announced as "Chat is ready." from `body`.
+    /// A progress step change is announced; reaching Chat is announced as "Chat is ready." from
+    /// `ChatModeView.body`. Leaving the live steps clears the memory, so Resume or Retry announces Step 1 again.
     private func announce(step: Int?) {
-        guard let step, step != announcedStep else { return }
+        guard let step else {
+            announcedStep = nil
+            return
+        }
+        guard step != announcedStep else { return }
         announcedStep = step
         AccessibilityNotification.Announcement("Step \(step + 1) of \(Self.steps.count): \(Self.steps[step])")
             .post()

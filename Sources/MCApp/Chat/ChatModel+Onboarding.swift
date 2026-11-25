@@ -34,13 +34,16 @@ extension ChatModel {
     }
 
     /// One greeting pass. Until the first models refresh the install status is unknown, so nothing is
-    /// posted then; a conversation that already holds messages — the greeting included — is left alone. The
-    /// greeting is a first-launch touch: once posted it is remembered in defaults and never repeats, so a
-    /// cleared or switched-to empty conversation stays empty.
+    /// posted then. The greeting is a first-launch touch: once posted it is remembered in defaults and never
+    /// repeats, so a cleared or switched-to empty conversation stays empty. A ready conversation that already
+    /// holds messages marks the key as well — an upgraded user who was chatting before the greeting existed
+    /// does not receive it later in the next empty collection.
     private func greetingPass() async {
-        guard app.modelsLoaded, chatReady, messages.isEmpty,
-            !app.defaults.bool(forKey: Self.greetingDefaultsKey)
-        else { return }
+        guard app.modelsLoaded, chatReady, !app.defaults.bool(forKey: Self.greetingDefaultsKey) else { return }
+        guard messages.isEmpty else {
+            app.defaults.set(true, forKey: Self.greetingDefaultsKey)
+            return
+        }
         if await append(.agentText(ChatCopy.greeting), collectionID: app.currentCollection.id) != nil {
             app.defaults.set(true, forKey: Self.greetingDefaultsKey)
         }

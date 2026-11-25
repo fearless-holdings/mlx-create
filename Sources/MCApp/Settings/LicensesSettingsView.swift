@@ -11,23 +11,22 @@ struct LicensesSettingsView: View {
     /// One kind group's section: its header title and the installed rows under it.
     private struct KindSection: Identifiable {
         let title: String
-        let rows: [ModelBrowserRow]
+        let rows: [CatalogModel]
         var id: String { title }
     }
 
-    /// The kind groups in display order, with the label each section header shows.
-    private static let groups: [(kind: CatalogModelKind, title: String)] = [
-        (.image, "Image model"), (.agent, "Chat model"), (.enhancer, "Prompt enhancer"),
+    /// The kind groups in display order, with the singular and plural labels a section header can show.
+    private static let groups: [(kind: CatalogModelKind, singular: String, plural: String)] = [
+        (.image, "Image model", "Image models"), (.agent, "Chat model", "Chat models"),
+        (.enhancer, "Prompt enhancer", "Prompt enhancers"),
     ]
 
     /// Installed catalog rows grouped by kind; empty groups drop out.
     private var sections: [KindSection] {
         Self.groups.compactMap { group in
-            let rows = model.browser.rows.filter { row in
-                guard case .installed = row.state else { return false }
-                return row.model?.kind == group.kind
-            }
-            return rows.isEmpty ? nil : KindSection(title: group.title, rows: rows)
+            let rows = model.browser.installedCatalogModels.filter { $0.kind == group.kind }
+            let title = rows.count == 1 ? group.singular : group.plural
+            return rows.isEmpty ? nil : KindSection(title: title, rows: rows)
         }
     }
 
@@ -42,44 +41,39 @@ struct LicensesSettingsView: View {
                 List {
                     ForEach(sections) { section in
                         Section(section.title) {
-                            ForEach(section.rows) { row in
-                                licenseRow(row)
+                            ForEach(section.rows) { catalogModel in
+                                licenseRow(catalogModel)
                             }
                         }
                     }
                 }
             }
         }
-        .task { await model.refreshModels() }
-        .task { await model.browser.observe() }
+        .task { await model.browser.refresh() }
     }
 
     /// One installed model: its name and repo, then the license summary the install sheet presents.
-    private func licenseRow(_ row: ModelBrowserRow) -> some View {
+    private func licenseRow(_ catalogModel: CatalogModel) -> some View {
         VStack(alignment: .leading, spacing: MCSpacing.group) {
             HStack(alignment: .firstTextBaseline, spacing: MCSpacing.regular) {
-                Text(row.title)
+                Text(catalogModel.name)
                     .font(.mcRowTitle)
                 Spacer(minLength: MCSpacing.group)
-                if let catalogModel = row.model {
-                    Text(catalogModel.repo)
-                        .font(.mcMetadataMonospaced)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                }
+                Text(catalogModel.repo)
+                    .font(.mcMetadataMonospaced)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
             }
-            if let catalogModel = row.model {
-                let pending = model.browser.pendingLicense(for: catalogModel)
-                LicenseSummary(
-                    licenseTitle: LicenseSheet.licenseTitle(
-                        name: pending.content.licenseName, version: pending.content.version),
-                    commercialUse: pending.content.commercialUse,
-                    summary: pending.content.summary,
-                    url: pending.content.url,
-                    modelName: catalogModel.name,
-                    notices: pending.notices,
-                    summaryMaxHeight: MCSize.licenseSummaryHeight)
-            }
+            let pending = model.browser.pendingLicense(for: catalogModel)
+            LicenseSummary(
+                licenseTitle: LicenseSheet.licenseTitle(
+                    name: pending.content.licenseName, version: pending.content.version),
+                commercialUse: pending.content.commercialUse,
+                summary: pending.content.summary,
+                url: pending.content.url,
+                modelName: catalogModel.name,
+                notices: pending.notices,
+                summaryMaxHeight: MCSize.licenseSummaryHeight)
         }
         .padding(.vertical, MCSpacing.compact)
     }

@@ -49,7 +49,6 @@ struct EmptyModelsView: View {
         .task {
             await model.refreshModels()
         }
-        .task { await model.browser.observe() }
         .sheet(isPresented: licensePresented) {
             if let pending = model.license.pending {
                 LicenseSheet(browser: model.browser, license: model.license, pending: pending)

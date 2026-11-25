@@ -11,10 +11,10 @@ import Testing
 /// directory of real model folders, the agent id and an output path are all present — a bare `swift test` runs none
 /// of this. `MLXC_CHAT_TIER_GIB` forces the engine's resident-model tier; `MLXC_CHAT_STEPS` limits the run;
 /// `MLXC_CHAT_IMAGES_DIR` overrides where step images are copied (default: `images/` beside the record).
-/// `MLXC_CHAT_SETUP_DIR` enables the first-launch step: a `Weights`-layout directory holding only the agent model,
-/// so the setup screen's Download installs it for real and the first request offers an image-model download.
+/// `MLXC_CHAT_SETUP=1` enables the first-launch step: a second session starts with an empty `Weights` directory,
+/// so the setup screen's Download installs the agent for real and the first request offers an image-model download.
 /// `MLXC_CHAT_SETUP_MODEL_ID` is the catalog id the setup agent install is expected to use; when unset the id is
-/// only recorded.
+/// only recorded. The step is separate because it downloads both models even when `MLXC_CHAT_STEPS` is empty.
 struct ChatSessionEnvironment {
     let engineBinary: URL
     let modelDirectory: URL
@@ -23,7 +23,7 @@ struct ChatSessionEnvironment {
     let tier: MemoryTier
     let steps: Set<Int>
     let imagesOverride: URL?
-    let setupDirectory: URL?
+    let setupEnabled: Bool
     let setupModelID: String?
 
     static var current: Self? {
@@ -43,7 +43,7 @@ struct ChatSessionEnvironment {
             modelDirectory: URL(fileURLWithPath: directory, isDirectory: true),
             agentID: agent, outURL: URL(fileURLWithPath: out), tier: tier, steps: steps,
             imagesOverride: env["MLXC_CHAT_IMAGES_DIR"].map { URL(fileURLWithPath: $0, isDirectory: true) },
-            setupDirectory: env["MLXC_CHAT_SETUP_DIR"].map { URL(fileURLWithPath: $0, isDirectory: true) },
+            setupEnabled: ["1", "true", "yes"].contains(env["MLXC_CHAT_SETUP"]?.lowercased()),
             setupModelID: env["MLXC_CHAT_SETUP_MODEL_ID"])
     }
 
@@ -162,7 +162,7 @@ final class ChatSession {
         let client = EngineClient(endpoint: { try await gate.endpoint() })
         let store = try LibraryStore(libraryRoot: library, modelsRoot: models)
         // The bundled signed catalog gives the session the curated LoRA shelf; a nil transport leaves installs off,
-        // so nothing is ever downloaded and no setup card can offer one — the setup session's downloader is real.
+        // so nothing is ever downloaded — the setup session's downloader is real.
         let catalog = try Catalog.decodeValidated(BundledCatalog.fromBundle().bytes)
         let model = AppModel(
             store: store,
@@ -209,21 +209,17 @@ final class ChatSession {
             env: env, root: root, defaults: defaults, civitaiAPI: civitaiAPI, civitaiFiles: civitaiFiles)
     }
 
-    /// The first-launch session (step 9): `Weights` is a real directory whose org folders are symlinks into
-    /// `setupDirectory` — the agent model only — and the transport is the app's real downloader, so the setup
-    /// card's Accept runs a genuine install and the engine ends up listing the model.
-    static func makeSetup(
-        env: ChatSessionEnvironment, setupDirectory: URL, root: URL, defaults: UserDefaults
-    ) async throws -> ChatSession {
+    /// The first-launch session (step 9): `Weights` starts empty and the transport is the app's real downloader,
+    /// so the setup screen's Download genuinely installs the agent before the first image-model offer. Its defaults
+    /// are a fresh suite made here — never the main session's — so neither the debug agent-id override nor the
+    /// greeting flag can leak into a run that is meant to prove first launch.
+    static func makeSetup(env: ChatSessionEnvironment, root: URL) async throws -> ChatSession {
         let models = root.appending(path: "Models", directoryHint: .isDirectory)
         let weights = models.appending(path: "Weights", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: weights, withIntermediateDirectories: true)
-        for entry in try FileManager.default.contentsOfDirectory(atPath: setupDirectory.path)
-        where !entry.hasPrefix(".") {
-            try FileManager.default.createSymbolicLink(
-                at: weights.appending(path: entry, directoryHint: .isDirectory),
-                withDestinationURL: setupDirectory.appending(path: entry, directoryHint: .isDirectory))
-        }
+        let defaults = UserDefaults(suiteName: "chat-setup-\(UUID().uuidString)")!
+        defaults.set(MainWindowMode.chat.rawValue, forKey: AppModel.windowModeDefaultsKey)
+        defaults.set(false, forKey: AppModel.civitaiIncludeNSFWKey)
         let downloader = ModelDownloader(
             configuration: .init(modelsRoot: models, userAgent: "mlx-create-chat-session"))
         let api = ScriptedCivitaiAPI { request in

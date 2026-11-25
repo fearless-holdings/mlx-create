@@ -153,6 +153,10 @@ final class ModelBrowserModel {
     private(set) var installTask: Task<Void, Never>?
     /// When each license version was accepted this session, so Retry and Resume do not ask again.
     private var acceptances: [String: Date] = [:]
+    /// The one installer subscription this model keeps for its whole lifetime. Progress cannot depend on which view is
+    /// open: a Chat download card or the Licenses settings row reads the same active snapshot without observing itself.
+    @ObservationIgnored private var observationTask: Task<Void, Never>?
+    @ObservationIgnored private var observedInstaller: ObjectIdentifier?
 
     init(
         catalog: Catalog?,
@@ -168,6 +172,11 @@ final class ModelBrowserModel {
         self.workingSetGB = workingSetGB
         self.engineModelIDs = engineModelIDs
         self.license = license
+        observeInstaller()
+    }
+
+    deinit {
+        observationTask?.cancel()
     }
 
     /// Usable GB from the Metal recommended working set, or nil when no Metal device is available (KTD19).
@@ -197,6 +206,7 @@ final class ModelBrowserModel {
     func replaceCatalog(_ catalog: Catalog, installs: InstallCoordinator?) async {
         self.catalog = catalog
         self.installs = installs
+        observeInstaller()
         await refresh()
     }
 
@@ -255,6 +265,12 @@ final class ModelBrowserModel {
         rows.filter { $0.model?.kind == kind }
     }
 
+    /// Installed catalog models without reading install progress. Settings ▸ Licenses uses these so a download
+    /// ticking elsewhere does not re-evaluate a static license list.
+    var installedCatalogModels: [CatalogModel] {
+        (catalog?.models ?? []).filter { statuses[$0.id] == .installed }
+    }
+
     /// The catalog row whose model is published under `repo` (the engine's model id), if the catalog lists one.
     func row(forRepo repo: String) -> ModelBrowserRow? {
         rows.first { $0.model?.repo == repo }
@@ -281,7 +297,7 @@ final class ModelBrowserModel {
         localFolders = Self.localFolders(
             in: weightsRoot, flatFolderNames: Set(catalogModels.map { Self.lastComponent(of: $0.repo) }))
         if let installs {
-            apply(await installs.installer.snapshot)
+            apply(await installs.installer.snapshot, recordsRate: false)
         }
         var found: [String: ModelInstallStatus] = [:]
         for model in catalogModels {
@@ -307,12 +323,24 @@ final class ModelBrowserModel {
         return url.path
     }
 
-    /// Follows the installer's updates so progress and interruptions stay current while the browser is open.
-    func observe() async {
-        guard let installs else { return }
-        let installer = installs.installer
-        for await snapshot in await installer.updates() {
-            apply(snapshot)
+    /// Keeps one installer subscription for the model's lifetime. Views used to run their own observers, which meant
+    /// progress disappeared when no browser was open and every extra observer added duplicate rate samples.
+    private func observeInstaller() {
+        guard let installer = installs?.installer else {
+            observationTask?.cancel()
+            observationTask = nil
+            observedInstaller = nil
+            return
+        }
+        let identifier = ObjectIdentifier(installer)
+        guard observedInstaller != identifier else { return }
+        observationTask?.cancel()
+        observedInstaller = identifier
+        observationTask = Task { [weak self] in
+            for await snapshot in await installer.updates() {
+                guard let self else { return }
+                self.apply(snapshot)
+            }
         }
     }
 
@@ -353,11 +381,24 @@ final class ModelBrowserModel {
 
     /// Starts `modelID`'s install as a license Confirm would, without presenting the sheet (KTD15): the Chat download
     /// card accepted the license in its own UI. A running install finishes first, and the new install's task is
-    /// returned so the caller can await it — nil when the model is not in the catalog or cannot start.
+    /// returned so the caller can await it — nil when the model is not in the catalog or cannot start. Card items use
+    /// this queueing form because one card can accept several models in sequence.
     @discardableResult
     func installAccepted(_ modelID: String) async -> Task<Void, Never>? {
         guard let model = catalog?.models.first(where: { $0.id == modelID }) else { return nil }
         await installTask?.value
+        let now = Date()
+        acceptances[Self.licenseKey(model)] = now
+        start(model, acceptedAt: now)
+        return installTask
+    }
+
+    /// Starts an already-accepted install now, or returns nil when another install owns the slot or the row cannot act.
+    /// Single-action callers use this instead of `installAccepted`: a click must never turn into a delayed restart
+    /// after the user cancels the install it was waiting behind.
+    @discardableResult
+    func installAcceptedNow(_ modelID: String) -> Task<Void, Never>? {
+        guard let model = startableModel(modelID) else { return nil }
         let now = Date()
         acceptances[Self.licenseKey(model)] = now
         start(model, acceptedAt: now)
@@ -401,14 +442,16 @@ final class ModelBrowserModel {
         }
     }
 
-    private func apply(_ snapshot: ModelInstaller.Snapshot) {
+    private func apply(_ snapshot: ModelInstaller.Snapshot, recordsRate: Bool = true) {
         active = snapshot.active
         if let active = snapshot.active {
             if rateModelID != active.modelID {
                 rate = InstallRateEstimator()
                 rateModelID = active.modelID
             }
-            rate.record(bytes: active.event.bytesDone, at: Date())
+            if recordsRate {
+                rate.record(bytes: active.event.bytesDone, at: Date())
+            }
         } else {
             rate = InstallRateEstimator()
             rateModelID = nil

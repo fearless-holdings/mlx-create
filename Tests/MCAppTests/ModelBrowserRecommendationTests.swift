@@ -59,8 +59,6 @@ import Testing
 
     @Test func installingKeepsTheRecommendationOnScreenWithCancel() async throws {
         let rig = try await rig(outcomes: [.holds])
-        let observer = Task { await rig.browser.observe() }
-        defer { observer.cancel() }
 
         rig.browser.beginInstall(Self.alpha.id)
         rig.browser.license.accepted = true

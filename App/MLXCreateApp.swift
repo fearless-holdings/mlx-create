@@ -46,12 +46,15 @@ struct MLXCreateApp: App {
         }
         .commands { MainCommands() }
         Settings {
-            if case .ready(let model) = launch.phase {
+            switch launch.phase {
+            case .ready(let model):
                 SettingsView(model: model)
-            } else {
+            case .loading:
                 ProgressView()
                     .padding(32)
                     .frame(width: 360, height: 160)
+            case .failed(let error):
+                SettingsFailureView(error: error)
             }
         }
     }
@@ -102,7 +105,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 /// Shown while the library opens. The open runs off the main actor, so this is all the window has to show (R15).
-/// The two launch views keep literal spacing: the app target cannot see MCApp's internal design tokens.
+/// The launch views and `SettingsFailureView` keep literal spacing and fonts: the app target cannot see MCApp's internal
+/// design tokens.
 private struct LaunchLoadingView: View {
     var body: some View {
         VStack(spacing: 12) {
@@ -112,6 +116,28 @@ private struct LaunchLoadingView: View {
         }
         .padding(32)
         .frame(minWidth: 480, minHeight: 200)
+    }
+}
+
+/// Settings cannot assemble the app either when startup failed, so it explains the failure instead of spinning.
+private struct SettingsFailureView: View {
+    let error: Error
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Text("Settings are unavailable")
+                .font(.title2)
+            Text("mlx-create could not start: \(error.localizedDescription)")
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+                .multilineTextAlignment(.center)
+            Text("Quit and reopen mlx-create. If it fails again, the reason above says what to fix.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(32)
+        .frame(width: 420, height: 190)
     }
 }
 

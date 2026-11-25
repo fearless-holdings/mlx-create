@@ -53,7 +53,7 @@ extension ChatModel {
         guard !context.models.isEmpty else {
             // No installed image model and nothing the catalog offers that installs can fetch: the agent
             // has nothing to plan with, so the request fails the same way a missing agent does (D60).
-            await append(.error(notReadyMessage(for: text)), collectionID: collectionID)
+            await append(.error(notReadyMessage(for: text, context: context)), collectionID: collectionID)
             return
         }
         var working = context
@@ -232,10 +232,24 @@ extension ChatModel {
     }
 
     /// Chat needs the agent model and at least one image model it can use — installed, or offered for
-    /// download. Said when the agent is missing or no model option exists at all (installs off and nothing
-    /// installed).
-    private func notReadyMessage(for text: String) -> ChatFailure {
-        ChatFailure(text: ChatCopy.notReady, retryRequest: text)
+    /// download. When no model option exists, say whether the user should wait for a running download or
+    /// whether installs are off; pointing them at Image ▸ Models… in either case would mislead.
+    private func notReadyMessage(for text: String, context: AgentContext? = nil) -> ChatFailure {
+        let message: String
+        if context != nil {
+            if let active = app.browser.active,
+                app.browser.catalogModel(id: active.modelID)?.kind == .image
+            {
+                message = ChatCopy.imageModelDownloading
+            } else if app.installs == nil {
+                message = ChatCopy.imageInstallsUnavailable
+            } else {
+                message = ChatCopy.notReady
+            }
+        } else {
+            message = ChatCopy.notReady
+        }
+        return ChatFailure(text: message, retryRequest: text)
     }
 
     /// The `.error` a failed chat call records (KTD17); each one offers the same request again.

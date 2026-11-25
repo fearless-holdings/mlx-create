@@ -55,7 +55,6 @@ struct ModelBrowserView: View {
         .frame(minWidth: 680, minHeight: 500)
         .task {
             await browser.refresh()
-            await browser.observe()
         }
         .sheet(isPresented: licensePresented) {
             if let pending = browser.license.pending {
