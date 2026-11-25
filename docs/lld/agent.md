@@ -110,6 +110,8 @@ sequenceDiagram
 
 Phases (KTD7): idle, thinking, waiting for a download, generating (with the job id), checking. **Stop** (R18): while a turn is not idle, Send becomes Stop, also ⌘.; it cancels the LLM reply — cancelling the Swift task closes the connection — or the running job. The user can type but not send. A stopped job's placeholder goes and the message reads as stopped (AE5).
 
+**Readiness (D60, amended 2026-11-24).** Chat is ready once the engine lists the agent model; an installed image model is not required — with none, the agent's options are the catalog's fitting models marked for download and a `generate` plan naming one becomes a `.download` card whose Accept installs it, after which the parked request runs. Until then Chat mode shows the setup screen (`ChatSetupView`) instead of the conversation: it installs the agent through `installAccepted` (the license acceptance is recorded there, D20) and walks the install's phases until the engine lists the model. A conversation still empty when Chat first becomes ready gets `ChatCopy.greeting`, appended once even across overlapping refreshes. First-launch setup cards earlier builds posted stay in the store and keep reconciling, but the view filters them out, and no new ones are posted.
+
 ## 3. Context sent to the LLM (KTD3, KTD4, KTD14)
 
 `AgentPrompt.request` builds the `ChatRequest` from an `AgentContext` (KTD14): the fixed system text (the rules, the options with their keys, the family guides; stable across turns so the engine's prefix cache holds it), then the last 12 messages, then the referent's settings and image.
@@ -189,7 +191,7 @@ Messages live in table `chat_message`, migration `v12-chat-message`, written in 
 | `agentText` | the agent's sentence |
 | `question` | text, suggestions, chosen |
 | `result` | sentence, job id |
-| `download` | text, items, state, pending request (with its pinned referent and agent-only note), setup flag |
+| `download` | text, items, state, pending request (with its pinned referent and agent-only note), setup flag (set only by pre-amendment builds; such cards are hidden but still reconcile) |
 | `adultNotice` | the D61 notice (switch, Retry) |
 | `error` | text, retry |
 
@@ -215,6 +217,6 @@ Default tier, all steps (session2.json unless noted):
 1. Same request → Qwen-Image-2.1-Turbo, 1344×768, 1 image; first text 2.3 s, 104 s. `engineLoadedAfter=[]` (everything evicted when the step ended).
 2. "make it night" → same model and size, fixed seed 3075727599; first text 2.1 s, 38 s. `referentWasStepOneImage=true`, `sameModel=true`. `engineLoadedAfter=[]`.
 
-Step 9 (added 2026-11-23, `Tests/MCAppTests/ChatSetupStep.swift`) covers first-launch setup (D60). With `MLXC_CHAT_SETUP_DIR` naming a `Weights`-layout directory holding only the agent model, a second throwaway session is built with the app's real downloader, and `MLXC_CHAT_SETUP_MODEL_ID` may assert the offered catalog id. The step waits for the card to be offered only after the first refresh, parks a typed request on it, accepts — a real catalog download — and proves the card finishes when the engine lists the model and the parked request runs once. On this Mac it offered `qwen-image-2.1-turbo-4bit` (the rank-1 pick at this working set); the download took about 16 minutes, after which the parked lighthouse request rendered on the offered model: job `done`, one image, exactly one `.userText` — the request was recorded when parked, not again when replayed.
+Step 9 (added 2026-11-23, rewritten 2026-11-24 for the amended D60, `Tests/MCAppTests/ChatSetupStep.swift`) covers first-launch setup. With `MLXC_CHAT_SETUP_DIR` naming a `Weights`-layout directory holding only the agent model, a second throwaway session is built with the app's real downloader, and `MLXC_CHAT_SETUP_MODEL_ID` may assert the agent catalog id the setup screen installs. The step asserts Chat is not ready, runs the setup screen's action — `installAccepted` on the catalog's agent model, a real download — waits for `chatReady` and the greeting, then sends the lighthouse request. With no image model installed the agent sees only download offers, so the turn ends in a non-setup `.download` card proposing an image model; Accept runs that real download, the card finishes when the engine lists the model, and the parked request runs once — job `done`, one image, exactly one `.userText`, recorded when parked, not again when replayed.
 
 Not exercised: the Chat GUI flow and every view (blocked by a pending system authentication dialog on this Mac); a physical 16 GB Mac (the tier was forced).

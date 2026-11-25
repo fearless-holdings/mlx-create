@@ -12,8 +12,9 @@ import Testing
 /// of this. `MLXC_CHAT_TIER_GIB` forces the engine's resident-model tier; `MLXC_CHAT_STEPS` limits the run;
 /// `MLXC_CHAT_IMAGES_DIR` overrides where step images are copied (default: `images/` beside the record).
 /// `MLXC_CHAT_SETUP_DIR` enables the first-launch step: a `Weights`-layout directory holding only the agent model,
-/// so the setup card offers the image model and Accept runs the real download. `MLXC_CHAT_SETUP_MODEL_ID` is the
-/// catalog id the card is expected to offer; when unset the offered id is only recorded.
+/// so the setup screen's Download installs it for real and the first request offers an image-model download.
+/// `MLXC_CHAT_SETUP_MODEL_ID` is the catalog id the setup agent install is expected to use; when unset the id is
+/// only recorded.
 struct ChatSessionEnvironment {
     let engineBinary: URL
     let modelDirectory: URL

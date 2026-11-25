@@ -16,16 +16,6 @@ enum ChatCopy {
     static let agentNotLoaded = "The chat model couldn't be loaded. Try again."
     /// The first line of a fresh install's conversation (D60).
     static let greeting = "Hi. Tell me what picture you want and I'll make it."
-    /// The setup card's sentence (R26): it names what is missing, in the user's words.
-    static func setupOffer(needsImageModel: Bool, needsAgentModel: Bool) -> String {
-        if needsImageModel && needsAgentModel {
-            return "First I need two downloads: an image model and my own model. They stay on this Mac."
-        }
-        if needsAgentModel {
-            return "I need one download before we start: my own model. It stays on this Mac."
-        }
-        return "I need one download before we start: an image model. It stays on this Mac."
-    }
 
     /// A card's install did not finish — the user cancelled it or the app quit mid-download. Accept retries it.
     static let downloadInterrupted = "The download was interrupted."

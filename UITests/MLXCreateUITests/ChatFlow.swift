@@ -82,7 +82,7 @@ extension SmokeSession {
     func runChatFlow() {
         step("Launch in Chat mode") {
             launchOnBuiltInDisplay()
-            require(chatField, within: 120, "the chat input never appeared: the agent or the image model is not ready")
+            require(chatField, within: 120, "the chat input never appeared: the agent model is not ready")
         }
         step("Send the prompt") {
             // Every icon button is a labelled, laid-out element (the chevron used to resolve to an empty frame).

@@ -64,10 +64,10 @@ final class ChatModel {
     /// The cards whose Accept flow is running now, so a reload or refresh can tell a live install from one a
     /// relaunch left behind.
     var activeDownloadMessageIDs: Set<Int64> = []
-    /// Mutual exclusion for `offerSetupIfNeeded`: a concurrent run raises the flag and the in-flight run repeats,
-    /// so two overlapping model refreshes cannot append the card (and greeting) twice.
-    var offerSetupRunning = false
-    var offerSetupAgain = false
+    /// Mutual exclusion for `offerGreetingIfNeeded`: a concurrent run raises the flag and the in-flight run
+    /// repeats, so two overlapping model refreshes cannot append the greeting twice.
+    var greetingRunning = false
+    var greetingAgain = false
 
     /// The collection the running turn writes to, captured when the turn is claimed — `send` or a card's held
     /// request — so a switch mid-turn never misfiles a message and a clear can tell whose work the phase is.
@@ -230,7 +230,7 @@ final class ChatModel {
         await refreshJobCache()
         await resumeFollowing()
         await reconcileCards()
-        await offerSetupIfNeeded()
+        await offerGreetingIfNeeded()
         await resumeHeldRequests()
     }
 }

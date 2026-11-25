@@ -43,14 +43,15 @@ extension ChatModel {
                 return card.items.filter { $0.kind == .model }.map(\.id)
             })
         for row in app.browser.rows(of: .image) {
-            // Offerable means a card's Accept can start it: not installed, not installing, and not a stray
-            // folder the installer cannot touch. Failed, interrupted and missing-file installs can resume.
+            // Offerable means a card's Accept can start it: installs are on, the model is not installed,
+            // not installing, and not a stray folder the installer cannot touch. Failed, interrupted and
+            // missing-file installs can resume. With installs off an offer could never run, so none is made.
             let offerable =
                 switch row.state {
                 case .available, .interrupted, .failed, .missingFiles: true
                 case .installed, .installing, .unverified: false
                 }
-            guard offerable, let catalog = row.model, row.fit != .exceeds,
+            guard app.installs != nil, offerable, let catalog = row.model, row.fit != .exceeds,
                 !dismissedIDs.contains(catalog.id),
                 let family = app.registry.families.first(where: { $0.id == catalog.family })
             else { continue }

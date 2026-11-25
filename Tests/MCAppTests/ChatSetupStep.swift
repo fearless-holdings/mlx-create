@@ -5,10 +5,10 @@ import Testing
 
 @testable import MCApp
 
-/// Step 9 of the real-engine Chat session: the first-launch setup path (D60). Kept out of
-/// `ChatRealEngineSessionTests` for size — it owns one concept: wait for the offered card, park a
-/// request on it, accept it — a real download — then prove the card finished when the engine listed
-/// the model and the parked request ran once.
+/// Step 9 of the real-engine Chat session: the first-launch setup path (D60, amended 2026-11-24). Kept out
+/// of `ChatRealEngineSessionTests` for size — it owns one concept: install the agent through the setup
+/// screen's action, wait for Chat to become ready, then prove a request with no image model installed
+/// gets a non-setup `.download` card whose Accept runs the real download and resumes the parked request.
 extension ChatRealEngineSessionTests {
     func runSetupStep(
         _ setup: ChatSession, env: ChatSessionEnvironment, imagesOut: URL,
@@ -18,41 +18,59 @@ extension ChatRealEngineSessionTests {
         let before = Set(setup.chat.messages.map(\.id))
         var notes: [String] = []
 
-        // The offer lands once the first models refresh has read install status; before that the
-        // missing-model check runs on unknown state and nothing may appear.
+        // Nothing is ready until the agent model is installed and the engine lists it. The setup screen's
+        // Download, Resume and Retry are all `installAccepted`: it records the license acceptance (D20)
+        // and runs the real catalog download. The session shares the main run's defaults, where the
+        // greeting was already posted — clear the flag so this first-launch session greets again.
+        setup.defaults.removeObject(forKey: ChatModel.greetingDefaultsKey)
+        try await eventually(timeout: .seconds(300)) { setup.model.modelsLoaded }
+        #expect(setup.chat.chatReady == false, "chat was ready before the agent install")
+        let agentModel = try #require(
+            setup.model.browser.catalogModel(ofKind: .agent), "the catalog lists no agent model")
+        notes.append("agentModel=\(agentModel.id)")
+        if let expected = env.setupModelID {
+            #expect(agentModel.id == expected, "setup installs \(agentModel.id), not \(expected)")
+        }
+
+        let install = await setup.model.browser.installAccepted(agentModel.id)
+        try #require(install != nil, "the agent install did not start")
+        await install?.value
+        try await eventually(timeout: .seconds(300)) { setup.chat.chatReady }
+        notes.append("agentInstalledAfter=\(Date().timeIntervalSince(started))")
+
+        // Chat ready on an empty conversation posts the greeting once (D60).
+        try await eventually(timeout: .seconds(30)) {
+            setup.chat.messages.contains {
+                if case .agentText(let text) = $0.body { return text == ChatCopy.greeting }
+                return false
+            }
+        }
+
+        // With no image model installed the agent sees only the catalog's download offers, so the
+        // lighthouse request resolves to a `.download` card proposing one — never a setup card (D60).
+        let text = "a lighthouse on a cliff at sunset"
+        await setup.chat.send(text: text)
+        await setup.chat.turnTask?.value
         var cardID: Int64?
-        try await eventually(timeout: .seconds(300)) {
+        try await eventually(timeout: .seconds(600)) {
             cardID =
                 setup.chat.messages.last(where: {
-                    if case .download = $0.body { return true }
-                    return false
+                    guard case .download(let card) = $0.body else { return false }
+                    return !card.isSetup
                 })?.id
             return cardID != nil
         }
-        let id = try #require(cardID, "the setup card was never offered")
+        let id = try #require(cardID, "no download card was offered")
         let body = setup.chat.messages.first { $0.id == id }.flatMap {
             if case .download(let body) = $0.body { return body }
             return nil
         }
-        let offered = try #require(body, "the setup card is not a download")
-        #expect(offered.isSetup, "the first-launch card is not marked as setup")
+        let offered = try #require(body, "the download card is not a download")
         #expect(offered.state == .offered)
+        #expect(offered.pendingRequest == text, "the request did not park on the card")
         let offeredModel = try #require(
-            offered.items.first(where: { $0.kind == .model }), "the setup card offered no model")
+            offered.items.first(where: { $0.kind == .model }), "the card offered no model")
         notes.append("offered=\(offeredModel.id)")
-        if let expected = env.setupModelID {
-            #expect(offeredModel.id == expected, "setup offered \(offeredModel.id), not \(expected)")
-        }
-
-        // A request sent while the card stands parks on it instead of starting a turn.
-        let text = "a lighthouse on a cliff at sunset"
-        await setup.chat.send(text: text)
-        await setup.chat.turnTask?.value
-        let parked = setup.chat.messages.first { $0.id == id }.flatMap {
-            if case .download(let body) = $0.body { return body.pendingRequest }
-            return nil
-        }
-        #expect(parked == text, "the request did not park on the setup card")
 
         // Accept runs the real install; the card reaches a terminal state when the engine lists the
         // model (or the install genuinely failed).
@@ -68,7 +86,7 @@ extension ChatRealEngineSessionTests {
             if case .download(let body) = $0.body { return body }
             return nil
         }
-        #expect(terminal?.state == .finished, "the setup card did not finish: \(String(describing: terminal?.state))")
+        #expect(terminal?.state == .finished, "the download card did not finish: \(String(describing: terminal?.state))")
         notes.append("cardFinishedAfter=\(Date().timeIntervalSince(started))")
 
         // The parked request resumes as the next turn — its `.userText` was already recorded, so the
