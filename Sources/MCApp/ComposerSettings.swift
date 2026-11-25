@@ -3,7 +3,7 @@ import SwiftUI
 
 /// The composer's settings below the prompt: the size is always visible, while the seed controls, steps, CFG scale and
 /// negative prompt sit behind "More options". Which rows exist follows the selected family through ``SettingsControls``.
-/// All of it lies on one two-column grid — labels trailing in the first column, controls in the second — so every row
+/// All of it lies on one two-column grid — labels leading in the first column, controls in the second — so every row
 /// shares the composer's leading edge and no label wraps (P01).
 struct ComposerSettings: View {
     @Bindable var model: AppModel
@@ -34,12 +34,13 @@ struct ComposerSettings: View {
     }
 
     /// One labelled row. The label fills its column so its frame's leading edge is the column's for every row, while
-    /// the text inside trails against the controls; `.lineLimit(1)` keeps it to one line whatever the panel's width.
+    /// the text inside leads against the panel's edge — the audit measures the labels' leading x against the other
+    /// rows (P01). `.lineLimit(1)` keeps it to one line whatever the panel's width.
     private func row<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
         GridRow {
             Text(title)
                 .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .trailing)
+                .frame(maxWidth: .infinity, alignment: .leading)
             content()
         }
     }
