@@ -105,7 +105,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 /// Shown while the library opens. The open runs off the main actor, so this is all the window has to show (R15).
-/// The two launch views keep literal spacing: the app target cannot see MCApp's internal design tokens.
+/// The launch views and `SettingsFailureView` keep literal spacing and fonts: the app target cannot see MCApp's internal
+/// design tokens.
 private struct LaunchLoadingView: View {
     var body: some View {
         VStack(spacing: 12) {
@@ -130,7 +131,7 @@ private struct SettingsFailureView: View {
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
                 .multilineTextAlignment(.center)
-            Text("Restart the app. If the message appears again, the library needs repair.")
+            Text("Quit and reopen mlx-create. If it fails again, the reason above says what to fix.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
