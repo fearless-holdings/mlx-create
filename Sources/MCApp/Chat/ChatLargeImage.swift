@@ -23,11 +23,9 @@ struct ChatLargeImage: View {
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 13, weight: .semibold))
-                    // no token: the close glyph is sized like the tile-menu chip's (MCSize.tileMenuButton).
-                    .frame(width: MCSize.tileMenuButton, height: MCSize.tileMenuButton)
-                    // no token: a fixed dark chip keeps contrast over any image, like the tile menu.
-                    .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: MCRadius.field))
-                    .foregroundStyle(.white)
+                    // no token: the close glyph is sized for the fixed round button.
+                    .frame(width: MCSize.minHitTarget, height: MCSize.minHitTarget)
+                    .background(.regularMaterial, in: Circle())
             }
             .buttonStyle(.plain)
             .keyboardShortcut(.cancelAction)

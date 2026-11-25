@@ -45,6 +45,8 @@ enum MCSize {
     static let emptyStateSymbol: CGFloat = 44
     static let civitaiThumbnail: CGFloat = 64
     static let tileMenuButton: CGFloat = 24
+    /// The smallest hit area a button may offer, whatever its glyph's size (P04, P05).
+    static let minHitTarget: CGFloat = 28
     /// Name and confirmation sheets.
     static let sheetNarrow: CGFloat = 360
     /// License, enhancer and other single-purpose sheets.
