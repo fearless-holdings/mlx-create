@@ -338,6 +338,23 @@ func browserRow(_ rows: [ModelBrowserRow], _ id: String) -> ModelBrowserRow? {
         #expect(rig.browser.license.pending == nil)
     }
 
+    @Test func installAcceptedNowNeverQueuesBehindAnActiveInstall() async throws {
+        let rig = try await BrowserRig.make(outcomes: [.holds])
+
+        let first = try #require(rig.browser.installAcceptedNow(BrowserFixture.alpha.id))
+        #expect(rig.browser.installAcceptedNow(BrowserFixture.alpha.id) == nil, "a fast second click does not queue")
+        #expect(rig.browser.installAcceptedNow(BrowserFixture.beta.id) == nil, "another model does not queue either")
+
+        rig.browser.cancelInstall()
+        await first.value
+
+        #expect(rig.transport.requests.map(\.modelID) == [BrowserFixture.alpha.id])
+        guard case .interrupted = browserRow(rig.browser.rows, BrowserFixture.alpha.id)?.state else {
+            Issue.record("the cancelled install must read as interrupted")
+            return
+        }
+    }
+
     @Test func licenseSheetRendersTheCatalogSummaryLinkAndCommercialFlag() async throws {
         let rig = try await BrowserRig.make()
 
@@ -380,8 +397,6 @@ func browserRow(_ rows: [ModelBrowserRow], _ id: String) -> ModelBrowserRow? {
 
     @Test func whileOneInstallIsActiveEveryOtherRowIsDisabledWithAOneLineReason() async throws {
         let rig = try await BrowserRig.make(outcomes: [.holds])
-        let observer = Task { await rig.browser.observe() }
-        defer { observer.cancel() }
 
         rig.browser.beginInstall(BrowserFixture.alpha.id)
         rig.browser.license.accepted = true
@@ -478,14 +493,8 @@ func browserRow(_ rows: [ModelBrowserRow], _ id: String) -> ModelBrowserRow? {
         #expect(harness.model.canvasMode == .emptyHint)
     }
 
-    @Test func reopeningTheSheetKeepsProgressLive() async throws {
+    @Test func installProgressIsObservedWithoutAView() async throws {
         let rig = try await BrowserRig.make(outcomes: [.holds])
-        let closedSheet = Task { await rig.browser.observe() }
-        closedSheet.cancel()
-        await closedSheet.value
-
-        let reopenedSheet = Task { await rig.browser.observe() }
-        defer { reopenedSheet.cancel() }
         rig.browser.beginInstall(BrowserFixture.alpha.id)
         rig.browser.license.accepted = true
         rig.browser.confirmLicense()
@@ -544,12 +553,10 @@ func browserRow(_ rows: [ModelBrowserRow], _ id: String) -> ModelBrowserRow? {
         #expect(rig.transport.requests.count == 1, "nothing is requested again")
     }
 
-    /// The install sheet observes installs, so Downloading and Cancel show once an install starts. A second Install press
-    /// while it runs does not reopen the license sheet.
+    /// The browser model observes installs itself, so Downloading and Cancel show with no view observer. A second
+    /// Install press while it runs does not reopen the license sheet.
     @Test func enhancerInstallSheetShowsDownloadingAndRefusesASecondStart() async throws {
         let rig = try await BrowserRig.make(outcomes: [.holds], catalog: BrowserFixture.catalogWithEnhancer)
-        let sheet = Task { await rig.browser.observe() }
-        defer { sheet.cancel() }
 
         rig.browser.beginInstall(BrowserFixture.enhancer.id)
         rig.browser.license.accepted = true

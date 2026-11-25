@@ -317,16 +317,15 @@ struct ChatRealEngineSessionTests {
                     notes: ["snapshotMessages=\(snapshot.count)"]))
         }
 
-        // Step 9 is opt-in through `MLXC_CHAT_SETUP_DIR`: the default run leaves it out, and only naming it
-        // explicitly without the directory is a failure.
-        if env.runs(9), let setupDirectory = env.setupDirectory {
-            // First launch (D60): a second throwaway session whose Weights hold only the agent model —
-            // the setup screen's Download installs it for real, Chat becomes ready, and the first request
-            // gets a non-setup `.download` card whose Accept runs the image-model download.
+        // Step 9 is separately opt-in through `MLXC_CHAT_SETUP=1`, even when `MLXC_CHAT_STEPS` is empty:
+        // unlike the other steps it downloads both the agent and an image model.
+        if env.runs(9) {
+            try #require(env.setupEnabled, "step 9 needs MLXC_CHAT_SETUP=1")
+            // First launch (D60): a second throwaway session whose Weights start empty — the setup screen's
+            // Download installs the agent for real, Chat becomes ready, and the first request gets a non-setup
+            // `.download` card whose Accept runs the image-model download.
             let setupRoot = session.root.appending(path: "setup", directoryHint: .isDirectory)
-            let setup = try await ChatSession.makeSetup(
-                env: env, setupDirectory: setupDirectory, root: setupRoot,
-                defaults: session.defaults)
+            let setup = try await ChatSession.makeSetup(env: env, root: setupRoot)
             do {
                 try await runSetupStep(setup, env: env, imagesOut: imagesOut, record: &record)
             } catch {

@@ -19,10 +19,9 @@ extension ChatRealEngineSessionTests {
         var notes: [String] = []
 
         // Nothing is ready until the agent model is installed and the engine lists it. The setup screen's
-        // Download, Resume and Retry are all `installAccepted`: it records the license acceptance (D20)
-        // and runs the real catalog download. The session shares the main run's defaults, where the
-        // greeting was already posted — clear the flag so this first-launch session greets again.
-        setup.defaults.removeObject(forKey: ChatModel.greetingDefaultsKey)
+        // Download, Resume and Retry are the non-queueing `installAcceptedNow`: each records the license
+        // acceptance (D20) and runs the real catalog download. The session's fresh defaults have no debug
+        // agent-id override and no greeting flag, so this is the same first launch a user gets.
         try await eventually(timeout: .seconds(300)) { setup.model.modelsLoaded }
         #expect(setup.chat.chatReady == false, "chat was ready before the agent install")
         let agentModel = try #require(
@@ -32,7 +31,7 @@ extension ChatRealEngineSessionTests {
             #expect(agentModel.id == expected, "setup installs \(agentModel.id), not \(expected)")
         }
 
-        let install = await setup.model.browser.installAccepted(agentModel.id)
+        let install = setup.model.browser.installAcceptedNow(agentModel.id)
         try #require(install != nil, "the agent install did not start")
         await install?.value
         try await eventually(timeout: .seconds(300)) { setup.chat.chatReady }

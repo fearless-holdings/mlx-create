@@ -46,12 +46,15 @@ struct MLXCreateApp: App {
         }
         .commands { MainCommands() }
         Settings {
-            if case .ready(let model) = launch.phase {
+            switch launch.phase {
+            case .ready(let model):
                 SettingsView(model: model)
-            } else {
+            case .loading:
                 ProgressView()
                     .padding(32)
                     .frame(width: 360, height: 160)
+            case .failed(let error):
+                SettingsFailureView(error: error)
             }
         }
     }
@@ -112,6 +115,28 @@ private struct LaunchLoadingView: View {
         }
         .padding(32)
         .frame(minWidth: 480, minHeight: 200)
+    }
+}
+
+/// Settings cannot assemble the app either when startup failed, so it explains the failure instead of spinning.
+private struct SettingsFailureView: View {
+    let error: Error
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Text("Settings are unavailable")
+                .font(.title2)
+            Text("mlx-create could not start: \(error.localizedDescription)")
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+                .multilineTextAlignment(.center)
+            Text("Restart the app. If the message appears again, the library needs repair.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(32)
+        .frame(width: 420, height: 190)
     }
 }
 
