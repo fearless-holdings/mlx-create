@@ -223,6 +223,7 @@ extension AppModel {
             canCancel: [JobStatus.queued, .running, .paused].contains(job.status),
             canRetry: job.status == .failed && job.failure?.retryable == true,
             loraIDs: job.request.loras?.map(\.id) ?? [],
-            loraNames: job.request.loras?.map(\.name) ?? [])
+            loraNames: job.request.loras?.map(\.name) ?? [],
+            position: job.position)
     }
 }

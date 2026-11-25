@@ -201,6 +201,15 @@ public actor LibraryStore {
         }
         migrator.registerMigration("v11-timing", migrate: Self.createTimingTables)
         migrator.registerMigration("v12-chat-message", migrate: Self.createChatMessageTable)
+        migrator.registerMigration("v13-job-position-dedup") { db in
+            // A job enqueued behind a running batch once inherited its position, so positions can repeat. Renumber
+            // them densely in the order the queue already ran (position, then insertion order), which decides ties the
+            // same way a resume would have: the older batch first.
+            let ids = try String.fetchAll(db, sql: "SELECT id FROM job ORDER BY position, rowid")
+            for (index, id) in ids.enumerated() {
+                try db.execute(sql: "UPDATE job SET position = ? WHERE id = ?", arguments: [index + 1, id])
+            }
+        }
         return migrator
     }
 
@@ -385,10 +394,11 @@ public actor LibraryStore {
                     FileManager.default.fileExists(atPath: file.path)
                 else { throw LibraryError.loraUnavailable(name: entry.name) }
             }
+            // Count every status, not just queued jobs: a running, paused or finished job keeps its position, so a new
+            // job after it must not inherit it. Otherwise Pause and Resume would tie the two, and which one runs first
+            // would come down to their ids instead of the order the user queued them in.
             let next =
-                try Int.fetchOne(
-                    db, sql: "SELECT COALESCE(MAX(position), 0) + 1 FROM job WHERE status = ?",
-                    arguments: [JobStatus.queued.rawValue]) ?? 1
+                try Int.fetchOne(db, sql: "SELECT COALESCE(MAX(position), 0) + 1 FROM job") ?? 1
             let job = Job(
                 id: UUID(), collectionID: collectionID, mode: mode, request: request,
                 batchCount: batchCount, seedPolicy: seedPolicy, status: .queued, position: next
@@ -404,7 +414,7 @@ public actor LibraryStore {
         try dbQueue.read { db in
             try JobRow
                 .filter(Column("status") == status.rawValue)
-                .order(Column("position"))
+                .order(Column("position"), Column("id"))
                 .fetchAll(db)
                 .map(\.job)
         }
@@ -432,12 +442,13 @@ public actor LibraryStore {
         }
     }
 
-    /// The oldest queued job, or nil when the queue is empty.
+    /// The oldest queued job, or nil when the queue is empty. A requeued job keeps its old position and can tie a newer
+    /// one, so ties go to the lower id; the Chat placeholders (`pendingTiles`) order jobs the same way.
     public func nextQueuedJob() throws -> Job? {
         try dbQueue.read { db in
             try JobRow
                 .filter(Column("status") == JobStatus.queued.rawValue)
-                .order(Column("position"))
+                .order(Column("position"), Column("id"))
                 .fetchOne(db)?
                 .job
         }
@@ -451,7 +462,7 @@ public actor LibraryStore {
             let queued =
                 try JobRow
                 .filter(Column("status") == JobStatus.queued.rawValue)
-                .order(Column("position"))
+                .order(Column("position"), Column("id"))
                 .fetchAll(db)
             guard let moving = queued.first(where: { $0.id == jobID.uuidString }) else {
                 throw LibraryError.notQueued

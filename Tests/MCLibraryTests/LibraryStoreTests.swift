@@ -1,4 +1,5 @@
 import Foundation
+import GRDB
 import ImageIO
 import Synchronization
 import Testing
@@ -178,6 +179,55 @@ import Testing
         await #expect(throws: LibraryError.notQueued) {
             try await store.moveQueuedJob(a.id, by: 1)
         }
+    }
+
+    /// A job enqueued behind a running batch must run after it: requeuing the batch keeps the order the user queued in.
+    @Test func aJobEnqueuedBehindARunningBatchRunsAfterItOnResume() async throws {
+        let root = try Self.tempRoot()
+        let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
+        let collection = try await store.defaultCollection()
+        let a = try await store.enqueueJob(collectionID: collection.id, request: Self.request(), batchCount: 2, seedPolicy: "a")
+        try await store.setJobStatus(a.id, .running)
+        let b = try await store.enqueueJob(collectionID: collection.id, request: Self.request(), batchCount: 1, seedPolicy: "b")
+        #expect(b.position > a.position)
+
+        try await store.setJobStatus(a.id, .paused)
+        try await store.setJobStatus(a.id, .queued)
+        #expect(try await store.nextQueuedJob()?.id == a.id)
+        #expect(try await store.jobs(status: .queued).map(\.id) == [a.id, b.id])
+    }
+
+    /// Libraries written before positions became unique can hold ties; the migration renumbers them in run order.
+    @Test func positionDedupMigrationRenumbersTiedJobsInInsertionOrder() async throws {
+        let root = try Self.tempRoot()
+        let paths = LibraryPaths(root: root, modelsRoot: root.appending(path: "Models"))
+        let collectionID = UUID()
+        let first = UUID()
+        let second = UUID()
+        let third = UUID()
+        do {
+            let queue = try DatabaseQueue(path: paths.database.path)
+            try LibraryStore.migrator.migrate(queue, upTo: "v12-chat-message")
+            let request = try JSONCoding.encode(Self.request())
+            let now = Date(timeIntervalSince1970: 1_790_000_000)
+            try await queue.write { db in
+                try db.execute(
+                    sql: "INSERT INTO collection (id, name, is_default, created_at) VALUES (?, 'Default', 1, ?)",
+                    arguments: [collectionID.uuidString, now])
+                for (id, position) in [(first, 1), (second, 1), (third, 3)] {
+                    try db.execute(
+                        sql: """
+                            INSERT INTO job (id, collection_id, mode, request, batch_count, seed_policy, status, position)
+                            VALUES (?, ?, 't2i', ?, 1, 'random', 'queued', ?)
+                            """,
+                        arguments: [id.uuidString, collectionID.uuidString, request, position])
+                }
+            }
+        }
+
+        let store = try LibraryStore(libraryRoot: root, modelsRoot: root.appending(path: "Models"))
+        #expect(try await store.jobs(status: .queued).map(\.position) == [1, 2, 3])
+        #expect(try await store.jobs(status: .queued).map(\.id) == [first, second, third])
     }
 
     @Test func failedPNGWriteLeavesNoPartialFile() async throws {

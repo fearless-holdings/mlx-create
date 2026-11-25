@@ -106,10 +106,10 @@ struct GalleryCollection: NSViewRepresentable {
             return scrollView
         }
 
-        /// The items to reconfigure in place: kept ids whose image record or pending tile changed — a running
-        /// tile's step keeps its id, so a progress-only update shows only here — plus the items whose selection
-        /// state flipped, so a click touches just the tiles it changed. New and removed ids are handled by the
-        /// item list itself.
+        /// The ids whose items are reconfigured in place: kept ids whose image record or pending tile changed — a
+        /// running tile's step keeps its id, so a progress-only update shows only here — plus the items whose
+        /// selection state flipped, so a click touches just the tiles it changed. New and removed ids are handled by
+        /// the item list itself.
         static func changedItemIDs(
             images newImages: [UUID: LibraryImage], was oldImages: [UUID: LibraryImage],
             pending newPending: [UUID: PendingTile], was oldPending: [UUID: PendingTile],
@@ -128,8 +128,10 @@ struct GalleryCollection: NSViewRepresentable {
             return changed
         }
 
-        /// Brings the grid in line with the model. Only the ids that changed are sent to the data source; an item whose
-        /// image record or selection state changed is reconfigured, which re-runs the item provider for it.
+        /// Brings the grid in line with the model. A changed id list goes to the data source as items only — never
+        /// `reloadItems`, which recreates items and flickers the grid on every progress tick. Kept ids whose image
+        /// record, tile or selection state changed are reconfigured in place on their visible items; off-screen
+        /// items pick the new lookups up when they scroll in.
         func update(
             images: [LibraryImage], selection: Set<UUID>, fullWindow: Bool, pending: [PendingTile],
             bottomInset: CGFloat
@@ -166,35 +168,41 @@ struct GalleryCollection: NSViewRepresentable {
                 selection: selection, appliedSelection: appliedSelection)
 
             let shownIDs = dataSource.snapshot().itemIdentifiers
-            let reconfigure = ids.filter { changed.contains($0) }
             imagesByID = newByID
             pendingByID = newPendingByID
             appliedSelection = selection
-            guard ids != shownIDs || !reconfigure.isEmpty else { return }
+            guard ids != shownIDs || !changed.isEmpty else { return }
 
-            var snapshot = NSDiffableDataSourceSnapshot<Section, UUID>()
-            snapshot.appendSections([.main])
-            snapshot.appendItems(ids, toSection: .main)
-            if !reconfigure.isEmpty {
-                snapshot.reloadItems(reconfigure)
+            if ids != shownIDs {
+                var snapshot = NSDiffableDataSourceSnapshot<Section, UUID>()
+                snapshot.appendSections([.main])
+                snapshot.appendItems(ids, toSection: .main)
+                applyKeepingScroll(snapshot, dataSource: dataSource) { [weak self] in
+                    self?.reconfigureVisible(changed, dataSource: dataSource)
+                }
+            } else {
+                reconfigureVisible(changed, dataSource: dataSource)
             }
-            applyKeepingScroll(snapshot, dataSource: dataSource)
         }
 
         private func makeItem(_ collectionView: NSCollectionView, indexPath: IndexPath, id: UUID) -> NSCollectionViewItem? {
+            guard pendingByID[id] != nil || imagesByID[id] != nil else { return nil }
+            let identifier =
+                pendingByID[id] != nil ? PendingCollectionItem.identifier : GalleryCollectionItem.identifier
+            let item = collectionView.makeItem(withIdentifier: identifier, for: indexPath)
+            configure(item, id: id)
+            return item
+        }
+
+        /// Fills `item` — dequeued by `makeItem` or already on screen — with `id`'s current content. Reused items swap
+        /// their hosting view's root view in place, keeping SwiftUI state such as a cell's hover.
+        private func configure(_ item: NSCollectionViewItem, id: UUID) {
             if let tile = pendingByID[id] {
-                let item =
-                    collectionView.makeItem(
-                        withIdentifier: PendingCollectionItem.identifier, for: indexPath)
-                    as? PendingCollectionItem
-                item?.configure(PendingTileCell(tile: tile))
-                return item
+                (item as? PendingCollectionItem)?.configure(PendingTileCell(tile: tile))
+                return
             }
-            guard let image = imagesByID[id],
-                let item = collectionView.makeItem(withIdentifier: GalleryCollectionItem.identifier, for: indexPath)
-                    as? GalleryCollectionItem
-            else { return nil }
-            item.configure(
+            guard let image = imagesByID[id], let galleryItem = item as? GalleryCollectionItem else { return }
+            galleryItem.configure(
                 ImageCell(
                     model: model,
                     image: image,
@@ -204,7 +212,18 @@ struct GalleryCollection: NSViewRepresentable {
                     onReusePrompt: { [model = self.model] in model.reusePrompt(of: image) },
                     onReuseSettings: { [model = self.model] in model.reuseSettings(of: image) }),
                 onRightClick: { [model = self.model] in model.prepareGalleryMenu(for: id) })
-            return item
+        }
+
+        /// Reconfigures the visible items for `ids` without touching the data source, so a progress tick does not
+        /// recreate them. An id with no visible item needs nothing: the provider reads the current lookups when it
+        /// scrolls in. Call after an apply's completion so `indexPath(for:)` reflects the new snapshot.
+        private func reconfigureVisible(_ ids: Set<UUID>, dataSource: NSCollectionViewDiffableDataSource<Section, UUID>) {
+            guard let collectionView else { return }
+            for id in ids {
+                guard let indexPath = dataSource.indexPath(for: id), let item = collectionView.item(at: indexPath)
+                else { continue }
+                configure(item, id: id)
+            }
         }
 
         /// A click on a tile: ⌘ toggles, ⇧ selects the range, and a plain click selects only that tile (R1). The grid then
@@ -232,17 +251,33 @@ struct GalleryCollection: NSViewRepresentable {
             }
         }
 
-        /// Applies without animation and then restores the scroll position. The data source does not keep the visible
-        /// content in place when rows are inserted above it, so a prepended image would push the view down. The anchor
-        /// is the top visible item and its offset from the top of the clip view, and it is captured only when scrolled
-        /// down: at the top, the newest image should stay in view.
+        /// Applies without visible animation and then restores the scroll position. The data source does not keep the
+        /// visible content in place when rows are inserted above it, so a prepended image would push the view down. The
+        /// anchor is the top visible item and its offset from the top of the clip view, and it is captured only when
+        /// scrolled down: at the top, the newest image should stay in view.
+        ///
+        /// `animatingDifferences: false` reloads the whole collection view on AppKit, which rebuilds every cell and
+        /// restarts each thumbnail's `AsyncImage`, so the grid blinks when an image lands. Once items are on screen the
+        /// snapshot is applied as a diff inside a zero-duration animation group instead: only the inserted and removed
+        /// items change, without motion. The first fill still reloads, as it has nothing to keep.
         private func applyKeepingScroll(
             _ snapshot: NSDiffableDataSourceSnapshot<Section, UUID>,
-            dataSource: NSCollectionViewDiffableDataSource<Section, UUID>
+            dataSource: NSCollectionViewDiffableDataSource<Section, UUID>,
+            then completion: (() -> Void)? = nil
         ) {
             let anchor = scrollAnchor(dataSource: dataSource)
-            dataSource.apply(snapshot, animatingDifferences: false) { [weak self] in
+            let finish: () -> Void = { [weak self] in
                 self?.restoreScroll(to: anchor, dataSource: dataSource)
+                completion?()
+            }
+            guard dataSource.snapshot().numberOfItems > 0 else {
+                dataSource.apply(snapshot, animatingDifferences: false, completion: finish)
+                return
+            }
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0
+                context.allowsImplicitAnimation = false
+                dataSource.apply(snapshot, animatingDifferences: true, completion: finish)
             }
         }
 
