@@ -453,11 +453,11 @@ private func writeTurboIndex(under weightsRoot: URL) throws {
         #expect(ready.model.canvasMode == .emptyHint)
         #expect(ready.model.showsQueueStrip == false)
 
-        // One saved image gives the canvas content, so the strip comes back.
+        // One saved image gives the canvas content, but a queue with no cells leaves the strip hidden (P08).
         _ = try await ready.saveImage(prompt: "a fox in snow")
         await ready.model.reload()
         #expect(ready.model.canvasMode == .content)
-        #expect(ready.model.showsQueueStrip)
+        #expect(ready.model.showsQueueStrip == false)
 
         // Calibration needs the header even with nothing queued.
         ready.model.queueHeader = .calibrating
