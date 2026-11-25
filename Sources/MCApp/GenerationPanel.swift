@@ -87,6 +87,9 @@ struct GenerationPanel: View {
         TextEditor(text: $model.prompt)
             .font(.mcBody)
             .scrollContentBackground(.hidden)
+            // A mouse attached to the Mac gives the editor a legacy scroller with a permanent track (P02); the
+            // probe gives its scroll view an overlay scroller, which never draws one.
+            .background { EditorScrollerOverlay() }
             .scrollIndicators(.automatic)
             .padding(MCSpacing.compact)
             .overlay(alignment: .topLeading) {
@@ -207,6 +210,8 @@ struct GenerationPanel: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
+            // Tahoe's prominent capsule hugs its title; only .buttonSizing makes it take the row's width.
+            .buttonSizing(.flexible)
             .frame(maxWidth: .infinity)
             .disabled(!model.canGenerate)
             .help(model.generateBlockReason ?? "Generate (⌘↩)")
@@ -262,5 +267,47 @@ struct GenerationPanel: View {
             .accessibilityLabel("Batch count")
             .accessibilityValue("\(model.batchCount)")
         }
+    }
+}
+
+/// Finds the `TextEditor`'s own `NSScrollView` (a sibling, reached through an ancestor's subtree) and switches it
+/// to overlay scrollers, which never draw a track. Needed only for P02: on a Mac with a mouse the editor's legacy
+/// scroller shows a permanent grey track even though the text fits.
+private struct EditorScrollerOverlay: NSViewRepresentable {
+    func makeNSView(context: Context) -> EditorScrollerProbe {
+        EditorScrollerProbe()
+    }
+
+    func updateNSView(_ nsView: EditorScrollerProbe, context: Context) {
+        nsView.applyOverlayStyle()
+    }
+}
+
+private final class EditorScrollerProbe: NSView {
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        guard window != nil else { return }
+        // The editor's scroll view can appear after this probe does, so try again on the next pass too.
+        DispatchQueue.main.async { [weak self] in self?.applyOverlayStyle() }
+    }
+
+    fileprivate func applyOverlayStyle() {
+        var container = superview
+        while let current = container {
+            if let scroll = Self.editorScrollView(in: current) {
+                // Overlay scrollers draw no track, and autohiding keeps the knob away until a real scroll happens.
+                scroll.scrollerStyle = .overlay
+                scroll.autohidesScrollers = true
+                return
+            }
+            container = current.superview
+        }
+    }
+
+    /// The first scroll view in the subtree whose document is a text view — the editor's, because this probe sits
+    /// inside the same editor branch.
+    private static func editorScrollView(in view: NSView) -> NSScrollView? {
+        if let scroll = view as? NSScrollView, scroll.documentView is NSTextView { return scroll }
+        return view.subviews.lazy.compactMap(editorScrollView(in:)).first
     }
 }
