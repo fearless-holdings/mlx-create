@@ -145,8 +145,9 @@ private func startedHarness(
         let order = model.galleryImages.map(\.id)
 
         #expect(model.galleryStatusLine == nil)
+        // A lone selection leaves the footer hidden; the count appears once two or more are selected (P07).
         model.selectGalleryImage(order[0], click: .plain)
-        #expect(model.galleryStatusLine == "1 of 3 selected")
+        #expect(model.galleryStatusLine == nil)
         model.selectAllGalleryImages()
         #expect(model.galleryStatusLine == "3 selected")
     }

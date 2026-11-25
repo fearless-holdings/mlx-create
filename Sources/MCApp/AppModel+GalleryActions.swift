@@ -208,9 +208,13 @@ extension AppModel {
         return canvasImage
     }
 
-    /// The status line under the grid: the selection count, then the last action's result (R18).
+    /// The status line under the grid: the selection count once two or more images are selected (P07), then the last
+    /// action's result (R18).
     var galleryStatusLine: String? {
-        let selected = GalleryText.selectionLine(selected: gallerySelection.count, matching: galleryMatchCount)
+        let selected =
+            gallerySelection.count >= 2
+            ? GalleryText.selectionLine(selected: gallerySelection.count, matching: galleryMatchCount)
+            : nil
         return [selected, galleryStatus].compactMap { $0 }.joined(separator: " ").nilIfEmpty
     }
 
