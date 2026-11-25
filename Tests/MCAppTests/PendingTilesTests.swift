@@ -9,11 +9,11 @@ import Testing
 @MainActor
 @Suite struct PendingTilesTests {
     private func job(
-        status: JobStatus, saved: Int, batch: Int, step: Int? = nil, total: Int? = nil
+        status: JobStatus, saved: Int, batch: Int, step: Int? = nil, total: Int? = nil, position: Int = 0
     ) -> JobItem {
         JobItem(
             id: UUID(), status: status, promptSnippet: "a fox", savedCount: saved, batchCount: batch,
-            step: step, total: total)
+            step: step, total: total, position: position)
     }
 
     @Test func noTilesOutsideChatMode() async throws {
@@ -53,6 +53,20 @@ import Testing
         #expect(tiles[1].id == PendingTile.id(jobID: queued.id, index: 0))
         #expect(tiles[2].id == PendingTile.id(jobID: running.id, index: 0))
         #expect(tiles[0].id != tiles[1].id)
+    }
+
+    /// Resume runs a paused batch at its old place in the queue, so its tiles sit beside the jobs it runs between.
+    @Test func aPausedJobsTilesKeepItsPlaceInTheRunOrder() async throws {
+        let harness = try await AppHarness.make()
+        harness.model.windowMode = .chat
+        let later = job(status: .queued, saved: 0, batch: 1, position: 3)
+        let paused = job(status: .paused, saved: 1, batch: 2, position: 2)
+        harness.model.queueJobs = [later, paused]
+
+        let tiles = harness.model.pendingTiles
+        #expect(tiles.map(\.jobID) == [later.id, paused.id])
+        #expect(tiles[1].id == PendingTile.id(jobID: paused.id, index: 1))
+        #expect(tiles.allSatisfy { !$0.isRunning })
     }
 
     @Test func tileIDsAreStableAcrossAProgressUpdate() async throws {

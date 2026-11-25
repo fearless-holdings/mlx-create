@@ -23,7 +23,7 @@ struct PendingTile: Identifiable, Equatable, Sendable {
 }
 
 extension AppModel {
-    /// The tiles still to make, newest first in the Chat-mode grid (KTD10): the reverse of queue order, so the job
+    /// The tiles still to make, newest first in the Chat-mode grid (KTD10): the reverse of run order, so the job
     /// that runs last leads and the running job's live tile is last, directly before the images. One tile per image a
     /// running, queued or paused job has not saved yet, indexed by the image's absolute number in the batch, so a
     /// finished image takes its tile's slot and the other tiles keep their ids. Only the running job's current tile
@@ -37,20 +37,22 @@ extension AppModel {
         if !queueJobs.isEmpty {
             for image in galleryImages { if let jobID = image.jobID { shownByJob[jobID, default: 0] += 1 } }
         }
-        for status in [JobStatus.running, .queued, .paused] {
-            for job in queueJobs where job.status == status {
-                let saved = max(job.savedCount, shownByJob[job.id] ?? 0)
-                let remaining = max(0, job.batchCount - saved)
-                for offset in 0..<remaining {
-                    let isRunningTile = status == .running && offset == 0
-                    tiles.append(
-                        PendingTile(
-                            id: PendingTile.id(jobID: job.id, index: saved + offset),
-                            jobID: job.id,
-                            isRunning: isRunningTile,
-                            step: isRunningTile ? job.step : nil,
-                            total: isRunningTile ? job.total : nil))
-                }
+        // Resume returns paused jobs to the queue at their old positions, so queued and paused jobs interleave by
+        // position, as the executor will run them. A paused job stopped mid-run, so it wins a tie.
+        let waiting = queueJobs.filter { $0.status == .queued || $0.status == .paused }
+            .sorted { ($0.position, $0.status == .paused ? 0 : 1) < ($1.position, $1.status == .paused ? 0 : 1) }
+        for job in queueJobs.filter({ $0.status == .running }) + waiting {
+            let saved = max(job.savedCount, shownByJob[job.id] ?? 0)
+            let remaining = max(0, job.batchCount - saved)
+            for offset in 0..<remaining {
+                let isRunningTile = job.status == .running && offset == 0
+                tiles.append(
+                    PendingTile(
+                        id: PendingTile.id(jobID: job.id, index: saved + offset),
+                        jobID: job.id,
+                        isRunning: isRunningTile,
+                        step: isRunningTile ? job.step : nil,
+                        total: isRunningTile ? job.total : nil))
             }
         }
         tiles.reverse()

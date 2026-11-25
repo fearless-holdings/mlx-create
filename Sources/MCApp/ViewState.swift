@@ -72,12 +72,14 @@ public struct JobItem: Equatable, Sendable, Identifiable {
     /// The LoRAs the job carries, as frozen when it was queued.
     public var loraIDs: [String]
     public var loraNames: [String]
+    /// The job's place in the run order among queued and paused jobs (lower runs first); a resume keeps it.
+    public var position: Int
 
     public init(
         id: UUID, status: JobStatus, promptSnippet: String, savedCount: Int, batchCount: Int,
         step: Int? = nil, total: Int? = nil, failure: JobFailure? = nil,
         canMoveUp: Bool = false, canMoveDown: Bool = false, canCancel: Bool = false, canRetry: Bool = false,
-        loraIDs: [String] = [], loraNames: [String] = []
+        loraIDs: [String] = [], loraNames: [String] = [], position: Int = 0
     ) {
         self.id = id
         self.status = status
@@ -93,6 +95,7 @@ public struct JobItem: Equatable, Sendable, Identifiable {
         self.canRetry = canRetry
         self.loraIDs = loraIDs
         self.loraNames = loraNames
+        self.position = position
     }
 
     /// A failed or cancelled job: its cell can be removed from the strip, and Clear removes it with the others.
