@@ -19,11 +19,12 @@ Deferred by the user to the next round: app icon, accent colour and product name
 - Not captured: the screen locked mid-session, so Settings and later states were read from source. Error states were covered by the first audit (`../screens/07-*`, `08-*`).
 - Real preferences were exported before and imported after. The `chatGreetingShown` flag is in the real defaults, so the full home shows no greeting; that is a test artefact, not a bug.
 
-## 2. Notch 1: craft fixes (in progress)
+## 2. Notch 1: craft fixes (done)
 
 Each item names its evidence, its code, the fix, and how to check it. Keep the [smoke contract](../README.md#13-smoke-contract-every-spec-must-keep): the labels "Prompt", "Seed", "Random"/"Fixed"/"Increment", the Size pop-up containing "×", "Generate", and "Model: ", "Generation progress", "Selected image: ", "Image: ".
 
 ### P01. The Seed label wraps to "Se / ed", and the composer's left edges don't line up
+- **Status: done (76eaadb, 9b1ede2). Deviation: labels lead rather than trail — the check measures the named elements' leading x, which only leading labels can satisfy.**
 
 - **Evidence:** `20-canvas-with-images_*`, `23-canvas-populated_*`, at both sizes. Size, "More options", Seed, the LoRAs header and "Add LoRA…" start at four different x positions. The LoRA section sits in an extra grey box with its own inset.
 - **Cause:** `ComposerSettings.seedRows`: a `LabeledContent` whose content is a `.fixedSize()` segmented picker. Inside the 320 pt panel, the extra `.padding(.leading, MCSpacing.section)` under "More options" squeezes the label column. `LoRASection` adds its own inset and fill.
@@ -31,6 +32,7 @@ Each item names its evidence, its code, the fix, and how to check it. Keep the [
 - **Check:** at 1100×692 and 1680×1050, every label is on one line, and the leading x of Size, More options, Seed, Steps, LoRAs and Add LoRA… differs by ≤ 1 pt (`ax dump` frames).
 
 ### P02. The prompt editor is a huge empty box with a permanent scrollbar track
+- **Status: done (7cbea33, 6ba5469). Deviation: `.scrollIndicators(.automatic)` alone still drew a persistent scroller on this Mac, so a probe gives the editor's `NSScrollView` an autohiding overlay scroller.**
 
 - **Evidence:** `02-empty-canvas_*`, `20-*`. In the large window the editor is about 550 pt tall with one line of text and a visible grey scroller track. Recent prompts and Enhance float under it, right-aligned and detached.
 - **Code:** `GenerationPanel.swift` (the prompt `TextEditor`, history button, Enhance).
@@ -38,6 +40,7 @@ Each item names its evidence, its code, the fix, and how to check it. Keep the [
 - **Check:** with a one-line prompt, the gap between the editor and Size is ≤ `MCSpacing.section`, and no scroller track is drawn. Tab still leaves the editor (I07).
 
 ### P03. The Generate row is cramped, and the disabled Generate reads as enabled in dark mode
+- **Status: done (7cbea33, 6ba5469). Deviation: Tahoe's prominent capsule hugs its title, so `.buttonSizing(.flexible)` makes the button full-width. The enabled label/fill is the system accent and measures 4.07:1, under the check's 4.5:1 — the spec bars a custom fill, so the stock style stands.**
 
 - **Evidence:** `02-empty-canvas_small_*`, `20-*_small_*`. "×1 [stepper] Type a prompt to generate [Generate]": the reason wraps onto two lines in an 85 pt column. The dark disabled Generate is a filled blue (`02-empty-canvas_large_dark`), as I12 already reported.
 - **Code:** `GenerationPanel.swift` footer.
@@ -49,6 +52,7 @@ Each item names its evidence, its code, the fix, and how to check it. Keep the [
 - **Check:** small window, empty prompt: the reason is on one line and the button reads as disabled in light and dark (contrast of the disabled label against its fill < 3:1, while the enabled one is ≥ 4.5:1).
 
 ### P04. The image action bar uses three button styles, and its targets are tiny
+- **Status: done (8f737ab, 7c2507f). Deviation: Tahoe's bezel hugs the symbol, so every icon label takes a shared minimum height — the flat `folder` glyph otherwise measured 26 pt.**
 
 - **Evidence:** `20-canvas-with-images_large_light`, `23-*`. "Reuse Settings" and "Export…" are bordered text buttons. Show in Finder is a 14×12 pt bare glyph and Move to Trash 12×14 pt (`ax dump`). In the small window Reuse is an unclear counter-clockwise arrow.
 - **Code:** `CanvasView.swift` (the image bar under the canvas, S06).
@@ -56,6 +60,7 @@ Each item names its evidence, its code, the fix, and how to check it. Keep the [
 - **Check:** every image-bar button frame is ≥ 28×28 pt in both window sizes; all four share one button style.
 
 ### P05. Chat's container controls are too small and look unfinished
+- **Status: done (19ffa43, b0cdc88, 4449689). Deviations: the 28 pt frame sits on each icon label (the element takes its bounds from the label, not the button); the More menu is `.menuStyle(.button)` because a borderless menu's element stays icon-sized; the large view needs `.accessibilityElement(children: .contain)` or `.focusable()` merges Close into a container-sized element.**
 
 - **Evidence:** `13-chat-*`, `14-chat-history-open_*`, `15-chat-large-image_*`. "Show conversation" is 38×16 pt, "More" (the conversation menu) is 21×15 pt, and Send is a grey square with a tiny glyph. The large view's Close is a 24 pt dark square at the top left.
 - **Code:** `ChatContainer.swift` (header, input row), `ChatLargeImage.swift`.
@@ -67,6 +72,7 @@ Each item names its evidence, its code, the fix, and how to check it. Keep the [
 - **Check:** `ax dump` frames ≥ 28×28 pt for Show/Hide conversation, More, Send/Stop and Close.
 
 ### P06. The agent's line stays in the present tense after the images land
+- **Status: done (7cd7c50).**
 
 - **Evidence:** `13-chat-batch-done_large_light`, `16-chat-populated_*`. The last line keeps reading "Making a cozy reading nook with a cat and a rainy window." after all four images are in the gallery. The progress line just disappears.
 - **Code:** the result message rendering in `ChatMessageRow.swift` and `ChatStatusLine.swift`, and the job bookkeeping in `ChatModel+Jobs.swift`.
@@ -74,6 +80,7 @@ Each item names its evidence, its code, the fix, and how to check it. Keep the [
 - **Check:** after a 4-image turn, the result row shows "4 images ready". After a relaunch it still does, derived from the job state rather than stored text.
 
 ### P07. The search field is a bare field across the whole window, and the selection count is always on
+- **Status: done (0466768).**
 
 - **Evidence:** `16-chat-populated_*`, `40-gallery-populated_*`. In Gallery and Chat, "Search prompts" is a plain text field about 1,570 pt wide with "Filters" beside it. "1 of 21 selected" sits in a footer at all times, including in Chat mode.
 - **Code:** `GalleryView.swift`.
@@ -81,6 +88,7 @@ Each item names its evidence, its code, the fix, and how to check it. Keep the [
 - **Check:** in Gallery mode at 1680 pt the search field is ≤ 340 pt wide. With one image selected no footer is shown.
 
 ### P08. "Queue empty" takes a row when nothing is queued
+- **Status: done (582c396).**
 
 - **Evidence:** `20-*`, `23-*`: a 32 pt strip that says "Queue empty" under the canvas.
 - **Code:** `MainWindow` (`showsQueueStrip`) and `QueueStripView`.
@@ -88,6 +96,7 @@ Each item names its evidence, its code, the fix, and how to check it. Keep the [
 - **Check:** with no jobs, there is no "Queue empty" text in `ax dump`. Queue one job and the strip appears.
 
 ### P09. Arrow keys don't step through images in the large view
+- **Status: done (ebcc89d, 4449689).**
 
 - **Evidence:** in Chat's large view, → left the same image shown (the `Selected image:` label was unchanged).
 - **Code:** `ChatLargeImage.swift` (Chat). Check the Canvas canvas too (`CanvasView`): ← → should move the selection as the gallery grid does (I08).
@@ -95,6 +104,7 @@ Each item names its evidence, its code, the fix, and how to check it. Keep the [
 - **Check:** open the first image large, press → and the label changes to the second image's prompt. Press ← and it returns.
 
 ### P10. The LoRA library's empty "Your LoRAs" tab and the Recommended list look unfinished
+- **Status: done (2366b7e).**
 
 - **Evidence:** `30-lora-sheet_small_light`: Recommended shows a single text-only row in an 880×620 sheet. `32-lora-yours_small_light`: "No LoRAs yet." with three equal buttons and a footer "Using Zero KB on disk".
 - **Code:** `LoRALibraryView.swift`, `ShelfView.swift`.
