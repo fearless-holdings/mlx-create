@@ -183,14 +183,20 @@ private struct CanvasImageBar: View {
         return "\(size) · \(name) · Seed \(String(image.seed))"
     }
 
+    /// One control group in one style (P04): the two text actions collapse to icons only through `ViewThatFits`,
+    /// the glyph actions match them, and the destructive one is separated. Every button keeps at least the
+    /// ``MCSize/minHitTarget`` hit area.
     private func buttons(labelled: Bool) -> some View {
         HStack(spacing: MCSpacing.regular) {
             Button {
                 model.reuseSettings(of: image)
             } label: {
-                if labelled { Text("Reuse Settings") } else { Image(systemName: "arrow.uturn.backward") }
+                if labelled {
+                    Label("Reuse Settings", systemImage: "wand.and.rays")
+                } else {
+                    Image(systemName: "wand.and.rays")
+                }
             }
-            .buttonStyle(.bordered)
             .help("Reuse Settings (⌘R)")
             .accessibilityLabel("Reuse Settings")
             .disabled(isBusy)
@@ -203,7 +209,6 @@ private struct CanvasImageBar: View {
                     Image(systemName: "square.and.arrow.up")
                 }
             }
-            .buttonStyle(.bordered)
             .help("Export…")
             .accessibilityLabel("Export")
             .disabled(isBusy)
@@ -212,20 +217,23 @@ private struct CanvasImageBar: View {
             } label: {
                 Image(systemName: "folder")
             }
-            .buttonStyle(.borderless)
             .help("Show in Finder")
             .accessibilityLabel("Show in Finder")
             .disabled(isBusy)
+            Divider()
+                .padding(.vertical, MCSpacing.tight)
             Button(role: .destructive) {
                 act { await model.deleteSelected(only: image.id) }
             } label: {
                 Image(systemName: "trash")
             }
-            .buttonStyle(.borderless)
             .help("Move to Trash")
             .accessibilityLabel("Move to Trash")
             .disabled(isBusy)
         }
+        .buttonStyle(.bordered)
+        .controlSize(.large)
+        .frame(minHeight: MCSize.minHitTarget)
         .fixedSize()
     }
 
