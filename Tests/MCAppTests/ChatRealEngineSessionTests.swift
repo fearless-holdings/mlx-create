@@ -317,9 +317,10 @@ struct ChatRealEngineSessionTests {
                     notes: ["snapshotMessages=\(snapshot.count)"]))
         }
 
-        // Step 9 is separately opt-in through `MLXC_CHAT_SETUP=1`, even when `MLXC_CHAT_STEPS` is empty:
-        // unlike the other steps it downloads both the agent and an image model.
-        if env.runs(9) {
+        // Step 9 is separately opt-in through `MLXC_CHAT_SETUP=1`: unlike the other steps it downloads both the
+        // agent and an image model, so an empty `MLXC_CHAT_STEPS` leaves it out, and only naming it without the
+        // opt-in is a failure.
+        if env.steps.contains(9) || (env.setupEnabled && env.runs(9)) {
             try #require(env.setupEnabled, "step 9 needs MLXC_CHAT_SETUP=1")
             // First launch (D60): a second throwaway session whose Weights start empty — the setup screen's
             // Download installs the agent for real, Chat becomes ready, and the first request gets a non-setup
