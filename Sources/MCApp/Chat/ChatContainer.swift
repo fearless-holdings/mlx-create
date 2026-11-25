@@ -92,27 +92,33 @@ struct ChatContainer: View {
                 unfurled.toggle()
             } label: {
                 // A Label with a title is one accessibility element named Show/Hide; a bare Image plus
-                // .accessibilityLabel produced a labelled element with no frame and a second image element.
+                // .accessibilityLabel produced a labelled element with no frame and a second image element. The
+                // frame sits on the label: the element takes its bounds from it, not from the button.
                 Label(
                     unfurled ? "Hide conversation" : "Show conversation",
-                    systemImage: unfurled ? "chevron.down" : "chevron.up")
+                    systemImage: unfurled ? "chevron.down" : "chevron.up"
+                )
+                .labelStyle(.iconOnly)
+                .frame(width: MCSize.minHitTarget, height: MCSize.minHitTarget)
+                .contentShape(Rectangle())
             }
-            .labelStyle(.iconOnly)
             .buttonStyle(.borderless)
-            .frame(width: MCSize.minHitTarget, height: MCSize.minHitTarget)
             Spacer()
             Menu {
                 Button("Clear Conversation…") { confirmClear = true }
             } label: {
                 Label("Conversation options", systemImage: "ellipsis.circle")
+                    .labelStyle(.iconOnly)
+                    .frame(width: MCSize.minHitTarget, height: MCSize.minHitTarget)
+                    .contentShape(Rectangle())
             }
-            .labelStyle(.iconOnly)
             // A Menu does not take its accessibility label from the Label's title; set it directly.
             .accessibilityLabel("Conversation options")
-            .menuStyle(.borderlessButton)
+            // A borderless menu measures its accessibility element by the icon, never reaching the
+            // ``MCSize/minHitTarget``; the bordered style makes the whole button the element.
+            .menuStyle(.button)
             .menuIndicator(.hidden)
-            .frame(width: MCSize.minHitTarget, height: MCSize.minHitTarget)
-            .fixedSize()
+            .controlSize(.large)
         }
     }
 
