@@ -191,7 +191,9 @@ private struct CanvasImageBar: View {
 
     /// One control group in one style (P04): the two text actions collapse to icons only through `ViewThatFits`,
     /// the glyph actions match them, and the destructive one is separated. Every button keeps at least the
-    /// ``MCSize/minHitTarget`` hit area.
+    /// ``MCSize/minHitTarget`` hit area. Tahoe's bezel hugs the symbol, so the icon-only labels all take
+    /// ``iconHeight`` — a flat glyph like `folder` would otherwise measure under the minimum.
+    private static let iconHeight: CGFloat = 18
     private func buttons(labelled: Bool) -> some View {
         HStack(spacing: MCSpacing.regular) {
             Button {
@@ -201,6 +203,7 @@ private struct CanvasImageBar: View {
                     Label("Reuse Settings", systemImage: "wand.and.rays")
                 } else {
                     Image(systemName: "wand.and.rays")
+                        .frame(minHeight: Self.iconHeight)
                 }
             }
             .help("Reuse Settings (⌘R)")
@@ -213,6 +216,7 @@ private struct CanvasImageBar: View {
                     Label("Export…", systemImage: "square.and.arrow.up")
                 } else {
                     Image(systemName: "square.and.arrow.up")
+                        .frame(minHeight: Self.iconHeight)
                 }
             }
             .help("Export…")
@@ -222,6 +226,7 @@ private struct CanvasImageBar: View {
                 act { await model.revealSelected(only: image.id) }
             } label: {
                 Image(systemName: "folder")
+                    .frame(minHeight: Self.iconHeight)
             }
             .help("Show in Finder")
             .accessibilityLabel("Show in Finder")
@@ -232,6 +237,7 @@ private struct CanvasImageBar: View {
                 act { await model.deleteSelected(only: image.id) }
             } label: {
                 Image(systemName: "trash")
+                    .frame(minHeight: Self.iconHeight)
             }
             .help("Move to Trash")
             .accessibilityLabel("Move to Trash")
