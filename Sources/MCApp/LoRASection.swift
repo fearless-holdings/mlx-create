@@ -9,40 +9,38 @@ struct LoRASection: View {
 
     var body: some View {
         if model.loraSectionVisible || model.loraAddEnabled {
-            Form {
-                Section {
-                    ForEach(model.loraStack) { row in
-                        LoRARowView(model: model, row: row)
+            // A plain stack, not a grouped Form: the header and rows sit on the composer's leading edge with no
+            // extra boxed fill around them (P01).
+            VStack(alignment: .leading, spacing: MCSpacing.group) {
+                Text("LoRAs")
+                    .font(.mcSupporting)
+                    .foregroundStyle(.secondary)
+                ForEach(model.loraStack) { row in
+                    LoRARowView(model: model, row: row)
+                }
+                if !model.loraStack.isEmpty && model.loraStack.allSatisfy({ $0.fit != .fits }) {
+                    Text("None of these will be used.")
+                        .font(.mcSupporting)
+                }
+                if let progress = model.loraImportProgress {
+                    importProgress(progress)
+                }
+                if let notice = model.loraNotice {
+                    Text(notice)
+                        .font(.mcSupporting)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if model.loraMemoryHint {
+                    Text("Many LoRAs use extra memory on this Mac.")
+                        .font(.mcSupporting)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if model.loraAddEnabled {
+                    Button("Add LoRA…") {
+                        model.isLoRALibraryPresented = true
                     }
-                    if !model.loraStack.isEmpty && model.loraStack.allSatisfy({ $0.fit != .fits }) {
-                        Text("None of these will be used.")
-                            .font(.mcSupporting)
-                    }
-                    if let progress = model.loraImportProgress {
-                        importProgress(progress)
-                    }
-                    if let notice = model.loraNotice {
-                        Text(notice)
-                            .font(.mcSupporting)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    if model.loraMemoryHint {
-                        Text("Many LoRAs use extra memory on this Mac.")
-                            .font(.mcSupporting)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    if model.loraAddEnabled {
-                        Button("Add LoRA…") {
-                            model.isLoRALibraryPresented = true
-                        }
-                    }
-                } header: {
-                    Text("LoRAs")
                 }
             }
-            .formStyle(.grouped)
-            .scrollDisabled(true)
-            .fixedSize(horizontal: false, vertical: true)
         }
     }
 

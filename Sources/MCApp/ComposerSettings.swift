@@ -3,33 +3,44 @@ import SwiftUI
 
 /// The composer's settings below the prompt: the size is always visible, while the seed controls, steps, CFG scale and
 /// negative prompt sit behind "More options". Which rows exist follows the selected family through ``SettingsControls``.
+/// All of it lies on one two-column grid — labels trailing in the first column, controls in the second — so every row
+/// shares the composer's leading edge and no label wraps (P01).
 struct ComposerSettings: View {
     @Bindable var model: AppModel
     let controls: SettingsControls
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(alignment: .leading, spacing: MCSpacing.group) {
-            LabeledContent("Size") { sizePicker }
+        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: MCSpacing.regular, verticalSpacing: MCSpacing.group) {
+            row("Size") { sizePicker }
             moreOptionsToggle
             if model.showsMoreOptions {
-                VStack(alignment: .leading, spacing: MCSpacing.group) {
-                    seedRows
-                    stepsRow
-                    if let guidance = controls.guidance {
-                        guidanceRow(guidance)
-                    }
-                    if controls.showsNegativePrompt {
-                        LabeledContent("Negative prompt") {
-                            TextField("Things to avoid", text: $model.negativePrompt, axis: .vertical)
-                                .lineLimit(1...4)
-                                .textFieldStyle(.roundedBorder)
-                                .accessibilityLabel("Negative prompt")
-                        }
+                row("Seed") { seedPolicyPicker }
+                if model.seedChoice != .random {
+                    GridRow {
+                        Color.clear
+                        seedField
                     }
                 }
-                .padding(.leading, MCSpacing.section)
+                stepsRow
+                if let guidance = controls.guidance {
+                    guidanceRow(guidance)
+                }
+                if controls.showsNegativePrompt {
+                    row("Negative prompt") { negativePromptField }
+                }
             }
+        }
+    }
+
+    /// One labelled row. The label fills its column so its frame's leading edge is the column's for every row, while
+    /// the text inside trails against the controls; `.lineLimit(1)` keeps it to one line whatever the panel's width.
+    private func row<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
+        GridRow {
+            Text(title)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+            content()
         }
     }
 
@@ -43,7 +54,8 @@ struct ComposerSettings: View {
         .fixedSize()
     }
 
-    /// Opens and closes the disclosure. Its collapsed label carries the summary of every non-default option.
+    /// Opens and closes the disclosure, as a full-width row spanning both grid columns. Its collapsed label carries
+    /// the summary of every non-default option.
     private var moreOptionsToggle: some View {
         Button {
             if reduceMotion {
@@ -73,37 +85,37 @@ struct ComposerSettings: View {
         .accessibilityValue(model.showsMoreOptions ? "expanded" : (model.moreOptionsSummary ?? "collapsed"))
     }
 
-    @ViewBuilder
-    private var seedRows: some View {
-        LabeledContent("Seed") {
-            Picker("Seed policy", selection: $model.seedChoice) {
-                Text("Random").tag(SeedChoice.random)
-                Text("Fixed").tag(SeedChoice.fixed)
-                Text("Increment").tag(SeedChoice.increment)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .fixedSize()
+    private var seedPolicyPicker: some View {
+        Picker("Seed policy", selection: $model.seedChoice) {
+            Text("Random").tag(SeedChoice.random)
+            Text("Fixed").tag(SeedChoice.fixed)
+            Text("Increment").tag(SeedChoice.increment)
         }
-        if model.seedChoice != .random {
-            TextField(
-                model.seedChoice == .fixed ? "Seed" : "Base seed",
-                text: $model.seedText
-            )
-            .monospacedDigit()
-            .accessibilityLabel(model.seedChoice == .fixed ? "Seed" : "Base seed")
-            .textFieldStyle(.roundedBorder)
-            .frame(maxWidth: 160)
-        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .fixedSize()
+    }
+
+    private var seedField: some View {
+        TextField(
+            model.seedChoice == .fixed ? "Seed" : "Base seed",
+            text: $model.seedText
+        )
+        .monospacedDigit()
+        .accessibilityLabel(model.seedChoice == .fixed ? "Seed" : "Base seed")
+        .textFieldStyle(.roundedBorder)
+        .frame(maxWidth: 160, alignment: .leading)
     }
 
     @ViewBuilder
     private var stepsRow: some View {
         if controls.stepsAreFixed {
-            Text("\(controls.steps.defaultSteps) steps, set by the model")
-                .foregroundStyle(.secondary)
+            row("Steps") {
+                Text("\(controls.steps.defaultSteps) steps, set by the model")
+                    .foregroundStyle(.secondary)
+            }
         } else {
-            LabeledContent {
+            row("Steps") {
                 HStack(spacing: MCSpacing.regular) {
                     Text(model.steps.map(String.init) ?? "Default")
                         .monospacedDigit()
@@ -122,15 +134,12 @@ struct ComposerSettings: View {
                             .buttonStyle(.link)
                     }
                 }
-            } label: {
-                Text("Steps")
             }
-            .accessibilityValue(model.steps.map { "\($0)" } ?? "Default")
         }
     }
 
     private func guidanceRow(_ guidance: GuidanceCapability) -> some View {
-        LabeledContent {
+        row("CFG scale") {
             HStack(spacing: MCSpacing.regular) {
                 Slider(
                     value: Binding(
@@ -149,8 +158,13 @@ struct ComposerSettings: View {
                         .buttonStyle(.link)
                 }
             }
-        } label: {
-            Text("CFG scale")
         }
+    }
+
+    private var negativePromptField: some View {
+        TextField("Things to avoid", text: $model.negativePrompt, axis: .vertical)
+            .lineLimit(1...4)
+            .textFieldStyle(.roundedBorder)
+            .accessibilityLabel("Negative prompt")
     }
 }
