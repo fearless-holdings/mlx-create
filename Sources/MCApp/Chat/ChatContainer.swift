@@ -38,7 +38,7 @@ struct ChatContainer: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: MCSpacing.group) {
+        VStack(alignment: .leading, spacing: MCSpacing.regular) {
             if !visibleMessages.isEmpty {
                 header
                 messagesArea
@@ -114,11 +114,9 @@ struct ChatContainer: View {
             }
             // A Menu does not take its accessibility label from the Label's title; set it directly.
             .accessibilityLabel("Conversation options")
-            // A borderless menu measures its accessibility element by the icon, never reaching the
-            // ``MCSize/minHitTarget``; the bordered style makes the whole button the element.
-            .menuStyle(.button)
+            // A borderless menu's accessibility element stays icon-sized even over the full hit area; accepted for
+            // the quiet header look (P05).
             .menuIndicator(.hidden)
-            .controlSize(.large)
         }
     }
 
