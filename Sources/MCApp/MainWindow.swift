@@ -52,6 +52,9 @@ public struct MainWindow: View {
             ToolbarItem(placement: .navigation) {
                 CollectionMenu(model: model)
             }
+            ToolbarItem(placement: .principal) {
+                ModePicker(mode: $model.windowMode)
+            }
             ToolbarSpacer(.flexible, placement: .primaryAction)
             ToolbarItem(placement: .primaryAction) {
                 // Chat mode shows no model chip (R5); the other two modes keep it.
@@ -81,6 +84,67 @@ public struct MainWindow: View {
         case 0: return ""
         case 1: return "1 image"
         default: return "\(count) images"
+        }
+    }
+}
+
+/// The toolbar's principal view-mode switch (N2-2). Writes through the same ``AppModel/windowMode`` setter as the
+/// View menu's Show picker, so the choice persists and every side effect matches. An `NSSegmentedControl`,
+/// because only it carries a help tag per segment.
+private struct ModePicker: NSViewRepresentable {
+    @Binding var mode: MainWindowMode
+
+    private static let titles: [MainWindowMode: String] = [.chat: "Chat", .canvas: "Canvas", .gallery: "Gallery"]
+    private static let symbols: [MainWindowMode: String] = [
+        .chat: "bubble.left.and.text.bubble.right",
+        .canvas: "slider.horizontal.below.rectangle",
+        .gallery: "square.grid.2x2",
+    ]
+    private static let shortcuts: [MainWindowMode: String] = [.chat: "⌘1", .canvas: "⌘2", .gallery: "⌘3"]
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(mode: $mode)
+    }
+
+    func makeNSView(context: Context) -> NSSegmentedControl {
+        let control = NSSegmentedControl()
+        control.trackingMode = .selectOne
+        control.segmentCount = MainWindowMode.allCases.count
+        control.target = context.coordinator
+        control.action = #selector(Coordinator.change(_:))
+        for (index, item) in MainWindowMode.allCases.enumerated() {
+            control.setLabel(Self.titles[item]!, forSegment: index)
+            control.setImage(
+                NSImage(systemSymbolName: Self.symbols[item]!, accessibilityDescription: nil),
+                forSegment: index)
+            control.setImageScaling(.scaleProportionallyDown, forSegment: index)
+            control.setToolTip("\(Self.titles[item]!) (\(Self.shortcuts[item]!))", forSegment: index)
+        }
+        control.setAccessibilityLabel("View mode")
+        updateSelection(control)
+        return control
+    }
+
+    func updateNSView(_ control: NSSegmentedControl, context: Context) {
+        updateSelection(control)
+    }
+
+    private func updateSelection(_ control: NSSegmentedControl) {
+        let index = MainWindowMode.allCases.firstIndex(of: mode) ?? 0
+        if control.selectedSegment != index {
+            control.selectedSegment = index
+        }
+    }
+
+    final class Coordinator: NSObject {
+        @Binding var mode: MainWindowMode
+
+        init(mode: Binding<MainWindowMode>) {
+            _mode = mode
+        }
+
+        @objc func change(_ control: NSSegmentedControl) {
+            mode = MainWindowMode.allCases[control.selectedSegment]
         }
     }
 }
