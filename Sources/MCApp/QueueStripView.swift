@@ -114,10 +114,7 @@ struct JobCell: View {
             .padding(MCSpacing.regular)
             .frame(width: 176, height: 64, alignment: .topLeading)
             .background(MCTone.cardFill, in: RoundedRectangle(cornerRadius: MCRadius.card))
-            .overlay(
-                RoundedRectangle(cornerRadius: MCRadius.card)
-                    .stroke(selected ? MCTone.selection : Color.clear, lineWidth: MCStroke.selection)
-            )
+            .mcSelectionRing(selected)
         }
         .buttonStyle(.plain)
         // The cell reads as one element. This sits before the Remove overlay so that button stays an element of its own.

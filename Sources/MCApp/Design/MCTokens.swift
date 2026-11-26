@@ -105,4 +105,28 @@ enum MCTone {
     static let separator = Color(nsColor: .separatorColor)
     static let textBackground = Color(nsColor: .textBackgroundColor)
     static let controlBackground = Color(nsColor: .controlBackgroundColor)
+    /// The 1 pt halo just outside the selection ring (N2-1): Safelight alone reads 1.78:1 against the dark
+    /// sidebar material, so the ring carries a contrasting edge that keeps the whole outline >= 3:1.
+    static let selectionHalo = Color(
+        nsColor: NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                ? NSColor(white: 1, alpha: 0.9)
+                : NSColor(white: 0, alpha: 0.55)
+        })
+}
+
+extension View {
+    /// The selected-tile or queue-cell ring (N2-1): the accent ring plus a 1 pt halo flush outside it, so the
+    /// outline keeps >= 3:1 against the column background in both appearances.
+    func mcSelectionRing(_ isSelected: Bool, cornerRadius: CGFloat = MCRadius.card) -> some View {
+        overlay(
+            RoundedRectangle(cornerRadius: cornerRadius)
+                .stroke(isSelected ? MCTone.selection : Color.clear, lineWidth: MCStroke.selection)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: cornerRadius)
+                .inset(by: -(MCStroke.selection / 2 + MCStroke.hairline / 2))
+                .stroke(isSelected ? MCTone.selectionHalo : Color.clear, lineWidth: MCStroke.hairline)
+        )
+    }
 }
