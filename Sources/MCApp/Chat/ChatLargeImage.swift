@@ -14,11 +14,18 @@ struct ChatLargeImage: View {
     @State private var image: LibraryImage?
     /// The view takes focus so ← and → step through the gallery (P09); Esc still reaches Close.
     @FocusState private var focused: Bool
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         ZStack(alignment: .topLeading) {
             if let image {
                 SelectedImageView(model: model, image: image)
+                    .shadow(
+                        color: .black.opacity(
+                            colorScheme == .dark ? MCShadow.imageOpacityDark : MCShadow.imageOpacityLight),
+                        radius: MCShadow.imageRadius,
+                        y: MCShadow.imageY
+                    )
             }
             Button {
                 model.chat.largeImageID = nil
@@ -39,6 +46,7 @@ struct ChatLargeImage: View {
         .padding(MCSpacing.section)
         .padding(.bottom, bottomPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(MCTone.studio)
         // .focusable() would merge the children's accessibility into one element that reports the container's frame.
         .accessibilityElement(children: .contain)
         .focusable()

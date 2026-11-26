@@ -8,6 +8,7 @@ struct CanvasView: View {
 
     var body: some View {
         canvas
+            .background(MCTone.studio)
             .overlay(alignment: .top) {
                 if let notice = model.dropNotice {
                     DropRestoreBanner(notice: notice) { model.dismissDropNotice() }
@@ -49,12 +50,19 @@ struct CanvasView: View {
 /// image bar below it (S06). With no image the stack is centred on the canvas instead.
 private struct ContentCanvas: View {
     let model: AppModel
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(spacing: MCSpacing.group) {
             if let image = model.canvasImage {
                 SelectedImageView(model: model, image: image)
                     .id(image.id)
+                    .shadow(
+                        color: .black.opacity(
+                            colorScheme == .dark ? MCShadow.imageOpacityDark : MCShadow.imageOpacityLight),
+                        radius: MCShadow.imageRadius,
+                        y: MCShadow.imageY
+                    )
                     .overlay(alignment: .bottom) {
                         CanvasStatusStack(model: model)
                     }
@@ -179,6 +187,10 @@ private struct CanvasImageBar: View {
                 buttons(labelled: false)
             }
         }
+        .padding(.horizontal, MCSpacing.section)
+        .padding(.vertical, MCSpacing.regular)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: MCRadius.panel))
     }
 
     private var isBusy: Bool { model.galleryBulk != nil }
