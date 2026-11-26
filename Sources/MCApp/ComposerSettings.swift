@@ -33,15 +33,28 @@ struct ComposerSettings: View {
         }
     }
 
-    /// One labelled row. The label fills its column so its frame's leading edge is the column's for every row, while
-    /// the text inside leads against the panel's edge — the audit measures the labels' leading x against the other
-    /// rows (P01). `.lineLimit(1)` keeps it to one line whatever the panel's width.
+    /// Every label a row can carry for these controls, whether the row is shown or not. The label column keeps one
+    /// width — the widest of these — so the controls column's leading edge never moves when "More options" opens or
+    /// closes (P01).
+    private var labelTitles: [String] {
+        var titles = ["Size", "Seed", "Steps"]
+        if controls.guidance != nil { titles.append("CFG scale") }
+        if controls.showsNegativePrompt { titles.append("Negative prompt") }
+        return titles
+    }
+
+    /// One labelled row. Hidden copies of every possible label pin the first column to the widest label the family
+    /// can show; the second column takes the flexible width and leads, so a control's leading x is the same in every
+    /// disclosure state. `.lineLimit(1)` keeps a label to one line whatever the panel's width.
     private func row<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
         GridRow {
-            Text(title)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            ZStack(alignment: .leading) {
+                ForEach(labelTitles, id: \.self) { Text($0).lineLimit(1).hidden() }
+                Text(title)
+                    .lineLimit(1)
+            }
             content()
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -94,7 +107,8 @@ struct ComposerSettings: View {
         }
         .pickerStyle(.segmented)
         .labelsHidden()
-        .fixedSize()
+        // Flexible like the rest of the controls column: a fixed size would overflow the composer when the pinned
+        // label column leaves it less room (P01).
     }
 
     private var seedField: some View {
@@ -150,7 +164,7 @@ struct ComposerSettings: View {
                     in: guidance.min...guidance.max,
                     step: 0.1
                 )
-                .frame(width: 160)
+                .frame(maxWidth: 160)
                 Text(model.guidance.map { $0.formatted(.number.precision(.fractionLength(1))) } ?? "Default")
                     .monospacedDigit()
                     .foregroundStyle(model.guidance == nil ? .secondary : .primary)
