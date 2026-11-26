@@ -29,6 +29,12 @@ struct GalleryView: View {
             }
         }
         .frame(minWidth: 200, idealWidth: 260, maxWidth: .infinity, maxHeight: .infinity)
+        // Only Canvas mode's gallery column is a sidebar; the full-window gallery is content (N2-3).
+        .background {
+            if model.windowMode == .canvas {
+                SidebarMaterial()
+            }
+        }
     }
 
     /// The search and filters are useless before the first image, but must stay while a search hides every image.
