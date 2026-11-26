@@ -42,6 +42,8 @@ struct ChatLargeImage: View {
         // .focusable() would merge the children's accessibility into one element that reports the container's frame.
         .accessibilityElement(children: .contain)
         .focusable()
+        // Focus is needed for ← →, but the system ring reads as a mistake over the picture.
+        .focusEffectDisabled()
         .focused($focused)
         .onKeyPress(keys: [.leftArrow, .rightArrow], phases: .down) { press in
             model.stepImageSelection(from: imageID, by: press.key == .leftArrow ? -1 : 1)
