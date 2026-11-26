@@ -5,7 +5,8 @@ import SwiftUI
 struct ModelBrowserView: View {
     @Bindable var browser: ModelBrowserModel
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.mcWindowSize) private var windowSize
+    /// The main window's content size: the sheet targets ``MCSize/sheetWindowFraction`` of it (N2-5).
+    let windowSize: CGSize
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -54,8 +55,8 @@ struct ModelBrowserView: View {
             }
         }
         .frame(
-            minWidth: 680, idealWidth: max(680, windowSize.width * MCSize.sheetWindowFraction),
-            minHeight: 500, idealHeight: max(500, windowSize.height * MCSize.sheetWindowFraction)
+            width: max(680, windowSize.width * MCSize.sheetWindowFraction),
+            height: max(500, windowSize.height * MCSize.sheetWindowFraction)
         )
         .task {
             await browser.refresh()

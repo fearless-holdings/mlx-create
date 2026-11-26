@@ -18,7 +18,8 @@ private enum LoRASheetTab: String, CaseIterable, Identifiable {
 struct LoRALibraryView: View {
     @Bindable var model: AppModel
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.mcWindowSize) private var windowSize
+    /// The main window's content size: the sheet targets ``MCSize/sheetWindowFraction`` of it (N2-5).
+    let windowSize: CGSize
     @State private var tab: LoRASheetTab
     @State private var query = ""
     @State private var compatibleOnly = true
@@ -30,8 +31,9 @@ struct LoRALibraryView: View {
     /// The Civitai model IDs stored by the Civitai tab since Your LoRAs was last shown.
     @State private var justAddedModelIDs: Set<Int> = []
 
-    init(model: AppModel) {
+    init(model: AppModel, windowSize: CGSize = .zero) {
         self.model = model
+        self.windowSize = windowSize
         _tab = State(initialValue: Self.initialTab(model))
     }
 
@@ -98,8 +100,8 @@ struct LoRALibraryView: View {
             }
         }
         .frame(
-            minWidth: 880, idealWidth: max(880, windowSize.width * MCSize.sheetWindowFraction),
-            minHeight: 620, idealHeight: max(620, windowSize.height * MCSize.sheetWindowFraction)
+            width: max(880, windowSize.width * MCSize.sheetWindowFraction),
+            height: max(620, windowSize.height * MCSize.sheetWindowFraction)
         )
         .task {
             await model.refreshLoRALibrary()
