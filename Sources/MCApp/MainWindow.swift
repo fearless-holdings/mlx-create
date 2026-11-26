@@ -1,10 +1,5 @@
 import SwiftUI
 
-extension EnvironmentValues {
-    /// The main window's content size, so sheets can grow with the window (N2-5).
-    @Entry var mcWindowSize: CGSize = .zero
-}
-
 public struct MainWindow: View {
     @Bindable var model: AppModel
     @State private var contentSize: CGSize = .zero
@@ -51,7 +46,6 @@ public struct MainWindow: View {
         }
         .frame(minWidth: 1100, minHeight: 640)
         .onGeometryChange(for: CGSize.self, of: { $0.size }) { contentSize = $0 }
-        .environment(\.mcWindowSize, contentSize)
         .focusedSceneValue(\.appModel, model)
         .navigationTitle(model.currentCollection.name)
         .navigationSubtitle(imageCountSubtitle)
@@ -72,10 +66,10 @@ public struct MainWindow: View {
             }
         }
         .sheet(isPresented: $model.isBrowserPresented) {
-            ModelBrowserView(browser: model.browser)
+            ModelBrowserView(browser: model.browser, windowSize: contentSize)
         }
         .sheet(isPresented: $model.isLoRALibraryPresented) {
-            LoRALibraryView(model: model)
+            LoRALibraryView(model: model, windowSize: contentSize)
         }
         .sheet(item: $model.collectionEditor) { editor in
             CollectionNameSheet(model: model, editor: editor)
