@@ -19,7 +19,11 @@ struct GalleryView: View {
                 Divider()
             }
             content
-            if model.galleryStatusLine != nil || model.galleryBulk?.showsProgress == true {
+            // The footer is for the gallery's own state. Chat mode shows it only for a delete or export result and its
+            // progress, never for the selection alone (P07).
+            if model.galleryBulk?.showsProgress == true
+                || (model.windowMode == .chat ? model.galleryStatus != nil : model.galleryStatusLine != nil)
+            {
                 Divider()
                 GalleryStatusLine(model: model)
             }
@@ -84,10 +88,8 @@ private struct GalleryHeader: View {
 
     var body: some View {
         HStack(spacing: MCSpacing.compact) {
-            TextField("Search prompts", text: $searchText)
-                .textFieldStyle(.roundedBorder)
-                .disabled(isBusy)
-                .accessibilityLabel("Search prompts")
+            Spacer(minLength: 0)
+            searchField
             Button {
                 isFilterPresented.toggle()
             } label: {
@@ -120,6 +122,36 @@ private struct GalleryHeader: View {
         .onChange(of: model.currentCollection.id) {
             searchText = ""
         }
+    }
+
+    /// A search field in the platform's shape — loupe, text and a clear button — capped so the grid, not the header,
+    /// reads first (P07).
+    private var searchField: some View {
+        HStack(spacing: MCSpacing.tight) {
+            Image(systemName: "magnifyingglass")
+                .font(.mcSupporting)
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            TextField("Search prompts", text: $searchText)
+                .textFieldStyle(.plain)
+                .disabled(isBusy)
+                .accessibilityLabel("Search prompts")
+            if !searchText.isEmpty {
+                Button {
+                    searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
+            }
+        }
+        .padding(.horizontal, MCSpacing.regular)
+        .padding(.vertical, MCSpacing.compact)
+        .background(MCTone.textBackground, in: Capsule())
+        .overlay(Capsule().stroke(MCTone.separator, lineWidth: MCStroke.hairline))
+        .frame(maxWidth: 320)
     }
 }
 

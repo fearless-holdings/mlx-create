@@ -3,33 +3,59 @@ import SwiftUI
 
 /// The composer's settings below the prompt: the size is always visible, while the seed controls, steps, CFG scale and
 /// negative prompt sit behind "More options". Which rows exist follows the selected family through ``SettingsControls``.
+/// All of it lies on one two-column grid — labels leading in the first column, controls in the second — so every row
+/// shares the composer's leading edge and no label wraps (P01).
 struct ComposerSettings: View {
     @Bindable var model: AppModel
     let controls: SettingsControls
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(alignment: .leading, spacing: MCSpacing.group) {
-            LabeledContent("Size") { sizePicker }
+        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: MCSpacing.regular, verticalSpacing: MCSpacing.group) {
+            row("Size") { sizePicker }
             moreOptionsToggle
             if model.showsMoreOptions {
-                VStack(alignment: .leading, spacing: MCSpacing.group) {
-                    seedRows
-                    stepsRow
-                    if let guidance = controls.guidance {
-                        guidanceRow(guidance)
-                    }
-                    if controls.showsNegativePrompt {
-                        LabeledContent("Negative prompt") {
-                            TextField("Things to avoid", text: $model.negativePrompt, axis: .vertical)
-                                .lineLimit(1...4)
-                                .textFieldStyle(.roundedBorder)
-                                .accessibilityLabel("Negative prompt")
-                        }
+                row("Seed") { seedPolicyPicker }
+                if model.seedChoice != .random {
+                    GridRow {
+                        // no token: an empty label cell, so the seed field sits in the controls column.
+                        Color.clear
+                        seedField
                     }
                 }
-                .padding(.leading, MCSpacing.section)
+                stepsRow
+                if let guidance = controls.guidance {
+                    guidanceRow(guidance)
+                }
+                if controls.showsNegativePrompt {
+                    row("Negative prompt") { negativePromptField }
+                }
             }
+        }
+    }
+
+    /// Every label a row can carry for these controls, whether the row is shown or not. The label column keeps one
+    /// width — the widest of these — so the controls column's leading edge never moves when "More options" opens or
+    /// closes (P01).
+    private var labelTitles: [String] {
+        var titles = ["Size", "Seed", "Steps"]
+        if controls.guidance != nil { titles.append("CFG scale") }
+        if controls.showsNegativePrompt { titles.append("Negative prompt") }
+        return titles
+    }
+
+    /// One labelled row. Hidden copies of every possible label pin the first column to the widest label the family
+    /// can show; the second column takes the flexible width and leads, so a control's leading x is the same in every
+    /// disclosure state. `.lineLimit(1)` keeps a label to one line whatever the panel's width.
+    private func row<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
+        GridRow {
+            ZStack(alignment: .leading) {
+                ForEach(labelTitles, id: \.self) { Text($0).lineLimit(1).hidden() }
+                Text(title)
+                    .lineLimit(1)
+            }
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -43,7 +69,8 @@ struct ComposerSettings: View {
         .fixedSize()
     }
 
-    /// Opens and closes the disclosure. Its collapsed label carries the summary of every non-default option.
+    /// Opens and closes the disclosure, as a full-width row spanning both grid columns. Its collapsed label carries
+    /// the summary of every non-default option.
     private var moreOptionsToggle: some View {
         Button {
             if reduceMotion {
@@ -73,37 +100,38 @@ struct ComposerSettings: View {
         .accessibilityValue(model.showsMoreOptions ? "expanded" : (model.moreOptionsSummary ?? "collapsed"))
     }
 
-    @ViewBuilder
-    private var seedRows: some View {
-        LabeledContent("Seed") {
-            Picker("Seed policy", selection: $model.seedChoice) {
-                Text("Random").tag(SeedChoice.random)
-                Text("Fixed").tag(SeedChoice.fixed)
-                Text("Increment").tag(SeedChoice.increment)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .fixedSize()
+    private var seedPolicyPicker: some View {
+        Picker("Seed policy", selection: $model.seedChoice) {
+            Text("Random").tag(SeedChoice.random)
+            Text("Fixed").tag(SeedChoice.fixed)
+            Text("Increment").tag(SeedChoice.increment)
         }
-        if model.seedChoice != .random {
-            TextField(
-                model.seedChoice == .fixed ? "Seed" : "Base seed",
-                text: $model.seedText
-            )
-            .monospacedDigit()
-            .accessibilityLabel(model.seedChoice == .fixed ? "Seed" : "Base seed")
-            .textFieldStyle(.roundedBorder)
-            .frame(maxWidth: 160)
-        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        // Flexible like the rest of the controls column: a fixed size would overflow the composer when the pinned
+        // label column leaves it less room (P01).
+    }
+
+    private var seedField: some View {
+        TextField(
+            model.seedChoice == .fixed ? "Seed" : "Base seed",
+            text: $model.seedText
+        )
+        .monospacedDigit()
+        .accessibilityLabel(model.seedChoice == .fixed ? "Seed" : "Base seed")
+        .textFieldStyle(.roundedBorder)
+        .frame(maxWidth: 160, alignment: .leading)
     }
 
     @ViewBuilder
     private var stepsRow: some View {
         if controls.stepsAreFixed {
-            Text("\(controls.steps.defaultSteps) steps, set by the model")
-                .foregroundStyle(.secondary)
+            row("Steps") {
+                Text("\(controls.steps.defaultSteps) steps, set by the model")
+                    .foregroundStyle(.secondary)
+            }
         } else {
-            LabeledContent {
+            row("Steps") {
                 HStack(spacing: MCSpacing.regular) {
                     Text(model.steps.map(String.init) ?? "Default")
                         .monospacedDigit()
@@ -122,15 +150,12 @@ struct ComposerSettings: View {
                             .buttonStyle(.link)
                     }
                 }
-            } label: {
-                Text("Steps")
             }
-            .accessibilityValue(model.steps.map { "\($0)" } ?? "Default")
         }
     }
 
     private func guidanceRow(_ guidance: GuidanceCapability) -> some View {
-        LabeledContent {
+        row("CFG scale") {
             HStack(spacing: MCSpacing.regular) {
                 Slider(
                     value: Binding(
@@ -140,7 +165,7 @@ struct ComposerSettings: View {
                     in: guidance.min...guidance.max,
                     step: 0.1
                 )
-                .frame(width: 160)
+                .frame(maxWidth: 160)
                 Text(model.guidance.map { $0.formatted(.number.precision(.fractionLength(1))) } ?? "Default")
                     .monospacedDigit()
                     .foregroundStyle(model.guidance == nil ? .secondary : .primary)
@@ -149,8 +174,13 @@ struct ComposerSettings: View {
                         .buttonStyle(.link)
                 }
             }
-        } label: {
-            Text("CFG scale")
         }
+    }
+
+    private var negativePromptField: some View {
+        TextField("Things to avoid", text: $model.negativePrompt, axis: .vertical)
+            .lineLimit(1...4)
+            .textFieldStyle(.roundedBorder)
+            .accessibilityLabel("Negative prompt")
     }
 }

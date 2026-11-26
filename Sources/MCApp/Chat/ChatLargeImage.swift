@@ -12,6 +12,8 @@ struct ChatLargeImage: View {
 
     /// The gallery record, or the store's answer when the image is not in the loaded page.
     @State private var image: LibraryImage?
+    /// The view takes focus so ← and → step through the gallery (P09); Esc still reaches Close.
+    @FocusState private var focused: Bool
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -21,22 +23,34 @@ struct ChatLargeImage: View {
             Button {
                 model.chat.largeImageID = nil
             } label: {
-                Image(systemName: "xmark")
+                Label("Close", systemImage: "xmark")
+                    .labelStyle(.iconOnly)
                     .font(.system(size: 13, weight: .semibold))
-                    // no token: the close glyph is sized like the tile-menu chip's (MCSize.tileMenuButton).
-                    .frame(width: MCSize.tileMenuButton, height: MCSize.tileMenuButton)
-                    // no token: a fixed dark chip keeps contrast over any image, like the tile menu.
-                    .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: MCRadius.field))
-                    .foregroundStyle(.white)
+                    // no token: the close glyph is sized for the fixed round button.
+                    .frame(width: MCSize.minHitTarget, height: MCSize.minHitTarget)
+                    .background(.regularMaterial, in: Circle())
+                    .contentShape(Circle())
             }
-            .buttonStyle(.plain)
+            // A plain button here reports its element with the container's frame; borderless keeps it 28 pt.
+            .buttonStyle(.borderless)
             .keyboardShortcut(.cancelAction)
-            .accessibilityLabel("Close")
             .padding(MCSpacing.section)
         }
         .padding(MCSpacing.section)
         .padding(.bottom, bottomPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // .focusable() would merge the children's accessibility into one element that reports the container's frame.
+        .accessibilityElement(children: .contain)
+        .focusable()
+        // Focus is needed for ← →, but the system ring reads as a mistake over the picture.
+        .focusEffectDisabled()
+        .focused($focused)
+        .onKeyPress(keys: [.leftArrow, .rightArrow], phases: .down) { press in
+            model.stepImageSelection(from: imageID, by: press.key == .leftArrow ? -1 : 1)
+            return .handled
+        }
+        // Focus once, on appear: a new image landing in the open view must not pull focus out of the Chat input.
+        .onAppear { focused = true }
         .task(id: imageID) { await resolve() }
         // A delete or a filter change can take the image out of the loaded page; re-resolve closes the view then.
         .onChange(of: model.galleryImages) { Task { await resolve() } }

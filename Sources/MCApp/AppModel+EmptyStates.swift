@@ -1,11 +1,12 @@
 import Foundation
 
 extension AppModel {
-    /// Whether the queue strip is visible (HLD §10). It is hidden while the canvas offers nothing to act on, but a job of
-    /// any status keeps it: a queued, paused or failed job still offers Cancel, Resume or Retry.
+    /// Whether the queue strip is visible (HLD §10). It shows only when it has something to say — a cell of any status,
+    /// since a queued, paused or failed job still offers Cancel, Resume or Retry, the calibration note, or the header's
+    /// Pause or Resume, which act on the whole queue even when this collection has no cells. Otherwise the strip is
+    /// hidden and the canvas gets the height (P08).
     public var showsQueueStrip: Bool {
-        if queueHeader == .calibrating || !queueJobs.isEmpty { return true }
-        return canvasMode == .content
+        queueHeader == .calibrating || queueHeader.offersPause || queueHeader.offersResume || !queueJobs.isEmpty
     }
 
     public var emptyHintText: String {

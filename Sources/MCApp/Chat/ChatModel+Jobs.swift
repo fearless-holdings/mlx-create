@@ -62,11 +62,24 @@ extension ChatModel {
         }
     }
 
-    /// Re-reads the job rows and saved-image counts of every `.result` in the shown conversation.
+    /// Re-reads the job rows and saved-image counts of every `.result` in the shown conversation. A reload or a clear
+    /// that starts during the reads may replace the conversation, so the read repeats against the messages shown then;
+    /// it is never dropped, because the caller (an executor event) reads the followed job's new status right after.
     func refreshJobCache() async {
+        while true {
+            let revision = messagesRevision
+            let cache = await readJobCache(for: messages)
+            guard messagesRevision == revision else { continue }
+            publishJobCache(cache)
+            return
+        }
+    }
+
+    /// The job rows and saved-image counts of every `.result` in `records`, read without publishing them.
+    func readJobCache(for records: [ChatMessageRecord]) async -> (jobs: [UUID: Job], counts: [UUID: Int]) {
         var jobs: [UUID: Job] = [:]
         var counts: [UUID: Int] = [:]
-        for record in messages {
+        for record in records {
             guard case .result(let result) = record.body else { continue }
             if let job = try? await app.store.job(id: result.jobID) { jobs[result.jobID] = job }
             counts[result.jobID] = (try? await app.store.savedImageCount(jobID: result.jobID)) ?? 0
@@ -77,8 +90,13 @@ extension ChatModel {
             if let job = try? await app.store.job(id: jobID) { jobs[jobID] = job }
             counts[jobID] = (try? await app.store.savedImageCount(jobID: jobID)) ?? 0
         }
-        resultJobs = jobs
-        resultCounts = counts
+        return (jobs, counts)
+    }
+
+    /// Makes `cache` the one `resultState(for:)` and `status` read.
+    func publishJobCache(_ cache: (jobs: [UUID: Job], counts: [UUID: Int])) {
+        resultJobs = cache.jobs
+        resultCounts = cache.counts
     }
 
     /// When the conversation's newest `.result` job is still queued, running or paused, the turn follows it again so a

@@ -134,10 +134,10 @@ struct LoRALibraryView: View {
                         .padding(.bottom, MCSpacing.regular)
                 }
                 content
+                Divider()
+                footer
+                    .padding(MCSpacing.group)
             }
-            Divider()
-            footer
-                .padding(MCSpacing.group)
         }
         .fileImporter(
             isPresented: $isImporting,
@@ -176,22 +176,38 @@ struct LoRALibraryView: View {
         }
     }
 
+    /// The empty "Your LoRAs" (P10): one prominent way in — Recommended when the shelf has rows for the model, else
+    /// Civitai — with the rest as secondary links and the drop hint.
     private var emptyState: some View {
-        VStack(spacing: MCSpacing.regular) {
-            Text("No LoRAs yet.")
-                .foregroundStyle(.secondary)
-            importButton
-            HStack(spacing: MCSpacing.group) {
-                if !model.shelf.rows(family: model.loraFamily?.id, includeNSFW: model.civitai.includeNSFW).isEmpty {
-                    Button("See Recommended LoRAs") { tab = .shelf }
-                }
+        ContentUnavailableView {
+            Label("No LoRAs yet", systemImage: "square.stack.3d.up")
+        } description: {
+            Text("LoRAs steer how a model draws. Add one and it appears here.")
+        } actions: {
+            if shelfHasRows {
+                Button("See Recommended") { tab = .shelf }
+                    .buttonStyle(.borderedProminent)
+            } else {
                 Button("Browse Civitai") { tab = .browse }
+                    .buttonStyle(.borderedProminent)
+            }
+            HStack(spacing: MCSpacing.group) {
+                importButton
+                    .buttonStyle(.link)
+                if shelfHasRows {
+                    Button("Browse Civitai") { tab = .browse }
+                        .buttonStyle(.link)
+                }
             }
             Text("Drop .safetensors files here, or import them.")
                 .font(.mcMetadata)
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var shelfHasRows: Bool {
+        !model.shelf.rows(family: model.loraFamily?.id, includeNSFW: model.civitai.includeNSFW).isEmpty
     }
 
     private var importButton: some View {

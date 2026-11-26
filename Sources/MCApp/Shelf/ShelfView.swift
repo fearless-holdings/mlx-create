@@ -56,23 +56,39 @@ private struct ShelfRowView: View {
         }
     }
 
+    /// The Civitai row's anatomy for a curated entry (P10): a leading tile, the name, one supporting line with the
+    /// role and the size, then the action.
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: MCSpacing.group) {
+        HStack(alignment: .top, spacing: MCSpacing.regular) {
+            tile
             VStack(alignment: .leading, spacing: MCSpacing.hairline) {
-                Text(row.entry.role.capitalized).font(.mcRowTitle)
                 Text(row.entry.displayName)
-                    .font(.mcSupporting)
+                    .font(.body.weight(.medium))  // no token: medium-weight row title, as in the Civitai rows
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Text("\(row.entry.role.capitalized) · \(ByteCountFormatter.string(fromByteCount: row.entry.sizeBytes, countStyle: .file))")
+                    .font(.mcMetadata)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
                 if !row.entry.triggerWords.isEmpty {
                     Text("Trigger words: " + row.entry.triggerWords.joined(separator: ", "))
-                        .font(.mcSupporting)
+                        .font(.mcMetadata)
                         .foregroundStyle(.secondary)
                 }
             }
-            Spacer(minLength: MCSpacing.group)
+            Spacer(minLength: MCSpacing.compact)
             trailing
         }
-        .padding(.vertical, MCSpacing.tight)
+        .padding(.vertical, MCSpacing.hairline)
+    }
+
+    /// A shelf entry has no preview image, so the tile is a symbol.
+    private var tile: some View {
+        Image(systemName: "square.stack.3d.up")
+            .font(.title2)  // no token: symbol sized for the 64 pt tile
+            .foregroundStyle(.secondary)
+            .frame(width: MCSize.civitaiThumbnail, height: MCSize.civitaiThumbnail)
+            .background(MCTone.cardFill, in: RoundedRectangle(cornerRadius: MCRadius.field))
     }
 
     @ViewBuilder

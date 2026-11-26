@@ -38,7 +38,7 @@ struct ChatContainer: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: MCSpacing.group) {
+        VStack(alignment: .leading, spacing: MCSpacing.regular) {
             if !visibleMessages.isEmpty {
                 header
                 messagesArea
@@ -84,31 +84,40 @@ struct ChatContainer: View {
         }
     }
 
-    /// Chevron and the `…` menu: fold/unfurl, and Clear Conversation behind a confirmation (R3, R10).
+    /// Chevron and the `…` menu: fold/unfurl, and Clear Conversation behind a confirmation (R3, R10). Both are
+    /// borderless icon controls with at least the ``MCSize/minHitTarget`` hit area (P05).
     private var header: some View {
         HStack {
             Button {
                 unfurled.toggle()
             } label: {
                 // A Label with a title is one accessibility element named Show/Hide; a bare Image plus
-                // .accessibilityLabel produced a labelled element with no frame and a second image element.
+                // .accessibilityLabel produced a labelled element with no frame and a second image element. The
+                // frame sits on the label: the element takes its bounds from it, not from the button.
                 Label(
                     unfurled ? "Hide conversation" : "Show conversation",
-                    systemImage: unfurled ? "chevron.down" : "chevron.up")
+                    systemImage: unfurled ? "chevron.down" : "chevron.up"
+                )
+                .labelStyle(.iconOnly)
+                .frame(width: MCSize.minHitTarget, height: MCSize.minHitTarget)
+                .contentShape(Rectangle())
             }
-            .labelStyle(.iconOnly)
+            .buttonStyle(.borderless)
             Spacer()
             Menu {
                 Button("Clear Conversation…") { confirmClear = true }
             } label: {
                 Label("Conversation options", systemImage: "ellipsis.circle")
+                    .labelStyle(.iconOnly)
+                    .frame(width: MCSize.minHitTarget, height: MCSize.minHitTarget)
+                    .contentShape(Rectangle())
             }
-            .labelStyle(.iconOnly)
             // A Menu does not take its accessibility label from the Label's title; set it directly.
             .accessibilityLabel("Conversation options")
+            // The automatic style draws a bordered chip here; borderless keeps the header a quiet 28 pt row. Its
+            // accessibility element stays icon-sized even over the full hit area — accepted for this look (P05).
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
-            .fixedSize()
         }
     }
 
@@ -156,6 +165,8 @@ struct ChatContainer: View {
             )
             .textFieldStyle(.plain)
             .lineLimit(1...5)
+            // One line centres against the round button; more lines grow upward while Send stays bottom-aligned.
+            .frame(minHeight: MCSize.minHitTarget, alignment: .center)
             .focused($inputFocused)
             .onKeyPress(keys: [.return]) { press in
                 if press.modifiers.contains(.shift) {
@@ -178,22 +189,35 @@ struct ChatContainer: View {
                 return .handled
             }
             if chat.isWorking {
-                Button {
+                roundButton("stop.fill", label: "Stop", prominent: true) {
                     Task { await chat.stop() }
-                } label: {
-                    Label("Stop", systemImage: "stop.circle.fill")
                 }
-                .labelStyle(.iconOnly)
             } else {
-                Button {
+                roundButton("arrow.up", label: "Send", prominent: chat.canSend) {
                     send()
-                } label: {
-                    Label("Send", systemImage: "arrow.up.circle.fill")
                 }
-                .labelStyle(.iconOnly)
                 .disabled(!chat.canSend)
             }
         }
+        .padding(.horizontal, MCSpacing.group)
+        .padding(.vertical, MCSpacing.regular)
+        .background(MCTone.textBackground, in: RoundedRectangle(cornerRadius: MCRadius.card))
+        .overlay(RoundedRectangle(cornerRadius: MCRadius.card).stroke(MCTone.separator, lineWidth: MCStroke.hairline))
+    }
+
+    /// The round button at the input's trailing edge (P05): accent-filled while it can act, quiet but still legible
+    /// while it cannot.
+    private func roundButton(_ symbol: String, label: String, prominent: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 13, weight: .semibold))  // no token: glyph sized to the fixed round button
+                // no token: white is the system's glyph colour on an accent fill, in both appearances.
+                .foregroundStyle(prominent ? .white : .secondary)
+                .frame(width: MCSize.minHitTarget, height: MCSize.minHitTarget)
+                .background(prominent ? AnyShapeStyle(MCTone.selection) : AnyShapeStyle(MCTone.cardFill), in: Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
     }
 
     private func send() {

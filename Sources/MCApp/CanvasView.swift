@@ -73,6 +73,12 @@ private struct ContentCanvas: View {
         }
         .padding(MCSpacing.section)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // ← and → step the selection as the gallery grid does (I08, P09); this fires while focus sits inside the
+        // canvas, e.g. on an image-bar button. The focused grid keeps its own handling.
+        .onKeyPress(keys: [.leftArrow, .rightArrow], phases: .down) { press in
+            model.stepImageSelection(from: model.canvasImage?.id ?? model.selection, by: press.key == .leftArrow ? -1 : 1)
+            return .handled
+        }
         .overlay(alignment: .center) {
             if model.canvasImage == nil {
                 CanvasStatusStack(model: model)
@@ -183,14 +189,23 @@ private struct CanvasImageBar: View {
         return "\(size) · \(name) · Seed \(String(image.seed))"
     }
 
+    /// One control group in one style (P04): the two text actions collapse to icons only through `ViewThatFits`,
+    /// the glyph actions match them, and the destructive one is separated. Every button keeps at least the
+    /// ``MCSize/minHitTarget`` hit area. Tahoe's bezel hugs the symbol, so the icon-only labels all take
+    /// ``iconHeight`` — a flat glyph like `folder` would otherwise measure under the minimum.
+    private static let iconHeight: CGFloat = 18
     private func buttons(labelled: Bool) -> some View {
         HStack(spacing: MCSpacing.regular) {
             Button {
                 model.reuseSettings(of: image)
             } label: {
-                if labelled { Text("Reuse Settings") } else { Image(systemName: "arrow.uturn.backward") }
+                if labelled {
+                    Label("Reuse Settings", systemImage: "wand.and.rays")
+                } else {
+                    Image(systemName: "wand.and.rays")
+                        .frame(minHeight: Self.iconHeight)
+                }
             }
-            .buttonStyle(.bordered)
             .help("Reuse Settings (⌘R)")
             .accessibilityLabel("Reuse Settings")
             .disabled(isBusy)
@@ -201,9 +216,9 @@ private struct CanvasImageBar: View {
                     Label("Export…", systemImage: "square.and.arrow.up")
                 } else {
                     Image(systemName: "square.and.arrow.up")
+                        .frame(minHeight: Self.iconHeight)
                 }
             }
-            .buttonStyle(.bordered)
             .help("Export…")
             .accessibilityLabel("Export")
             .disabled(isBusy)
@@ -211,21 +226,26 @@ private struct CanvasImageBar: View {
                 act { await model.revealSelected(only: image.id) }
             } label: {
                 Image(systemName: "folder")
+                    .frame(minHeight: Self.iconHeight)
             }
-            .buttonStyle(.borderless)
             .help("Show in Finder")
             .accessibilityLabel("Show in Finder")
             .disabled(isBusy)
+            Divider()
+                .padding(.vertical, MCSpacing.tight)
             Button(role: .destructive) {
                 act { await model.deleteSelected(only: image.id) }
             } label: {
                 Image(systemName: "trash")
+                    .frame(minHeight: Self.iconHeight)
             }
-            .buttonStyle(.borderless)
             .help("Move to Trash")
             .accessibilityLabel("Move to Trash")
             .disabled(isBusy)
         }
+        .buttonStyle(.bordered)
+        .controlSize(.large)
+        .frame(minHeight: MCSize.minHitTarget)
         .fixedSize()
     }
 

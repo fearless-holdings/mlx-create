@@ -181,6 +181,26 @@ extension AppModel {
         return selection
     }
 
+    /// ← and → away from the grid (P09): move the highlight one image in gallery order, clamped to the ends.
+    /// `current` is the image on screen — the large view's or the canvas's — and an open Chat large view follows the move.
+    /// Past the last loaded image the next page loads first, as the grid's scrolling would load it.
+    func stepImageSelection(from current: UUID?, by offset: Int) {
+        guard
+            let target = GalleryNavigation.move(
+                from: current ?? galleryArrowOrigin, in: galleryImages.map(\.id), by: offset)
+        else {
+            guard offset > 0, hasMoreImages else { return }
+            let loaded = galleryImages.count
+            Task {
+                await loadMoreImages()
+                if galleryImages.count > loaded { stepImageSelection(from: current, by: offset) }
+            }
+            return
+        }
+        selectGalleryImage(target, click: .plain)
+        if windowMode == .chat, chat.largeImageID != nil { chat.largeImageID = target }
+    }
+
     /// A right-click: an unselected image replaces the selection and becomes the anchor; a selected one leaves the
     /// selection as it is, so the menu acts on all of it (R2).
     func prepareGalleryMenu(for id: UUID) {
@@ -208,9 +228,13 @@ extension AppModel {
         return canvasImage
     }
 
-    /// The status line under the grid: the selection count, then the last action's result (R18).
+    /// The status line under the grid: the selection count once two or more images are selected (P07), then the last
+    /// action's result (R18).
     var galleryStatusLine: String? {
-        let selected = GalleryText.selectionLine(selected: gallerySelection.count, matching: galleryMatchCount)
+        let selected =
+            gallerySelection.count >= 2
+            ? GalleryText.selectionLine(selected: gallerySelection.count, matching: galleryMatchCount)
+            : nil
         return [selected, galleryStatus].compactMap { $0 }.joined(separator: " ").nilIfEmpty
     }
 

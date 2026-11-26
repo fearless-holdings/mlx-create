@@ -44,6 +44,9 @@ final class ChatModel {
 
     /// The current collection's conversation, oldest first (newest 200). `reloadMessages()` fills it.
     private(set) var messages: [ChatMessageRecord] = []
+    /// Moves on with every reload start and every whole-conversation replace, so only the newest reload publishes and a
+    /// clear drops the reloads in flight.
+    @ObservationIgnored private(set) var messagesRevision = 0
     /// The text being composed; ``send()`` clears it.
     var input = ""
     private(set) var phase: ChatPhase = .idle
@@ -221,13 +224,22 @@ final class ChatModel {
     /// Loads the current collection's conversation (newest 200) and refreshes the result cache, so launch and a
     /// collection switch show what the library holds. An in-flight `.result` job is followed again (KTD18).
     func reloadMessages() async {
+        let collectionID = app.currentCollection.id
+        messagesRevision += 1
+        let revision = messagesRevision
         do {
-            let records = try await app.store.chatMessages(collectionID: app.currentCollection.id, limit: 200)
+            let records = try await app.store.chatMessages(collectionID: collectionID, limit: 200)
+            // The cache is read first and published with the messages, so a row never appears stopped and then turns
+            // done, which would announce an old result.
+            let cache = await readJobCache(for: records)
+            // A later reload or a clear during these reads owns the conversation now; these records are stale.
+            guard app.currentCollection.id == collectionID, messagesRevision == revision else { return }
             loadMessages(records)
+            publishJobCache(cache)
         } catch {
             app.lastError = app.message(for: error)
+            await refreshJobCache()
         }
-        await refreshJobCache()
         await resumeFollowing()
         await reconcileCards()
         await offerGreetingIfNeeded()
@@ -245,6 +257,7 @@ extension ChatModel {
     /// Replaces the whole conversation, as a load or a clear does.
     func loadMessages(_ records: [ChatMessageRecord]) {
         messages = records
+        messagesRevision += 1
     }
 
     /// Replaces one record in place, as a marked `chosen` does.
