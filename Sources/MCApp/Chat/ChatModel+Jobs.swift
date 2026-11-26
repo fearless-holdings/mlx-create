@@ -62,9 +62,13 @@ extension ChatModel {
         }
     }
 
-    /// Re-reads the job rows and saved-image counts of every `.result` in the shown conversation.
+    /// Re-reads the job rows and saved-image counts of every `.result` in the shown conversation. A reload or a clear
+    /// that starts during the reads owns the cache then, so this read is dropped.
     func refreshJobCache() async {
-        publishJobCache(await readJobCache(for: messages))
+        let revision = messagesRevision
+        let cache = await readJobCache(for: messages)
+        guard messagesRevision == revision else { return }
+        publishJobCache(cache)
     }
 
     /// The job rows and saved-image counts of every `.result` in `records`, read without publishing them.
