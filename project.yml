@@ -38,10 +38,9 @@ targets:
       base:
         PRODUCT_NAME: mlx-create
         PRODUCT_BUNDLE_IDENTIFIER: com.fearless.mlx-create
-        GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: mlx-create
-        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.graphics-design
-        INFOPLIST_KEY_NSHumanReadableCopyright: "Copyright © 2026 Fearless Holdings. Licensed under GPL-3.0."
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        GENERATE_INFOPLIST_FILE: NO
         ENABLE_USER_SCRIPT_SANDBOXING: NO
         INFOPLIST_FILE: Config/Info.plist
         CODE_SIGN_STYLE: Automatic

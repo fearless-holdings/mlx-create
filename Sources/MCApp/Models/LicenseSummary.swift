@@ -57,7 +57,7 @@ struct LicenseSummary: View {
             Text("Refusal reduction and quality improvement")
                 .font(.mcRowTitle)
             Text(
-                "mlx-create takes these measures for \(modelName), using the files below under the licenses their authors published."
+                "MLX Create takes these measures for \(modelName), using the files below under the licenses their authors published."
             )
             .font(.mcSupporting)
             .foregroundStyle(.secondary)
