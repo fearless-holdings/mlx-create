@@ -18,6 +18,7 @@ struct ChatContainer: View {
     @State private var confirmClear = false
     @FocusState private var inputFocused: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
 
     private var chat: ChatModel { model.chat }
     private var heightCap: CGFloat { windowHeight * MCSize.chatUnfurledFraction }
@@ -51,9 +52,11 @@ struct ChatContainer: View {
         .padding(MCSpacing.section)
         .frame(maxWidth: MCSize.chatContainerWidth)
         .frame(height: unfurled ? heightCap : nil)
-        .background(
-            RoundedRectangle(cornerRadius: MCRadius.panel)
-                .fill(MCTone.controlBackground)
+        // N2-3: dark mode tints the glass toward black so translucent rows (the 15% user bubble) keep their
+        // text contrast over bright thumbnails.
+        .glassEffect(
+            colorScheme == .dark ? .regular.tint(Color.black.opacity(0.4)) : .regular,
+            in: RoundedRectangle(cornerRadius: MCRadius.panel)
         )
         .overlay(
             RoundedRectangle(cornerRadius: MCRadius.panel)

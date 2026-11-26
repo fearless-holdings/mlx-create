@@ -41,6 +41,7 @@ struct GenerationPanel: View {
             bottomRow
         }
         .frame(minWidth: 320, idealWidth: 340, maxHeight: .infinity)
+        .background(SidebarMaterial())
         .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { height in
             panelHeight = height
         }
