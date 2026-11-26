@@ -66,7 +66,8 @@ enum MCSize {
     static let licenseSummaryHeight: CGFloat = 120
 }
 
-/// Shadows. Panels floating over content use `panel*`; nothing else casts one.
+/// Shadows. Panels floating over content use `panel*`; the image on the studio backdrop uses `image*`;
+/// nothing else casts one.
 enum MCShadow {
     /// The Chat container's shadow radius.
     static let panelRadius: CGFloat = 16
@@ -74,6 +75,14 @@ enum MCShadow {
     static let panelY: CGFloat = 6
     /// The Chat container's shadow opacity.
     static let panelOpacity: Double = 0.18
+    /// The shadow lifting an image off the ``MCTone/studio`` backdrop: radius.
+    static let imageRadius: CGFloat = 24
+    /// The image shadow's offset.
+    static let imageY: CGFloat = 8
+    /// The image shadow's opacity in dark mode.
+    static let imageOpacityDark: Double = 0.25
+    /// The image shadow's opacity in light mode.
+    static let imageOpacityLight: Double = 0.15
 }
 
 /// Type styles. macOS sizes: body 13, callout 12, headline 13 bold, title2 17, caption 10.
@@ -105,6 +114,14 @@ enum MCTone {
     static let separator = Color(nsColor: .separatorColor)
     static let textBackground = Color(nsColor: .textBackgroundColor)
     static let controlBackground = Color(nsColor: .controlBackgroundColor)
+    /// The neutral "studio" backdrop behind the canvas and the large view (N2-4): it stays out of the picture's way.
+    static let studio = Color(
+        nsColor: NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                ? NSColor(white: 0.11, alpha: 1)
+                : NSColor(white: 0.94, alpha: 1)
+        }
+    )
     /// The 1 pt halo just outside the selection ring (N2-1): Safelight alone reads 1.78:1 against the dark
     /// sidebar material, so the ring carries a contrasting edge that keeps the whole outline >= 3:1.
     static let selectionHalo = Color(
