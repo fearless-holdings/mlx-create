@@ -49,10 +49,9 @@ struct ChatLargeImage: View {
             model.stepImageSelection(from: imageID, by: press.key == .leftArrow ? -1 : 1)
             return .handled
         }
-        .task(id: imageID) {
-            await resolve()
-            focused = true
-        }
+        // Focus once, on appear: a new image landing in the open view must not pull focus out of the Chat input.
+        .onAppear { focused = true }
+        .task(id: imageID) { await resolve() }
         // A delete or a filter change can take the image out of the loaded page; re-resolve closes the view then.
         .onChange(of: model.galleryImages) { Task { await resolve() } }
     }

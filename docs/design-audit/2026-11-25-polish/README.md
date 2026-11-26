@@ -80,7 +80,7 @@ Each item names its evidence, its code, the fix, and how to check it. Keep the [
 - **Check:** after a 4-image turn, the result row shows "4 images ready". After a relaunch it still does, derived from the job state rather than stored text.
 
 ### P07. The search field is a bare field across the whole window, and the selection count is always on
-- **Status: done (0466768).**
+- **Status: done (0466768). Deviation: in Chat mode the footer still shows a delete or export result and its progress, since Chat has no other place for it; the selection count alone never shows there.**
 
 - **Evidence:** `16-chat-populated_*`, `40-gallery-populated_*`. In Gallery and Chat, "Search prompts" is a plain text field about 1,570 pt wide with "Filters" beside it. "1 of 21 selected" sits in a footer at all times, including in Chat mode.
 - **Code:** `GalleryView.swift`.
@@ -88,7 +88,7 @@ Each item names its evidence, its code, the fix, and how to check it. Keep the [
 - **Check:** in Gallery mode at 1680 pt the search field is ≤ 340 pt wide. With one image selected no footer is shown.
 
 ### P08. "Queue empty" takes a row when nothing is queued
-- **Status: done (582c396).**
+- **Status: done (582c396). Deviation: a queue header that offers Pause or Resume keeps the strip, so a queue paused or running in another collection can still be resumed or paused here.**
 
 - **Evidence:** `20-*`, `23-*`: a 32 pt strip that says "Queue empty" under the canvas.
 - **Code:** `MainWindow` (`showsQueueStrip`) and `QueueStripView`.
@@ -96,7 +96,7 @@ Each item names its evidence, its code, the fix, and how to check it. Keep the [
 - **Check:** with no jobs, there is no "Queue empty" text in `ax dump`. Queue one job and the strip appears.
 
 ### P09. Arrow keys don't step through images in the large view
-- **Status: done (ebcc89d, 4449689, 3833775). Deviation: `.focusable()` draws the system focus ring over the image, so the large view takes `.focusEffectDisabled()` — arrows and Esc still work.**
+- **Status: done (ebcc89d, 4449689, 3833775). Deviation: `.focusable()` draws the system focus ring over the image, so the large view takes `.focusEffectDisabled()` — arrows and Esc still work. The view takes focus once, on appear, so an image landing in it does not pull focus from the Chat input; past the last loaded image the next page loads first.**
 
 - **Evidence:** in Chat's large view, → left the same image shown (the `Selected image:` label was unchanged).
 - **Code:** `ChatLargeImage.swift` (Chat). Check the Canvas canvas too (`CanvasView`): ← → should move the selection as the gallery grid does (I08).

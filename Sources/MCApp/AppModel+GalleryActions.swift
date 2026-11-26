@@ -182,14 +182,23 @@ extension AppModel {
     }
 
     /// ← and → away from the grid (P09): move the highlight one image in gallery order, clamped to the ends.
-    /// `current` is the image on screen — the large view's or the canvas's — and an open large view follows the move.
+    /// `current` is the image on screen — the large view's or the canvas's — and an open Chat large view follows the move.
+    /// Past the last loaded image the next page loads first, as the grid's scrolling would load it.
     func stepImageSelection(from current: UUID?, by offset: Int) {
         guard
             let target = GalleryNavigation.move(
                 from: current ?? galleryArrowOrigin, in: galleryImages.map(\.id), by: offset)
-        else { return }
+        else {
+            guard offset > 0, hasMoreImages else { return }
+            let loaded = galleryImages.count
+            Task {
+                await loadMoreImages()
+                if galleryImages.count > loaded { stepImageSelection(from: current, by: offset) }
+            }
+            return
+        }
         selectGalleryImage(target, click: .plain)
-        if chat.largeImageID != nil { chat.largeImageID = target }
+        if windowMode == .chat, chat.largeImageID != nil { chat.largeImageID = target }
     }
 
     /// A right-click: an unselected image replaces the selection and becomes the anchor; a selected one leaves the

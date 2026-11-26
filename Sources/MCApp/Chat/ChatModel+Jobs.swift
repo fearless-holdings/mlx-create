@@ -62,11 +62,11 @@ extension ChatModel {
         }
     }
 
-    /// Re-reads the job rows and saved-image counts of every `.result` in the shown conversation.
-    func refreshJobCache() async {
+    /// Re-reads the job rows and saved-image counts of every `.result` in `records`, the shown conversation by default.
+    func refreshJobCache(for records: [ChatMessageRecord]? = nil) async {
         var jobs: [UUID: Job] = [:]
         var counts: [UUID: Int] = [:]
-        for record in messages {
+        for record in records ?? messages {
             guard case .result(let result) = record.body else { continue }
             if let job = try? await app.store.job(id: result.jobID) { jobs[result.jobID] = job }
             counts[result.jobID] = (try? await app.store.savedImageCount(jobID: result.jobID)) ?? 0

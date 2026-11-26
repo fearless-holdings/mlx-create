@@ -211,6 +211,7 @@ struct ChatContainer: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 13, weight: .semibold))  // no token: glyph sized to the fixed round button
+                // no token: white is the system's glyph colour on an accent fill, in both appearances.
                 .foregroundStyle(prominent ? .white : .secondary)
                 .frame(width: MCSize.minHitTarget, height: MCSize.minHitTarget)
                 .background(prominent ? AnyShapeStyle(MCTone.selection) : AnyShapeStyle(MCTone.cardFill), in: Circle())

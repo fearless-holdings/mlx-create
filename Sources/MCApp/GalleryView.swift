@@ -19,9 +19,10 @@ struct GalleryView: View {
                 Divider()
             }
             content
-            // The footer is for the gallery's own state; Chat mode never shows it (P07).
-            if model.windowMode != .chat,
-                model.galleryStatusLine != nil || model.galleryBulk?.showsProgress == true
+            // The footer is for the gallery's own state. Chat mode shows it only for a delete or export result and its
+            // progress, never for the selection alone (P07).
+            if model.galleryBulk?.showsProgress == true
+                || (model.windowMode == .chat ? model.galleryStatus != nil : model.galleryStatusLine != nil)
             {
                 Divider()
                 GalleryStatusLine(model: model)

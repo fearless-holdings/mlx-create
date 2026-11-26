@@ -463,6 +463,10 @@ private func writeTurboIndex(under weightsRoot: URL) throws {
         ready.model.queueHeader = .calibrating
         #expect(ready.model.showsQueueStrip)
 
+        // A queue paused from another collection still needs its header's Resume here.
+        ready.model.queueHeader = .paused
+        #expect(ready.model.showsQueueStrip)
+
         // A healthy engine with no models: the canvas reports no models, so only a job can bring the strip back.
         let busy = try await AppHarness.make(models: [])
         await busy.model.start()

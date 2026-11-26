@@ -223,11 +223,13 @@ final class ChatModel {
     func reloadMessages() async {
         do {
             let records = try await app.store.chatMessages(collectionID: app.currentCollection.id, limit: 200)
+            // The cache first, so a row never appears stopped and then turns done, which would announce an old result.
+            await refreshJobCache(for: records)
             loadMessages(records)
         } catch {
             app.lastError = app.message(for: error)
+            await refreshJobCache()
         }
-        await refreshJobCache()
         await resumeFollowing()
         await reconcileCards()
         await offerGreetingIfNeeded()
