@@ -24,7 +24,7 @@ Deferred by the user to the next round: app icon, accent colour and product name
 Each item names its evidence, its code, the fix, and how to check it. Keep the [smoke contract](../README.md#13-smoke-contract-every-spec-must-keep): the labels "Prompt", "Seed", "Random"/"Fixed"/"Increment", the Size pop-up containing "×", "Generate", and "Model: ", "Generation progress", "Selected image: ", "Image: ".
 
 ### P01. The Seed label wraps to "Se / ed", and the composer's left edges don't line up
-- **Status: done (76eaadb, 9b1ede2). Deviation: labels lead rather than trail — the check measures the named elements' leading x, which only leading labels can satisfy.**
+- **Status: done (76eaadb, 9b1ede2, 2f5233d). Deviation: labels lead rather than trail — the check measures the named elements' leading x, which only leading labels can satisfy. The label column is pinned to the widest label the family can show and the controls column leads into the flexible width, so the Size pop-up's x is identical with More options open or closed.**
 
 - **Evidence:** `20-canvas-with-images_*`, `23-canvas-populated_*`, at both sizes. Size, "More options", Seed, the LoRAs header and "Add LoRA…" start at four different x positions. The LoRA section sits in an extra grey box with its own inset.
 - **Cause:** `ComposerSettings.seedRows`: a `LabeledContent` whose content is a `.fixedSize()` segmented picker. Inside the 320 pt panel, the extra `.padding(.leading, MCSpacing.section)` under "More options" squeezes the label column. `LoRASection` adds its own inset and fill.
@@ -60,7 +60,7 @@ Each item names its evidence, its code, the fix, and how to check it. Keep the [
 - **Check:** every image-bar button frame is ≥ 28×28 pt in both window sizes; all four share one button style.
 
 ### P05. Chat's container controls are too small and look unfinished
-- **Status: done (19ffa43, b0cdc88, 4449689). Deviations: the 28 pt frame sits on each icon label (the element takes its bounds from the label, not the button); the More menu is `.menuStyle(.button)` because a borderless menu's element stays icon-sized; the large view needs `.accessibilityElement(children: .contain)` or `.focusable()` merges Close into a container-sized element.**
+- **Status: done (19ffa43, b0cdc88, 4449689, 0eb40ea, 313d098, 04a69d5). Deviations: the 28 pt frame sits on each icon label (the element takes its bounds from the label, not the button); the More menu is `.menuStyle(.borderlessButton)` — its accessibility element stays icon-sized even over the full hit area, accepted for the quiet header look; the large view needs `.accessibilityElement(children: .contain)` or `.focusable()` merges Close into a container-sized element. One-line input centres against the round Send button via `minHeight: MCSize.minHitTarget`; multi-line keeps Send bottom-aligned.**
 
 - **Evidence:** `13-chat-*`, `14-chat-history-open_*`, `15-chat-large-image_*`. "Show conversation" is 38×16 pt, "More" (the conversation menu) is 21×15 pt, and Send is a grey square with a tiny glyph. The large view's Close is a 24 pt dark square at the top left.
 - **Code:** `ChatContainer.swift` (header, input row), `ChatLargeImage.swift`.
@@ -96,7 +96,7 @@ Each item names its evidence, its code, the fix, and how to check it. Keep the [
 - **Check:** with no jobs, there is no "Queue empty" text in `ax dump`. Queue one job and the strip appears.
 
 ### P09. Arrow keys don't step through images in the large view
-- **Status: done (ebcc89d, 4449689).**
+- **Status: done (ebcc89d, 4449689, 3833775). Deviation: `.focusable()` draws the system focus ring over the image, so the large view takes `.focusEffectDisabled()` — arrows and Esc still work.**
 
 - **Evidence:** in Chat's large view, → left the same image shown (the `Selected image:` label was unchanged).
 - **Code:** `ChatLargeImage.swift` (Chat). Check the Canvas canvas too (`CanvasView`): ← → should move the selection as the gallery grid does (I08).
