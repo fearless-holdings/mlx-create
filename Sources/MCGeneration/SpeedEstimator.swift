@@ -85,6 +85,23 @@ extension SpeedEstimate {
 }
 
 extension SpeedEstimate {
+    /// The seconds the estimate carries, whichever kind it is.
+    public var seconds: Double {
+        switch self {
+        case .measured(let seconds), .estimated(let seconds): seconds
+        }
+    }
+
+    /// The model-chip wording (N2-6): a fast/about/slow band by seconds, with the time in whole seconds.
+    public var chipLabel: String {
+        let whole = max(1, Int(seconds.rounded()))
+        switch seconds {
+        case ..<20: return "Fast on this Mac · about \(whole) s"
+        case ..<60: return "About \(whole) s on this Mac"
+        default: return "Slow on this Mac · about \(whole) s"
+        }
+    }
+
     /// The wording a user sees for a time: "about 12 s" when measured, "1 min 20 s (estimate)" when estimated.
     /// All speed wording lives here.
     public var label: String {

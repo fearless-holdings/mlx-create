@@ -97,8 +97,13 @@ struct ModelChip: View {
                             .accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: MCSpacing.hairline) {
                             Text(title(installed))
+                            if let bestFor = model.browser.row(forRepo: installed.id)?.model?.bestFor {
+                                Text(bestFor)
+                                    .font(.mcMetadata)
+                                    .foregroundStyle(.secondary)
+                            }
                             if let estimate = model.browser.estimates[installed.id] {
-                                Text(estimate.label)
+                                Text(estimate.chipLabel)
                                     .font(.mcMetadata)
                                     .foregroundStyle(.secondary)
                             }

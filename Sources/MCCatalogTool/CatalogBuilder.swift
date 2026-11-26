@@ -49,12 +49,15 @@ struct SourceModel: Decodable, Equatable {
     let recommendRank: Int?
     /// Reviewed reference timing for the calibration baseline (KTD8). Absent means none yet.
     let referenceTiming: ReferenceTiming?
+    /// A plain-words "best for" line copied through to the catalog (N2-6). Absent means none.
+    let bestFor: String?
 
     enum CodingKeys: String, CodingKey {
         case id, family, name, quantization, repo, ref, license, kind
         case recommendRank = "recommend_rank"
         case referenceTiming = "reference_timing"
         case ramGB = "ram_gb"
+        case bestFor = "best_for"
     }
 }
 
@@ -112,7 +115,7 @@ struct CatalogBuilder: Sendable {
             repo: entry.repo, revision: revision,
             downloadBytes: files.reduce(0) { $0 + $1.size }, ramGB: entry.ramGB,
             license: entry.license, files: files, kind: entry.kind ?? .image, recommendRank: entry.recommendRank,
-            referenceTiming: entry.referenceTiming)
+            referenceTiming: entry.referenceTiming, bestFor: entry.bestFor)
         try model.validate()
         return (model, dropped)
     }

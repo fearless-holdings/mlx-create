@@ -99,11 +99,14 @@ public struct CatalogModel: Sendable, Codable, Equatable, Identifiable {
     public let recommendRank: Int?
     /// The reviewed reference timing for the calibration baseline (KTD8). Nil until a reviewer measures the model.
     public let referenceTiming: ReferenceTiming?
+    /// A plain-words line saying what the model is best at (N2-6). Nil on entries written before the field.
+    public let bestFor: String?
 
     public init(
         id: String, family: String, name: String, quantization: String, repo: String, revision: String,
         downloadBytes: Int64, ramGB: Double, license: CatalogLicense, files: [CatalogFile],
-        kind: CatalogModelKind = .image, recommendRank: Int? = nil, referenceTiming: ReferenceTiming? = nil
+        kind: CatalogModelKind = .image, recommendRank: Int? = nil, referenceTiming: ReferenceTiming? = nil,
+        bestFor: String? = nil
     ) {
         self.id = id
         self.family = family
@@ -118,6 +121,7 @@ public struct CatalogModel: Sendable, Codable, Equatable, Identifiable {
         self.kind = kind
         self.recommendRank = recommendRank
         self.referenceTiming = referenceTiming
+        self.bestFor = bestFor
     }
 
     enum CodingKeys: String, CodingKey {
@@ -126,6 +130,7 @@ public struct CatalogModel: Sendable, Codable, Equatable, Identifiable {
         case referenceTiming = "reference_timing"
         case downloadBytes = "download_bytes"
         case ramGB = "ram_gb"
+        case bestFor = "best_for"
     }
 
     /// `kind` is optional on the wire: an absent value is an image model.
@@ -144,6 +149,7 @@ public struct CatalogModel: Sendable, Codable, Equatable, Identifiable {
         kind = try c.decodeIfPresent(CatalogModelKind.self, forKey: .kind) ?? .image
         recommendRank = try c.decodeIfPresent(Int.self, forKey: .recommendRank)
         referenceTiming = try c.decodeIfPresent(ReferenceTiming.self, forKey: .referenceTiming)
+        bestFor = try c.decodeIfPresent(String.self, forKey: .bestFor)
     }
 
     /// Writes the keys in the order the synthesised encoder used. `kind` is written for any kind but image and
@@ -164,6 +170,7 @@ public struct CatalogModel: Sendable, Codable, Equatable, Identifiable {
         if kind != .image { try c.encode(kind, forKey: .kind) }
         if let recommendRank { try c.encode(recommendRank, forKey: .recommendRank) }
         if let referenceTiming { try c.encode(referenceTiming, forKey: .referenceTiming) }
+        if let bestFor { try c.encode(bestFor, forKey: .bestFor) }
     }
 }
 
