@@ -48,6 +48,8 @@ enum MCSize {
     /// The smallest hit area a button may offer, whatever its glyph's size (P04, P05).
     static let minHitTarget: CGFloat = 28
     /// Name and confirmation sheets.
+    /// The share of the window a list sheet (Models browser, LoRA library) targets (N2-5).
+    static let sheetWindowFraction: CGFloat = 0.7
     static let sheetNarrow: CGFloat = 360
     /// License, enhancer and other single-purpose sheets.
     static let sheetStandard: CGFloat = 500
