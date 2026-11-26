@@ -18,6 +18,7 @@ private enum LoRASheetTab: String, CaseIterable, Identifiable {
 struct LoRALibraryView: View {
     @Bindable var model: AppModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.mcWindowSize) private var windowSize
     @State private var tab: LoRASheetTab
     @State private var query = ""
     @State private var compatibleOnly = true
@@ -96,7 +97,10 @@ struct LoRALibraryView: View {
                 CivitaiBrowseView(model: model)
             }
         }
-        .frame(minWidth: 880, minHeight: 620)
+        .frame(
+            minWidth: 880, idealWidth: max(880, windowSize.width * MCSize.sheetWindowFraction),
+            minHeight: 620, idealHeight: max(620, windowSize.height * MCSize.sheetWindowFraction)
+        )
         .task {
             await model.refreshLoRALibrary()
         }
