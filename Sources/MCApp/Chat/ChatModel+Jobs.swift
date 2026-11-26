@@ -62,11 +62,16 @@ extension ChatModel {
         }
     }
 
-    /// Re-reads the job rows and saved-image counts of every `.result` in `records`, the shown conversation by default.
-    func refreshJobCache(for records: [ChatMessageRecord]? = nil) async {
+    /// Re-reads the job rows and saved-image counts of every `.result` in the shown conversation.
+    func refreshJobCache() async {
+        publishJobCache(await readJobCache(for: messages))
+    }
+
+    /// The job rows and saved-image counts of every `.result` in `records`, read without publishing them.
+    func readJobCache(for records: [ChatMessageRecord]) async -> (jobs: [UUID: Job], counts: [UUID: Int]) {
         var jobs: [UUID: Job] = [:]
         var counts: [UUID: Int] = [:]
-        for record in records ?? messages {
+        for record in records {
             guard case .result(let result) = record.body else { continue }
             if let job = try? await app.store.job(id: result.jobID) { jobs[result.jobID] = job }
             counts[result.jobID] = (try? await app.store.savedImageCount(jobID: result.jobID)) ?? 0
@@ -77,8 +82,13 @@ extension ChatModel {
             if let job = try? await app.store.job(id: jobID) { jobs[jobID] = job }
             counts[jobID] = (try? await app.store.savedImageCount(jobID: jobID)) ?? 0
         }
-        resultJobs = jobs
-        resultCounts = counts
+        return (jobs, counts)
+    }
+
+    /// Makes `cache` the one `resultState(for:)` and `status` read.
+    func publishJobCache(_ cache: (jobs: [UUID: Job], counts: [UUID: Int])) {
+        resultJobs = cache.jobs
+        resultCounts = cache.counts
     }
 
     /// When the conversation's newest `.result` job is still queued, running or paused, the turn follows it again so a
