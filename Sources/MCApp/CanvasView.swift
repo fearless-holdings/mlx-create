@@ -179,7 +179,7 @@ private struct CanvasImageBar: View {
                     .help(image.prompt)
                 Text(facts)
                     .font(.mcSupporting)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.primary.opacity(0.75))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             ViewThatFits(in: .horizontal) {
