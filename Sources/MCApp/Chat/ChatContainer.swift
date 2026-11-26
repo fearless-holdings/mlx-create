@@ -166,6 +166,8 @@ struct ChatContainer: View {
             )
             .textFieldStyle(.plain)
             .lineLimit(1...5)
+            // One line centres against the round button; more lines grow upward while Send stays bottom-aligned.
+            .frame(minHeight: MCSize.minHitTarget, alignment: .center)
             .focused($inputFocused)
             .onKeyPress(keys: [.return]) { press in
                 if press.modifiers.contains(.shift) {
