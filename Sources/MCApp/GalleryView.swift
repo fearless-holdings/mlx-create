@@ -290,10 +290,7 @@ struct ImageCell: View {
                     }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: MCRadius.card))
-                .overlay(
-                    RoundedRectangle(cornerRadius: MCRadius.card)
-                        .stroke(isSelected ? MCTone.selection : Color.clear, lineWidth: MCStroke.selection)
-                )
+                .mcSelectionRing(isSelected)
         }
         .buttonStyle(.plain)
         // A sibling of the button, not part of its label, so using the menu does not select the tile.
