@@ -9,10 +9,10 @@ enum ChatCopy {
         "Chat needs its model and an image model before it can make pictures. Open Image ▸ Models… to install them."
     /// Every fitting image model is already being downloaded; the user should wait rather than open the browser.
     static let imageModelDownloading =
-        "Chat can make pictures once the image model download finishes. You can keep using mlx-create meanwhile."
+        "Chat can make pictures once the image model download finishes. You can keep using MLX Create meanwhile."
     /// There is no usable image model and installs are off, so opening the browser cannot help.
     static let imageInstallsUnavailable =
-        "Chat needs an image model before it can make pictures, but the model catalog could not be verified, so mlx-create cannot install one yet. Check your connection; mlx-create tries again when it refreshes the catalog."
+        "Chat needs an image model before it can make pictures, but the model catalog could not be verified, so MLX Create cannot install one yet. Check your connection; MLX Create tries again when it refreshes the catalog."
     /// The reply could not be used even after one retry.
     static let couldNotPlan = "I couldn't work out how to make that. Try saying it another way."
     /// The chat call ran out of memory.

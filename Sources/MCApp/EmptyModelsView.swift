@@ -25,7 +25,7 @@ struct EmptyModelsView: View {
             } else {
                 Text("Download a model to start")
                     .font(.mcSheetTitle)
-                Text("mlx-create makes images on this Mac. It needs one image model first.")
+                Text("MLX Create makes images on this Mac. It needs one image model first.")
                     .font(.mcBody)
                     .multilineTextAlignment(.center)
                 if let recommended = model.browser.recommendedRow {

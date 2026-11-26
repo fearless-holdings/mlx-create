@@ -271,7 +271,7 @@ struct ChatSetupView: View {
             return "The model catalog could not be verified, so Chat can't be set up right now."
         }
         if agent == nil {
-            return "This version of mlx-create has no Chat model to install."
+            return "This version of MLX Create has no Chat model to install."
         }
         return "Chat can't be set up right now."
     }
@@ -280,7 +280,7 @@ struct ChatSetupView: View {
     /// refresh that picks up the remedy. Nothing here deletes or moves the user's files.
     private func unverifiedContent(path: String) -> some View {
         VStack(spacing: MCSpacing.group) {
-            Text("Unverified local files use the Chat model's folder name. mlx-create does not overwrite them.")
+            Text("Unverified local files use the Chat model's folder name. MLX Create does not overwrite them.")
                 .font(.mcBody)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)

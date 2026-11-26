@@ -34,7 +34,7 @@ struct MLXCreateApp: App {
     }
 
     var body: some Scene {
-        Window("mlx-create", id: "main") {
+        Window("MLX Create", id: "main") {
             switch launch.phase {
             case .loading:
                 LaunchLoadingView()
@@ -127,11 +127,11 @@ private struct SettingsFailureView: View {
         VStack(spacing: 12) {
             Text("Settings are unavailable")
                 .font(.title2)
-            Text("mlx-create could not start: \(error.localizedDescription)")
+            Text("MLX Create could not start: \(error.localizedDescription)")
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
                 .multilineTextAlignment(.center)
-            Text("Quit and reopen mlx-create. If it fails again, the reason above says what to fix.")
+            Text("Quit and reopen MLX Create. If it fails again, the reason above says what to fix.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -147,7 +147,7 @@ private struct LaunchFailureView: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            Text("mlx-create could not start")
+            Text("MLX Create could not start")
                 .font(.title2)
             Text(error.localizedDescription)
                 .foregroundStyle(.secondary)
