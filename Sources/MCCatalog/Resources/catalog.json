@@ -144,6 +144,7 @@
   ],
   "models" : [
     {
+      "best_for" : "Quick drafts and ideas",
       "download_bytes" : 4619699951,
       "family" : "flux2-klein",
       "files" : [
@@ -225,6 +226,7 @@
       "revision" : "7ee1b3aa8178a1240050490072196a57da2bf2a9"
     },
     {
+      "best_for" : "Photoreal people and places",
       "download_bytes" : 15829398549,
       "family" : "krea-2-turbo",
       "files" : [
@@ -307,6 +309,7 @@
       "revision" : "db7840abe3c7f7c5c5ef4de049f334d16852d19f"
     },
     {
+      "best_for" : "Posters and pictures with text",
       "download_bytes" : 10547128494,
       "family" : "qwen-image-2.1-turbo",
       "files" : [
@@ -404,6 +407,7 @@
       "revision" : "394f9477a956a0c4fd70ebcbe3a326d74ef0add4"
     },
     {
+      "best_for" : "Rewrites your prompt in more detail",
       "download_bytes" : 4262242410,
       "family" : "gemma4",
       "files" : [
@@ -460,6 +464,7 @@
       "revision" : "b0caa71ef36eabebafb01e23904195e751c5f8c4"
     },
     {
+      "best_for" : "Understands your requests in Chat",
       "download_bytes" : 6579596613,
       "family" : "gemma4",
       "files" : [
@@ -527,5 +532,5 @@
     }
   ],
   "schema_version" : 1,
-  "sequence" : 10
+  "sequence" : 11
 }

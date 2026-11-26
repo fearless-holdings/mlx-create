@@ -19,6 +19,11 @@ struct InstallRow: View {
                         MCBadge(text: "Recommended", tone: .accent)
                     }
                 }
+                if let bestFor = row.model?.bestFor {
+                    Text(bestFor)
+                        .font(.mcSupporting)
+                        .foregroundStyle(.secondary)
+                }
                 if let model = row.model {
                     Text(facts(for: model))
                         .font(.mcMetadata)

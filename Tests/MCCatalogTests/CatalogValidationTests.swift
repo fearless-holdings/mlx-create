@@ -277,6 +277,25 @@ import Testing
         #expect(object["recommend_rank"] == nil)
     }
 
+    /// A catalog signed before `best_for` carries none: it decodes as nil and re-encodes without the key (N2-6).
+    @Test func catalogWithoutBestForDecodesNilAndReencodesWithoutTheKey() throws {
+        let catalog = try Catalog.decodeValidated(CatalogFixture.catalogJSON())
+        #expect(catalog.models[0].bestFor == nil)
+        let encoded = try JSONEncoder().encode(catalog.models[0])
+        let object = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        #expect(object["best_for"] == nil)
+    }
+
+    @Test func bestForRoundTrips() throws {
+        let bytes = try CatalogFixture.catalogJSON(
+            edit: CatalogFixture.editModel { $0["best_for"] = "Quick drafts and ideas" })
+        let model = try Catalog.decodeValidated(bytes).models[0]
+        #expect(model.bestFor == "Quick drafts and ideas")
+        let object = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(model)) as? [String: Any])
+        #expect(object["best_for"] as? String == "Quick drafts and ideas")
+    }
+
     @Test func recommendRankRoundTrips() throws {
         let bytes = try CatalogFixture.catalogJSON(edit: CatalogFixture.editModel { $0["recommend_rank"] = 2 })
         let model = try Catalog.decodeValidated(bytes).models[0]

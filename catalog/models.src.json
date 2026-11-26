@@ -3,6 +3,7 @@
   "models": [
     {
       "id": "flux2-klein-4b-mflux-4bit",
+      "best_for": "Quick drafts and ideas",
       "recommend_rank": 3,
       "family": "flux2-klein",
       "name": "FLUX.2 klein 4B",
@@ -21,6 +22,7 @@
     },
     {
       "id": "krea-2-turbo-mixed-4-8",
+      "best_for": "Photoreal people and places",
       "recommend_rank": 2,
       "reference_timing": { "width": 1024, "height": 1024, "steps": 4, "seconds": 20.59 },
       "family": "krea-2-turbo",
@@ -40,6 +42,7 @@
     },
     {
       "id": "qwen-image-2.1-turbo-4bit",
+      "best_for": "Posters and pictures with text",
       "recommend_rank": 1,
       "reference_timing": { "width": 1024, "height": 1024, "steps": 8, "seconds": 25.65 },
       "family": "qwen-image-2.1-turbo",
@@ -59,6 +62,7 @@
     }
     ,{
       "id": "gemma-4-e4b-heretic-4bit",
+      "best_for": "Rewrites your prompt in more detail",
       "kind": "enhancer",
       "family": "gemma4",
       "name": "Gemma 4 E4B heretic (prompt enhancer)",
@@ -77,6 +81,7 @@
     }
     ,{
       "id": "gemma-4-e4b-heretic-vision-5bit",
+      "best_for": "Understands your requests in Chat",
       "kind": "agent",
       "family": "gemma4",
       "name": "Gemma 4 E4B heretic with vision (chat agent)",
