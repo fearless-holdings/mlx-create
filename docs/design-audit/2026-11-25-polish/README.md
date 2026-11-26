@@ -116,7 +116,7 @@ Each item names its evidence, its code, the fix, and how to check it. Keep the [
   Wording stays "LoRAs": the rename to "Styles" is draft decision DR4 (§5) and waits for approval.
 - **Check:** empty library: exactly one prominent button on the tab. Shelf rows have a leading tile.
 
-## 3. Notch 2: native look (open)
+## 3. Notch 2: native look (done)
 
 | ID | Finding | Evidence | Direction |
 |---|---|---|---|
@@ -126,6 +126,15 @@ Each item names its evidence, its code, the fix, and how to check it. Keep the [
 | N2-4 | Images sit on white; the canvas and large view don't let pictures pop | `15-chat-large-image_*`, `23-*` | A neutral "studio" backdrop (`Color(white: 0.11)` in dark, `Color(white: 0.94)` in light, as a token) behind the canvas and large view; a soft shadow on the image; the facts and actions on a glass bar |
 | N2-5 | Sheets don't scale with the window (Models is ~680×500 inside a 1680×1050 window) | `33-model-browser_large_*` | Sheets size to content up to ~70% of the window; the browser lists use full-width rows |
 | N2-6 | The model popover only gives the selected model's estimate and no hint of what each model is for | `21-model-chip-popover_small_light` | Each row: name, a "best for" line and the speed estimate in words ("Fast on this Mac"). Needs a `best_for` field in the catalog |
+
+Resolution — one stacked branch off `main` (`gh stack`, bottom to top):
+
+- **N2-1 — done (`36e1bd2`, `notch2/brand`).** `Assets.xcassets` added with `AccentColor` (light `#6E44E8`, dark `#7B55F0`) wired through `ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME`, and an `AppIcon` left empty until the user picks a concept from `/tmp/mc-icons`. Display name "MLX Create" via `CFBundleName`/`CFBundleDisplayName`; `PRODUCT_NAME` stays `mlx-create`. Enabled Generate label/fill: light 5.95:1, dark 4.90:1 (fixes the P03 deviation). Deviation: `INFOPLIST_KEY_CFBundleName` is ignored while `GENERATE_INFOPLIST_FILE=YES`, so a static `Config/Info.plist` replaces the generated one, mirroring every generated key including `MLXCatalogURL`.
+- **N2-4 — done (`0d9192b`, `notch2/backdrop`).** `MCTone.studio` + `MCShadow.image*` tokens; canvas (empty/progress/result) and the chat large view sit on the studio backdrop, the image gets the soft shadow, and the facts-and-actions bar rides `.regularMaterial` glass. Bar text: light primary 19.26:1 / secondary 2.95:1; dark primary 11.37:1 / secondary 3.12:1. Deviation accepted: the `.secondary` facts line reads ~3:1, as it did before the glass.
+- **N2-2 — done (`305508f`, `notch2/toolbar-modes`).** `NSSegmentedControl` via `NSViewRepresentable` as the `.principal` toolbar item — three icon-and-text segments bound to `AppModel.windowMode`, a help tag per segment, accessibility label "View mode"; the menu items and ⌘1–3 stay.
+- **N2-3 — done (`a8a17a1`, `notch2/materials`).** Composer panel and the Canvas-mode gallery column on a `.sidebar`/`behindWindow` `NSVisualEffectView`; the Chat container is rounded glass, tinted dark in dark mode. Measured text ≥ 4.5:1 except the input placeholder, which keeps the standard secondary style on its opaque pill (3.79:1 light, 5.64:1 dark — unchanged by the glass).
+- **N2-5 — done (`66acb54`, `b75f027`, `notch2/sheets`).** Models and LoRA sheets take 70% of the window with their old sizes as floors: 1680×1050 → Models 1176×699; 1100×692 → Models 770×500, LoRA 880×620. Name/licence/enhancer sheets keep their fixed widths. Deviation: custom environment values do not propagate into `.sheet` content on this OS, so `MainWindow` measures its content size and passes it to both sheets as a parameter.
+- **N2-6 — done (`7d6fc23`, `notch2/catalog-best-for`).** `best_for` added to `CatalogModel` (decode with and without the field tested; re-encode omits it when absent); the five shipped entries carry reviewed strings; `catalog.json` rebuilt to sequence 11 and re-signed (`mc-catalog verify` passes). Chip popover rows show name + best-for + speed in words (`Fast on this Mac · about N s` under 20 s, `About N s on this Mac` at 20–59 s, `Slow on this Mac · about N s` at 60+); the Models browser rows show best-for under the title. Deviation: unavailable popover rows keep their reason line only.
 
 ## 4. Notch 3: wow (open; DR1–DR4 need approval first)
 
