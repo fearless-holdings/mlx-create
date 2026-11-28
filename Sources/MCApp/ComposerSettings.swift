@@ -18,8 +18,9 @@ struct ComposerSettings: View {
                 row("Seed") { seedPolicyPicker }
                 if model.seedChoice != .random {
                     GridRow {
-                        // no token: an empty label cell, so the seed field sits in the controls column.
-                        Color.clear
+                        // no token: an empty label cell, so the seed field sits in the controls column. Zero-sized:
+                        // a bare Color is greedy and the grid would size the label column to it (P01).
+                        Color.clear.frame(width: 0, height: 0)
                         seedField
                     }
                 }
