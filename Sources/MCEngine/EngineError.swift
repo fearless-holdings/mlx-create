@@ -127,7 +127,7 @@ public enum EngineError: Error, Equatable, Sendable {
 public enum OutOfMemoryFailure {
     /// Plain-language copy for a job's failure and the engine status.
     public static let message =
-        "There isn't enough free memory for this model right now. mlx-create has already freed its own memory. "
+        "There isn't enough free memory for this model right now. MLX Create has already freed its own memory. "
         + "Quit apps you aren't using, then try again."
     /// Retry can help once memory frees up.
     public static let retryable = true

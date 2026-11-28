@@ -121,7 +121,7 @@ public enum InstallError: Error, Sendable, Equatable, LocalizedError {
             switch status {
             case 404, 410:
                 return
-                    "The pinned revision of \(path) is no longer served. This version of mlx-create needs an update to install this model."
+                    "The pinned revision of \(path) is no longer served. This version of MLX Create needs an update to install this model."
             case 401, 403:
                 return "Access to \(path) was refused by the server."
             case 429, 500...599:
