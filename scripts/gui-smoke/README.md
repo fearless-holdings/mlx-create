@@ -29,7 +29,7 @@ Exit codes: `0` a test ran to completion and passed; `1` the run started and fai
 
 Evidence lands in `build/gui-smoke/<timestamp>/`: `screenshots/NN <step>.png` (a failing run adds `NN <step> FAILED.png`), `attachments/` (screen recording, hierarchy dumps), `result.xcresult` and `xcodebuild.log`. The runner prints the failing step and its last screenshot, and per-phase times. Old runs are not pruned.
 
-The runner also restores the real `com.fearless.mlx-create` preferences the app wrote (`UserDefaults.standard` ignores the throwaway home) and fails the run if the real library under `~/Library/Application Support/mlx-create` changed. Pick a smoke model without a catalog `reference_timing`, or the app will run its D48 calibration in the throwaway home first (klein 4B has none).
+The runner also restores the real `com.fearless.mlx-create` preferences the app wrote (`UserDefaults.standard` ignores the throwaway home) and fails the run if the real library under `~/Library/Application Support/mlx-create` changed. Every bundled image model carries a catalog `reference_timing`, so the example FLUX run performs D48 calibration in the throwaway home before its first generation.
 
 The window always runs on the laptop's built-in display, whatever monitors are plugged in. macOS may open it on an external display, where XCUITest's `window.screenshot()` fails ("Failed to create screenshot"), so the runner moves it onto the built-in screen through System Events as soon as it exists; the test then waits for that. With no built-in display active (lid closed) the run is NOT RUN. The terminal that starts the runner needs Accessibility (System Settings → Privacy & Security) for the move to work.
 

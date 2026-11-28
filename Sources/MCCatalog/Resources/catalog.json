@@ -222,6 +222,12 @@
       "quantization" : "4-bit (mflux)",
       "ram_gb" : 8,
       "recommend_rank" : 3,
+      "reference_timing" : {
+        "height" : 1024,
+        "seconds" : 22.57,
+        "steps" : 4,
+        "width" : 1024
+      },
       "repo" : "Runpod\/FLUX.2-klein-4B-mflux-4bit",
       "revision" : "7ee1b3aa8178a1240050490072196a57da2bf2a9"
     },
@@ -532,5 +538,5 @@
     }
   ],
   "schema_version" : 1,
-  "sequence" : 11
+  "sequence" : 12
 }
