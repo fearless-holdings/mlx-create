@@ -23,7 +23,7 @@ print(r.stdout, r.stderr)
 
 `--models` is a directory holding model folders as `ORG/NAME`; the app's own `~/Library/Application Support/mlx-create/Models/Weights` works. The model is symlinked into a throwaway home, never copied.
 
-`--agent-models DIR --agent-model-id ORG/NAME` adds the Chat flow: the agent LLM pack is symlinked in the same way, the app launches into Chat mode, and the test sends `a lighthouse on a cliff at sunset`, opens the finished tile large, sends `make it night`, then exercises the ⌘1/⌘2/⌘3 mode switcher. Without the flags only the Canvas flow runs and the command is unchanged.
+`--agent-models DIR --agent-model-id ORG/NAME` adds the Chat flow: the agent LLM pack is symlinked in the same way, the app launches into Chat mode, and the test sends `a lighthouse on a cliff at sunset`, opens the finished tile large, sends `make it night`, then exercises the mode switcher, both by clicking its toolbar segments and by ⌘1/⌘2/⌘3, checking that the highlighted segment follows each mode. Without the flags only the Canvas flow runs and the command is unchanged.
 
 Exit codes: `0` a test ran to completion and passed; `1` the run started and failed (build, timeout, test failure, or the real library or preferences changed); `2` NOT RUN, never a pass: no model configured, model folder missing or without `config.json`/`model_index.json`, mlx-create already running, Developer Mode off, or a test that skipped itself.
 
