@@ -8,7 +8,7 @@ Findings are grouped in three notches:
 - **Notch 2, native look:** a visual system for macOS 26. No HLD change, but it touches every screen. **Open.**
 - **Notch 3, wow:** new behaviour at the product's key moments. Several items need HLD decisions, drafted in [§5](#5-draft-decisions-not-in-the-hld). **Open. Do not change the HLD until the user approves the drafts.**
 
-Deferred by the user to the next round: app icon, accent colour and product name (N2-1).
+App icon, accent colour and product name (N2-1) were deferred by the user to the next round at audit time; they shipped in the Notch 2 stack (PR #68).
 
 ## 1. Method
 
@@ -120,7 +120,7 @@ Each item names its evidence, its code, the fix, and how to check it. Keep the [
 
 | ID | Finding | Evidence | Direction |
 |---|---|---|---|
-| N2-1 | No app icon or asset catalog; the display name is lowercase "mlx-create" in the Dock, the menu bar and About | `Info.plist` has no `CFBundleIconFile`; no `.xcassets` in the repo | **Deferred to next round by the user.** Add `Assets.xcassets` with `AppIcon` and `AccentColor`; pick the product name |
+| N2-1 | No app icon or asset catalog; the display name is lowercase "mlx-create" in the Dock, the menu bar and About | `Info.plist` has no `CFBundleIconFile`; no `.xcassets` in the repo | **Done (PR #68).** `Assets.xcassets` carries the Safelight `#C8401A` `AccentColor` in both appearances and the `AppIcon` (concept C3, drawn as a vector by `scripts/app-icon/draw_icon.swift` at every macOS size). The display name is MLX Create in the Dock, the menu bar and About; `mlx-create` stays for identifiers (the binary, bundle id, paths, keychain services and log subsystems) |
 | N2-2 | The modes are invisible: Chat, Canvas and Gallery only exist in the View menu and ⌘1–3 | `ax dump` toolbar: only the collection menu and the model chip | A segmented Chat / Canvas / Gallery control as the toolbar's principal item, with SF Symbols and help tags. Keep the menu and shortcuts |
 | N2-3 | Every surface is flat white; no materials. It reads as a document, not a macOS 26 app | all screens | The composer as a sidebar material (`.background(.bar)` or an `NSVisualEffectView` sidebar), toolbar items on glass, and the Chat container on glass if V02 contrast holds (it is opaque by decision for contrast; measure `contrast.py` ≥ 4.5:1 over the busiest thumbnails before changing) |
 | N2-4 | Images sit on white; the canvas and large view don't let pictures pop | `15-chat-large-image_*`, `23-*` | A neutral "studio" backdrop (`Color(white: 0.11)` in dark, `Color(white: 0.94)` in light, as a token) behind the canvas and large view; a soft shadow on the image; the facts and actions on a glass bar |

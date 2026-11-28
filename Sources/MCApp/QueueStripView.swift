@@ -16,6 +16,8 @@ struct QueueStripView: View {
                     }
                 }
                 .padding(.horizontal, MCSpacing.group)
+                // Vertical room for the selection halo, which draws outside the cell; the scroll view clips its content.
+                .padding(.vertical, MCStroke.selection)
             }
         }
         .padding(.vertical, MCSpacing.regular)
