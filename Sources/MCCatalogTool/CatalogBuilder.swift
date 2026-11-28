@@ -170,6 +170,7 @@ enum CatalogDiff {
                 lines.append("+ model \(model.id) revision \(model.revision)")
             }
             lines += timingLines(id: model.id, previous: old?.referenceTiming, next: model.referenceTiming)
+            lines += bestForLines(id: model.id, previous: old?.bestFor, next: model.bestFor)
             let oldFiles = Dictionary((old?.files ?? []).map { ($0.path, $0) }, uniquingKeysWith: { first, _ in first })
             let newPaths = Set(model.files.map(\.path))
             for file in model.files {
@@ -198,6 +199,13 @@ enum CatalogDiff {
         guard let previous else { return ["+ \(id) reference_timing \(timingText(next))"] }
         guard previous != next else { return [] }
         return ["~ \(id) reference_timing \(timingText(previous)) -> \(timingText(next))"]
+    }
+
+    private static func bestForLines(id: String, previous: String?, next: String?) -> [String] {
+        guard let next else { return previous == nil ? [] : ["- \(id) best_for"] }
+        guard let previous else { return ["+ \(id) best_for \(next)"] }
+        guard previous != next else { return [] }
+        return ["~ \(id) best_for \(previous) -> \(next)"]
     }
 
     private static func timingText(_ timing: ReferenceTiming) -> String {

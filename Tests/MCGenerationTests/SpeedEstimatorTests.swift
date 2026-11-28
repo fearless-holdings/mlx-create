@@ -93,6 +93,13 @@ private func calibration(engine: String = "26.10.3") -> CalibrationBaseline {
         #expect(SpeedEstimate.estimated(80).label == "1 min 20 s (estimate)")
     }
 
+    @Test func chipLabelsCarryTheEstimateWordOnlyForEstimatedTimes() {
+        #expect(SpeedEstimate.measured(12).chipLabel == "Fast on this Mac · about 12 s")
+        #expect(SpeedEstimate.estimated(12).chipLabel == "Fast on this Mac · about 12 s (estimate)")
+        #expect(SpeedEstimate.estimated(30).chipLabel == "About 30 s on this Mac (estimate)")
+        #expect(SpeedEstimate.estimated(80).chipLabel == "Slow on this Mac · about 80 s (estimate)")
+    }
+
     @Test func secondsRoundToTheNearestWholeSecond() {
         #expect(SpeedEstimate.measured(59.6).label == "about 1 min")
     }

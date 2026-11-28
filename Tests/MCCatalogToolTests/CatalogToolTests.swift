@@ -171,6 +171,31 @@ enum BuildFixture {
         #expect(removeLines.contains { $0.contains("demo-model") && $0.contains("reference_timing") })
     }
 
+    @Test func bestForIsCarriedAndNamedInTheDiffWhenAddedChangedOrRemoved() async throws {
+        let withBestFor = BuildFixture.sourceJSON.replacingOccurrences(
+            of: "\"id\": \"demo-model\",", with: "\"id\": \"demo-model\",\n\"best_for\": \"Quick drafts\",")
+        let plain = try await CatalogBuilder(hub: BuildFixture.hub()).build(source: BuildFixture.source(), previous: nil)
+        let added = try await CatalogBuilder(hub: BuildFixture.hub())
+            .build(source: try SourceCatalog.load(Data(withBestFor.utf8)), previous: plain.catalog)
+        #expect(added.catalog.models.first?.bestFor == "Quick drafts")
+        #expect(CatalogDiff.lines(previous: plain.catalog, next: added.catalog).contains("+ demo-model best_for Quick drafts"))
+
+        let unchanged = try await CatalogBuilder(hub: BuildFixture.hub())
+            .build(source: try SourceCatalog.load(Data(withBestFor.utf8)), previous: added.catalog)
+        #expect(!CatalogDiff.lines(previous: added.catalog, next: unchanged.catalog).contains { $0.contains("best_for") })
+
+        let edited = withBestFor.replacingOccurrences(of: "Quick drafts", with: "Photoreal people")
+        let changed = try await CatalogBuilder(hub: BuildFixture.hub())
+            .build(source: try SourceCatalog.load(Data(edited.utf8)), previous: added.catalog)
+        #expect(
+            CatalogDiff.lines(previous: added.catalog, next: changed.catalog)
+                .contains("~ demo-model best_for Quick drafts -> Photoreal people"))
+
+        let removed = try await CatalogBuilder(hub: BuildFixture.hub())
+            .build(source: BuildFixture.source(), previous: changed.catalog)
+        #expect(CatalogDiff.lines(previous: changed.catalog, next: removed.catalog).contains("- demo-model best_for"))
+    }
+
     @Test func identicalInputsProduceByteIdenticalOutput() async throws {
         let first = try await CatalogBuilder(hub: BuildFixture.hub()).build(source: BuildFixture.source(), previous: nil)
         let second = try await CatalogBuilder(hub: BuildFixture.hub()).build(source: BuildFixture.source(), previous: nil)

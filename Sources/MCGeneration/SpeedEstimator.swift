@@ -92,13 +92,19 @@ extension SpeedEstimate {
         }
     }
 
-    /// The model-chip wording (N2-6): a fast/about/slow band by seconds, with the time in whole seconds.
+    /// The model-chip wording (N2-6): a fast/about/slow band by seconds, with the time in whole seconds and estimates
+    /// labeled as estimates (KTD6).
     public var chipLabel: String {
         let whole = max(1, Int(seconds.rounded()))
+        let suffix =
+            switch self {
+            case .measured: ""
+            case .estimated: " (estimate)"
+            }
         switch seconds {
-        case ..<20: return "Fast on this Mac · about \(whole) s"
-        case ..<60: return "About \(whole) s on this Mac"
-        default: return "Slow on this Mac · about \(whole) s"
+        case ..<20: return "Fast on this Mac · about \(whole) s\(suffix)"
+        case ..<60: return "About \(whole) s on this Mac\(suffix)"
+        default: return "Slow on this Mac · about \(whole) s\(suffix)"
         }
     }
 
