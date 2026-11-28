@@ -7,9 +7,12 @@ extension SmokeSession {
     }
 
     /// Polls `condition` until it holds or `seconds` pass. XCUITest queries are synchronous, so this just sleeps between them.
+    /// The deadline rides `SuspendingClock`, which stops while the Mac is asleep: a wall-clock deadline would expire across a
+    /// DarkWake and fail the step the moment the machine came back.
     func eventually(within seconds: TimeInterval = 10, _ condition: () -> Bool) -> Bool {
-        let deadline = Date().addingTimeInterval(seconds)
-        while Date() < deadline {
+        let clock = SuspendingClock()
+        let deadline = clock.now.advanced(by: .milliseconds(Int((seconds * 1000).rounded(.up))))
+        while clock.now < deadline {
             if condition() { return true }
             Thread.sleep(forTimeInterval: 0.25)
         }
