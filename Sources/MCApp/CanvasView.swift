@@ -58,7 +58,7 @@ private struct ContentCanvas: View {
                 SelectedImageView(model: model, image: image)
                     .id(image.id)
                     .shadow(
-                        color: .black.opacity(
+                        color: MCTone.imageShadow.opacity(
                             colorScheme == .dark ? MCShadow.imageOpacityDark : MCShadow.imageOpacityLight),
                         radius: MCShadow.imageRadius,
                         y: MCShadow.imageY
@@ -179,6 +179,7 @@ private struct CanvasImageBar: View {
                     .help(image.prompt)
                 Text(facts)
                     .font(.mcSupporting)
+                    // no token: facts are metadata, but `.secondary` is too faint on the glass bar; 75% primary keeps them subordinate.
                     .foregroundStyle(.primary.opacity(0.75))
             }
             .frame(maxWidth: .infinity, alignment: .leading)

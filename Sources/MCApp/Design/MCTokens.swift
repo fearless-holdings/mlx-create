@@ -104,7 +104,7 @@ extension Font {
 }
 
 /// Semantic colours. Text uses `.primary` for anything essential and `.secondary` only for supplementary metadata;
-/// the tones below colour SF Symbols, fills and rings, never text (V02).
+/// the tones below colour SF Symbols, fills, shadows and rings, never text (V02).
 enum MCTone {
     static let critical = Color.red
     static let warning = Color.orange
@@ -114,6 +114,8 @@ enum MCTone {
     static let separator = Color(nsColor: .separatorColor)
     static let textBackground = Color(nsColor: .textBackgroundColor)
     static let controlBackground = Color(nsColor: .controlBackgroundColor)
+    /// The colour every image shadow uses; its strength lives in ``MCShadow``'s opacity tokens.
+    static let imageShadow = Color.black
     /// The neutral "studio" backdrop behind the canvas and the large view (N2-4): it stays out of the picture's way.
     static let studio = Color(
         nsColor: NSColor(name: nil) { appearance in

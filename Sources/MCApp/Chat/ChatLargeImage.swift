@@ -21,7 +21,7 @@ struct ChatLargeImage: View {
             if let image {
                 SelectedImageView(model: model, image: image)
                     .shadow(
-                        color: .black.opacity(
+                        color: MCTone.imageShadow.opacity(
                             colorScheme == .dark ? MCShadow.imageOpacityDark : MCShadow.imageOpacityLight),
                         radius: MCShadow.imageRadius,
                         y: MCShadow.imageY
