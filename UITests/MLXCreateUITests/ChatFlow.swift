@@ -37,6 +37,12 @@ extension SmokeSession {
         ).firstMatch
     }
 
+    /// One segment of the toolbar's View mode control. AppKit exposes a single-selection `NSSegmentedControl` as
+    /// radio buttons, as SwiftUI's segmented pickers are exposed.
+    func modeSegment(_ title: String) -> XCUIElement {
+        app.radioButtons[title]
+    }
+
     func typeInChat(_ text: String) {
         chatField.click()
         app.typeText(text)
@@ -184,17 +190,38 @@ extension SmokeSession {
             print("folded: container \(waitForSettledFrame(chatContainer))")
         }
         step("Mode switcher") {
-            // ⌘2 Canvas (the Prompt field), ⌘3 Gallery (the Model chip is back, the Prompt field is gone), ⌘1 Chat.
-            app.typeKey("2", modifierFlags: .command)
-            XCTAssertTrue(eventually { self.promptField.exists }, "⌘2 did not open Canvas")
+            // Direct clicks drive the toolbar control, while the shortcuts must both change the mode and move its
+            // highlight. The content assertions prove the mode; `isSelected` proves the toolbar followed it.
+            let chat = modeSegment("Chat")
+            let canvas = modeSegment("Canvas")
+            let gallery = modeSegment("Gallery")
+            require(chat, "the Chat segment is missing")
+            require(canvas, "the Canvas segment is missing")
+            require(gallery, "the Gallery segment is missing")
+            XCTAssertTrue(eventually { self.isSelected(chat) }, "the Chat segment did not start selected")
+
+            canvas.click()
+            XCTAssertTrue(
+                eventually { self.promptField.exists && self.isSelected(canvas) },
+                "clicking Canvas did not open Canvas with its segment selected")
             app.typeKey("3", modifierFlags: .command)
             XCTAssertTrue(
                 eventually {
-                    self.element(labelPrefix: "Model: ").exists && !self.promptField.exists
-                }, "⌘3 did not open the gallery")
+                    self.element(labelPrefix: "Model: ").exists && !self.promptField.exists && self.isSelected(gallery)
+                }, "⌘3 did not open the gallery with its segment selected")
+            chat.click()
+            XCTAssertTrue(
+                eventually { self.chatField.exists && self.isSelected(chat) },
+                "clicking Chat did not return to Chat with its segment selected")
+
+            app.typeKey("2", modifierFlags: .command)
+            XCTAssertTrue(
+                eventually { self.promptField.exists && self.isSelected(canvas) },
+                "⌘2 did not open Canvas with its segment selected")
             app.typeKey("1", modifierFlags: .command)
             XCTAssertTrue(
-                eventually { self.chatField.exists }, "⌘1 did not return to Chat")
+                eventually { self.chatField.exists && self.isSelected(chat) },
+                "⌘1 did not return to Chat with its segment selected")
         }
     }
 }

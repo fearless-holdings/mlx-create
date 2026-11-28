@@ -136,6 +136,7 @@ private struct ModePicker: NSViewRepresentable {
         }
     }
 
+    @MainActor
     final class Coordinator: NSObject {
         @Binding var mode: MainWindowMode
 
